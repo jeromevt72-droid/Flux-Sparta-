@@ -344,7 +344,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 </div>
 <script>
 const c=document.getElementById('game'),ctx=c.getContext('2d');
-let W,H,dpr,playing=false,paused=false,last=0,score=0,combo=1,level=1,streak=0,best=0,misses=0,revivesUsedThisRun=0,flux=0,fluxMode=0,overload=0,missFragments=[],comboTimer=0,levelBanner=0,perfectFlash=0,levelHold=0,levelPoints=0,orbValue=20;
+let W,H,dpr,playing=false,paused=false,last=0,score=0,combo=1,level=1,streak=0,best=0,misses=0,revivesUsedThisRun=0,flux=0,fluxMode=0,overload=0,missFragments=[],comboTimer=0,levelBanner=0,perfectFlash=0,levelHold=0,levelPoints=0,orbValue=20,bonusTimer=0,growTimer=0;
 let difficulty=localStorage.fluxDifficulty||'medium', callsign=localStorage.fluxCallsign||'', country=localStorage.fluxCountry||'US';
 let profileComplete=localStorage.fluxProfileComplete==='1';
 if(!localStorage.fluxPlayerId){localStorage.fluxPlayerId=(crypto.randomUUID?crypto.randomUUID():'p'+Date.now()+Math.random().toString(16).slice(2));}
@@ -531,7 +531,7 @@ function playThreat(){
 }
 
 function newGame(){
- score=0;combo=1;level=1;streak=0;flux=0;fluxMode=0;overload=0;misses=0;revivesUsedThisRun=0;missFragments=[];particles=[];texts=[];shake=0;targets=[];comboTimer=0;levelBanner=0;perfectFlash=0;
+ score=0;combo=1;level=1;streak=0;flux=0;fluxMode=0;overload=0;misses=0;revivesUsedThisRun=0;missFragments=[];particles=[];texts=[];shake=0;targets=[];comboTimer=0;levelBanner=0;perfectFlash=0;bonusTimer=rand(5,9);growTimer=rand(9,14);
  applyCelestialBackground(level);
  setPaddle(W/2);
  paddle.w=isPhone()?132:150; paddle.handleH=isPhone()?22:28;
@@ -577,6 +577,26 @@ function spawnTarget(forceColor=null){
  let color=forceColor==null?Math.floor(Math.random()*Math.min(colors.length,4+Math.floor(level/2))):forceColor;
  const [x,y]=safeSpawnPoint(20);
  addTarget(color,x,y,isPhone()?16+Math.random()*5:18+Math.random()*6);
+}
+// XP BONUS ORB — small, color-agnostic, high-value, despawns fast.
+// Rewards taking a risky shot away from the current combo chain instead of
+// only ever chasing the matching-color target.
+function spawnBonusOrb(){
+ if(targets.some(t=>t.bonus)) return;
+ const [x,y]=safeSpawnPoint(12);
+ const r=isPhone()?9:11;
+ targets.push({x,y,r,color:0,spin:0,vx:rand(-.5,.5),vy:rand(-.4,.4),phase:rand(0,Math.PI*2),age:0,bonus:true,danger:false,life:rand(4.2,5.6)});
+}
+// GROWING "OVERLOAD" ORB — charges up to a larger max size over a few seconds.
+// While charging it behaves like a normal orb (still needs color match).
+// Once matured it pulses to signal "pop me now": any contact bursts it for a
+// big score bonus and kicks the ball onto a new trajectory based on impact angle.
+function spawnGrowingOrb(){
+ if(targets.some(t=>t.growing)) return;
+ const [x,y]=safeSpawnPoint(30);
+ const color=Math.floor(Math.random()*Math.min(colors.length,4+Math.floor(level/2)));
+ const maxR=isPhone()?34:40;
+ targets.push({x,y,r:12,maxR,color,spin:rand(0,6),vx:rand(-.22,.22),vy:rand(-.18,.18),phase:rand(0,Math.PI*2),age:0,growing:true,matured:false,danger:false});
 }
 function resetFieldAfterMiss(){
  // A miss starts a clean practice attempt at the SAME level.
@@ -728,6 +748,40 @@ function fuse(t){
  if(targets.length<targetCap())spawnTarget();
  updateHud();
 }
+// XP bonus orb: any contact pops it — no color requirement, no bounce, just a
+// straight reward for going out of your way to grab it before it despawns.
+function popBonus(t){
+ const idx=targets.indexOf(t); if(idx<0)return;
+ const points=Math.round(120+combo*10+(fluxMode>0?60:0));
+ score+=points;
+ addFlux(10);
+ haptic(30);
+ playFusion(Math.min(12,combo+3));
+ burst(t.x,t.y,'#ffd45c',22);
+ popup(t.x,t.y,'BONUS +'+points,'#ffd45c');
+ targets.splice(idx,1);
+ flash(.12);shake=Math.min(10,shake+3);
+ updateHud();
+}
+// Overload orb burst: rewards a matured orb with a big score bonus AND kicks
+// the ball onto a new trajectory based on exactly where it was struck — a
+// strong deflection, not a random one, so a skilled player can aim the kick.
+function burstGrowing(t,maxSpeed){
+ const idx=targets.indexOf(t); if(idx<0)return;
+ const points=Math.round(200+combo*15+(fluxMode>0?100:0));
+ score+=points;
+ addFlux(18);
+ haptic(60);
+ playFlux();
+ const a=Math.atan2(ball.y-t.y,ball.x-t.x);
+ const kickSpeed=Math.min(maxSpeed,Math.max(9,Math.hypot(ball.vx,ball.vy)*1.35+2));
+ ball.vx=Math.cos(a)*kickSpeed;ball.vy=Math.sin(a)*kickSpeed;
+ burst(t.x,t.y,colors[t.color],40);
+ popup(t.x,t.y,'OVERLOAD +'+points,colors[t.color]);
+ targets.splice(idx,1);
+ flash(.28);shake=Math.min(16,shake+9);
+ updateHud();
+}
 function flash(v){document.getElementById('flash').style.opacity=v;setTimeout(()=>document.getElementById('flash').style.opacity=0,80)}
 function updateHud(){
  document.getElementById('score').textContent=score;
@@ -789,18 +843,45 @@ function update(dt){
    const topBound=108+t.r, botBound=Math.max(topBound+60,H*.79)-t.r;
    if(t.x<t.r+16 || t.x>W-t.r-16){t.vx*=-1;t.x=Math.max(t.r+16,Math.min(W-t.r-16,t.x));}
    if(t.y<topBound || t.y>botBound){t.vy*=-1;t.y=Math.max(topBound,Math.min(botBound,t.y));}
+   if(t.growing && !t.matured){
+     t.r=Math.min(t.maxR,12+(t.age/4.2)*(t.maxR-12));
+     if(t.r>=t.maxR){t.matured=true;burst(t.x,t.y,'#fff',10);haptic(20);}
+   }
  }
+ // Bonus orb lifespan: despawn quietly if the player doesn't grab it in time.
+ for(const t of [...targets]){
+   if(t.bonus){
+     t.life-=dt;
+     if(t.life<=0){const i=targets.indexOf(t);if(i>=0)targets.splice(i,1);}
+   }
+ }
+ // Timed spawns for the two special orb types, independent of the normal target cap.
+ bonusTimer-=dt;
+ if(bonusTimer<=0 && playing){spawnBonusOrb();bonusTimer=rand(7,12);}
+ growTimer-=dt;
+ if(growTimer<=0 && playing && level>=2){spawnGrowingOrb();growTimer=rand(13,19);}
  // target collisions
  for(const t of [...targets]){
    if(dist(ball,t)<ball.r+t.r){
+     if(t.bonus){popBonus(t);continue}
+     if(t.growing && t.matured){burstGrowing(t,maxSpeed);continue}
      if(t.color===ball.color){fuse(t)}
      else{
        const a=Math.atan2(ball.y-t.y,ball.x-t.x);
+       // Separate the two shapes along the collision axis first, so they can't
+       // keep re-triggering the same bounce frame after frame (that repeated
+       // re-trigger is what made the orb look "dragged along" with the ball).
+       const overlap=(ball.r+t.r)-dist(ball,t);
+       if(overlap>0){
+         ball.x+=Math.cos(a)*overlap*.6;ball.y+=Math.sin(a)*overlap*.6;
+         t.x-=Math.cos(a)*overlap*.4;t.y-=Math.sin(a)*overlap*.4;
+       }
        ball.vx+=Math.cos(a)*(.72+level*.025);ball.vy+=Math.sin(a)*(.72+level*.025);
        const n=Math.hypot(ball.vx,ball.vy);if(n>maxSpeed){ball.vx*=maxSpeed/n;ball.vy*=maxSpeed/n}
        burst(t.x,t.y,colors[t.color],5);playOrbHit(Math.hypot(ball.vx,ball.vy));
-       t.x+=Math.cos(a)*7;t.y+=Math.sin(a)*7;
-       t.vx+=Math.cos(a)*.08;t.vy+=Math.sin(a)*.08;
+       // Target orb kicks AWAY from the ball (opposite direction), not the
+       // same direction the ball just got pushed — that was the bug.
+       t.vx-=Math.cos(a)*.08;t.vy-=Math.sin(a)*.08;
      }
    }
  }
@@ -872,6 +953,33 @@ function draw(){
  for(let y=100;y<H-25;y+=42){ctx.beginPath();ctx.moveTo(15,y);ctx.lineTo(W-15,y);ctx.stroke()}
  // targets
  for(const t of targets){
+   if(t.bonus){
+     ctx.save();
+     const pulse=.75+.25*Math.sin(performance.now()*.012+t.phase);
+     ctx.globalAlpha=Math.min(1,t.life);
+     ctx.shadowBlur=26;ctx.shadowColor='#ffd45c';ctx.fillStyle='#ffd45c40';ctx.strokeStyle='#ffd45c';ctx.lineWidth=2;
+     ctx.beginPath();ctx.arc(t.x,t.y,t.r*pulse,0,Math.PI*2);ctx.fill();ctx.stroke();
+     ctx.globalAlpha=.95;ctx.fillStyle='#fff8e0';ctx.font='900 '+(t.r*1.1)+'px -apple-system,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+     ctx.fillText('✦',t.x,t.y+1);
+     ctx.restore();
+     continue;
+   }
+   if(t.growing){
+     ctx.save();
+     const growPct=t.matured?1:t.r/t.maxR;
+     const glow=t.matured?(.6+.4*Math.sin(performance.now()*.01+t.phase)):.3+.25*growPct;
+     ctx.shadowBlur=t.matured?32:18;ctx.shadowColor=colors[t.color];ctx.fillStyle=colors[t.color]+'30';ctx.strokeStyle=colors[t.color];ctx.lineWidth=t.matured?3:2;
+     ctx.globalAlpha=1;
+     ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.fill();ctx.stroke();
+     if(t.matured){
+       ctx.globalAlpha=glow;ctx.lineWidth=2;ctx.setLineDash([3,5]);
+       ctx.beginPath();ctx.arc(t.x,t.y,t.r+8,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+     }
+     ctx.globalAlpha=.85;ctx.fillStyle=t.matured?'#ffffff':'#04101a';ctx.font='900 '+(t.r*.7)+'px -apple-system,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+     ctx.fillText(t.matured?'⚡':glyphs[t.color%glyphs.length],t.x,t.y+1);
+     ctx.restore();
+     continue;
+   }
    ctx.save();ctx.shadowBlur=22;ctx.shadowColor=colors[t.color];ctx.fillStyle=colors[t.color]+'28';ctx.strokeStyle=colors[t.color];ctx.lineWidth=2;
    ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.fill();ctx.stroke();
    ctx.globalAlpha=.7;ctx.beginPath();ctx.arc(t.x- t.r*.25,t.y-t.r*.28,t.r*.2,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();
