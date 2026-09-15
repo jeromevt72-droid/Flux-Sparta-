@@ -22,11 +22,7 @@ export default {
       return new Response("Not found", { status: 404 });
     } catch (err) {
       console.error(err);
-      // TEMPORARY DEBUG: expose the real error message in the response so it
-      // shows up directly in the game's error popup. Revert this once the
-      // checkout issue is diagnosed — never ship detailed error text to
-      // players in the final build.
-      return json({ error: "DEBUG: " + (err && err.message ? err.message : String(err)) }, 500);
+      return json({ error: "Server error" }, 500);
     }
   },
 };
@@ -112,7 +108,7 @@ async function createCheckout(request, env) {
   let body;
   try { body = await request.json(); } catch { return json({ error: "Invalid request body" }, 400); }
   const sku = body && body.sku;
-  const priceMap = { toxic: env.STRIPE_PRICE_TOXIC, cosmic: env.STRIPE_PRICE_COSMIC };
+  const priceMap = { toxic: env.STRIPE_PRICE_TOXIC, cosmic: env.STRIPE_PRICE_COSMIC, neon: env.STRIPE_PRICE_NEON };
   const price = priceMap[sku];
   if (!sku || !price) return json({ error: "Unknown or missing sku" }, 400);
   if (!env.STRIPE_SECRET_KEY) return json({ error: "Server is not configured with a Stripe key yet" }, 500);
@@ -130,7 +126,7 @@ async function createCheckout(request, env) {
     body: params.toString(),
   });
   const data = await stripeResp.json();
-  if (!stripeResp.ok) return json({ error: ((data.error && data.error.message) || "Stripe rejected the request") + (data.error && data.error.param ? (" [param: " + data.error.param + "]") : "") }, 500);
+  if (!stripeResp.ok) return json({ error: (data.error && data.error.message) || "Stripe rejected the request" }, 500);
   return json({ url: data.url });
 }
 
@@ -142,7 +138,7 @@ async function verifySession(request, env) {
     headers: { Authorization: `Bearer ${env.STRIPE_SECRET_KEY}` },
   });
   const data = await stripeResp.json();
-  if (!stripeResp.ok) return json({ error: ((data.error && data.error.message) || "Stripe rejected the request") + (data.error && data.error.param ? (" [param: " + data.error.param + "]") : "") }, 500);
+  if (!stripeResp.ok) return json({ error: (data.error && data.error.message) || "Stripe rejected the request" }, 500);
   return json({ paid: data.payment_status === "paid", sku: (data.metadata && data.metadata.sku) || null });
 }
 
