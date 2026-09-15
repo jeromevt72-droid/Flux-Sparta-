@@ -22,7 +22,7 @@ export default {
       return new Response("Not found", { status: 404 });
     } catch (err) {
       console.error(err);
-      return json({ error: "Server error" }, 500);
+      return json({ error: "DEBUG: " + (err && err.message ? err.message : String(err)) }, 500)
     }
   },
 };
