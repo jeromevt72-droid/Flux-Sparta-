@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "flux-sparta",
+  "main": "worker.js",
+  "compatibility_date": "2026-09-14",
+  "assets": {
+    "directory": ".",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  "kv_namespaces": [
+    {
+      "binding": "LEADERBOARD",
+      "id": "296ea87bdb664e61a60ada3876ae6e55"
+    }
+  ],
+  "vars": {
+    "STRIPE_PRICE_TOXIC": "price_1UFmSPD3WappewxnvZMd3Uti",
+    "STRIPE_PRICE_COSMIC": "price_1UFmXnD3WappewxnIBJOTvtj",
+    "SITE_URL": "https://flux-sparta-3.jeromevt72.workers.dev"
+  }
+}
