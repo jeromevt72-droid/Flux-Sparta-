@@ -23,7 +23,8 @@ canvas{position:absolute;inset:0;width:100%;height:100%}
    so HUD text and orbs stay readable. Independent of CELESTIAL_THEMES: safe
    to delete this rule + the #skinBgLayer div + applySkinBackground() without
    affecting scoring, skins ownership, or the leaderboard. */
-#skinBgLayer{position:absolute;inset:0;z-index:0;background-size:cover;background-position:center;background-repeat:no-repeat;opacity:0;transition:opacity .6s ease}
+#skinBgLayer{position:absolute;inset:0;z-index:0;background-size:cover;background-position:center;background-repeat:no-repeat;opacity:0;transition:opacity .6s ease;transform-origin:50% 50%;animation:bgLife 66s ease-in-out infinite;will-change:transform,filter}
+@keyframes bgLife{0%{transform:scale(1.06) translate(0,0);filter:brightness(1) saturate(1)}50%{transform:scale(1.06) translate(-2.2%,0);filter:brightness(1.1) saturate(1.06)}100%{transform:scale(1.06) translate(0,0);filter:brightness(1) saturate(1)}}
 /* MOVING CELESTIAL BACKDROP — purely decorative layers that sit behind the
    (transparent) game canvas, so #app's own gradient + the level-tier color
    swap in applyCelestialBackground() are untouched. Safe to remove: delete
@@ -371,7 +372,7 @@ const SKINS={
   aurora:{name:'AURORA',price:null,colors:['#35e6ff','#5c9cff','#8c5cff','#c64dff','#ff4f98','#ff6b52','#ffc447','#d9ff39','#45f0c0']},
   toxic:{name:'TOXIC',price:'$1.99',colors:['#9dff2e','#c8ff45','#5cff9c','#2effd6','#e8ff5c','#7bff3d','#39ffb0','#b6ff2e','#4dffe0']},
   cosmic:{name:'COSMIC',price:'$1.99',colors:['#a25cff','#7b3fff','#ff5cf0','#c23fff','#5c7bff','#ff3fb0','#9d3fff','#5cf0ff','#d13fff']},
-  neon:{name:'NEON TOKYO',price:'$1.99',bg:'/neon-tokyo.webp',colors:['#ff2ec8','#ff6bd9','#2ecbff','#5c8cff','#ff3fa0','#39e0ff','#ff8fd6','#7a5cff','#2effe0']}
+  solar:{name:'SOLAR INFERNO',price:'$2.99',bg:'/solar-inferno.webp',colors:['#ff8c2e','#ffb347','#ff5c2e','#ffd166','#ff3f1a','#ff9e4d','#e63900','#ffcc00','#ff6b1a']}
 };
 // CELESTIAL LEVEL-UP BACKGROUND — self-contained and safe to remove.
 // To turn this off entirely: set CELESTIAL_BG_ENABLED=false (one line),

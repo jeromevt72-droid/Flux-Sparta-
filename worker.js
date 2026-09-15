@@ -108,7 +108,7 @@ async function createCheckout(request, env) {
   let body;
   try { body = await request.json(); } catch { return json({ error: "Invalid request body" }, 400); }
   const sku = body && body.sku;
-  const priceMap = { toxic: env.STRIPE_PRICE_TOXIC, cosmic: env.STRIPE_PRICE_COSMIC, neon: env.STRIPE_PRICE_NEON };
+  const priceMap = { toxic: env.STRIPE_PRICE_TOXIC, cosmic: env.STRIPE_PRICE_COSMIC, solar: env.STRIPE_PRICE_SOLAR };
   const price = priceMap[sku];
   if (!sku || !price) return json({ error: "Unknown or missing sku" }, 400);
   if (!env.STRIPE_SECRET_KEY) return json({ error: "Server is not configured with a Stripe key yet" }, 500);
