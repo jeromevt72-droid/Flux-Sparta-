@@ -144,7 +144,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 <div id="pressureBadge" class="badge stable">FIELD • STABLE</div>
 </div>
 <div id="pauseOverlay" class="hidden"><div class="panel"><h2>FLUX PAUSED</h2><p>Your field is frozen. Take a breath, then get back in the flow.</p><button id="resumeBtn">RESUME</button><button id="pauseMenuBtn" style="margin-top:8px;background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none">⌂ END RUN &amp; MENU</button></div></div>
-<div id="shop" class="hidden"><div class="panel menuPanel"><h2 style="color:#62eaff;letter-spacing:.14em;margin:0 0 4px">THEMES & SKINS</h2><p style="margin:0 0 14px">Cosmetic only — never changes gameplay fairness.</p><div id="shopList"></div><div class="menuLabel" style="margin-top:16px">BACKDROP</div><p style="margin:0 0 10px;font-size:10px">Independent of your color skin — mix and match freely.</p><div id="backgroundList"></div><button id="shopClose" style="margin-top:14px">BACK</button></div></div>
+<div id="shop" class="hidden"><div class="panel menuPanel"><h2 style="color:#62eaff;letter-spacing:.14em;margin:0 0 4px">THEMES & SKINS</h2><p style="margin:0 0 14px">Cosmetic only — never changes gameplay fairness.</p><div id="shopList"></div><div class="menuLabel" style="margin-top:16px">WORLD</div><div id="backgroundList"></div><button id="shopClose" style="margin-top:14px">BACK</button></div></div>
 <div id="start"><div class="panel menuPanel"><h1>FLUX</h1><div class="acronym">FLOW • LAUNCH • UNITE • XCELERATE</div><div class="menuSection"><div class="menuLabel">SELECT YOUR FLOW</div><div class="difficulty" id="difficulty"><button data-d="easy">EASY</button><button data-d="medium">MEDIUM</button><button data-d="hard">HARD</button></div></div><div id="profileEditor" class="profileRow"><input id="callsign" maxlength="14" placeholder="CALLSIGN"><select id="country"><option value="AF">🇦🇫 AFGHANISTAN</option>
 <option value="AL">🇦🇱 ALBANIA</option>
 <option value="DZ">🇩🇿 ALGERIA</option>
@@ -1236,10 +1236,10 @@ function buildShopUI(){
     const row=document.createElement('div');
     row.className='shopRow';
     row.innerHTML=`<div class="shopSwatches">${s.colors.slice(0,5).map(c=>`<i style="background:${c}"></i>`).join('')}</div>
-      <div class="shopInfo"><b>${s.name}</b><span>${owned?(equipped?'EQUIPPED':'OWNED'):s.price}</span></div>`;
+      <div class="shopInfo"><b>${s.name}</b><span>${owned?(equipped?'ACTIVE':'OWNED'):s.price}</span></div>`;
     const btn=document.createElement('button');
-    if(equipped){btn.textContent='EQUIPPED';btn.disabled=true;}
-    else if(owned){btn.textContent='EQUIP';btn.onclick=()=>equipSkin(sku);}
+    if(equipped){btn.textContent='ACTIVE';btn.disabled=true;}
+    else if(owned){btn.textContent='USE';btn.onclick=()=>equipSkin(sku);}
     else{btn.textContent='BUY '+s.price;btn.onclick=()=>buySkin(sku,btn);}
     row.appendChild(btn);
     list.appendChild(row);
@@ -1254,7 +1254,7 @@ function buildBackgroundUI(){
   const list=document.getElementById('backgroundList');
   if(!list)return;
   list.innerHTML='';
-  const options=[['none',{name:'ORIGINAL'}]].concat(
+  const options=[['none',{name:'CELESTIAL'}]].concat(
     Object.entries(SKINS).filter(([sku,s])=>s.bg && ownsSkin(sku))
   );
   options.forEach(([key,s])=>{
@@ -1262,7 +1262,7 @@ function buildBackgroundUI(){
     const row=document.createElement('div');
     row.className='shopRow';
     row.innerHTML=`<div class="shopSwatches">${key==='none'?'<i style="background:#1c2c5c"></i>':`<i style="background:${s.colors[0]}"></i>`}</div>
-      <div class="shopInfo"><b>${s.name}</b><span>${key==='none'?'No image — plain field':'Owned backdrop'}</span></div>`;
+      <div class="shopInfo"><b>${s.name}</b></div>`;
     const btn=document.createElement('button');
     if(active){btn.textContent='ACTIVE';btn.disabled=true;}
     else{btn.textContent='USE';btn.onclick=()=>setBackground(key);}
