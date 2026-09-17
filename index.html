@@ -144,7 +144,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 <div id="pressureBadge" class="badge stable">FIELD • STABLE</div>
 </div>
 <div id="pauseOverlay" class="hidden"><div class="panel"><h2>FLUX PAUSED</h2><p>Your field is frozen. Take a breath, then get back in the flow.</p><button id="resumeBtn">RESUME</button><button id="pauseMenuBtn" style="margin-top:8px;background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none">⌂ END RUN &amp; MENU</button></div></div>
-<div id="shop" class="hidden"><div class="panel menuPanel"><h2 style="color:#62eaff;letter-spacing:.14em;margin:0 0 4px">THEMES & SKINS</h2><p style="margin:0 0 14px">Cosmetic only — never changes gameplay fairness.</p><div id="shopList"></div><button id="shopClose" style="margin-top:14px">BACK</button></div></div>
+<div id="shop" class="hidden"><div class="panel menuPanel"><h2 style="color:#62eaff;letter-spacing:.14em;margin:0 0 4px">THEMES & SKINS</h2><p style="margin:0 0 14px">Cosmetic only — never changes gameplay fairness.</p><div id="shopList"></div><div class="menuLabel" style="margin-top:16px">BACKDROP</div><p style="margin:0 0 10px;font-size:10px">Independent of your color skin — mix and match freely.</p><div id="backgroundList"></div><button id="shopClose" style="margin-top:14px">BACK</button></div></div>
 <div id="start"><div class="panel menuPanel"><h1>FLUX</h1><div class="acronym">FLOW • LAUNCH • UNITE • XCELERATE</div><div class="menuSection"><div class="menuLabel">SELECT YOUR FLOW</div><div class="difficulty" id="difficulty"><button data-d="easy">EASY</button><button data-d="medium">MEDIUM</button><button data-d="hard">HARD</button></div></div><div id="profileEditor" class="profileRow"><input id="callsign" maxlength="14" placeholder="CALLSIGN"><select id="country"><option value="AF">🇦🇫 AFGHANISTAN</option>
 <option value="AL">🇦🇱 ALBANIA</option>
 <option value="DZ">🇩🇿 ALGERIA</option>
@@ -402,16 +402,27 @@ function applyCelestialBackground(lvl){
 let activeSkin=localStorage.fluxSkin||'aurora';
 function currentPalette(){return (SKINS[activeSkin]||SKINS.aurora).colors}
 function ownsSkin(sku){return sku==='aurora'||localStorage['fluxOwned_'+sku]==='1'}
-// Shows/hides the optional full-image backdrop for skins that define one
-// (currently just 'neon'). Independent of the level-based CELESTIAL_THEMES
-// gradient above — that keeps changing underneath at low opacity too, it's
-// just visually dominated by the image while a bg-skin is equipped.
+// Backdrop image is now its OWN choice, independent of which color palette
+// (skin) is equipped -- e.g. you can keep the Solar Inferno backdrop while
+// playing with Cosmic or Toxic colors, or turn the backdrop off entirely
+// and keep the plain level-gradient background. "none" is always available
+// for free; any other value requires owning that skin's backdrop asset.
+let activeBackground=localStorage.fluxBackground||'none';
 function applySkinBackground(){
   const layer=document.getElementById('skinBgLayer');
   if(!layer)return;
-  const s=SKINS[activeSkin];
-  if(s && s.bg){layer.style.backgroundImage=`url('${s.bg}')`;layer.style.opacity='0.5';}
-  else{layer.style.opacity='0';}
+  const s=SKINS[activeBackground];
+  if(activeBackground!=='none' && s && s.bg && ownsSkin(activeBackground)){
+    layer.style.backgroundImage=`url('${s.bg}')`;layer.style.opacity='0.5';
+  } else {
+    layer.style.opacity='0';
+  }
+}
+function setBackground(bg){
+  activeBackground=bg;
+  try{localStorage.fluxBackground=bg;}catch(e){}
+  applySkinBackground();
+  buildBackgroundUI();
 }
 // `colors` drives every orb/paddle-hit color lookup in the game. It starts as
 // whichever skin was last equipped, and is reassigned (not mutated in place)
@@ -1058,13 +1069,7 @@ function draw(){
  }
  // trail
  ball?.trail.forEach((p,i)=>{if(i%2===0)glowCircle(p.x,p.y,Math.max(2,ball.r*(1-i/12)*.45),colors[ball.color],(1-i/12)*.25)});
- if(ball){
-   // Big soft outer halo first, so the ball reads clearly even on a dark background.
-   glowCircle(ball.x,ball.y,ball.r*2.4,colors[ball.color],.35);
-   glowCircle(ball.x,ball.y,ball.r*1.5,colors[ball.color],.6);
-   glowCircle(ball.x,ball.y,ball.r,colors[ball.color]);
-   glowCircle(ball.x-ball.r*.28,ball.y-ball.r*.3,ball.r*.3,'#fff',1);
- }
+ if(ball){glowCircle(ball.x,ball.y,ball.r,colors[ball.color]);glowCircle(ball.x-ball.r*.28,ball.y-ball.r*.3,ball.r*.22,'#fff',.9)}
  // trajectory guide: a faint projected path from the FLUX orb toward the lower field.
  if(ball && level>=4){
    ctx.save();
@@ -1236,6 +1241,31 @@ function buildShopUI(){
     if(equipped){btn.textContent='EQUIPPED';btn.disabled=true;}
     else if(owned){btn.textContent='EQUIP';btn.onclick=()=>equipSkin(sku);}
     else{btn.textContent='BUY '+s.price;btn.onclick=()=>buySkin(sku,btn);}
+    row.appendChild(btn);
+    list.appendChild(row);
+  });
+  buildBackgroundUI();
+}
+// Backdrop picker: lists "Original" (always free) plus any skin that has its
+// own backdrop image AND is owned. Fully independent of buildShopUI() above
+// -- picking a backdrop here never touches activeSkin/colors, and equipping
+// a color skin above never touches activeBackground.
+function buildBackgroundUI(){
+  const list=document.getElementById('backgroundList');
+  if(!list)return;
+  list.innerHTML='';
+  const options=[['none',{name:'ORIGINAL'}]].concat(
+    Object.entries(SKINS).filter(([sku,s])=>s.bg && ownsSkin(sku))
+  );
+  options.forEach(([key,s])=>{
+    const active=activeBackground===key;
+    const row=document.createElement('div');
+    row.className='shopRow';
+    row.innerHTML=`<div class="shopSwatches">${key==='none'?'<i style="background:#1c2c5c"></i>':`<i style="background:${s.colors[0]}"></i>`}</div>
+      <div class="shopInfo"><b>${s.name}</b><span>${key==='none'?'No image — plain field':'Owned backdrop'}</span></div>`;
+    const btn=document.createElement('button');
+    if(active){btn.textContent='ACTIVE';btn.disabled=true;}
+    else{btn.textContent='USE';btn.onclick=()=>setBackground(key);}
     row.appendChild(btn);
     list.appendChild(row);
   });
