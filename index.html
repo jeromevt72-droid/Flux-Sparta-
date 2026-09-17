@@ -143,7 +143,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 <div id="audioBadge" class="badge">SOUND • ON</div>
 <div id="pressureBadge" class="badge stable">FIELD • STABLE</div>
 </div>
-<div id="pauseOverlay" class="hidden"><div class="panel"><h2>FLUX PAUSED</h2><p>Your field is frozen. Take a breath, then get back in the flow.</p><button id="resumeBtn">RESUME</button></div></div>
+<div id="pauseOverlay" class="hidden"><div class="panel"><h2>FLUX PAUSED</h2><p>Your field is frozen. Take a breath, then get back in the flow.</p><button id="resumeBtn">RESUME</button><button id="pauseMenuBtn" style="margin-top:8px;background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none">⌂ END RUN &amp; MENU</button></div></div>
 <div id="shop" class="hidden"><div class="panel menuPanel"><h2 style="color:#62eaff;letter-spacing:.14em;margin:0 0 4px">THEMES & SKINS</h2><p style="margin:0 0 14px">Cosmetic only — never changes gameplay fairness.</p><div id="shopList"></div><button id="shopClose" style="margin-top:14px">BACK</button></div></div>
 <div id="start"><div class="panel menuPanel"><h1>FLUX</h1><div class="acronym">FLOW • LAUNCH • UNITE • XCELERATE</div><div class="menuSection"><div class="menuLabel">SELECT YOUR FLOW</div><div class="difficulty" id="difficulty"><button data-d="easy">EASY</button><button data-d="medium">MEDIUM</button><button data-d="hard">HARD</button></div></div><div id="profileEditor" class="profileRow"><input id="callsign" maxlength="14" placeholder="CALLSIGN"><select id="country"><option value="AF">🇦🇫 AFGHANISTAN</option>
 <option value="AL">🇦🇱 ALBANIA</option>
@@ -348,6 +348,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
   <p>Final score: <b id="finalScore">0</b><br>Best: <b id="best">0</b><br>Mode: <b id="finalMode">MEDIUM</b></p>
   <div class="gameoverModes"><div class="menuLabel">CHOOSE YOUR NEXT FLOW</div><div class="difficulty" id="gameoverDifficulty"><button data-d="easy">EASY</button><button data-d="medium">MEDIUM</button><button data-d="hard">HARD</button></div></div>
   <button id="againBtn">RUN IT BACK</button>
+  <button id="gameoverMenuBtn" style="margin-top:8px;background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none">⌂ MENU</button>
  </div>
 </div>
 </div>
@@ -366,7 +367,7 @@ best=+localStorage[bestKey()]||0;
 function isPhone(){return W<=700}
 function targetCap(){const d=DIFFICULTY[difficulty],g=Math.min(2,Math.floor((level-1)/4));return isPhone()?Math.min(6,d.capPhone+g):Math.min(9,d.capPad+g)}
 function levelThreshold(){return LEVEL_THRESHOLDS[Math.min(9,level)]*DIFFICULTY[difficulty].level} 
-let paddle={x:0,y:0,w:150,h:12,handleH:28};
+let paddle={x:0,y:0,w:150,h:12,handleH:28,hitFlash:0,hitSide:0};
 let ball,targets=[],particles=[],texts=[],shake=0;
 const SKINS={
   aurora:{name:'AURORA',price:null,colors:['#35e6ff','#5c9cff','#8c5cff','#c64dff','#ff4f98','#ff6b52','#ffc447','#d9ff39','#45f0c0']},
@@ -655,20 +656,32 @@ function registerMiss(){
 // One free revive per run: watch a rewarded ad, get one miss back, keep playing.
 // This is the same mechanic Block Blast and most successful casual games use
 // to turn a game-over moment into an ad impression instead of a lost session.
+// Toggle this one flag when you're ready to turn ads back on (real network
+// or the simulated placeholder) — see showRewardedAd() below. Everything
+// else in the revive flow (one extra life, same scoring/physics) is
+// identical either way; this only decides whether an ad step happens first.
+const ADS_ENABLED = false;
 function offerRevive(){
  paused=true;
+ const grantRevive=()=>{
+   revivesUsedThisRun++;misses=2;paused=false;last=performance.now();
+   resetFieldAfterMiss();
+   ball.x=paddle.x;ball.y=paddle.y-28;ball.vx=rand(-3.4,3.4);ball.vy=-Math.max(6.0,6.0+level*.12);ball.trail=[];
+   updateHud();popup(W/2,H*.4,'REVIVED','#62eaff');burst(W/2,H*.4,'#62eaff',24);
+ };
  const d=document.createElement('div');
  d.className='miniOverlay';d.id='reviveOverlay';
- d.innerHTML='<div class="panel"><h2 style="color:#ff6b98;letter-spacing:.14em">OUT OF MISSES</h2><p>Watch a short ad to get one more miss and keep this run alive?</p><button id="reviveWatchBtn">▶ WATCH AD — CONTINUE</button><button id="reviveDeclineBtn" style="margin-top:8px;background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none">END RUN</button></div>';
+ const promptText = ADS_ENABLED ? 'Watch a short ad to get one more miss and keep this run alive?' : 'Get one more miss and keep this run alive?';
+ const continueLabel = ADS_ENABLED ? '▶ WATCH AD — CONTINUE' : '▶ CONTINUE';
+ d.innerHTML=`<div class="panel"><h2 style="color:#ff6b98;letter-spacing:.14em">OUT OF MISSES</h2><p>${promptText}</p><button id="reviveWatchBtn">${continueLabel}</button><button id="reviveDeclineBtn" style="margin-top:8px;background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none">END RUN</button></div>`;
  document.getElementById('app').appendChild(d);
  document.getElementById('reviveWatchBtn').onclick=()=>{
    d.remove();
-   showRewardedAd(()=>{
-     revivesUsedThisRun++;misses=2;paused=false;last=performance.now();
-     resetFieldAfterMiss();
-     ball.x=paddle.x;ball.y=paddle.y-28;ball.vx=rand(-3.4,3.4);ball.vy=-Math.max(6.0,6.0+level*.12);ball.trail=[];
-     updateHud();popup(W/2,H*.4,'REVIVED','#62eaff');burst(W/2,H*.4,'#62eaff',24);
-   },()=>{paused=false;endGame();});
+   if(ADS_ENABLED){
+     showRewardedAd(grantRevive,()=>{paused=false;endGame();});
+   }else{
+     grantRevive();
+   }
  };
  document.getElementById('reviveDeclineBtn').onclick=()=>{d.remove();paused=false;endGame();};
 }
@@ -937,6 +950,11 @@ function update(dt){
    const perfect=Math.abs(hit)<.14;
    const paddlePoints=perfect?Math.max(2,Math.round(5*combo*DIFFICULTY[difficulty].mult)):2;
    score+=paddlePoints;
+   // Paddle hit-feedback: every single contact gets a quick squash + flash,
+   // scaled up on a perfect hit. This is the single most frequent moment in
+   // the game, so making it feel physical compounds across every rally.
+   paddle.hitFlash = perfect ? 1 : 0.55;
+   paddle.hitSide = hit; // -1..1, used to bias the squash toward impact point
    if(perfect){
      comboTimer=Math.max(comboTimer,1.2);
      levelPoints += Math.min(18,8+combo)*DIFFICULTY[difficulty].mult;
@@ -952,6 +970,7 @@ function update(dt){
  // particles
  particles.forEach(p=>{p.x+=p.vx*dt*60;p.y+=p.vy*dt*60;p.vy+=.08*dt*60;p.life-=dt*1.8});particles=particles.filter(p=>p.life>0);
  texts.forEach(t=>{t.y-=.6*dt*60;t.life-=dt});texts=texts.filter(t=>t.life>0);
+ if(paddle.hitFlash>0) paddle.hitFlash=Math.max(0,paddle.hitFlash-dt*4.2);
  shake*=.9;
  updatePressureBadge();
 }
@@ -1039,7 +1058,13 @@ function draw(){
  }
  // trail
  ball?.trail.forEach((p,i)=>{if(i%2===0)glowCircle(p.x,p.y,Math.max(2,ball.r*(1-i/12)*.45),colors[ball.color],(1-i/12)*.25)});
- if(ball){glowCircle(ball.x,ball.y,ball.r,colors[ball.color]);glowCircle(ball.x-ball.r*.28,ball.y-ball.r*.3,ball.r*.22,'#fff',.9)}
+ if(ball){
+   // Big soft outer halo first, so the ball reads clearly even on a dark background.
+   glowCircle(ball.x,ball.y,ball.r*2.4,colors[ball.color],.35);
+   glowCircle(ball.x,ball.y,ball.r*1.5,colors[ball.color],.6);
+   glowCircle(ball.x,ball.y,ball.r,colors[ball.color]);
+   glowCircle(ball.x-ball.r*.28,ball.y-ball.r*.3,ball.r*.3,'#fff',1);
+ }
  // trajectory guide: a faint projected path from the FLUX orb toward the lower field.
  if(ball && level>=4){
    ctx.save();
@@ -1057,16 +1082,40 @@ function draw(){
    ctx.stroke();ctx.restore();
  }
  // T-paddle: keep the full hit bar, add a short centered handle below it.
- const grad=ctx.createLinearGradient(paddle.x-paddle.w/2,0,paddle.x+paddle.w/2,0);
- grad.addColorStop(0,'#2edfff');grad.addColorStop(.5,'#fff');grad.addColorStop(1,'#2edfff');
- ctx.save();ctx.shadowBlur=24;ctx.shadowColor='#2edfff';
+ // Hit-feedback: brief squash (thicker+wider bar) and a white flash pulse on
+ // every contact, scaled up for a perfect hit. Purely visual -- paddle.w/h
+ // (used for collision) are never touched, only local draw-time multipliers.
+ // Paddle color now follows the active skin's palette (colors[0]) instead of
+ // a fixed cyan, so it matches the ball/orbs -- e.g. warm orange on Solar
+ // Inferno, green on Toxic, violet on Cosmic, cyan on Aurora (default).
+ const paddleCol = colors[0]||'#62eaff';
+ const hf = paddle.hitFlash||0;
+ const ease = hf*hf*(3-2*hf); // smoothstep, so it punches in fast and eases out
+ const visualW = paddle.w*(1+ease*0.10);
+ const visualH = paddle.h*(1+ease*0.55);
+ const grad=ctx.createLinearGradient(paddle.x-visualW/2,0,paddle.x+visualW/2,0);
+ grad.addColorStop(0,paddleCol);grad.addColorStop(.5,'#fff');grad.addColorStop(1,paddleCol);
+ ctx.save();
+ // Extra soft underglow so the whole bar pops clearly against a dark field.
+ ctx.shadowBlur=44+ease*30;ctx.strokeStyle=paddleCol;ctx.globalAlpha=.5+ease*.3;ctx.lineWidth=visualH+10;ctx.lineCap='round';
+ ctx.beginPath();ctx.moveTo(paddle.x-visualW/2,paddle.y);ctx.lineTo(paddle.x+visualW/2,paddle.y);ctx.stroke();
+ ctx.globalAlpha=1;
+ ctx.shadowBlur=32;ctx.shadowColor=paddleCol;
  // Short handle first so the bar remains the visual collision point.
- ctx.strokeStyle='#62eaff';ctx.lineWidth=isPhone()?7:8;ctx.lineCap='round';
+ ctx.strokeStyle=paddleCol;ctx.lineWidth=isPhone()?7:8;ctx.lineCap='round';
  ctx.beginPath();ctx.moveTo(paddle.x,paddle.y+3);ctx.lineTo(paddle.x,paddle.y+paddle.handleH);ctx.stroke();
- ctx.shadowBlur=24;ctx.strokeStyle=grad;ctx.lineWidth=paddle.h;ctx.lineCap='round';
- ctx.beginPath();ctx.moveTo(paddle.x-paddle.w/2,paddle.y);ctx.lineTo(paddle.x+paddle.w/2,paddle.y);ctx.stroke();
+ ctx.shadowBlur=32+ease*24;ctx.strokeStyle=grad;ctx.lineWidth=visualH;ctx.lineCap='round';
+ ctx.beginPath();ctx.moveTo(paddle.x-visualW/2,paddle.y);ctx.lineTo(paddle.x+visualW/2,paddle.y);ctx.stroke();
+ // White flash overlay on top, fading out with the squash -- kept pure
+ // white (not skin-tinted) since a crisp white spark reads as "impact"
+ // clearly over any skin color, the same way it does in most action games.
+ if(ease>0.02){
+   ctx.globalAlpha=ease*.85;ctx.shadowBlur=0;ctx.strokeStyle='#ffffff';ctx.lineWidth=visualH*.6;ctx.lineCap='round';
+   ctx.beginPath();ctx.moveTo(paddle.x-visualW/2,paddle.y);ctx.lineTo(paddle.x+visualW/2,paddle.y);ctx.stroke();
+   ctx.globalAlpha=1;
+ }
  // Small grip accent at the bottom of the handle.
- ctx.shadowBlur=12;ctx.strokeStyle='#ffffff';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(paddle.x-7,paddle.y+paddle.handleH);ctx.lineTo(paddle.x+7,paddle.y+paddle.handleH);ctx.stroke();
+ ctx.shadowBlur=14;ctx.strokeStyle='#ffffff';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(paddle.x-7,paddle.y+paddle.handleH);ctx.lineTo(paddle.x+7,paddle.y+paddle.handleH);ctx.stroke();
  ctx.restore();
  // Permanent MISS TRACKER: each missed ball stays visible until the run ends.
  ctx.save();
@@ -1134,6 +1183,20 @@ addEventListener('pointermove',pointer,{passive:true});
 addEventListener('touchmove',e=>{pointer(e);e.preventDefault()},{passive:false});
 document.getElementById('pauseBtn').onclick=()=>{ if(!document.getElementById('start').classList.contains('hidden')) return; if(document.getElementById('gameover').classList.contains('hidden')) setPaused(!paused); };
 document.getElementById('resumeBtn').onclick=()=>setPaused(false);
+document.getElementById('pauseMenuBtn').onclick=()=>{
+  // Deliberately quitting mid-run from the pause screen: save exactly what
+  // endGame() would save (best score, best level, submit to leaderboard),
+  // just without the collapse animation/gameover screen, since the player
+  // asked to leave, not lose. Same persistence rules, no scoring changes.
+  if(score>best){best=score;localStorage[bestKey()]=best;}
+  localStorage['fluxBestLevel_'+difficulty]=Math.max(+localStorage['fluxBestLevel_'+difficulty]||1,level);
+  submitScore();
+  playing=false;paused=false;
+  document.getElementById('pauseOverlay').classList.add('hidden');
+  document.getElementById('pauseBtn').classList.add('hidden');
+  refreshMenu();
+  document.getElementById('start').classList.remove('hidden');
+};
 function saveProfile(){
  callsign=(document.getElementById('callsign').value.trim()||'PLAYER').toUpperCase();
  country=document.getElementById('country').value||'US';
@@ -1260,6 +1323,13 @@ document.getElementById('skinsBtn').onclick=()=>{buildShopUI();document.getEleme
 document.getElementById('shopClose').onclick=()=>document.getElementById('shop').classList.add('hidden');
 document.getElementById('startBtn').onclick=()=>{initAudio();if(!profileComplete)saveProfile();document.getElementById('start').classList.add('hidden');document.getElementById('pauseBtn').classList.remove('hidden');newGame();paused=false;document.getElementById('pauseBtn').textContent='Ⅱ'};
 document.getElementById('againBtn').onclick=()=>{initAudio();document.getElementById('gameover').classList.add('hidden');document.getElementById('pauseBtn').classList.remove('hidden');newGame();paused=false;document.getElementById('pauseBtn').textContent='Ⅱ'};
+document.getElementById('gameoverMenuBtn').onclick=()=>{
+  // Score/best/level are already saved by endGame() before this screen ever
+  // shows, so this is just a screen swap -- no scoring logic touched.
+  document.getElementById('gameover').classList.add('hidden');
+  refreshMenu();
+  document.getElementById('start').classList.remove('hidden');
+};
 refreshMenu();
 </script>
 </body>
