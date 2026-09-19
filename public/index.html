@@ -340,7 +340,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 <option value="VN">🇻🇳 VIETNAM</option>
 <option value="YE">🇾🇪 YEMEN</option>
 <option value="ZM">🇿🇲 ZAMBIA</option>
-<option value="ZW">🇿🇼 ZIMBABWE</option><option value="OTHER">🌎 OTHER</option></select></div><div id="profileSaved" class="profileSaved hidden"><span>PILOT <b id="profileName">PLAYER</b> • <b id="profileCountry">🇺🇸</b></span><button class="editProfile" id="editProfile">EDIT</button></div><button id="startBtn">ENTER THE FLUX</button><div class="menuTiles"><div><span>PERSONAL BEST</span><b id="menuBest">0</b></div><div><span>BEST LEVEL</span><b id="menuLevel">1</b></div></div><div class="menuLinks"><button class="linkBtn" id="leaderBtn">🌎 GLOBAL LEADERBOARD</button><button class="linkBtn" id="skinsBtn">✦ THEMES & SKINS</button></div><p class="offline">● OFFLINE READY • PERSONAL BEST SAVES ON THIS DEVICE</p></div></div>
+<option value="ZW">🇿🇼 ZIMBABWE</option><option value="OTHER">🌎 OTHER</option></select></div><div id="profileSaved" class="profileSaved hidden"><span>PILOT <b id="profileName">PLAYER</b> • <b id="profileCountry">🇺🇸</b></span><button class="editProfile" id="editProfile">EDIT</button></div><button id="startBtn">ENTER THE FLUX</button><div class="menuTiles"><div><span>PERSONAL BEST</span><b id="menuBest">0</b></div><div><span>BEST LEVEL</span><b id="menuLevel">1</b></div></div><div class="menuLinks"><button class="linkBtn" id="leaderBtn">🌎 GLOBAL LEADERBOARD</button><button class="linkBtn" id="skinsBtn">✦ THEMES & SKINS</button></div><p class="offline" id="offlineClaim">● PERSONAL BEST SAVES ON THIS DEVICE</p></div></div>
 <div id="gameover" class="hidden">
  <div class="panel">
   <h1 style="font-size:38px">FLUX<br>OVERLOAD</h1>
@@ -1340,12 +1340,30 @@ addEventListener('visibilitychange',function(){
   }
   // Re-anchor the clock BEFORE anything else -- protects the 32ms clamp.
   last=performance.now();
-  // Resume audio only if the player had already started it (audioReady is only
-  // true after an explicit tap) and the context merely got suspended.
-  try{
-    if(audioReady && audioCtx && audioCtx.state==='suspended') audioCtx.resume();
-  }catch(e){}
+  // D-11 (RC2.2): the v1 check was `state==='suspended'`, which NEVER matched
+  // on iOS. Safari parks a backgrounded AudioContext in state 'interrupted',
+  // not 'suspended' -- so the resume never fired and the run stayed silent
+  // until the app was killed. Anything that is not 'running' is now resumed.
+  tryResumeAudio();
 },{passive:true});
+
+// Single resume routine, shared by the visibility handler and the gesture
+// fallback below. Never creates a context, never adds nodes, never touches
+// game state, and does nothing at all unless the player already enabled sound
+// (audioReady only becomes true after an explicit tap).
+function tryResumeAudio(){
+  try{
+    if(!audioReady || !audioCtx) return;
+    if(audioCtx.state !== 'running') audioCtx.resume();
+  }catch(e){}
+}
+
+// iOS often refuses resume() outside a user gesture, so returning to the app
+// is not always enough on its own. The first real interaction after coming
+// back retries it. ONE listener, registered once at top level, capture phase
+// so it runs before the paddle handler and never interferes with it.
+addEventListener('pointerdown', tryResumeAudio, {passive:true, capture:true});
+addEventListener('touchstart', tryResumeAudio, {passive:true, capture:true});
 addEventListener('pointermove',pointer,{passive:true});
 addEventListener('touchmove',e=>{pointer(e);e.preventDefault()},{passive:false});
 document.getElementById('pauseBtn').onclick=()=>{ if(!document.getElementById('start').classList.contains('hidden')) return; if(document.getElementById('gameover').classList.contains('hidden')) setPaused(!paused); };
@@ -1794,7 +1812,7 @@ refreshMenu();
    =========================================================================== */
 if('serviceWorker' in navigator){
   addEventListener('load',function(){
-    navigator.serviceWorker.register('sw.js').then(function(reg){
+    navigator.serviceWorker.register('/sw.js', {scope:'/'}).then(function(reg){
       // Version A -> Version B: a new worker installs alongside the old one and
       // waits. We activate it as soon as it is ready, but only when no run is
       // in progress, so a player is never swapped mid-game.
@@ -1821,6 +1839,27 @@ if('serviceWorker' in navigator){
       if(reloading) return; reloading=true;
       location.reload();     // Version B assets become authoritative
     });
+
+    // D-02 (RC2.2): OFFLINE READY is no longer shown merely because
+    // registration resolved. The worker is asked whether every precached
+    // asset AND the shell key are actually present; only then does the claim
+    // appear. Re-asked on controller change so it reflects the live worker.
+    function askOfflineReady(){
+      var ctrl = navigator.serviceWorker.controller;
+      if(!ctrl) return;
+      try{ ctrl.postMessage({type:'GET_READY'}); }catch(e){}
+    }
+    navigator.serviceWorker.addEventListener('message',function(e){
+      var d=e.data;
+      if(!d || d.type!=='SW_READY') return;
+      var el=document.getElementById('offlineClaim');
+      if(!el) return;
+      el.textContent = d.ready
+        ? '● OFFLINE READY • PERSONAL BEST SAVES ON THIS DEVICE'
+        : '● PERSONAL BEST SAVES ON THIS DEVICE';
+    });
+    navigator.serviceWorker.ready.then(function(){ askOfflineReady(); });
+    navigator.serviceWorker.addEventListener('controllerchange', askOfflineReady);
   });
 }
 
