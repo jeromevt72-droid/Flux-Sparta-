@@ -1436,7 +1436,164 @@ function openLeaderboard(){
     const msg=escapeHtml(err&&err.message?err.message:'Couldn\'t reach the leaderboard.');
     d.querySelector('#lbBody').innerHTML='<p class="lbEmpty">'+msg+'<br><br>Cloudflare leaderboard setup is required before cross-device scores can appear.</p>';
   });
+}/* ==================================================================
+   FLUX v4 CLIENT PATCH
+   ------------------------------------------------------------------
+   Paste this whole block into index.html on the line directly ABOVE
+   the closing </script> tag, at the very bottom of the file.
+
+   It overrides the original functions rather than editing them, so
+   nothing above it needs to change. Safe to remove later by deleting
+   from this comment down to the END marker.
+   ================================================================== */
+
+/* --- 1. Player ID must match what the server accepts --- */
+(function () {
+  const VALID = /^[A-Za-z0-9_-]{1,64}$/;
+  const RESERVED = ['__proto__', 'constructor', 'prototype'];
+  const current = localStorage.fluxPlayerId;
+  if (!current || !VALID.test(current) || RESERVED.includes(current)) {
+    try {
+      localStorage.fluxPlayerId = crypto.randomUUID
+        ? crypto.randomUUID()
+        : 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+      location.reload();
+    } catch (e) {}
+  }
+})();
+
+/* --- 2. Skin ownership comes from the server, not localStorage --- */
+let fluxOwnedSkus = new Set();
+let fluxEntitlementsLoaded = false;
+
+ownsSkin = function (sku) {
+  if (sku === 'aurora') return true;
+  if (fluxEntitlementsLoaded) return fluxOwnedSkus.has(sku);
+  return localStorage['fluxOwned_' + sku] === '1';
+};
+
+async function syncEntitlements() {
+  try {
+    const r = await fetch('/api/entitlements?playerId=' + encodeURIComponent(playerId));
+    if (!r.ok) return;
+    const d = await r.json();
+    if (!d || !Array.isArray(d.skus)) return;
+
+    fluxOwnedSkus = new Set(d.skus);
+    fluxEntitlementsLoaded = true;
+
+    // Cache locally so owned skins still work offline.
+    d.skus.forEach(s => { try { localStorage['fluxOwned_' + s] = '1'; } catch (e) {} });
+
+    if (!ownsSkin(activeSkin)) {
+      activeSkin = 'aurora';
+      try { localStorage.fluxSkin = 'aurora'; } catch (e) {}
+      colors = currentPalette();
+    }
+    if (activeBackground !== 'none' && !ownsSkin(activeBackground)) setBackground('none');
+
+    applySkinBackground();
+    buildShopUI();
+  } catch (e) {
+    /* offline — cached values stand */
+  }
 }
+
+/* --- 3. Checkout must send the player ID --- */
+buySkin = async function (sku, btn) {
+  btn.disabled = true;
+  btn.textContent = 'LOADING…';
+  try {
+    const res = await fetch('/api/create-checkout-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sku, playerId })
+    });
+    const data = await res.json();
+    if (data.url) { location.href = data.url; }
+    else { throw new Error(data.error || 'checkout failed'); }
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = 'BUY ' + SKINS[sku].price;
+    showInfo('CHECKOUT ERROR', e.message || "Couldn't start checkout. Try again in a moment.");
+  }
+};
+
+/* --- 4. Send the country the player actually picked --- */
+submitScore = function () {
+  fetch('/api/submit-score', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      playerId,
+      name: callsign || 'PILOT',
+      score: best,
+      difficulty,
+      level: +localStorage['fluxBestLevel_' + difficulty] || level,
+      country: (country && country !== 'OTHER') ? country : undefined
+    })
+  }).catch(() => {});
+};
+
+/* --- 5. A callsign is required; no more silent "PLAYER" --- */
+saveProfile = function () {
+  const typed = document.getElementById('callsign').value.trim();
+  if (!typed) {
+    const input = document.getElementById('callsign');
+    input.placeholder = 'ENTER A CALLSIGN';
+    input.style.borderColor = '#ff4f98';
+    input.focus();
+    setTimeout(() => { input.style.borderColor = ''; }, 1600);
+    return false;
+  }
+  callsign = typed.toUpperCase();
+  country = document.getElementById('country').value || 'US';
+  localStorage.fluxCallsign = callsign;
+  localStorage.fluxCountry = country;
+  localStorage.fluxProfileComplete = '1';
+  profileComplete = true;
+  refreshMenu();
+  return true;
+};
+
+document.getElementById('callsign').onchange = e => {
+  const v = e.target.value.trim().toUpperCase();
+  callsign = v;
+  e.target.value = v;
+};
+
+/* --- 6. Don't start a run until the callsign is set --- */
+document.getElementById('startBtn').onclick = () => {
+  initAudio();
+  if (!profileComplete && !saveProfile()) return;
+  document.getElementById('start').classList.add('hidden');
+  document.getElementById('pauseBtn').classList.remove('hidden');
+  newGame();
+  paused = false;
+  document.getElementById('pauseBtn').textContent = 'Ⅱ';
+};
+
+/* --- 7. First run: preselect the real country instead of 🇺🇸 --- */
+if (!localStorage.fluxCountry) {
+  fetch('/api/geo')
+    .then(r => r.json())
+    .then(d => {
+      if (!d || !d.country || localStorage.fluxCountry) return;
+      if (!countryFlags[d.country]) return;
+      country = d.country;
+      const sel = document.getElementById('country');
+      if (sel) sel.value = country;
+      refreshMenu();
+    })
+    .catch(() => {});
+}
+
+/* --- 8. Load entitlements now, and again after any purchase redirect --- */
+syncEntitlements();
+setTimeout(syncEntitlements, 3000);
+
+/* ================= END FLUX v4 CLIENT PATCH ================= */
+
 document.getElementById('leaderBtn').onclick=openLeaderboard;
 document.getElementById('gameoverLeaderBtn').onclick=openLeaderboard;
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
@@ -1451,7 +1608,17 @@ document.getElementById('gameoverMenuBtn').onclick=()=>{
   refreshMenu();
   document.getElementById('start').classList.remove('hidden');
 };
-refreshMenu();
+refreshMenu();/* --- FLUX v4 PATCH, PART 2 — must sit AFTER the original handlers --- */
+document.getElementById('startBtn').onclick = () => {
+  initAudio();
+  if (!profileComplete && !saveProfile()) return;
+  document.getElementById('start').classList.add('hidden');
+  document.getElementById('pauseBtn').classList.remove('hidden');
+  newGame();
+  paused = false;
+  document.getElementById('pauseBtn').textContent = 'Ⅱ';
+};
+
 </script>
 </body>
 </html>
