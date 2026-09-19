@@ -1,12 +1,31 @@
+// FLUX Sparta — Cloudflare Worker configuration
+//
+// D-10: "directory" is ./public, NOT ".". Previously the entire repo was
+//       published, so wrangler.jsonc, worker.js and STRIPE_SETUP.md were
+//       fetchable at the game's domain. Only runtime assets live in ./public.
+//       This is a whitelist by construction: a new source file cannot leak
+//       simply by being added to the repo.
+//       Secrets are unaffected either way -- STRIPE_SECRET_KEY,
+//       STRIPE_WEBHOOK_SECRET and ADMIN_TOKEN are dashboard secrets and have
+//       never been in any committed file.
+//
+// D-15: "name" is flux-sparta-3, matching the live worker. It previously said
+//       flux-sparta, which would have deployed to the wrong worker if anyone
+//       ever ran `wrangler deploy` from a terminal.
+//
+// run_worker_first keeps every /api/* request on worker.js; everything else
+// falls through to the static assets in ./public.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "flux-sparta",
+  "name": "flux-sparta-3",
   "main": "worker.js",
   "compatibility_date": "2026-09-14",
   "assets": {
-    "directory": ".",
+    "directory": "./public",
     "binding": "ASSETS",
-    "run_worker_first": ["/api/*"]
+    "run_worker_first": [
+      "/api/*"
+    ]
   },
   "durable_objects": {
     "bindings": [
@@ -19,7 +38,9 @@
   "migrations": [
     {
       "tag": "v1",
-      "new_sqlite_classes": ["LeaderboardDO"]
+      "new_sqlite_classes": [
+        "LeaderboardDO"
+      ]
     }
   ],
   "kv_namespaces": [
