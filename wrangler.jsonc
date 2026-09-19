@@ -8,6 +8,20 @@
     "binding": "ASSETS",
     "run_worker_first": ["/api/*"]
   },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "LEADERBOARD_DO",
+        "class_name": "LeaderboardDO"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["LeaderboardDO"]
+    }
+  ],
   "kv_namespaces": [
     {
       "binding": "LEADERBOARD",
