@@ -1753,6 +1753,47 @@ async function syncEntitlements() {
 }
 
 /* --- 3. Checkout must send the player ID --- */
+/* ---------------------------------------------------------------------------
+   AUDIT-F06 (RC2.5.4) — CHECKOUT NAVIGATION THAT WORKS INSIDE THE GATEWAY
+
+   Stripe Checkout sets frame-ancestors and will not render in an iframe. When
+   FLUX runs inside the Gateway's play overlay, `location.href = url` therefore
+   left the player on Stripe's skeleton screen forever with no error. Standalone
+   FLUX was never affected -- it is already top-level.
+
+   So: if we are framed, hand the URL to the parent and let IT navigate the
+   whole installed window. If we are top-level, navigate ourselves exactly as
+   before. The URL is validated here too -- we never post an arbitrary string
+   upward, and the Gateway validates it again on receipt.
+
+   This sends only a URL. It grants nothing, and the server-authoritative
+   entitlement system is untouched.
+   --------------------------------------------------------------------------- */
+function isStripeCheckoutUrl(raw){
+  if (typeof raw !== 'string' || raw.length > 2048) return false;
+  let u;
+  try { u = new URL(raw); } catch (e) { return false; }
+  if (u.protocol !== 'https:') return false;
+  const h = u.hostname.toLowerCase();
+  return h === 'checkout.stripe.com' || h === 'stripe.com' || /\.stripe\.com$/.test(h);
+}
+
+function isFramed(){
+  try { return window.parent && window.parent !== window; } catch (e) { return true; }
+}
+
+function goToCheckout(url){
+  if (!isStripeCheckoutUrl(url)) throw new Error('Unexpected checkout destination');
+  if (isFramed()) {
+    // Targeted at the Gateway's own origin, never '*': the URL is only for it.
+    try {
+      window.parent.postMessage({ type: 'flux-open-checkout', url: url }, document.referrer ? new URL(document.referrer).origin : '*');
+      return;
+    } catch (e) { /* fall through to a normal navigation */ }
+  }
+  location.href = url;
+}
+
 buySkin = async function (sku, btn) {
   if(isOffline()){
     showInfo('CONNECTION REQUIRED','Purchases need an internet connection. Everything else in FLUX works offline.');
@@ -1775,7 +1816,7 @@ buySkin = async function (sku, btn) {
     });
     const data = await res.json();
     if (!res.ok && data && data.error) throw new Error(data.error);
-    if (data.url) { location.href = data.url; }
+    if (data.url) { goToCheckout(data.url); }
     else { throw new Error(data.error || 'checkout failed'); }
   } catch (e) {
     btn.disabled = false;
