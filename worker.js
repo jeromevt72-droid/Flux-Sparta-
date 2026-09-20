@@ -351,6 +351,52 @@ async function createCheckout(request, env) {
   params.append("metadata[playerId]", playerId);
   params.append("client_reference_id", playerId);
 
+  /* -------------------------------------------------------------------------
+     T-9 — MODE / ENVIRONMENT CONSISTENCY CHECK
+
+     A Price ID does not encode whether it is live or test, so a test price
+     configured against a live secret key (or the reverse) produces a Checkout
+     Session that looks fine here and then behaves badly on Stripe's hosted
+     page. We retrieve the Price first and compare its livemode against the
+     mode implied by the secret key, and fail explicitly instead of handing
+     back an ambiguous purchase experience.
+
+     No secret is ever logged or returned -- only the boolean mode.
+     ------------------------------------------------------------------------- */
+  const keyIsLive = /^sk_live_/.test(env.STRIPE_SECRET_KEY);
+  const keyIsTest = /^sk_test_/.test(env.STRIPE_SECRET_KEY);
+  if (!keyIsLive && !keyIsTest) {
+    return json({ error: "Stripe key is not a recognised secret key", code: "stripe_key_malformed" }, 500);
+  }
+  const priceResp = await fetch(
+    `https://api.stripe.com/v1/prices/${encodeURIComponent(price)}`,
+    { headers: { Authorization: `Bearer ${env.STRIPE_SECRET_KEY}` } }
+  );
+  const priceData = await priceResp.json();
+  if (!priceResp.ok) {
+    return json({
+      error: "This skin's price is not reachable in the configured Stripe account.",
+      code: "price_not_found",
+      sku,
+      stripeMessage: (priceData.error && priceData.error.message) || null,
+      keyMode: keyIsLive ? "live" : "test",
+    }, 502);
+  }
+  /* Only assert a mismatch when Stripe actually told us the mode. An absent
+     livemode is unknown, not proven inconsistent, and must not block a sale. */
+  if (typeof priceData.livemode === "boolean" && priceData.livemode !== keyIsLive) {
+    return json({
+      error: "Stripe configuration mismatch: the price and the API key are in different modes.",
+      code: "stripe_mode_mismatch",
+      sku,
+      keyMode: keyIsLive ? "live" : "test",
+      priceMode: priceData.livemode ? "live" : "test",
+    }, 500);
+  }
+  if (priceData.active === false) {
+    return json({ error: "This skin's price is not active in Stripe.", code: "price_inactive", sku }, 502);
+  }
+
   const resp = await fetch("https://api.stripe.com/v1/checkout/sessions", {
     method: "POST",
     headers: {
@@ -361,9 +407,24 @@ async function createCheckout(request, env) {
   });
   const data = await resp.json();
   if (!resp.ok) {
-    return json({ error: (data.error && data.error.message) || "Stripe rejected the request" }, 502);
+    return json({
+      error: (data.error && data.error.message) || "Stripe rejected the request",
+      code: "session_create_failed",
+      sku,
+      keyMode: keyIsLive ? "live" : "test",
+    }, 502);
   }
-  return json({ url: data.url });
+  if (!data.url) {
+    return json({ error: "Stripe returned no checkout URL", code: "session_no_url", sku }, 502);
+  }
+  /* Safe diagnostics: session id and mode only. Useful for correlating a
+     stalled hosted page with a real session; contains nothing secret. */
+  return json({
+    url: data.url,
+    sessionId: data.id || null,
+    mode: keyIsLive ? "live" : "test",
+    sku,
+  });
 }
 
 async function verifySession(request, env) {
