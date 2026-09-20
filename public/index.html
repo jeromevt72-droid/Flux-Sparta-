@@ -453,7 +453,7 @@ function applyCelestialBackground(lvl){
 }
 let activeSkin=localStorage.fluxSkin||'aurora';
 function currentPalette(){return (SKINS[activeSkin]||SKINS.aurora).colors}
-function ownsSkin(sku){return sku==='aurora'||localStorage['fluxOwned_'+sku]==='1'}
+function ownsSkin(sku){return sku==='aurora'}/* T-9: this early declaration is superseded by the server-authoritative ownsSkin later in this file. It used to read the legacy fluxOwned_ key; if the override were ever removed, that would silently grant paid skins again. It now grants only the free skin, so the failure mode is a locked skin rather than a free one. */
 // Backdrop image is now its OWN choice, independent of which color palette
 // (skin) is equipped -- e.g. you can keep the Solar Inferno backdrop while
 // playing with Cosmic or Toxic colors, or turn the backdrop off entirely
@@ -1474,9 +1474,20 @@ async function verifyPendingPurchase(){
   try{
     const res=await fetch('/api/verify-session?session_id='+encodeURIComponent(sessionId));
     const data=await res.json();
-    if(data.paid){
-      localStorage['fluxOwned_'+sku]='1';
-      showInfo('PURCHASE COMPLETE',(SKINS[sku]?.name||sku)+' is unlocked. Open THEMES & SKINS to equip it.');
+    /* T-9: the SKU that gets unlocked is the one the SERVER confirmed for this
+       session, never the one in the URL. Previously `sku` came from the query
+       string, so a real paid session for a cheap skin could be replayed with
+       ?sku=solar to unlock a different one. The server also returns the
+       playerId the session was created for; if it is not this player, nothing
+       is granted. Ownership is then taken from a fresh server sync rather than
+       written locally -- the server stays the single authority. */
+    const confirmedSku = data.sku;
+    const confirmedFor = data.playerId;
+    if(data.paid && confirmedSku && confirmedFor === playerId){
+      await syncEntitlements();
+      showInfo('PURCHASE COMPLETE',(SKINS[confirmedSku]?.name||confirmedSku)+' is unlocked. Open THEMES & SKINS to equip it.');
+    }else if(data.paid && confirmedFor && confirmedFor !== playerId){
+      showInfo('PURCHASE BELONGS TO ANOTHER PLAYER',"That payment was made under a different FLUX ID, so it can't be applied here.");
     }else{
       showInfo('PAYMENT NOT COMPLETE',"We couldn't confirm that payment went through. If you were charged, contact support.");
     }
@@ -1655,10 +1666,51 @@ function openLeaderboard(){
 let fluxOwnedSkus = new Set();
 let fluxEntitlementsLoaded = false;
 
+/* ---------------------------------------------------------------------------
+   T-9 — PRODUCTION OWNERSHIP AUTHORITY
+
+   The server is the authority for paid skins. This used to fall back to
+   localStorage['fluxOwned_'+sku]==='1' whenever entitlements had not loaded
+   yet, which meant a legacy mock/beta key from testing unlocked a paid skin
+   on a production build -- offline, or simply before the first sync returned.
+
+   Ownership now comes from a VERSIONED, PROVENANCE-AWARE cache that is only
+   written after the production server has confirmed the SKU for THIS playerId.
+   A legacy key on its own proves nothing and grants nothing.
+
+   Offline still works, but only for skins previously verified against the
+   server: server confirms -> verified cache written -> skin works offline.
+   --------------------------------------------------------------------------- */
+const ENT_CACHE_KEY = 'fluxEntitlementsV1';
+
+function readVerifiedEntitlements() {
+  try {
+    const raw = localStorage[ENT_CACHE_KEY];
+    if (!raw) return null;
+    const c = JSON.parse(raw);
+    if (!c || c.v !== 1) return null;                    // version gate
+    if (c.source !== 'server') return null;              // provenance gate
+    if (c.playerId !== playerId) return null;            // one player's proof
+    if (!Array.isArray(c.skus)) return null;             //   is not another's
+    return c;
+  } catch (e) { return null; }
+}
+
+function writeVerifiedEntitlements(skus) {
+  try {
+    localStorage[ENT_CACHE_KEY] = JSON.stringify({
+      v: 1, source: 'server', playerId: playerId,
+      skus: Array.from(new Set(skus)), verifiedAt: Date.now()
+    });
+  } catch (e) {}
+}
+
 ownsSkin = function (sku) {
-  if (sku === 'aurora') return true;
+  if (sku === 'aurora') return true;                     // always free
   if (fluxEntitlementsLoaded) return fluxOwnedSkus.has(sku);
-  return localStorage['fluxOwned_' + sku] === '1';
+  const cached = readVerifiedEntitlements();
+  return !!cached && cached.skus.indexOf(sku) !== -1;
+  // Deliberately NO legacy fluxOwned_* fallback. See the note above.
 };
 
 async function syncEntitlements() {
@@ -1671,8 +1723,20 @@ async function syncEntitlements() {
     fluxOwnedSkus = new Set(d.skus);
     fluxEntitlementsLoaded = true;
 
-    // Cache locally so owned skins still work offline.
-    d.skus.forEach(s => { try { localStorage['fluxOwned_' + s] = '1'; } catch (e) {} });
+    // T-9: the server just spoke. Record its answer as the verified cache so
+    // these skins keep working offline.
+    writeVerifiedEntitlements(d.skus);
+
+    // T-9: reconcile this device against the server. A paid SKU the server
+    // does NOT list must stop counting as ownership here -- that is how an old
+    // tester/mock unlock gets cleaned up. Only paid-skin keys are touched:
+    // scores, FLUX ID, country, settings and personal bests are never read or
+    // written by this block.
+    try {
+      ['toxic', 'cosmic', 'solar'].forEach(paidSku => {
+        if (!fluxOwnedSkus.has(paidSku)) localStorage.removeItem('fluxOwned_' + paidSku);
+      });
+    } catch (e) {}
 
     if (!ownsSkin(activeSkin)) {
       activeSkin = 'aurora';
@@ -1696,37 +1760,48 @@ buySkin = async function (sku, btn) {
   }
   btn.disabled = true;
   btn.textContent = 'LOADING…';
+  /* T-9: FLUX's own pre-navigation request must never hang forever. This
+     bounds only OUR call to the worker -- once we navigate to Stripe, their
+     hosted page is theirs and we do not touch it. 15s is generous for a
+     Cloudflare Worker round trip. */
+  const ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  const killTimer = setTimeout(() => { try { ctl && ctl.abort(); } catch (e) {} }, 15000);
   try {
     const res = await fetch('/api/create-checkout-session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sku, playerId })
+      body: JSON.stringify({ sku, playerId }),
+      signal: ctl ? ctl.signal : undefined
     });
     const data = await res.json();
+    if (!res.ok && data && data.error) throw new Error(data.error);
     if (data.url) { location.href = data.url; }
     else { throw new Error(data.error || 'checkout failed'); }
   } catch (e) {
     btn.disabled = false;
     btn.textContent = 'BUY ' + SKINS[sku].price;
-    showInfo('CHECKOUT ERROR', e.message || "Couldn't start checkout. Try again in a moment.");
+    const aborted = e && (e.name === 'AbortError' || /abort/i.test(String(e.message || '')));
+    showInfo('CHECKOUT ERROR', aborted
+      ? "Checkout is taking longer than expected. Check your connection and try again."
+      : (e.message || "Couldn't start checkout. Try again in a moment."));
+  } finally {
+    clearTimeout(killTimer);
   }
 };
 
-/* --- 4. Send the country the player actually picked --- */
-submitScore = function () {
-  fetch('/api/submit-score', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      playerId,
-      name: callsign || 'PILOT',
-      score: best,
-      difficulty,
-      level: +localStorage['fluxBestLevel_' + difficulty] || level,
-      country: (country && country !== 'OTHER') ? country : undefined
-    })
-  }).catch(() => {});
-};
+/* --- 4. Country handling — see the canonical submitScore() above ---------
+   AUDIT-F02 (RC2.5.2): this slot used to hold
+       submitScore = function () { ... }
+   a leftover from the v4 patch era. Because it executed at load, it REPLACED
+   the canonical `function submitScore()` defined earlier in this file, so the
+   shipped game ran the old implementation: score and level rebuilt from two
+   independent localStorage keys (the D-09 mismatch), no offline queue, and a
+   bare .catch(() => {}) that discarded every failure.
+
+   It is removed. The canonical implementation is now the only one. It already
+   sends the player's chosen country, which is all this patch was still for.
+   Do not reintroduce an assignment to submitScore anywhere in this file --
+   the regression suite fails the build if a second definition appears. */
 
 /* --- 5. A callsign is required; no more silent "PLAYER" --- */
 saveProfile = function () {
