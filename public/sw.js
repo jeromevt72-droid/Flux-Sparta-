@@ -29,7 +29,7 @@
    page decides when a new worker activates.
    =========================================================================== */
 
-const CACHE_VERSION = 'flux-sparta-v2';
+const CACHE_VERSION = 'flux-sparta-v3';
 const CACHE_PREFIX  = 'flux-sparta-';
 
 const SCOPE_ROOT = new URL('./', self.location).href;
@@ -121,9 +121,17 @@ self.addEventListener('fetch', function (event) {
   if (isNetworkOnly(url)) return;
 
   if (req.mode === 'navigate' && inScope(url)) {
+    /* MERGE (RC2.5.6): the Gateway now lives on this origin at /welcome/.
+       v2 stored EVERY in-scope navigation as the game shell, so simply visiting
+       the Gateway would have overwritten the offline copy of the game with
+       Gateway HTML -- and a cold offline launch would then show the Gateway,
+       which cannot run offline. Only a navigation to the GAME itself may
+       refresh the game shell now. */
+    const isGameShell = (url.pathname === '/' || url.pathname === '/index.html');
+    const isGateway   = url.pathname === '/welcome' || url.pathname.indexOf('/welcome/') === 0;
     event.respondWith(
       fetch(req).then(function (res) {
-        if (isCacheable(res)) {
+        if (isGameShell && isCacheable(res)) {
           const a = res.clone(), b = res.clone(), c = res.clone();
           caches.open(CACHE_VERSION).then(function (cache) {
             cache.put(SHELL_URL, a);
@@ -133,6 +141,10 @@ self.addEventListener('fetch', function (event) {
         }
         return res;
       }).catch(function () {
+        // Offline launch of the installed app lands on /welcome/. The Gateway
+        // needs the network (it is marketing plus the live World Grid), so send
+        // the player straight into the game, which is fully cached and playable.
+        if (isGateway) return Response.redirect(SCOPE_ROOT, 302);
         return shellResponse(req);
       })
     );

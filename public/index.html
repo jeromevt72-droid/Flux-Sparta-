@@ -1470,6 +1470,9 @@ async function verifyPendingPurchase(){
   const p=new URLSearchParams(location.search);
   const sessionId=p.get('session_id'),sku=p.get('sku');
   if(!sessionId||!sku)return;
+  // ONE-APP: mark this session as being handled so resumePendingCheckout()
+  // does not resolve it a second time.
+  (window.__fluxHandledSessions || (window.__fluxHandledSessions = new Set())).add(sessionId);
   history.replaceState({},'',location.pathname);
   try{
     const res=await fetch('/api/verify-session?session_id='+encodeURIComponent(sessionId));
@@ -1484,10 +1487,16 @@ async function verifyPendingPurchase(){
     const confirmedSku = data.sku;
     const confirmedFor = data.playerId;
     if(data.paid && confirmedSku && confirmedFor === playerId){
+      try { if ((JSON.parse(localStorage.fluxPendingCheckout||'null')||{}).sessionId === sessionId) localStorage.removeItem('fluxPendingCheckout'); } catch (e) {}
       await syncEntitlements();
       showInfo('PURCHASE COMPLETE',(SKINS[confirmedSku]?.name||confirmedSku)+' is unlocked. Open THEMES & SKINS to equip it.');
     }else if(data.paid && confirmedFor && confirmedFor !== playerId){
-      showInfo('PURCHASE BELONGS TO ANOTHER PLAYER',"That payment was made under a different FLUX ID, so it can't be applied here.");
+      /* ONE-APP: on iOS, Stripe's return can open outside the installed app,
+         in a separate storage context. The payment is still recorded against
+         the player who paid (server-side, from the Stripe session), so point
+         them back to the app rather than implying something went wrong.
+         Nothing is granted to THIS context. */
+      showInfo('PAYMENT RECEIVED',"Your purchase is recorded. Open FLUX from your Home Screen to use it.");
     }else{
       showInfo('PAYMENT NOT COMPLETE',"We couldn't confirm that payment went through. If you were charged, contact support.");
     }
@@ -1752,6 +1761,91 @@ async function syncEntitlements() {
   }
 }
 
+/* ---------------------------------------------------------------------------
+   ONE-APP (RC2.5.6 audit) — THE INSTALLED APP RESOLVES ITS OWN PURCHASE
+
+   Verification used to happen ONLY when a page loaded carrying ?session_id=.
+   On iOS the Stripe return can open in a different storage context from the
+   installed app (owner-observed: a return page showing a different player). In
+   that case the app never verified, never showed the skin, and the BUY lock was
+   never released.
+
+   Now the app records its own pending checkout (session id + sku + playerId)
+   before leaving for Stripe, and resolves it itself whenever it comes back to
+   the foreground -- visibilitychange, pageshow (back-gesture / bfcache restore,
+   which does NOT reload the page) and first load.
+
+   Nothing here grants ownership on the client. /api/verify-session asks Stripe
+   with the secret key; the server grants to the playerId stored in the Stripe
+   session metadata; the app then re-reads ownership via syncEntitlements().
+   A pending record belonging to a different playerId is ignored.
+   --------------------------------------------------------------------------- */
+const PENDING_CHECKOUT_KEY = 'fluxPendingCheckout';
+const PENDING_CHECKOUT_TTL = 2 * 60 * 60 * 1000;   // 2 hours
+
+function rememberPendingCheckout(sessionId, sku) {
+  if (!sessionId) return;
+  try {
+    localStorage[PENDING_CHECKOUT_KEY] = JSON.stringify({
+      sessionId: String(sessionId), sku: String(sku), playerId: playerId, at: Date.now()
+    });
+  } catch (e) {}
+}
+function clearPendingCheckout() {
+  try { localStorage.removeItem(PENDING_CHECKOUT_KEY); } catch (e) {}
+}
+function readPendingCheckout() {
+  try {
+    const p = JSON.parse(localStorage[PENDING_CHECKOUT_KEY] || 'null');
+    if (!p || !p.sessionId || p.playerId !== playerId) return null;   // not ours
+    if (Date.now() - (p.at || 0) > PENDING_CHECKOUT_TTL) { clearPendingCheckout(); return null; }
+    return p;
+  } catch (e) { return null; }
+}
+// Shared with verifyPendingPurchase so the same session is never resolved twice
+// (which would show two PURCHASE COMPLETE dialogs). A window property, so it is
+// safe no matter which of the two runs first during page load.
+function handledSessions() {
+  return window.__fluxHandledSessions || (window.__fluxHandledSessions = new Set());
+}
+
+let resolvingCheckout = false;
+async function resumePendingCheckout() {
+  // Coming back from Stripe must never leave a purchase lock held.
+  purchaseInFlight = false;
+  const p = readPendingCheckout();
+  if (!p || resolvingCheckout || isOffline() || handledSessions().has(p.sessionId)) {
+    try { buildShopUI(); } catch (e) {}
+    return;
+  }
+  resolvingCheckout = true;
+  handledSessions().add(p.sessionId);
+  try {
+    const res = await fetch('/api/verify-session?session_id=' + encodeURIComponent(p.sessionId));
+    const data = await res.json();
+    if (data.paid && data.sku && data.playerId === playerId) {
+      clearPendingCheckout();
+      await syncEntitlements();              // server is the authority
+      showInfo('PURCHASE COMPLETE', (SKINS[data.sku]?.name || data.sku) + ' is unlocked. Open THEMES & SKINS to equip it.');
+    } else if (data.paid && data.playerId && data.playerId !== playerId) {
+      clearPendingCheckout();                // never ours to claim
+      try { buildShopUI(); } catch (e) {}
+    } else {
+      // Not paid: cancelled, or still in progress. Allow a later foreground to
+      // check again, and restore the BUY buttons now.
+      handledSessions().delete(p.sessionId);
+      try { buildShopUI(); } catch (e) {}
+    }
+  } catch (e) {
+    handledSessions().delete(p.sessionId);
+    try { buildShopUI(); } catch (_) {}
+  } finally {
+    resolvingCheckout = false;
+  }
+}
+addEventListener('visibilitychange', function () { if (!document.hidden) resumePendingCheckout(); });
+addEventListener('pageshow', function () { resumePendingCheckout(); });
+
 /* --- 3. Checkout must send the player ID --- */
 /* ---------------------------------------------------------------------------
    AUDIT-F06 (RC2.5.4) — CHECKOUT NAVIGATION THAT WORKS INSIDE THE GATEWAY
@@ -1839,6 +1933,11 @@ buySkin = async function (sku, btn) {
     const data = await res.json();
     if (!res.ok && data && data.error) throw new Error(data.error);
     if (data.url) {
+      // ONE-APP (RC2.5.6 audit): remember THIS player's checkout before leaving.
+      // Stripe's return can land in a different iOS storage context than the
+      // installed app, so the app must be able to resolve its own purchase
+      // itself, without depending on the return page at all.
+      rememberPendingCheckout(data.sessionId, sku);
       const navigated = goToCheckout(data.url);
       if (navigated === 'handoff') {
         // We asked the parent to navigate. If the window is still here a few
