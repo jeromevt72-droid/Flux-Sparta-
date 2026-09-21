@@ -29,15 +29,23 @@
    page decides when a new worker activates.
    =========================================================================== */
 
-const CACHE_VERSION = 'flux-sparta-v3';
+const CACHE_VERSION = 'flux-sparta-v4';
 const CACHE_PREFIX  = 'flux-sparta-';
 
-const SCOPE_ROOT = new URL('./', self.location).href;
-const SHELL_URL  = new URL('./index.html', self.location).href;
+/* ROOT MOVE (v4): the Gateway is now the site root ("/") and the game lives at
+   /play/. SCOPE_ROOT is kept ONLY as the territory boundary this worker
+   controls. It is no longer "the game" anywhere below -- in v3 it was precached,
+   used as a shell fallback, and refreshed on game navigations, and every one of
+   those would now mean "the Gateway". GAME_ROOT and SHELL_URL are the game.
+   The cache version is bumped so v3's copies, keyed to the old paths, are
+   deleted on activate rather than served. */
+const SCOPE_ROOT = new URL('./', self.location).href;          // territory boundary
+const GAME_ROOT  = new URL('./play/', self.location).href;     // the game
+const SHELL_URL  = new URL('./play/index.html', self.location).href;
 const SHELL_KEY  = new URL('./__flux_shell', self.location).href;
 
 const PRECACHE = [
-  SCOPE_ROOT,
+  GAME_ROOT,
   SHELL_URL,
   new URL('./manifest.webmanifest', self.location).href,
   new URL('./icon-192.png', self.location).href,
@@ -94,7 +102,7 @@ function shellResponse(req) {
     const tries = [];
     if (req) tries.push(function () { return cache.match(req, { ignoreSearch: true }); });
     tries.push(function () { return cache.match(SHELL_URL, { ignoreSearch: true }); });
-    tries.push(function () { return cache.match(SCOPE_ROOT, { ignoreSearch: true }); });
+    tries.push(function () { return cache.match(GAME_ROOT, { ignoreSearch: true }); });
     tries.push(function () { return cache.match(SHELL_KEY); });
     return tries.reduce(function (chain, next) {
       return chain.then(function (hit) { return hit || next(); });
@@ -121,30 +129,33 @@ self.addEventListener('fetch', function (event) {
   if (isNetworkOnly(url)) return;
 
   if (req.mode === 'navigate' && inScope(url)) {
-    /* MERGE (RC2.5.6): the Gateway now lives on this origin at /welcome/.
+    /* HISTORY: RC2.5.6 put the Gateway at /welcome/; it now lives at the site root.
        v2 stored EVERY in-scope navigation as the game shell, so simply visiting
        the Gateway would have overwritten the offline copy of the game with
        Gateway HTML -- and a cold offline launch would then show the Gateway,
        which cannot run offline. Only a navigation to the GAME itself may
        refresh the game shell now. */
-    const isGameShell = (url.pathname === '/' || url.pathname === '/index.html');
-    const isGateway   = url.pathname === '/welcome' || url.pathname.indexOf('/welcome/') === 0;
+    /* ROOT MOVE: the game is /play/. Only a navigation to the GAME refreshes the
+       offline game shell; the Gateway at "/" (and the retired /welcome/) never
+       can. */
+    const isGameShell = (url.pathname === '/play' || url.pathname === '/play/' || url.pathname === '/play/index.html');
     event.respondWith(
       fetch(req).then(function (res) {
         if (isGameShell && isCacheable(res)) {
           const a = res.clone(), b = res.clone(), c = res.clone();
           caches.open(CACHE_VERSION).then(function (cache) {
             cache.put(SHELL_URL, a);
-            cache.put(SCOPE_ROOT, b);
+            cache.put(GAME_ROOT, b);
             cache.put(SHELL_KEY, c);
           });
         }
         return res;
       }).catch(function () {
-        // Offline launch of the installed app lands on /welcome/. The Gateway
-        // needs the network (it is marketing plus the live World Grid), so send
-        // the player straight into the game, which is fully cached and playable.
-        if (isGateway) return Response.redirect(SCOPE_ROOT, 302);
+        // Offline. The installed app starts at "/" -- the Gateway -- which needs
+        // the network (marketing plus the live World Grid). Any navigation that
+        // is not the game is sent straight into the game, which is fully cached
+        // and playable. The game itself is served from the offline shell.
+        if (!isGameShell) return Response.redirect(GAME_ROOT, 302);
         return shellResponse(req);
       })
     );
