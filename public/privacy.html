@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Privacy Policy — FLUX</title>
+<meta name="description" content="How FLUX handles player information.">
+<style>
+  :root{color-scheme:dark}
+  *{box-sizing:border-box}
+  body{margin:0;background:#03030b;color:#e9e9f4;
+       font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+       line-height:1.7;
+       padding:max(24px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right))
+               max(40px,env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left))}
+  .wrap{max-width:760px;margin:0 auto}
+  a{color:#62eaff}
+  .back{display:inline-block;margin-bottom:26px;padding:10px 18px;border-radius:999px;
+        border:1px solid #ffffff30;background:#ffffff10;color:#fff;text-decoration:none;
+        font-size:12px;font-weight:800;letter-spacing:.14em}
+  h1{font-size:clamp(28px,7vw,40px);letter-spacing:-.02em;margin:0 0 6px}
+  .eff{color:#9c9cb8;font-size:13px;margin:0 0 30px}
+  h2{font-size:18px;margin:34px 0 8px;color:#fff}
+  h3{font-size:15px;margin:22px 0 6px;color:#ffd9a0}
+  p,li{color:#c9c9dd;font-size:15px}
+  ul{padding-left:20px}
+  code{background:#ffffff12;padding:2px 6px;border-radius:5px;font-size:13px;color:#eaf7ff}
+  .todo{background:#ff4f9818;border:1px solid #ff4f9855;border-radius:10px;
+        padding:12px 14px;margin:14px 0;color:#ffc2da;font-size:14px}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid #ffffff1a;vertical-align:top}
+  th{color:#fff;font-size:12px;letter-spacing:.1em;text-transform:uppercase}
+  footer{margin-top:44px;padding-top:20px;border-top:1px solid #ffffff1a;color:#8e8ea6;font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<a class="back" href="./index.html">← BACK TO FLUX</a>
+
+<h1>Privacy Policy</h1>
+<p class="eff">Effective date: <strong>[OWNER INPUT REQUIRED: effective date]</strong></p>
+
+<div class="todo">
+<strong>Not yet ready for publication.</strong> This page describes what FLUX
+actually does with information, verified against the source code. The bracketed
+items below still need real values from the operator before public release.
+</div>
+
+<p>This policy explains what information FLUX collects, what stays on your
+device, what is sent to our server, and what is visible to other players. It
+describes the game as it is actually built.</p>
+
+<h2>1. Who operates FLUX</h2>
+<p>FLUX is operated by <strong>[OWNER INPUT REQUIRED: legal or business name]</strong>
+<strong>[OWNER INPUT REQUIRED: business entity type and registration, if any]</strong>.
+Contact: <strong>[OWNER INPUT REQUIRED: privacy contact email]</strong>.</p>
+
+<h2>2. Information you provide</h2>
+<h3>FLUX ID</h3>
+<p>When you first play, you choose a <strong>FLUX ID</strong> — a display name of
+up to 14 characters. You choose it yourself. We do not ask for your real name,
+and nothing in FLUX requires it to be your real name.</p>
+<h3>Country</h3>
+<p>You select a country from a list. This is your choice. If you do not select
+one, FLUX suggests a country based on the region Cloudflare reports for your
+connection, which you can change.</p>
+<p>FLUX does not ask for an email address, phone number, date of birth, photo,
+contacts, or precise location.</p>
+
+<h2>3. Information generated as you play</h2>
+<ul>
+  <li>Your score, level reached, and chosen difficulty</li>
+  <li>A randomly generated player identifier (<code>playerId</code>) created on
+      your device the first time you play. It is not derived from your device,
+      your account, or anything identifying you.</li>
+  <li>Which skins you own</li>
+</ul>
+
+<h2>4. What stays only on your device</h2>
+<p>FLUX stores the following in your browser's local storage. It is not
+transmitted anywhere unless listed in section 5:</p>
+<table>
+  <tr><th>Stored</th><th>What it is</th></tr>
+  <tr><td>FLUX ID, country, difficulty</td><td>Your settings</td></tr>
+  <tr><td>Personal best score and level</td><td>Per difficulty</td></tr>
+  <tr><td>Player identifier</td><td>Random value described above</td></tr>
+  <tr><td>Owned skins</td><td>Local cache of purchases</td></tr>
+  <tr><td>Pending score submissions</td><td>Runs finished while offline, queued for later</td></tr>
+  <tr><td>Chosen background and selected skin</td><td>Appearance settings</td></tr>
+  <tr><td>Last submission error</td><td>A short diagnostic code, no personal content</td></tr>
+</table>
+<p>Clearing your browser data or deleting the app from your Home Screen removes
+all of it. We cannot recover it, and we cannot see it.</p>
+
+<h2>5. Information sent to our server</h2>
+<p>When you finish a run and a score is submitted, FLUX sends:</p>
+<ul>
+  <li>your player identifier</li>
+  <li>your FLUX ID</li>
+  <li>your score, level, and difficulty</li>
+  <li>your chosen country</li>
+</ul>
+<p>Our server additionally records the two-letter country code that Cloudflare
+reports for the connection, used as a fallback when you have not chosen a
+country. <strong>We do not store your IP address</strong>, and we do not store
+any device identifier, browser fingerprint, or user agent.</p>
+<p>If you play offline, completed runs are held on your device and submitted
+when you reconnect.</p>
+
+<h2>6. Information visible to other players</h2>
+<p>The global leaderboard and the World Grid are public. Anyone can see your
+<strong>FLUX ID</strong>, <strong>score</strong>, <strong>level</strong>,
+<strong>difficulty</strong>, and <strong>country</strong>. Choose a FLUX ID you
+are comfortable showing publicly. Your player identifier is not displayed.</p>
+
+<h2>7. Offline storage and caching</h2>
+<p>FLUX installs a service worker that caches the game files on your device so
+it runs without a connection. The cache holds the game itself — HTML, icons and
+images. It does not cache leaderboard data, purchase data, or any server
+response about you.</p>
+
+<h2>8. Purchases and payment</h2>
+<p>Skins are purchased through <strong>Stripe</strong>. You enter your payment
+details on Stripe's own checkout page.</p>
+<p><strong>FLUX never receives your card number, expiry date, or security
+code.</strong> We receive from Stripe only a confirmation that a specific
+checkout session was paid, which we use to unlock the skin for your player
+identifier. Stripe's handling of your payment information is governed by
+Stripe's own privacy policy at <a href="https://stripe.com/privacy">stripe.com/privacy</a>.</p>
+
+<h2>9. Third parties</h2>
+<p>FLUX uses:</p>
+<ul>
+  <li><strong>Cloudflare</strong> — hosting, and the country code described above</li>
+  <li><strong>Stripe</strong> — payment processing</li>
+</ul>
+<p>FLUX contains <strong>no analytics, no advertising, no tracking pixels, and no
+cookies</strong>. This was verified against the source: there is no Google
+Analytics, no tag manager, no social pixel, and no <code>document.cookie</code>
+usage anywhere in the game or the Gateway.</p>
+
+<h2>10. Why we process this information</h2>
+<ul>
+  <li>To run the global leaderboard and World Grid, which is the point of the game</li>
+  <li>To keep your purchases working across devices and after clearing data</li>
+  <li>To reject implausible scores and keep standings meaningful</li>
+</ul>
+
+<h2>11. Retention</h2>
+<p>Leaderboard entries and purchase records are kept for as long as FLUX
+operates the leaderboard, so that standings remain accurate and purchases
+continue to work. <strong>[OWNER INPUT REQUIRED: whether a fixed retention
+period or deletion schedule applies]</strong></p>
+
+<h2>12. Deletion and requests</h2>
+<p>You can remove everything stored on your device at any time by clearing your
+browser data or deleting FLUX from your Home Screen.</p>
+<p>To request removal of a leaderboard entry or a purchase record, contact
+<strong>[OWNER INPUT REQUIRED: privacy contact email]</strong> and include your
+FLUX ID and approximate score so the entry can be located. We may be unable to
+identify your record without it, since we hold no email address or account.</p>
+
+<h2>13. Security</h2>
+<p>Data is transmitted over HTTPS. Payment credentials go directly to Stripe and
+never pass through FLUX. Score submissions are checked for plausibility before
+being accepted.</p>
+<p>No service can promise perfect security, and we do not claim to. FLUX
+currently trusts the score reported by your device, subject to those plausibility
+checks; it is a game leaderboard, not a system of record.</p>
+
+<h2>14. Children</h2>
+<p><strong>[OWNER INPUT REQUIRED: minimum age for using FLUX, and whether FLUX
+is directed to children]</strong></p>
+<p>FLUX does not knowingly collect personal information from children. Because
+we do not collect an email address or date of birth, we cannot determine a
+player's age. If you believe a child has submitted a FLUX ID you would like
+removed, contact us at the address above.</p>
+
+<h2>15. International players</h2>
+<p>FLUX is available worldwide and is hosted on Cloudflare's global network, so
+information may be processed in countries other than your own.</p>
+<p><strong>[OWNER INPUT REQUIRED: whether GDPR, UK GDPR, CCPA or other regimes
+are being formally complied with, and the legal basis relied upon]</strong> — we
+do not claim compliance with any specific regime until that has actually been
+assessed.</p>
+
+<h2>16. Changes</h2>
+<p>If this policy changes, the effective date above will change. Material
+changes will be noted on the FLUX Gateway.</p>
+
+<h2>17. Contact</h2>
+<p><strong>[OWNER INPUT REQUIRED: contact email]</strong><br>
+<strong>[OWNER INPUT REQUIRED: mailing address, if one is required for your
+jurisdiction or for app store submission]</strong></p>
+
+<footer>
+FLUX — <a href="./index.html">Return to the Gateway</a> · <a href="./terms.html">Terms of Use</a>
+</footer>
+</div>
+</body>
+</html>
