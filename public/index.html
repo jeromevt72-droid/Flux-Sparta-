@@ -1788,10 +1788,27 @@ function goToCheckout(url){
     // Targeted at the Gateway's own origin, never '*': the URL is only for it.
     try {
       window.parent.postMessage({ type: 'flux-open-checkout', url: url }, document.referrer ? new URL(document.referrer).origin : '*');
-      return;
+      return 'handoff';
     } catch (e) { /* fall through to a normal navigation */ }
   }
   location.href = url;
+  return 'navigated';
+}
+
+/* T-9 (RC2.5.5): ONE PURCHASE AT A TIME.
+   Owner-observed: tapping several BUY buttons left Toxic, Cosmic and Solar all
+   sitting at LOADING... at once. Two faults behind that. First, nothing stopped
+   a second purchase starting while one was unresolved. Second, the button was
+   never restored on the path that hands off instead of navigating, so a
+   handoff that went nowhere left it stuck forever.
+   A single in-flight flag fixes the first; restoring the label after a handoff
+   that has not navigated within a few seconds fixes the second. */
+let purchaseInFlight = false;
+function resetBuyButton(btn, sku){
+  try {
+    btn.disabled = false;
+    btn.textContent = 'BUY ' + SKINS[sku].price;
+  } catch (e) {}
 }
 
 buySkin = async function (sku, btn) {
@@ -1799,6 +1816,11 @@ buySkin = async function (sku, btn) {
     showInfo('CONNECTION REQUIRED','Purchases need an internet connection. Everything else in FLUX works offline.');
     return;
   }
+  if (purchaseInFlight) {
+    showInfo('ONE AT A TIME', 'A purchase is already being set up. Finish or cancel that one first.');
+    return;
+  }
+  purchaseInFlight = true;
   btn.disabled = true;
   btn.textContent = 'LOADING…';
   /* T-9: FLUX's own pre-navigation request must never hang forever. This
@@ -1816,11 +1838,22 @@ buySkin = async function (sku, btn) {
     });
     const data = await res.json();
     if (!res.ok && data && data.error) throw new Error(data.error);
-    if (data.url) { goToCheckout(data.url); }
+    if (data.url) {
+      const navigated = goToCheckout(data.url);
+      if (navigated === 'handoff') {
+        // We asked the parent to navigate. If the window is still here a few
+        // seconds later, the handoff did not take -- give the button back
+        // instead of leaving it stuck on LOADING forever.
+        setTimeout(() => {
+          purchaseInFlight = false;
+          resetBuyButton(btn, sku);
+        }, 4000);
+      }
+    }
     else { throw new Error(data.error || 'checkout failed'); }
   } catch (e) {
-    btn.disabled = false;
-    btn.textContent = 'BUY ' + SKINS[sku].price;
+    purchaseInFlight = false;
+    resetBuyButton(btn, sku);
     const aborted = e && (e.name === 'AbortError' || /abort/i.test(String(e.message || '')));
     showInfo('CHECKOUT ERROR', aborted
       ? "Checkout is taking longer than expected. Check your connection and try again."
