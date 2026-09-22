@@ -64,6 +64,9 @@ export default {
         if (path === "/api/entitlements" && request.method === "GET") {
           return withCors(await getEntitlements(request, env));
         }
+        if (path === "/api/restore-check" && request.method === "POST") {
+          return withCors(await restoreCheck(request, env));   // D-35
+        }
         if (path === "/api/create-checkout-session" && request.method === "POST") {
           return withCors(await createCheckout(request, env));
         }
@@ -170,6 +173,27 @@ async function getEntitlements(request, env) {
   const playerId = new URL(request.url).searchParams.get("playerId") || "";
   if (!validPlayerId(playerId)) return json({ error: "Missing or invalid playerId" }, 400);
   return forwardToDO(request, env, "/entitlements?playerId=" + encodeURIComponent(playerId));
+}
+
+/* D-35 (RC2.8.2): RESTORE CHECK. The game asks this before it switches the
+   device to a restored pilot, so a mistyped or unknown code changes nothing.
+   It answers only for the exact secret playerId it is given -- the same value
+   /api/entitlements and /api/submit-score already accept -- and returns only
+   what that pilot's own device already shows: name, tag, country, bests and
+   owned skins. POST, so the secret is not written into URLs or access logs,
+   and never cached. */
+async function restoreCheck(request, env) {
+  const body = await readJsonObject(request);
+  const playerId = body && typeof body.playerId === "string" ? body.playerId : "";
+  if (!validPlayerId(playerId)) return json({ error: "Missing or invalid playerId" }, 400, { "Cache-Control": "no-store" });
+  const resp = await forwardToDO(request, env, "/restore-check", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ playerId }),
+  });
+  const headers = new Headers(resp.headers);
+  headers.set("Cache-Control", "no-store");
+  return new Response(resp.body, { status: resp.status, headers });
 }
 
 async function grantEntitlement(env, playerId, sku, sessionId) {
@@ -957,6 +981,7 @@ export class LeaderboardDO {
       "/leaderboard": () => this.handleLeaderboard(url),
       "/submit": () => this.handleSubmit(request),
       "/entitlements": () => this.handleEntitlements(url),
+      "/restore-check": () => this.handleRestoreCheck(request),
       "/grant": () => this.handleGrant(request),
       "/revoke": () => this.handleRevoke(request),
       "/import": () => this.handleImport(request),
@@ -1137,6 +1162,34 @@ export class LeaderboardDO {
     if (!reason) return null;
     const pid = await this.pid(playerId);
     return { id: pid + ":" + difficulty, pid, name: cleanName(name), difficulty, score, prevBest, boardTop, reason, at: now };
+  }
+
+  /* D-35: see restoreCheck(). Known = has a score record or owns a skin.
+     Nothing is written. */
+  async handleRestoreCheck(request) {
+    let body = null;
+    try { body = await request.json(); } catch (e) {}
+    const playerId = body && typeof body.playerId === "string" ? body.playerId : "";
+    if (!validPlayerId(playerId)) return json({ error: "Missing or invalid playerId" }, 400);
+    const rec = ownGet(this.players, playerId);
+    const owned = ownGet(this.entitlements, playerId);
+    const skus = Array.isArray(owned) ? owned.filter((s) => VALID_SKUS.has(s)) : [];
+    if (!rec && !skus.length) return json({ found: false });
+    const bests = {};
+    if (rec) {
+      for (const d of VALID_DIFFICULTIES) {
+        const b = ownGet(rec.bests, d);
+        if (b && Number.isFinite(b.score)) bests[d] = { score: b.score, level: Number.isFinite(b.level) ? b.level : 1 };
+      }
+    }
+    return json({
+      found: true,
+      name: rec ? cleanName(rec.name) : "",
+      tag: await this.tagFor(playerId),
+      country: rec && ISO2.test(String(rec.country || "")) ? rec.country : "",
+      bests,
+      skus,
+    });
   }
 
   handleEntitlements(url) {
