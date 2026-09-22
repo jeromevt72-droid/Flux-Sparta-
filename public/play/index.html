@@ -120,6 +120,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 .shopInfo span{display:block;font-size:9px;letter-spacing:.1em;color:#7f93bd;margin-top:2px}
 .shopRow button{padding:8px 12px;font-size:9px;white-space:nowrap}
 .shopRow button:disabled{opacity:.55;box-shadow:none}
+.profileTag{opacity:.55;font-weight:600;letter-spacing:.06em;margin-left:2px}.lbTag{opacity:.5;font-weight:600;font-size:.8em;letter-spacing:.04em}.shopNote{display:inline-block;margin-top:6px;font-size:.78em;opacity:.7;line-height:1.4}.uploadStatus{min-height:14px;margin:6px 0 0;font-size:10px;letter-spacing:.18em;color:#8fa3d8;text-align:center}
 </style>
 </head>
 <body>
@@ -144,7 +145,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 <div id="pressureBadge" class="badge stable">FIELD • STABLE</div>
 </div>
 <div id="pauseOverlay" class="hidden"><div class="panel"><h2>FLUX PAUSED</h2><p>Your field is frozen. Take a breath, then get back in the flow.</p><button id="resumeBtn">RESUME</button><button id="pauseMenuBtn" style="margin-top:8px;background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none">⌂ END RUN &amp; MENU</button></div></div>
-<div id="shop" class="hidden"><div class="panel menuPanel"><h2 style="color:#62eaff;letter-spacing:.14em;margin:0 0 4px">THEMES & SKINS</h2><p style="margin:0 0 14px">Cosmetic only — never changes gameplay fairness.</p><div id="shopList"></div><div class="menuLabel" style="margin-top:16px">WORLD</div><div id="backgroundList"></div><button id="shopClose" style="margin-top:14px">BACK</button></div></div>
+<div id="shop" class="hidden"><div class="panel menuPanel"><h2 style="color:#62eaff;letter-spacing:.14em;margin:0 0 4px">THEMES & SKINS</h2><p style="margin:0 0 14px">Cosmetic only — never changes gameplay fairness.<br><span class="shopNote">Purchases stay with the FLUX identity on this device. Clearing browser or app data can remove them — there is no cross-device recovery yet.</span></p><div id="shopList"></div><div class="menuLabel" style="margin-top:16px">WORLD</div><div id="backgroundList"></div><button id="shopClose" style="margin-top:14px">BACK</button></div></div>
 <div id="start"><div class="panel menuPanel"><h1>FLUX</h1><div class="acronym">FLOW • LAUNCH • UNITE • XCELERATE</div><div class="menuSection"><div class="menuLabel">SELECT YOUR FLOW</div><div class="difficulty" id="difficulty"><button data-d="easy">EASY</button><button data-d="medium">MEDIUM</button><button data-d="hard">HARD</button></div></div><div id="profileEditor" class="profileRow"><input id="callsign" maxlength="14" placeholder="FLUX ID"><select id="country"><option value="AF">🇦🇫 AFGHANISTAN</option>
 <option value="AL">🇦🇱 ALBANIA</option>
 <option value="DZ">🇩🇿 ALGERIA</option>
@@ -340,7 +341,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 <option value="VN">🇻🇳 VIETNAM</option>
 <option value="YE">🇾🇪 YEMEN</option>
 <option value="ZM">🇿🇲 ZAMBIA</option>
-<option value="ZW">🇿🇼 ZIMBABWE</option><option value="OTHER">🌎 OTHER</option></select></div><div id="profileSaved" class="profileSaved hidden"><span>PILOT <b id="profileName">PLAYER</b> • <b id="profileCountry">🇺🇸</b></span><button class="editProfile" id="editProfile">EDIT</button></div><button id="startBtn">ENTER THE FLUX</button><div class="menuTiles"><div><span>PERSONAL BEST</span><b id="menuBest">0</b></div><div><span>BEST LEVEL</span><b id="menuLevel">1</b></div></div><div class="menuLinks"><button class="linkBtn" id="leaderBtn">🌎 GLOBAL LEADERBOARD</button><button class="linkBtn" id="skinsBtn">✦ THEMES & SKINS</button></div><p class="offline" id="offlineClaim">● PERSONAL BEST SAVES ON THIS DEVICE</p></div></div>
+<option value="ZW">🇿🇼 ZIMBABWE</option><option value="OTHER">🌎 OTHER</option></select></div><div id="profileSaved" class="profileSaved hidden"><span>PILOT <b id="profileName">PLAYER</b><small id="profileTag" class="profileTag"></small> • <b id="profileCountry">🇺🇸</b></span><button class="editProfile" id="editProfile">EDIT</button></div><button id="startBtn">ENTER THE FLUX</button><div class="menuTiles"><div><span>PERSONAL BEST</span><b id="menuBest">0</b></div><div><span>BEST LEVEL</span><b id="menuLevel">1</b></div></div><div id="uploadStatus" class="uploadStatus" aria-live="polite"></div><div class="menuLinks"><button class="linkBtn" id="leaderBtn">🌎 GLOBAL LEADERBOARD</button><button class="linkBtn" id="skinsBtn">✦ THEMES & SKINS</button></div><p class="offline" id="offlineClaim">● PERSONAL BEST SAVES ON THIS DEVICE</p></div></div>
 <div id="gameover" class="hidden">
  <div class="panel">
   <h1 style="font-size:38px">FLUX<br>OVERLOAD</h1>
@@ -631,6 +632,11 @@ function playThreat(){
   haptic(8);
 }
 
+/* D-23 (RC2.8): an explicit "run in progress" flag. `playing` is false during a
+   pause, a level-transition hold and parts of the revive flow, so RC2.7's update
+   gate could reload the page mid-run and lose it. runActive is true from the
+   moment a run starts until it genuinely ends (game over, or END RUN & MENU). */
+var runActive=false;
 function newGame(){
  try{ window.parent.postMessage({type:'flux-playing'}, '*'); }catch(e){}
  score=0;combo=1;level=1;streak=0;flux=0;fluxMode=0;misses=0;revivesUsedThisRun=0;missFragments=[];particles=[];texts=[];shake=0;targets=[];comboTimer=0;levelBanner=0;perfectFlash=0;bonusTimer=rand(5,9);growTimer=rand(9,14);
@@ -654,7 +660,7 @@ function newGame(){
    const z=zones[i%zones.length];
    addTarget(color,z[0],z[1]);
  }
- updateHud(); playing=true;
+ updateHud(); playing=true; runActive=true;
 }
 function addTarget(color,x,y,r=18+Math.random()*6){
  targets.push({
@@ -975,7 +981,7 @@ function updateHud(){
  }
 }
 function endGame(){
- playing=false;
+ playing=false; runActive=false;
  document.getElementById('pauseBtn').classList.add('hidden');
  document.getElementById('pauseOverlay')?.classList.add('hidden');
  playGameOver();haptic(90);
@@ -1391,7 +1397,7 @@ document.getElementById('pauseMenuBtn').onclick=()=>{
   recordBestRun(score,level);
   if(score>best){best=score;}
   submitScore();
-  playing=false;paused=false;
+  playing=false;paused=false;runActive=false;
   document.getElementById('pauseOverlay').classList.add('hidden');
   document.getElementById('pauseBtn').classList.add('hidden');
   refreshMenu();
@@ -1502,7 +1508,12 @@ async function verifyPendingPurchase(){
        written locally -- the server stays the single authority. */
     const confirmedSku = data.sku;
     const confirmedFor = data.playerId;
-    if(data.paid && confirmedSku && confirmedFor === playerId){
+    // D-31 (RC2.8.1): paid but still being delivered -> never claim completion.
+    if(data.paid && confirmedFor === playerId && data.pendingDelivery === true){
+      showInfo('PAYMENT RECEIVED','Your payment went through. Your skin is still being delivered and will unlock automatically — reopen FLUX in a few minutes. If it has not arrived within a day, email playfluxofficial@gmail.com.');
+      return;
+    }
+    if(data.paid && confirmedSku && confirmedFor === playerId && data.delivered !== false){
       try { if ((JSON.parse(localStorage.fluxPendingCheckout||'null')||{}).sessionId === sessionId) localStorage.removeItem('fluxPendingCheckout'); } catch (e) {}
       await syncEntitlements();
       showInfo('PURCHASE COMPLETE',(SKINS[confirmedSku]?.name||confirmedSku)+' is unlocked. Open THEMES & SKINS to equip it.');
@@ -1539,7 +1550,7 @@ function showInfo(title,msg){const d=document.createElement('div');d.className='
 // Attempts are capped so a bad item cannot retry forever.
 // ---------------------------------------------------------------------------
 const SUBMIT_QUEUE_KEY='fluxPendingSubmits';
-const SUBMIT_MAX_ATTEMPTS=8;
+const SUBMIT_MAX_ATTEMPTS=Infinity;   // RC2.8: temporary failures never exhaust a best (see D-24)
 const SUBMIT_QUEUE_MAX=20;
 function loadQueue(){
   try{ const q=JSON.parse(localStorage[SUBMIT_QUEUE_KEY]||'[]'); return Array.isArray(q)?q:[]; }
@@ -1563,10 +1574,30 @@ function buildSubmission(){
     attempts:0
   };
 }
+/* D-24 (RC2.8): RELIABLE QUEUED SCORES
+   RC2.7 deleted a queued personal best after 8 temporary failures, counted
+   network errors, HTTP 429 and server errors against the same budget, never
+   scheduled a retry on its own, and let several flushes run at once.
+   Now:
+   - temporary failures (network, 429, 5xx) NEVER delete an unsent best;
+   - ONE queue processor at a time; extra calls share the running one;
+   - retries are scheduled automatically with growing waits, honouring
+     Retry-After and the server's 10-second cooldown;
+   - the queue keeps only the best unsent record per player and difficulty.
+   Only a permanent rejection (the server refusing the score itself) removes
+   an item, and that is recorded. */
+const SUBMIT_BACKOFF_MS=[5000,15000,45000,120000,300000,600000];
+const SUBMIT_COOLDOWN_WAIT_MS=11000;
+let _flushing=null, _retryTimer=null, _flushAgain=false;
+
 function enqueueSubmission(item){
+  if(!item) return;
   const q=loadQueue();
-  if(q.some(function(x){return x.id===item.id;})) return;
-  q.push(item); saveQueue(q);
+  const same=function(x){ return x.playerId===item.playerId && x.difficulty===item.difficulty; };
+  const existing=q.find(same);
+  if(existing && existing.score>=item.score) return;          // keep the better unsent best
+  saveQueue(q.filter(function(x){ return !same(x); }).concat([item]));
+  updateUploadStatus();
 }
 function dequeueSubmission(id){
   saveQueue(loadQueue().filter(function(x){return x.id!==id;}));
@@ -1582,36 +1613,101 @@ async function postSubmission(item){
         level:item.level, difficulty:item.difficulty, country:item.country
       })
     });
-  }catch(e){ return 'temporary'; }
-  if(res.ok) return 'ok';
-  if(res.status===429||res.status>=500) return 'temporary';
-  return 'permanent';
-}
-async function flushSubmitQueue(){
-  if(typeof navigator!=='undefined' && navigator.onLine===false) return;
-  const q=loadQueue();
-  for(const item of q.slice()){
-    const r=await postSubmission(item);
-    if(r==='ok'){ dequeueSubmission(item.id); clearSubmitFailure(); }
-    else if(r==='permanent'){ dequeueSubmission(item.id); recordSubmitFailure('rejected'); }
-    else {
-      item.attempts=(item.attempts||0)+1;
-      if(item.attempts>=SUBMIT_MAX_ATTEMPTS){ dequeueSubmission(item.id); recordSubmitFailure('gave_up'); }
-      else {
-        const cur=loadQueue();
-        const i=cur.findIndex(function(x){return x.id===item.id;});
-        if(i>=0){ cur[i]=item; saveQueue(cur); }
-        recordSubmitFailure('queued');
-      }
-      break;
-    }
+  }catch(e){ return { kind:'temporary', waitMs:0 }; }
+  if(res.ok){
+    let body=null; try{ body=await res.json(); }catch(e){}
+    return { kind:'ok', body:body };
   }
+  if(res.status===429||res.status>=500){
+    let waitMs=0;
+    try{
+      const ra=res.headers && res.headers.get && res.headers.get('Retry-After');
+      if(ra && isFinite(+ra)) waitMs=(+ra)*1000;
+    }catch(e){}
+    if(res.status===429) waitMs=Math.max(waitMs, SUBMIT_COOLDOWN_WAIT_MS);
+    return { kind:'temporary', waitMs:waitMs };
+  }
+  return { kind:'permanent' };
+}
+function scheduleFlush(ms){
+  if(_retryTimer) { try{ clearTimeout(_retryTimer); }catch(e){} }
+  _retryTimer=setTimeout(function(){ _retryTimer=null; flushSubmitQueue(); }, ms);
+}
+function flushSubmitQueue(){
+  // One processor at a time. A request that arrives WHILE it runs (e.g. a run
+  // ends during a background retry) sets _flushAgain, so the processor takes
+  // one more pass instead of leaving the new score waiting for the next timer.
+  if(_flushing){ _flushAgain=true; return _flushing; }
+  _flushing=(async function(){
+    // Yield once BEFORE doing anything. Without this, an empty queue (every app
+    // launch) finishes the whole body -- including the finally that clears
+    // _flushing -- synchronously, BEFORE this assignment completes. The stale
+    // promise would then be stored and never cleared, and every later flush
+    // would wait on it forever: scores would queue and never send.
+    await Promise.resolve();
+    try{
+      do {
+      _flushAgain=false;
+      if(typeof navigator!=='undefined' && navigator.onLine===false) return;
+      let retryScheduled=false;
+      for(const item of loadQueue()){
+        const r=await postSubmission(item);
+        if(r.kind==='ok'){
+          dequeueSubmission(item.id); clearSubmitFailure();
+          const b=r.body||{};
+          if(b.tag && /^[0-9A-Z]{6,}$/.test(b.tag)){ try{ localStorage.fluxPublicTag=b.tag; }catch(e){} }
+          lastUploadResult=b;
+        } else if(r.kind==='permanent'){
+          dequeueSubmission(item.id); recordSubmitFailure('rejected');
+        } else {
+          item.attempts=(item.attempts||0)+1;
+          const cur=loadQueue();
+          const k=cur.findIndex(function(x){return x.id===item.id;});
+          if(k>=0){ cur[k]=item; saveQueue(cur); }
+          recordSubmitFailure('queued');
+          const backoff=SUBMIT_BACKOFF_MS[Math.min(item.attempts-1, SUBMIT_BACKOFF_MS.length-1)];
+          scheduleFlush(Math.max(backoff, r.waitMs||0));
+          retryScheduled=true;
+          break;                                                // retry later, in order
+        }
+      }
+      if(retryScheduled) break;                                 // never hammer a failing server
+      } while(_flushAgain);
+    } finally {
+      _flushing=null;
+      updateUploadStatus();
+    }
+  })();
+  return _flushing;
 }
 function submitScore(){
   const item=buildSubmission();
-  if(!item) return;
+  if(!item) return Promise.resolve();
   enqueueSubmission(item);
-  flushSubmitQueue();
+  return flushSubmitQueue();
+}
+
+/* Honest, automatic score status (RC2.8). Shows only what is true:
+   "PENDING UPLOAD" while a best is waiting to be sent; the player's public rank
+   only when the server says they have one; nothing otherwise. There is no
+   review queue, so "pending review" is never shown. */
+let lastUploadResult=null;
+function updateUploadStatus(){
+  try{
+    const el=document.getElementById('uploadStatus');
+    if(el){
+      const waiting=loadQueue().length>0;
+      if(waiting) el.textContent='● BEST PENDING UPLOAD';
+      else if(lastUploadResult && lastUploadResult.public===true && Number.isFinite(lastUploadResult.rank) && lastUploadResult.rank>0)
+        el.textContent='GLOBAL RANK #'+lastUploadResult.rank+' ('+String(lastUploadResult.difficulty||difficulty).toUpperCase()+')';
+      else el.textContent='';
+    }
+    const tagEl=document.getElementById('profileTag');
+    if(tagEl){
+      let t=''; try{ t=localStorage.fluxPublicTag||''; }catch(e){}
+      tagEl.textContent = t ? ' #'+t : '';
+    }
+  }catch(e){}
 }
 function recordSubmitFailure(reason){
   try{
@@ -1667,7 +1763,7 @@ function openLeaderboard(){
     }
     html+='<div class="lbList">'+data.top.map((r,i)=>{
       const mine=!!myPid && r.pid===myPid;   // A-1: compare hashes, never ids
-      return '<div class="lbRow'+(mine?' lbMine':'')+'"><span class="lbRank">#'+(i+1)+'</span><span class="lbFlag">'+(countryFlags[r.country]||'🌎')+'</span><span class="lbName">'+escapeHtml(r.name)+'</span><span class="lbScore">'+r.score.toLocaleString()+'</span></div>';
+      return '<div class="lbRow'+(mine?' lbMine':'')+'"><span class="lbRank">#'+(i+1)+'</span><span class="lbFlag">'+(countryFlags[r.country]||'🌎')+'</span><span class="lbName">'+escapeHtml(r.name)+(r.tag?'<small class="lbTag"> #'+escapeHtml(r.tag)+'</small>':'')+'</span><span class="lbScore">'+r.score.toLocaleString()+'</span></div>';
     }).join('')+'</div>';
     if(data.countries&&data.countries.length>1){
       html+='<div class="lbSectionLabel">TOP COUNTRIES</div><div class="lbList">'+data.countries.slice(0,8).map(c=>{
@@ -1857,7 +1953,14 @@ async function resumePendingCheckout() {
   try {
     const res = await fetch('/api/verify-session?session_id=' + encodeURIComponent(p.sessionId));
     const data = await res.json();
-    if (data.paid && data.sku && data.playerId === playerId) {
+    /* D-31 (RC2.8.1): paid is not the same as delivered. If Stripe confirmed the
+       payment but the skin is still being saved, say so plainly, keep the
+       pending record, and check again on the next return. */
+    if (data.paid && data.playerId === playerId && data.pendingDelivery === true) {
+      handledSessions().delete(p.sessionId);
+      showInfo('PAYMENT RECEIVED', 'Your payment went through. Your skin is still being delivered and will unlock automatically — reopen FLUX in a few minutes. If it has not arrived within a day, email playfluxofficial@gmail.com.');
+      try { buildShopUI(); } catch (e) {}
+    } else if (data.paid && data.sku && data.playerId === playerId && data.delivered !== false) {
       clearPendingCheckout();
       await syncEntitlements();              // server is the authority
       showInfo('PURCHASE COMPLETE', (SKINS[data.sku]?.name || data.sku) + ' is unlocked. Open THEMES & SKINS to equip it.');
@@ -2105,7 +2208,8 @@ if('serviceWorker' in navigator){
       function activateWhenIdle(worker){
         if(!worker) return;
         var tryActivate=function(){
-          if(playing){ setTimeout(tryActivate,2000); return; }
+          // D-23: paused runs, level transitions and revive screens are still runs.
+          if(playing || paused || runActive){ setTimeout(tryActivate,2000); return; }
           worker.postMessage({type:'SKIP_WAITING'});
         };
         tryActivate();
