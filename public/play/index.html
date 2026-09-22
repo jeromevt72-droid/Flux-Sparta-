@@ -121,6 +121,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 .shopRow button{padding:8px 12px;font-size:9px;white-space:nowrap}
 .shopRow button:disabled{opacity:.55;box-shadow:none}
 .profileTag{opacity:.55;font-weight:600;letter-spacing:.06em;margin-left:2px}.lbTag{opacity:.5;font-weight:600;font-size:.8em;letter-spacing:.04em}.shopNote{display:inline-block;margin-top:6px;font-size:.78em;opacity:.7;line-height:1.4}.uploadStatus{min-height:14px;margin:6px 0 0;font-size:10px;letter-spacing:.18em;color:#8fa3d8;text-align:center}
+.restoreLink{display:block;width:100%;margin:-4px 0 12px;flex:none}#profileEditor.hidden+.restoreLink{display:none}.restoreOverlay .panel{max-height:88vh;overflow:auto}.restoreWho{font-size:12px;letter-spacing:.12em;color:#eaf7ff;margin:6px 0 10px}.restoreText{font-size:12px;line-height:1.55;color:#b9c6e6;margin:0 0 10px}.restoreWarn{font-size:11px;line-height:1.5;color:#ffd08a;margin:0 0 10px}.restoreMsg{font-size:12px;line-height:1.5;color:#ff9fc6;min-height:1.5em;margin:4px 0 8px}.restoreCode{font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.5;word-break:break-all;user-select:all;-webkit-user-select:all;background:#050a22;border:1px solid #2c4b87;border-radius:12px;padding:10px;margin:0 0 10px;color:#9ff3ff}.restoreInput{width:100%;box-sizing:border-box;font-family:ui-monospace,Menlo,monospace;font-size:16px;background:#050a22;color:#eaf7ff;border:1px solid #2c4b87;border-radius:12px;padding:10px;margin:0 0 6px;resize:none}.restoreRow{display:flex;gap:8px}.restoreRow button{flex:1}.restoreOverlay button{margin-top:8px}.restoreOther{display:block;width:100%}
 </style>
 </head>
 <body>
@@ -145,7 +146,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 <div id="pressureBadge" class="badge stable">FIELD • STABLE</div>
 </div>
 <div id="pauseOverlay" class="hidden"><div class="panel"><h2>FLUX PAUSED</h2><p>Your field is frozen. Take a breath, then get back in the flow.</p><button id="resumeBtn">RESUME</button><button id="pauseMenuBtn" style="margin-top:8px;background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none">⌂ END RUN &amp; MENU</button></div></div>
-<div id="shop" class="hidden"><div class="panel menuPanel"><h2 style="color:#62eaff;letter-spacing:.14em;margin:0 0 4px">THEMES & SKINS</h2><p style="margin:0 0 14px">Cosmetic only — never changes gameplay fairness.<br><span class="shopNote">Purchases stay with the FLUX identity on this device. Clearing browser or app data can remove them — there is no cross-device recovery yet.</span></p><div id="shopList"></div><div class="menuLabel" style="margin-top:16px">WORLD</div><div id="backgroundList"></div><button id="shopClose" style="margin-top:14px">BACK</button></div></div>
+<div id="shop" class="hidden"><div class="panel menuPanel"><h2 style="color:#62eaff;letter-spacing:.14em;margin:0 0 4px">THEMES & SKINS</h2><p style="margin:0 0 14px">Cosmetic only — never changes gameplay fairness.<br><span class="shopNote">Purchases belong to your pilot. Save your restore code (menu → RESTORE CODE): it brings this pilot and its skins back on a new phone, in the Home Screen app, or after clearing data.</span></p><div id="shopList"></div><div class="menuLabel" style="margin-top:16px">WORLD</div><div id="backgroundList"></div><button id="shopClose" style="margin-top:14px">BACK</button></div></div>
 <div id="start"><div class="panel menuPanel"><h1>FLUX</h1><div class="acronym">FLOW • LAUNCH • UNITE • XCELERATE</div><div class="menuSection"><div class="menuLabel">SELECT YOUR FLOW</div><div class="difficulty" id="difficulty"><button data-d="easy">EASY</button><button data-d="medium">MEDIUM</button><button data-d="hard">HARD</button></div></div><div id="profileEditor" class="profileRow"><input id="callsign" maxlength="14" placeholder="FLUX ID"><select id="country"><option value="AF">🇦🇫 AFGHANISTAN</option>
 <option value="AL">🇦🇱 ALBANIA</option>
 <option value="DZ">🇩🇿 ALGERIA</option>
@@ -341,7 +342,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 <option value="VN">🇻🇳 VIETNAM</option>
 <option value="YE">🇾🇪 YEMEN</option>
 <option value="ZM">🇿🇲 ZAMBIA</option>
-<option value="ZW">🇿🇼 ZIMBABWE</option><option value="OTHER">🌎 OTHER</option></select></div><div id="profileSaved" class="profileSaved hidden"><span>PILOT <b id="profileName">PLAYER</b><small id="profileTag" class="profileTag"></small> • <b id="profileCountry">🇺🇸</b></span><button class="editProfile" id="editProfile">EDIT</button></div><button id="startBtn">ENTER THE FLUX</button><div class="menuTiles"><div><span>PERSONAL BEST</span><b id="menuBest">0</b></div><div><span>BEST LEVEL</span><b id="menuLevel">1</b></div></div><div id="uploadStatus" class="uploadStatus" aria-live="polite"></div><div class="menuLinks"><button class="linkBtn" id="leaderBtn">🌎 GLOBAL LEADERBOARD</button><button class="linkBtn" id="skinsBtn">✦ THEMES & SKINS</button></div><p class="offline" id="offlineClaim">● PERSONAL BEST SAVES ON THIS DEVICE</p></div></div>
+<option value="ZW">🇿🇼 ZIMBABWE</option><option value="OTHER">🌎 OTHER</option></select></div><button type="button" class="linkBtn restoreLink" id="restoreLink">HAVE A RESTORE CODE?</button><div id="profileSaved" class="profileSaved hidden"><span>PILOT <b id="profileName">PLAYER</b><small id="profileTag" class="profileTag"></small> • <b id="profileCountry">🇺🇸</b></span><button class="editProfile" id="editProfile">EDIT</button></div><button id="startBtn">ENTER THE FLUX</button><div class="menuTiles"><div><span>PERSONAL BEST</span><b id="menuBest">0</b></div><div><span>BEST LEVEL</span><b id="menuLevel">1</b></div></div><div id="uploadStatus" class="uploadStatus" aria-live="polite"></div><div class="menuLinks"><button class="linkBtn" id="leaderBtn">🌎 GLOBAL LEADERBOARD</button><button class="linkBtn" id="skinsBtn">✦ THEMES & SKINS</button><button class="linkBtn" id="restoreBtn">🔑 RESTORE CODE</button></div><p class="offline" id="offlineClaim">● PERSONAL BEST SAVES ON THIS DEVICE</p></div></div>
 <div id="gameover" class="hidden">
  <div class="panel">
   <h1 style="font-size:38px">FLUX<br>OVERLOAD</h1>
@@ -355,6 +356,34 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 </div>
 </div>
 <script>
+/* D-35 (RC2.8.2) RESTORE JOURNAL REPLAY -- must stay the FIRST thing in this
+   script, before anything reads fluxPlayerId, the callsign or a best score.
+   A pilot restore changes several keys. It first writes the whole change, plus
+   a backup of every key it touches, as ONE value (fluxRestoreJournal), then
+   applies it, then deletes the journal. If the app is killed or storage fails
+   part-way, this replays the change on the next launch -- or, if the change
+   cannot be applied, puts every key back from the backup. The device therefore
+   ends with the old pilot or the new pilot, never a mixture (a mixture could
+   upload one pilot's best score under another pilot's name). */
+(function(){
+  var raw=null;
+  try{ raw=localStorage.getItem('fluxRestoreJournal'); }catch(e){ return; }
+  if(raw===null) return;
+  function put(map){
+    for(var k in map){
+      if(!Object.prototype.hasOwnProperty.call(map,k)) continue;
+      if(map[k]===null) localStorage.removeItem(k); else localStorage.setItem(k,String(map[k]));
+    }
+  }
+  try{
+    var j=JSON.parse(raw);
+    if(j && j.v===1 && j.after && typeof j.after==='object'){
+      try{ put(j.after); }
+      catch(e){ try{ if(j.before && typeof j.before==='object') put(j.before); }catch(e2){} }
+    }
+  }catch(e){}
+  try{ localStorage.removeItem('fluxRestoreJournal'); }catch(e){}
+})();
 const c=document.getElementById('game'),ctx=c.getContext('2d');
 let W,H,dpr,playing=false,paused=false,last=0,score=0,combo=1,level=1,streak=0,best=0,misses=0,revivesUsedThisRun=0,flux=0,fluxMode=0,missFragments=[],comboTimer=0,levelBanner=0,perfectFlash=0,levelHold=0,levelPoints=0,orbValue=20,bonusTimer=0,growTimer=0;
 let cachedHudRects=[]; // declared early -- resize() runs at script load time and references this immediately
@@ -2271,6 +2300,272 @@ document.getElementById('startBtn').onclick = () => {
   document.getElementById('pauseBtn').textContent = 'Ⅱ';
 };
 
+
+/* ==================================================================
+   D-35 (RC2.8.2) -- PILOT RESTORE CODE
+   ------------------------------------------------------------------
+   Owner-observed on iPhone: a Home Screen icon asked for a new FLUX ID while
+   Safari on the same phone still had the pilot. On iOS, Safari and each
+   installed icon keep separate storage, and a pilot lives only in the storage
+   where it was created. Nothing could bring it back.
+
+   The restore code is the pilot's own secret player ID plus a 4-character
+   checksum:  FX1-<playerId>-<CHECK>. The player ID is already the only proof
+   of identity (A-1: it is never published), so the code grants nothing that
+   holding the device did not already grant -- it just lets the player carry it.
+
+   Restoring:
+     1. the code is checked locally (format + checksum, so a partial copy or a
+        typo is caught before anything is sent);
+     2. the server is asked whether that pilot exists (scores or purchases);
+        an unknown code changes nothing -- no ghost pilots from typos;
+     3. the player confirms, seeing BOTH pilots, and is shown the current
+        pilot's own code first so they can switch back;
+     4. every key is changed through one journal (see the top of this
+        script), then the page reloads so every cache is rebuilt for the
+        restored pilot. Skins come back through the normal server check.
+
+   Refused while a run is in progress or while a purchase for the current
+   pilot is still being completed. Personal bests are replaced by the restored
+   pilot's server bests, so one pilot's best can never be uploaded under
+   another pilot. Unsent runs keep the player ID they were recorded with and
+   still upload to the pilot that played them.
+   ================================================================== */
+const RESTORE_ID_RE=/^[A-Za-z0-9_-]{1,64}$/;
+const RESTORE_RESERVED=['__proto__','constructor','prototype'];
+const RESTORE_JOURNAL_KEY='fluxRestoreJournal';
+const RESTORE_PAID=['toxic','cosmic','solar'];
+const RESTORE_DIFFS=['easy','medium','hard'];
+
+function restoreIdOk(id){
+  return typeof id==='string' && RESTORE_ID_RE.test(id) && RESTORE_RESERVED.indexOf(id)===-1;
+}
+async function restoreChecksum(id){
+  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('flux-restore:'+id));
+  return Array.from(new Uint8Array(buf)).slice(0,2).map(function(b){return b.toString(16).padStart(2,'0');}).join('').toUpperCase();
+}
+async function makeRestoreCode(id){
+  if(!restoreIdOk(id)) return null;
+  return 'FX1-'+id+'-'+(await restoreChecksum(id));
+}
+/* Accepts what people actually paste: surrounding spaces, line breaks, quotes,
+   zero-width characters and typographic dashes. The player ID keeps its case;
+   if the checksum only matches the lower-case form (the code was retyped in
+   capitals), that form is used. */
+async function parseRestoreCode(raw){
+  let s=String(raw==null?'':raw)
+    .replace(/[\s\u200B-\u200D\u2060\uFEFF]/g,'')
+    .replace(/[\u2010-\u2015\u2212]/g,'-')
+    .replace(/^["'\u2018\u2019\u201C\u201D]+|["'\u2018\u2019\u201C\u201D]+$/g,'');
+  const m=/^FX1-(.+)-([0-9A-Fa-f]{4})$/i.exec(s);
+  if(!m) return {ok:false,reason:'format'};
+  const want=m[2].toUpperCase();
+  const tries=[m[1]];
+  if(m[1].toLowerCase()!==m[1]) tries.push(m[1].toLowerCase());
+  for(const id of tries){
+    if(restoreIdOk(id) && (await restoreChecksum(id))===want) return {ok:true,playerId:id};
+  }
+  return {ok:false,reason:'checksum'};
+}
+
+function restoreBlockedReason(){
+  if(playing) return 'Finish your run first, then restore from the menu.';
+  let pending=null; try{ pending=readPendingCheckout(); }catch(e){}
+  if(purchaseInFlight || pending) return 'A purchase for this pilot is still being completed. Wait until it finishes, then try again.';
+  return null;
+}
+
+/* Pure: the complete set of key changes for one restore. null = remove. */
+function buildRestorePlan(info,id){
+  const after=Object.create(null);
+  const name=typeof info.name==='string' ? info.name.trim().toUpperCase().slice(0,16) : '';
+  after.fluxPlayerId=id;
+  after.fluxCallsign=name || null;
+  after.fluxProfileComplete=name ? '1' : null;           // no name on the server: ask for one
+  const cc=typeof info.country==='string' ? info.country : '';
+  if(/^[A-Z]{2}$/.test(cc) && Object.prototype.hasOwnProperty.call(countryFlags,cc)) after.fluxCountry=cc;
+  after.fluxPublicTag=(typeof info.tag==='string' && /^[0-9A-Z]{6,}$/.test(info.tag)) ? info.tag : null;
+  after[ENT_CACHE_KEY]=null;                              // re-verified for the new pilot
+  RESTORE_PAID.forEach(function(s){ after['fluxOwned_'+s]=null; });
+  const skus=Array.isArray(info.skus) ? info.skus : [];
+  let curSkin=null, curBg=null;
+  try{ curSkin=localStorage.getItem('fluxSkin'); curBg=localStorage.getItem('fluxBackground'); }catch(e){}
+  if(RESTORE_PAID.indexOf(curSkin)!==-1 && skus.indexOf(curSkin)===-1) after.fluxSkin='aurora';
+  if(RESTORE_PAID.indexOf(curBg)!==-1 && skus.indexOf(curBg)===-1) after.fluxBackground='none';
+  const bests=(info.bests && typeof info.bests==='object') ? info.bests : {};
+  const now=Date.now();
+  RESTORE_DIFFS.forEach(function(d){
+    const b=Object.prototype.hasOwnProperty.call(bests,d) ? bests[d] : null;
+    const sc=b && Number.isFinite(b.score) && b.score>0 ? Math.floor(b.score) : 0;
+    const lv=b && Number.isFinite(b.level) && b.level>=1 ? Math.floor(b.level) : 1;
+    if(sc>0){
+      after['fluxBest_'+d]=String(sc);
+      after['fluxBestLevel_'+d]=String(lv);
+      after['fluxBestRun_'+d]=JSON.stringify({score:sc,level:lv,difficulty:d,playerId:id,at:now,restored:true});
+    } else {
+      after['fluxBest_'+d]=null; after['fluxBestLevel_'+d]=null; after['fluxBestRun_'+d]=null;
+    }
+  });
+  after.fluxLastSubmitError=null;
+  after.fluxSubmitFailCount='0';
+  return after;
+}
+
+/* Journal first (one write), then the changes, then drop the journal.
+   Returns true only if the device now holds exactly the new pilot. */
+function applyRestorePlan(after){
+  const before=Object.create(null);
+  for(const k in after){ let v=null; try{ v=localStorage.getItem(k); }catch(e){} before[k]=v; }
+  try{ localStorage.setItem(RESTORE_JOURNAL_KEY, JSON.stringify({v:1,after:after,before:before})); }
+  catch(e){ return false; }                               // nothing changed
+  const put=function(map){ for(const k in map){ if(map[k]===null) localStorage.removeItem(k); else localStorage.setItem(k,map[k]); } };
+  try{
+    put(after);
+    for(const k in after){
+      const got=localStorage.getItem(k);
+      if(got!==(after[k]===null?null:String(after[k]))) throw new Error('verify '+k);
+    }
+  }catch(e){
+    try{ put(before); }catch(e2){}
+    try{ localStorage.removeItem(RESTORE_JOURNAL_KEY); }catch(e3){}
+    return false;
+  }
+  try{ localStorage.removeItem(RESTORE_JOURNAL_KEY); }catch(e){}
+  return true;
+}
+
+async function checkRestoreOnServer(id){
+  let res;
+  try{
+    res=await fetch('/api/restore-check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({playerId:id})});
+  }catch(e){ return {kind:'network'}; }
+  if(!res.ok) return {kind:res.status===429?'busy':'error'};
+  let d=null; try{ d=await res.json(); }catch(e){ return {kind:'error'}; }
+  if(!d || typeof d!=='object') return {kind:'error'};
+  if(d.found!==true) return {kind:'notfound'};
+  return {kind:'found',info:d};
+}
+
+function restorePilotLabel(name,tag,cc){
+  return escapeHtml(name||'NEW PILOT')+(tag?' <span class="profileTag">#'+escapeHtml(tag)+'</span>':'')+(cc&&countryFlags[cc]?' '+countryFlags[cc]:'');
+}
+function restoreOverlay(html){
+  const d=document.createElement('div');
+  d.className='miniOverlay restoreOverlay';
+  d.innerHTML='<div class="panel menuPanel">'+html+'</div>';
+  document.getElementById('app').appendChild(d);
+  return d;
+}
+function copyText(text,btn){
+  const done=function(){ if(btn){ const t=btn.textContent; btn.textContent='COPIED'; setTimeout(function(){ btn.textContent=t; },1500); } };
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(done,function(){}); return; }
+  }catch(e){}
+}
+
+/* ---------- SHOW RESTORE CODE ---------- */
+async function openRestoreCode(){
+  const code=await makeRestoreCode(playerId);
+  let tag=''; try{ tag=localStorage.fluxPublicTag||''; }catch(e){}
+  const d=restoreOverlay(
+    '<h2 style="color:#62eaff;letter-spacing:.14em">RESTORE CODE</h2>'+
+    '<p class="restoreWho">PILOT '+restorePilotLabel(callsign,tag,country)+'</p>'+
+    '<p class="restoreText">Save this code somewhere safe, like Notes or a message to yourself. Enter it in FLUX on a new phone, in the Home Screen app, or after clearing data, to bring back this pilot, its scores and its skins.</p>'+
+    '<p class="restoreWarn hidden" id="restoreNoScore">This pilot has not uploaded a score yet. Finish one run while online so the code can be restored.</p>'+
+    '<p class="restoreWarn">Anyone with this code can play as this pilot. Keep it private and out of screenshots.</p>'+
+    '<div class="restoreCode hidden" id="restoreCodeBox"></div>'+
+    '<button id="restoreReveal">SHOW CODE</button>'+
+    '<div class="restoreRow hidden" id="restoreCodeActions"><button id="restoreCopy">COPY</button><button id="restoreShare">SAVE / SEND</button></div>'+
+    '<button class="linkBtn restoreOther" id="restoreOther">RESTORE A DIFFERENT PILOT</button>'+
+    '<button id="restoreClose">BACK</button>');
+  d.querySelector('#restoreClose').onclick=function(){ d.remove(); };
+  d.querySelector('#restoreOther').onclick=function(){ d.remove(); openRestoreEntry(); };
+  /* Ask the server, not local memory, whether this pilot can be restored:
+     pilots that uploaded with an older build have no tag saved on the device. */
+  const noScore=d.querySelector('#restoreNoScore');
+  if(isOffline()){ if(!tag) noScore.classList.remove('hidden'); }
+  else checkRestoreOnServer(playerId).then(function(r){
+    if(r.kind==='notfound') noScore.classList.remove('hidden');
+    if(r.kind==='found' && r.info && typeof r.info.tag==='string' && /^[0-9A-Z]{6,}$/.test(r.info.tag)){
+      try{ localStorage.fluxPublicTag=r.info.tag; }catch(e){}
+      const who=d.querySelector('.restoreWho'); if(who) who.innerHTML='PILOT '+restorePilotLabel(callsign,r.info.tag,country);
+      try{ updateUploadStatus(); }catch(e){}
+    }
+  });
+  d.querySelector('#restoreReveal').onclick=function(){
+    const box=d.querySelector('#restoreCodeBox');
+    box.textContent=code||'';
+    box.classList.remove('hidden');
+    d.querySelector('#restoreCodeActions').classList.remove('hidden');
+    d.querySelector('#restoreReveal').classList.add('hidden');
+  };
+  d.querySelector('#restoreCopy').onclick=function(e){ copyText(code,e.target); };
+  const share=d.querySelector('#restoreShare');
+  if(!(navigator.share)) share.classList.add('hidden');
+  share.onclick=function(){ try{ navigator.share({title:'FLUX restore code',text:'My FLUX restore code (keep private): '+code}).catch(function(){}); }catch(e){} };
+}
+
+/* ---------- ENTER A RESTORE CODE ---------- */
+function openRestoreEntry(){
+  const d=restoreOverlay(
+    '<h2 style="color:#62eaff;letter-spacing:.14em">RESTORE A PILOT</h2>'+
+    '<p class="restoreText">Paste the restore code from the device where you played. It starts with FX1-.</p>'+
+    '<textarea id="restoreInput" class="restoreInput" rows="3" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" placeholder="FX1-..."></textarea>'+
+    '<p class="restoreMsg" id="restoreMsg" aria-live="polite"></p>'+
+    '<button id="restoreGo">CONTINUE</button>'+
+    '<button id="restoreCancel">BACK</button>');
+  const msg=d.querySelector('#restoreMsg');
+  const go=d.querySelector('#restoreGo');
+  d.querySelector('#restoreCancel').onclick=function(){ d.remove(); };
+  go.onclick=async function(){
+    if(go.disabled) return;
+    const say=function(t){ msg.textContent=t; };
+    const blocked=restoreBlockedReason(); if(blocked){ say(blocked); return; }
+    const parsed=await parseRestoreCode(d.querySelector('#restoreInput').value);
+    if(!parsed.ok){ say(parsed.reason==='checksum' ? 'That code has a typo or was not copied completely. Copy it again from the other device.' : 'That is not a FLUX restore code. It starts with FX1-.'); return; }
+    if(parsed.playerId===playerId){ say('This is already the pilot on this device.'); return; }
+    if(isOffline()){ say('Restoring needs an internet connection.'); return; }
+    go.disabled=true; say('Checking...');
+    const r=await checkRestoreOnServer(parsed.playerId);
+    go.disabled=false;
+    if(r.kind==='network'){ say('Could not reach FLUX. Check your connection and try again.'); return; }
+    if(r.kind==='busy'||r.kind==='error'){ say('FLUX could not check that code right now. Try again in a minute.'); return; }
+    if(r.kind==='notfound'){ say('No pilot was found for this code. A pilot can be restored once it has uploaded a score or bought a skin.'); return; }
+    d.remove();
+    openRestoreConfirm(parsed.playerId, r.info);
+  };
+}
+
+async function openRestoreConfirm(id,info){
+  const cur=await makeRestoreCode(playerId);
+  let curTag=''; try{ curTag=localStorage.fluxPublicTag||''; }catch(e){}
+  if(!curTag){ const cr=await checkRestoreOnServer(playerId); if(cr.kind==='found' && cr.info && /^[0-9A-Z]{6,}$/.test(String(cr.info.tag||''))) curTag=cr.info.tag; }
+  const curHasSkins=(function(){ try{ return RESTORE_PAID.some(function(s){ return ownsSkin(s); }); }catch(e){ return false; } })();
+  const skins=(Array.isArray(info.skus)?info.skus:[]).filter(function(s){ return RESTORE_PAID.indexOf(s)!==-1; });
+  const d=restoreOverlay(
+    '<h2 style="color:#62eaff;letter-spacing:.14em">RESTORE PILOT?</h2>'+
+    '<p class="restoreWho">'+restorePilotLabel(info.name,info.tag,info.country)+'</p>'+
+    (skins.length ? '<p class="restoreText">Skins: '+skins.map(function(s){return escapeHtml(s.toUpperCase());}).join(', ')+'</p>' : '')+
+    '<p class="restoreText">This replaces the pilot on this device:<br><b>'+restorePilotLabel(profileComplete?callsign:'',curTag,profileComplete?country:'')+'</b></p>'+
+    ((curTag||curHasSkins) ? '<p class="restoreWarn">To switch back later you need this pilot\'s restore code. Copy it before you continue.</p><div class="restoreCode">'+escapeHtml(cur||'')+'</div><button id="restoreCopyCur">COPY THIS PILOT\'S CODE</button>' : '')+
+    '<p class="restoreMsg" id="restoreMsg2" aria-live="polite"></p>'+
+    '<button id="restoreYes">YES, RESTORE</button>'+
+    '<button id="restoreNo">CANCEL</button>');
+  const copyCur=d.querySelector('#restoreCopyCur');
+  if(copyCur) copyCur.onclick=function(e){ copyText(cur,e.target); };
+  d.querySelector('#restoreNo').onclick=function(){ d.remove(); };
+  d.querySelector('#restoreYes').onclick=function(){
+    const msg=d.querySelector('#restoreMsg2');
+    const blocked=restoreBlockedReason(); if(blocked){ msg.textContent=blocked; return; }
+    const ok=applyRestorePlan(buildRestorePlan(info,id));
+    if(!ok){ msg.textContent='This device could not save the pilot. Nothing was changed. Free up some storage and try again.'; return; }
+    msg.textContent='Restored. Reloading...';
+    location.reload();
+  };
+}
+
+document.getElementById('restoreBtn').onclick=function(){ openRestoreCode(); };
+document.getElementById('restoreLink').onclick=function(){ openRestoreEntry(); };
 </script>
 </body>
 </html>
