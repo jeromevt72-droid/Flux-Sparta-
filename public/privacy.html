@@ -109,8 +109,13 @@ when you reconnect.</p>
 <h2>6. Information visible to other players</h2>
 <p>The global leaderboard and the World Grid are public. Anyone can see your
 <strong>FLUX ID</strong>, <strong>score</strong>, <strong>level</strong>,
-<strong>difficulty</strong>, and <strong>country</strong>. Choose a FLUX ID you
-are comfortable showing publicly. Your player identifier is not displayed.</p>
+<strong>difficulty</strong>, and <strong>country</strong>, along with a short
+<strong>public tag</strong> (for example <em>TITAN #K7Q2MX8</em>) that tells apart
+players who chose the same FLUX ID. Choose a FLUX ID you are comfortable showing
+publicly. Your player identifier is not displayed. The tag is derived from it by
+a one-way calculation, so the identifier cannot be worked out from the tag, and
+the tag is never used to prove who you are. If you clear your browser data you
+get a new player identifier, and with it a new tag.</p>
 
 <h2>7. Offline storage and caching</h2>
 <p>FLUX installs a service worker that caches the game files on your device so
@@ -126,6 +131,11 @@ code.</strong> We receive from Stripe only a confirmation that a specific
 checkout session was paid, which we use to unlock the skin for your player
 identifier. Stripe's handling of your payment information is governed by
 Stripe's own privacy policy at <a href="https://stripe.com/privacy">stripe.com/privacy</a>.</p>
+<p><strong>Purchase recovery.</strong> Purchases are linked to the player identifier stored on the device. FLUX does not currently provide account-based or cross-device purchase recovery. Clearing browser data, deleting the installed app’s data, or losing the player identifier may prevent access to previously purchased skins. The store will remain closed until a secure recovery process is implemented and tested.</p>
+<p>Stripe asks for your email address at checkout and sends you a receipt. FLUX
+does not store that email address. If you contact us about a purchase, we can use
+the email address you give us to look the purchase up in Stripe; it is used for
+that lookup only.</p>
 
 <h2>9. Third parties</h2>
 <p>FLUX uses:</p>
@@ -141,7 +151,7 @@ usage anywhere in the game or the Gateway.</p>
 <h2>10. Why we process this information</h2>
 <ul>
   <li>To run the global leaderboard and World Grid, which is the point of the game</li>
-  <li>To keep your purchases working across devices and after clearing data</li>
+  <li>To keep your purchases working for the player identifier on the device where you made them</li>
   <li>To reject implausible scores and keep standings meaningful</li>
 </ul>
 
@@ -150,14 +160,38 @@ usage anywhere in the game or the Gateway.</p>
 operates the leaderboard, so that standings remain accurate and purchases
 continue to work. If you ask us to remove an entry, we will remove it within
 30 days of your request.</p>
+<p><strong>Moderation records.</strong> To keep the leaderboard fair and free of
+abuse, we may keep:</p>
+<ul>
+<li><strong>Restrictions</strong> — if a player is restricted from the public
+leaderboard, we keep their public tag's underlying one-way code, the date, and a
+short reason, for as long as the restriction is in force. It is removed when the
+restriction is lifted. A restricted player can still play; their scores are not
+shown publicly.</li>
+<li><strong>Banned names</strong> — a list of exact FLUX IDs that are not shown
+publicly, kept until the ban is lifted. A banned name is shown as PILOT; the
+player's scores are kept.</li>
+<li><strong>Unusual-score notes</strong> — when a score is far outside the normal
+range, an informational note (FLUX ID, score, difficulty, date) is kept for up to
+90 days so it can be checked. These notes never hide or penalise anyone on their
+own.</li>
+<li><strong>Payment delivery records</strong> — if a paid skin could not be
+delivered automatically, a record of that purchase (reference, skin, amount,
+date) is kept until the problem is resolved.</li>
+</ul>
 
 <h2>12. Deletion and requests</h2>
 <p>You can remove everything stored on your device at any time by clearing your
 browser data or deleting FLUX from your Home Screen.</p>
 <p>To request removal of a leaderboard entry or a purchase record, contact
-<a href="mailto:playfluxofficial@gmail.com">playfluxofficial@gmail.com</a> and include your
-FLUX ID and approximate score so the entry can be located. We may be unable to
-identify your record without it, since we hold no email address or account.</p>
+<a href="mailto:playfluxofficial@gmail.com">playfluxofficial@gmail.com</a> and include your FLUX ID, its public tag if you know it (shown next to your
+name, for example #K7Q2MX8), and your approximate score. For a purchase, include
+the email address you used at Stripe checkout. We may be unable to identify your
+record without these, since FLUX itself holds no email address or account.</p>
+<p>When we act on a deletion request, we erase your leaderboard entry and, if you
+ask, your purchase records. If your player is restricted, the restriction record
+described in section 11 is kept while the restriction is in force, because it
+could not otherwise be enforced.</p>
 
 <h2>13. Security</h2>
 <p>Data is transmitted over HTTPS. Payment credentials go directly to Stripe and

@@ -748,7 +748,7 @@ footer{position:relative;z-index:3;padding:40px 7vw 50px;color:#777;font-size:12
 // game itself uses). Field names below were confirmed against the real
 // deployed worker.js source (leaderboard() / updateCountryTotals()):
 //   { top: [{playerId,name,country,score}],
-//     countries: [{country,totalScore,playerCount,topScore,topName}],
+//     countries: [{country,totalScore,playerCount,topScore,topName,topTag}],  (RC2.8: + topTag)
 //     leadingCountry: <same shape as one countries entry> | null }
 // "country" is an ISO-2 code (e.g. "US"), not a display name -- COUNTRY_META
 // below maps codes to a flag + display name for rendering only.
@@ -953,7 +953,7 @@ try{
         var mine = countries[idx];
         var rankLine = meta2.flag+' <b>'+window.escapeHtml2(meta2.name.toUpperCase())+' — GLOBAL #'+(idx+1)+'</b>';
         var statsLine = window.fmtScore(mine.totalScore)+' points · '+mine.playerCount.toLocaleString('en-US')+' pilot'+(mine.playerCount===1?'':'s')
-          + (mine.topName ? (' · Local hero: <b>'+window.escapeHtml2(mine.topName)+'</b> ('+window.fmtScore(mine.topScore)+' pts)') : '');
+          + (mine.topName ? (' · Local hero: <b>'+window.escapeHtml2(mine.topName)+(mine.topTag?' <small style="opacity:.55">#'+window.escapeHtml2(mine.topTag)+'</small>':'')+'</b> ('+window.fmtScore(mine.topScore)+' pts)') : '');
         if(idx===0){
           var second = countries.length>1 ? countries[1] : null;
           sideHtml += '<div class="gapCard leaderState">'
@@ -1013,7 +1013,7 @@ try{
       return '<div class="rankRow'+(i===0?' leader':'')+'">'
         + '<div class="pos">'+(i===0?'👑':('#'+(i+1)))+'</div>'
         + '<div class="flagIc">'+meta.flag+'</div>'
-        + '<div class="cName">'+window.escapeHtml2(p.name||'PILOT')+'<small>'+window.escapeHtml2(meta.name)+'</small></div>'
+        + '<div class="cName">'+window.escapeHtml2(p.name||'PILOT')+(p.tag?' <span style="opacity:.5;font-size:.8em">#'+window.escapeHtml2(p.tag)+'</span>':'')+'<small>'+window.escapeHtml2(meta.name)+'</small></div>'
         + '<div class="cScore">'+window.fmtScore(p.score)+'</div>'
         + '<div class="rankBarTrack"><div class="rankBarFill" style="width:'+pct+'%"></div></div>'
         + '</div>';

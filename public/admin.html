@@ -6,163 +6,266 @@
 <meta name="robots" content="noindex,nofollow">
 <title>FLUX · Admin</title>
 <!--
-  AUDIT A-2 — FLUX leaderboard admin.
+  FLUX ADMIN (RC2.8) — built for exceptions, not daily supervision.
+  Everyday: find a player, remove a score, restrict / unrestrict, and the short
+  list of exceptions that need attention. Advanced: privacy deletion, purchase
+  records, name bans.
 
-  Lets the owner keep the Privacy Policy's promise ("removed within 30 days of a
-  request") and take down abusive names, from an iPad, with no other tools.
-
-  Safety:
-  - Every action needs the ADMIN_TOKEN secret, checked on the server with a
-    timing-safe compare. This page on its own can do nothing.
-  - The password is kept only in this page's memory. It is never saved, and
-    this page never reads or writes player storage.
-  - No manifest and no service-worker registration: it is not part of the app.
-  - All data is written with textContent, never innerHTML.
-  - Entries are identified by their leaderboard hash; no playerId ever reaches
-    this page.
+  Safety: every action needs the ADMIN_TOKEN secret, checked on the server.
+  The password lives only in this page's memory -- never saved, never sent
+  anywhere but this site's own admin API. No manifest, no service worker, no
+  player storage. All data is written with textContent. Players are identified
+  by public tag and leaderboard hash; no playerId ever reaches this page.
 -->
 <style>
-  :root { --bg:#07091d; --panel:#0d1230; --line:#1f2a5c; --text:#eaf7ff; --dim:#8fa3d8;
-          --cyan:#62eaff; --pink:#ff4f98; --green:#5dffb0; }
-  * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--text);
-         font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-         padding:calc(env(safe-area-inset-top) + 28px) 20px 60px; }
-  main { max-width:640px; margin:0 auto; }
-  h1 { font-size:15px; letter-spacing:.42em; margin:0 0 6px; color:var(--cyan); }
-  h1 span { color:var(--text); }
-  .lede { color:var(--dim); font-size:14px; line-height:1.5; margin:0 0 26px; }
-  label { display:block; font-size:11px; letter-spacing:.22em; color:var(--dim); margin:18px 0 8px; }
-  input[type=password], input[type=text] {
-    width:100%; background:var(--panel); border:1px solid var(--line); color:var(--text);
-    border-radius:12px; padding:14px 16px; font-size:17px; outline:none; }
-  input:focus { border-color:var(--cyan); }
-  .row { display:flex; gap:10px; }
-  .row input { flex:1; }
-  button { font:inherit; font-size:13px; font-weight:700; letter-spacing:.16em; border:0;
-           border-radius:12px; padding:14px 18px; cursor:pointer; }
-  .go { background:var(--cyan); color:#04121a; }
-  .go:disabled { opacity:.5; }
-  #status { min-height:22px; margin:18px 0 8px; font-size:14px; }
-  .ok { color:var(--green); } .err { color:var(--pink); }
-  .entry { background:var(--panel); border:1px solid var(--line); border-radius:14px;
-           padding:16px; margin:12px 0; }
-  .entry b { font-size:17px; letter-spacing:.06em; }
-  .meta { color:var(--dim); font-size:13px; margin:6px 0 14px; line-height:1.5; }
-  .check { display:flex; align-items:center; gap:10px; font-size:13px; color:var(--dim); margin:0 0 12px; }
-  .check input { width:20px; height:20px; }
-  .remove { background:transparent; color:var(--pink); border:1px solid var(--pink); width:100%; }
-  .remove:disabled { opacity:.4; }
-  .note { color:var(--dim); font-size:12px; line-height:1.55; margin-top:34px;
-          border-top:1px solid var(--line); padding-top:18px; }
+  :root{--bg:#07091d;--panel:#0d1230;--panel2:#10173a;--line:#1f2a5c;--text:#eaf7ff;--dim:#8fa3d8;
+        --cyan:#62eaff;--pink:#ff4f98;--amber:#ffc15e;--green:#5dffb0}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+       padding:calc(env(safe-area-inset-top) + 24px) 18px 70px}
+  main{max-width:680px;margin:0 auto}
+  h1{font-size:15px;letter-spacing:.42em;margin:0 0 4px;color:var(--cyan)} h1 span{color:var(--text)}
+  h2{font-size:11px;letter-spacing:.28em;color:var(--dim);margin:30px 0 10px;font-weight:700}
+  .lede{color:var(--dim);font-size:14px;margin:0 0 18px;line-height:1.5}
+  input[type=password],input[type=text],input[type=email]{width:100%;background:var(--panel);border:1px solid var(--line);
+       color:var(--text);border-radius:12px;padding:13px 15px;font-size:16px;outline:none}
+  input:focus{border-color:var(--cyan)}
+  .row{display:flex;gap:10px}.row input{flex:1}
+  button{font:inherit;font-size:12px;font-weight:700;letter-spacing:.14em;border:0;border-radius:11px;padding:12px 15px;cursor:pointer}
+  button:disabled{opacity:.45}
+  .go{background:var(--cyan);color:#04121a}
+  .ghost{background:transparent;color:var(--text);border:1px solid var(--line)}
+  .warn{background:transparent;color:var(--amber);border:1px solid var(--amber)}
+  .danger{background:transparent;color:var(--pink);border:1px solid var(--pink)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:15px;margin:10px 0}
+  .card.restricted{border-color:var(--amber)}
+  .name{font-size:17px;font-weight:700;letter-spacing:.05em}.tag{color:var(--dim);font-weight:600;font-size:14px}
+  .meta{color:var(--dim);font-size:13px;margin:6px 0 12px;line-height:1.55;white-space:pre-line}
+  .actions{display:flex;flex-wrap:wrap;gap:8px}
+  .pill{display:inline-block;font-size:10px;letter-spacing:.16em;padding:3px 8px;border-radius:99px;margin-left:6px;vertical-align:2px}
+  .pill.amber{background:rgba(255,193,94,.14);color:var(--amber)}.pill.pink{background:rgba(255,79,152,.14);color:var(--pink)}
+  #status{min-height:20px;margin:12px 0 4px;font-size:14px}.ok{color:var(--green)}.err{color:var(--pink)}
+  .note{color:var(--dim);font-size:12px;line-height:1.55}
+  details{margin-top:34px;border-top:1px solid var(--line);padding-top:8px}
+  summary{cursor:pointer;font-size:12px;letter-spacing:.28em;color:var(--dim);padding:12px 0;font-weight:700}
+  .check{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--dim);margin:0 0 10px}.check input{width:19px;height:19px}
+  .empty{color:var(--dim);font-size:13px;padding:6px 0}
 </style>
 </head>
 <body>
 <main>
   <h1>FLUX <span>· ADMIN</span></h1>
-  <p class="lede">Remove a leaderboard entry — for a privacy request, or an abusive name.</p>
+  <p class="lede">For exceptions only. Scores, uploads and payments run on their own.</p>
 
-  <label for="token">ADMIN PASSWORD</label>
-  <input id="token" type="password" autocomplete="off" autocapitalize="off" spellcheck="false"
-         placeholder="Your ADMIN_TOKEN">
+  <input id="token" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Admin password">
+  <div id="status" role="status" aria-live="polite"></div>
 
-  <label for="q">FLUX ID TO FIND</label>
+  <h2>EXCEPTIONS NEEDING ATTENTION</h2>
+  <div class="row"><button id="loadEx" class="ghost" style="flex:1">CHECK EXCEPTIONS</button></div>
+  <div id="exceptions"></div>
+
+  <h2>FIND A PLAYER</h2>
   <div class="row">
-    <input id="q" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false"
-           placeholder="e.g. TITAN">
+    <input id="q" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="FLUX ID or #TAG">
     <button id="find" class="go">FIND</button>
   </div>
-
-  <div id="status" role="status" aria-live="polite"></div>
   <div id="results"></div>
+  <p class="note"><b>Remove score</b> takes a player's scores off the public boards. It keeps their FLUX ID and
+  purchases — and they can post new scores. For repeated abuse, use <b>Restrict</b>: they keep playing,
+  but nothing they submit appears publicly. Restrictions follow a player's device identity; if they clear
+  their browser data, they return with a new tag.</p>
 
-  <p class="note">
-    Removing an entry deletes it from the leaderboard and updates the country totals.
-    Tick <b>also remove purchases</b> only when a player asks for their purchase records
-    to be deleted — they will lose those skins. Stripe keeps its own payment records.
-    If the player keeps playing, a new entry will appear with their next score.
-  </p>
+  <details id="advanced">
+    <summary>ADVANCED</summary>
+
+    <h2>PURCHASE RECORDS</h2>
+    <p class="note">Look up by the buyer's email address (from their Stripe receipt) or a payment reference
+    (pi_…) from the Stripe dashboard. Works even if the buyer never played a ranked run.</p>
+    <div class="row">
+      <input id="pq" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="buyer@email.com or pi_…">
+      <button id="plook" class="go">LOOK UP</button>
+    </div>
+    <div id="purchases"></div>
+
+    <h2>PRIVACY DELETION REQUEST</h2>
+    <p class="note">Find the player above, then use <b>Privacy delete</b> on their card. It erases their scores, name
+    and flags. Purchases are kept unless you tick the box. If the player is restricted, the restriction record
+    (tag, date, reason) is kept while it is in force, as the Privacy Policy explains.</p>
+
+    <h2>NAME BANS</h2>
+    <p class="note">An exact name, shown as PILOT from any device. The player's best is kept.</p>
+    <div class="row">
+      <input id="banName" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Name to ban">
+      <button id="banBtn" class="warn">BAN NAME</button>
+    </div>
+    <div id="bans"></div>
+  </details>
 </main>
 <script>
 (function () {
-  var tokenEl = document.getElementById('token');
-  var qEl = document.getElementById('q');
-  var findBtn = document.getElementById('find');
-  var statusEl = document.getElementById('status');
-  var results = document.getElementById('results');
+  var $ = function (id) { return document.getElementById(id); };
+  var tokenEl = $('token'), statusEl = $('status'), showPrivacy = false;
 
-  function say(msg, kind) { statusEl.textContent = msg; statusEl.className = kind || ''; }
+  function say(msg, kind) { statusEl.textContent = msg || ''; statusEl.className = kind || ''; }
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
+  function btn(label, cls, fn) { var b = el('button', cls, label); b.onclick = fn; return b; }
+  function fmt(n) { return Number(n || 0).toLocaleString(); }
+  function when(t) { return t ? new Date(t).toLocaleString() : 'unknown'; }
 
   async function call(path, body) {
-    var res = await fetch(path, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-admin-token': tokenEl.value },
-      body: JSON.stringify(body)
+    if (!tokenEl.value) throw new Error('Enter the admin password first.');
+    var res = await fetch('/api/admin/' + path, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-token': tokenEl.value },
+      body: JSON.stringify(body || {})
     });
-    var data = {};
-    try { data = await res.json(); } catch (e) {}
+    var data = {}; try { data = await res.json(); } catch (e) {}
     if (!res.ok) throw new Error(res.status === 401 ? 'Wrong admin password.' : (data.error || ('Error ' + res.status)));
     return data;
   }
-
-  function el(tag, cls, text) {
-    var n = document.createElement(tag);
-    if (cls) n.className = cls;
-    if (text != null) n.textContent = text;
-    return n;
+  async function act(button, busy, fn) {
+    var label = button.textContent; button.disabled = true; button.textContent = busy;
+    try { await fn(); } catch (e) { say(e.message, 'err'); button.disabled = false; button.textContent = label; }
   }
 
-  function render(matches) {
-    results.textContent = '';
-    matches.forEach(function (m) {
-      var card = el('div', 'entry');
-      card.appendChild(el('b', '', m.name));
-      var when = m.updatedAt ? new Date(m.updatedAt).toLocaleString() : 'unknown';
-      card.appendChild(el('div', 'meta',
-        (m.country || '??') + ' · score ' + Number(m.score).toLocaleString() +
-        ' · level ' + m.level + ' · ' + (m.difficulty || '') + '\nlast played ' + when));
+  /* ---------------- exceptions ---------------- */
+  async function loadExceptions() {
+    var box = $('exceptions'); box.textContent = '';
+    say('Checking…');
+    var d = await call('exceptions');
+    var flags = d.flags || [], delivery = d.delivery || [];
+    if (!flags.length && !delivery.length) { box.appendChild(el('div', 'empty', 'Nothing needs attention.')); say(''); renderBans(d.nameBans || []); return; }
+    delivery.forEach(function (x) {
+      var c = el('div', 'card');
+      c.appendChild(el('div', 'name', 'Payment not delivered'));
+      c.appendChild(el('div', 'meta', (x.sku || 'unknown skin') + ' · ' + (x.amount ? (x.amount / 100).toFixed(2) + ' ' + (x.currency || '').toUpperCase() : '') +
+        '\nreason: ' + x.reason + '\nsince ' + when(x.at) + '\nReference: ' + x.session +
+        '\nDelivery is retried automatically. If it has no player attached, sort it out in the Stripe dashboard, then mark it resolved.'));
+      var a = el('div', 'actions');
+      a.appendChild(btn('MARK RESOLVED', 'ghost', function () { var b = this; act(b, 'SAVING…', async function () {
+        await call('resolve-delivery', { session: x.session }); c.remove(); say('Marked resolved.', 'ok'); }); }));
+      c.appendChild(a); box.appendChild(c);
+    });
+    flags.forEach(function (f) {
+      var c = el('div', 'card');
+      var n = el('div'); n.appendChild(el('span', 'name', f.name)); n.appendChild(el('span', 'pill amber', 'UNUSUAL'));
+      c.appendChild(n);
+      c.appendChild(el('div', 'meta', f.difficulty + ' · score ' + fmt(f.score) + (f.prevBest ? ' · previous best ' + fmt(f.prevBest) : '') +
+        (f.boardTop ? ' · board #1 was ' + fmt(f.boardTop) : '') + '\n' + f.reason + ' · ' + when(f.at) +
+        '\nInformational — nothing has been hidden. Dismiss if it looks genuine.'));
+      var a = el('div', 'actions');
+      a.appendChild(btn('DISMISS', 'ghost', function () { var b = this; act(b, '…', async function () {
+        await call('dismiss-flag', { id: f.id }); c.remove(); say('Dismissed.', 'ok'); }); }));
+      a.appendChild(btn('RESTRICT PLAYER', 'warn', function () { var b = this;
+        if (!confirm('Restrict ' + f.name + '? They keep playing, but nothing they submit will appear publicly.')) return;
+        act(b, 'RESTRICTING…', async function () { await call('restrict', { pid: f.pid, reason: f.reason });
+          await call('dismiss-flag', { id: f.id }); c.remove(); say(f.name + ' is restricted.', 'ok'); }); }));
+      c.appendChild(a); box.appendChild(c);
+    });
+    say(''); renderBans(d.nameBans || []);
+  }
 
-      var chk = el('label', 'check');
-      var box = document.createElement('input'); box.type = 'checkbox';
-      chk.appendChild(box); chk.appendChild(document.createTextNode('also remove purchases'));
-      card.appendChild(chk);
+  /* ---------------- players ---------------- */
+  function bestsText(b) {
+    var out = [];
+    ['easy', 'medium', 'hard'].forEach(function (d) { if (b && b[d]) out.push(d + ' ' + fmt(b[d].score) + ' (L' + b[d].level + ')'); });
+    return out.length ? out.join(' · ') : 'no scores';
+  }
+  function renderPlayer(m) {
+    var c = el('div', 'card' + (m.restricted ? ' restricted' : ''));
+    var h = el('div');
+    h.appendChild(el('span', 'name', m.name)); h.appendChild(el('span', 'tag', '  #' + m.tag));
+    if (m.restricted) h.appendChild(el('span', 'pill amber', 'RESTRICTED'));
+    if (m.shownAs !== m.name) h.appendChild(el('span', 'pill pink', 'SHOWN AS ' + m.shownAs));
+    c.appendChild(h);
+    c.appendChild(el('div', 'meta', (m.country || '??') + ' · ' + bestsText(m.bests) + '\nlast played ' + when(m.updatedAt) +
+      (m.restriction ? '\nrestricted ' + when(m.restriction.at) + (m.restriction.reason ? ' — ' + m.restriction.reason : '') : '')));
+    var a = el('div', 'actions');
+    a.appendChild(btn('REMOVE SCORE', 'ghost', function () { var b = this;
+      if (!confirm('Remove ' + m.name + ' #' + m.tag + ' from the public leaderboards?\n\nTheir FLUX ID and purchases are kept, and they can post new scores. Use Restrict for repeated abuse.')) return;
+      act(b, 'REMOVING…', async function () { await call('remove-score', { pid: m.pid }); c.remove(); say('Score removed.', 'ok'); }); }));
+    if (!m.restricted) a.appendChild(btn('RESTRICT', 'warn', function () { var b = this;
+      var reason = prompt('Restrict ' + m.name + ' #' + m.tag + '?\nThey keep playing; nothing they submit appears publicly.\n\nReason (kept on record):', '');
+      if (reason === null) return;
+      act(b, 'RESTRICTING…', async function () { await call('restrict', { pid: m.pid, reason: reason }); say(m.name + ' is restricted.', 'ok'); find(); }); }));
+    else a.appendChild(btn('UNRESTRICT', 'ghost', function () { var b = this;
+      if (!confirm('Lift the restriction on ' + m.name + ' #' + m.tag + '? Their scores will appear publicly again.')) return;
+      act(b, '…', async function () { await call('unrestrict', { pid: m.pid }); say('Restriction lifted.', 'ok'); find(); }); }));
+    if (showPrivacy) {
+      var chkWrap = el('label', 'check'); var chk = document.createElement('input'); chk.type = 'checkbox';
+      chkWrap.appendChild(chk); chkWrap.appendChild(document.createTextNode('also delete purchase records (they lose those skins)'));
+      c.appendChild(chkWrap);
+      a.appendChild(btn('PRIVACY DELETE', 'danger', function () { var b = this;
+        var extra = chk.checked ? '\n\nTheir PURCHASE RECORDS will also be deleted — they will lose those skins.' : '\n\nPurchases are kept.';
+        if (!confirm('PRIVACY DELETION for ' + m.name + ' #' + m.tag + '.\nThis erases their scores, name and flags.' + extra)) return;
+        act(b, 'DELETING…', async function () { var o = await call('privacy-delete', { pid: m.pid, removePurchases: chk.checked });
+          c.textContent = ''; c.appendChild(el('div', 'name ok', 'DELETED · ' + m.name));
+          c.appendChild(el('div', 'meta', (o.purchasesRemoved ? o.purchasesRemoved + ' purchase record(s) deleted.\n' : '') +
+            (o.restrictionKept ? 'The restriction record is kept while it is in force.' : ''))); say('Privacy deletion done.', 'ok'); }); }));
+    }
+    c.appendChild(a);
+    return c;
+  }
+  async function find() {
+    var q = $('q').value.trim(); var box = $('results'); box.textContent = '';
+    if (!q) { say('Enter a FLUX ID or #TAG.', 'err'); return; }
+    say('Searching…');
+    var d = await call('find-player', { query: q });
+    if (!d.matches.length) { say('No players match "' + q.toUpperCase() + '".'); return; }
+    say(d.matches.length + ' match' + (d.matches.length === 1 ? '' : 'es') + ' — tags tell players with the same name apart.');
+    d.matches.forEach(function (m) { box.appendChild(renderPlayer(m)); });
+  }
 
-      var btn = el('button', 'remove', 'REMOVE THIS ENTRY');
-      btn.onclick = async function () {
-        var extra = box.checked ? '\n\nTheir purchase records will ALSO be deleted — they will lose those skins.' : '';
-        if (!confirm('Remove "' + m.name + '" (' + (m.country || '??') + ', score ' +
-                     Number(m.score).toLocaleString() + ') from the leaderboard?' + extra)) return;
-        btn.disabled = true; btn.textContent = 'REMOVING…';
-        try {
-          var out = await call('/api/admin/remove-player', { pid: m.pid, removePurchases: box.checked });
-          card.textContent = '';
-          card.appendChild(el('b', 'ok', 'REMOVED · ' + out.removed.name));
-          if (out.purchasesRemoved) card.appendChild(el('div', 'meta', out.purchasesRemoved + ' purchase record(s) also removed.'));
-          say('Done. The leaderboard has been updated.', 'ok');
-        } catch (e) {
-          btn.disabled = false; btn.textContent = 'REMOVE THIS ENTRY';
-          say(e.message, 'err');
-        }
-      };
-      card.appendChild(btn);
-      results.appendChild(card);
+  /* ---------------- purchases ---------------- */
+  async function lookup() {
+    var v = $('pq').value.trim(), box = $('purchases'); box.textContent = '';
+    if (!v) { say('Enter an email address or a payment reference.', 'err'); return; }
+    say('Looking up…');
+    var d = await call('purchases', v.indexOf('@') > 0 ? { email: v } : { reference: v });
+    if (!d.purchases.length) { say('No purchases found.'); return; }
+    say(d.purchases.length + ' purchase(s).');
+    d.purchases.forEach(function (x) {
+      var c = el('div', 'card');
+      var h = el('div'); h.appendChild(el('span', 'name', (x.sku || 'unknown skin').toUpperCase()));
+      if (x.tag) h.appendChild(el('span', 'tag', '  player #' + x.tag));
+      h.appendChild(el('span', 'pill ' + (x.delivered ? 'amber' : 'pink'), x.delivered ? 'DELIVERED' : (x.paid ? 'NOT DELIVERED' : 'UNPAID')));
+      c.appendChild(h);
+      c.appendChild(el('div', 'meta', (x.amount ? (x.amount / 100).toFixed(2) + ' ' + (x.currency || '').toUpperCase() + ' · ' : '') +
+        when(x.created ? x.created * 1000 : null) + '\nReference: ' + x.session));
+      var a = el('div', 'actions');
+      if (x.paid && !x.delivered && x.deliverable) a.appendChild(btn('DELIVER NOW', 'go', function () { var b = this;
+        act(b, 'DELIVERING…', async function () { await call('purchase-grant', { session: x.session }); say('Delivered.', 'ok'); lookup(); }); }));
+      if (x.delivered) a.appendChild(btn('REVOKE SKIN', 'danger', function () { var b = this;
+        if (!confirm('Revoke ' + (x.sku || 'this skin') + ' from player #' + x.tag + '?\n\nThey will lose it. This does NOT refund the payment — do that in Stripe if needed.')) return;
+        act(b, 'REVOKING…', async function () { await call('purchase-revoke', { session: x.session }); say('Revoked.', 'ok'); lookup(); }); }));
+      c.appendChild(a); box.appendChild(c);
     });
   }
 
-  async function find() {
-    if (!tokenEl.value) { say('Enter your admin password first.', 'err'); return; }
-    if (!qEl.value.trim()) { say('Enter a FLUX ID to search for.', 'err'); return; }
-    findBtn.disabled = true; say('Searching…'); results.textContent = '';
-    try {
-      var data = await call('/api/admin/find-player', { name: qEl.value.trim() });
-      if (!data.matches || !data.matches.length) say('No entries match "' + qEl.value.trim().toUpperCase() + '".');
-      else { say(data.matches.length + ' match' + (data.matches.length === 1 ? '' : 'es') + ' — check the country and score before removing.'); render(data.matches); }
-    } catch (e) { say(e.message, 'err'); }
-    finally { findBtn.disabled = false; }
+  /* ---------------- name bans ---------------- */
+  function renderBans(list) {
+    var box = $('bans'); box.textContent = '';
+    if (!list.length) { box.appendChild(el('div', 'empty', 'No banned names.')); return; }
+    list.forEach(function (n) {
+      var c = el('div', 'card'); var a = el('div', 'actions');
+      c.appendChild(el('div', 'name', n));
+      a.appendChild(btn('UNBAN', 'ghost', function () { var b = this; act(b, '…', async function () {
+        await call('name-unban', { name: n }); c.remove(); say('Unbanned ' + n + '.', 'ok'); }); }));
+      c.appendChild(a); box.appendChild(c);
+    });
+  }
+  async function banName() {
+    var n = $('banName').value.trim(); if (!n) { say('Enter a name.', 'err'); return; }
+    if (!confirm('Ban the name "' + n.toUpperCase() + '"? It will show as PILOT from any device. Players keep their scores.')) return;
+    await call('name-ban', { name: n }); $('banName').value = ''; say('Name banned.', 'ok'); loadExceptions();
   }
 
-  findBtn.onclick = find;
-  qEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') find(); });
+  function guard(fn) { return function () { fn().catch(function (e) { say(e.message, 'err'); }); }; }
+  $('loadEx').onclick = guard(loadExceptions);
+  $('find').onclick = guard(find);
+  $('q').addEventListener('keydown', function (e) { if (e.key === 'Enter') guard(find)(); });
+  $('plook').onclick = guard(lookup);
+  $('banBtn').onclick = guard(banName);
+  $('advanced').addEventListener('toggle', function () { showPrivacy = this.open; if ($('results').children.length) guard(find)(); });
 })();
 </script>
 </body>
