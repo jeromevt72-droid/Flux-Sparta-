@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>FLUX · Admin</title>
+<!--
+  AUDIT A-2 — FLUX leaderboard admin.
+
+  Lets the owner keep the Privacy Policy's promise ("removed within 30 days of a
+  request") and take down abusive names, from an iPad, with no other tools.
+
+  Safety:
+  - Every action needs the ADMIN_TOKEN secret, checked on the server with a
+    timing-safe compare. This page on its own can do nothing.
+  - The password is kept only in this page's memory. It is never saved, and
+    this page never reads or writes player storage.
+  - No manifest and no service-worker registration: it is not part of the app.
+  - All data is written with textContent, never innerHTML.
+  - Entries are identified by their leaderboard hash; no playerId ever reaches
+    this page.
+-->
+<style>
+  :root { --bg:#07091d; --panel:#0d1230; --line:#1f2a5c; --text:#eaf7ff; --dim:#8fa3d8;
+          --cyan:#62eaff; --pink:#ff4f98; --green:#5dffb0; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text);
+         font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+         padding:calc(env(safe-area-inset-top) + 28px) 20px 60px; }
+  main { max-width:640px; margin:0 auto; }
+  h1 { font-size:15px; letter-spacing:.42em; margin:0 0 6px; color:var(--cyan); }
+  h1 span { color:var(--text); }
+  .lede { color:var(--dim); font-size:14px; line-height:1.5; margin:0 0 26px; }
+  label { display:block; font-size:11px; letter-spacing:.22em; color:var(--dim); margin:18px 0 8px; }
+  input[type=password], input[type=text] {
+    width:100%; background:var(--panel); border:1px solid var(--line); color:var(--text);
+    border-radius:12px; padding:14px 16px; font-size:17px; outline:none; }
+  input:focus { border-color:var(--cyan); }
+  .row { display:flex; gap:10px; }
+  .row input { flex:1; }
+  button { font:inherit; font-size:13px; font-weight:700; letter-spacing:.16em; border:0;
+           border-radius:12px; padding:14px 18px; cursor:pointer; }
+  .go { background:var(--cyan); color:#04121a; }
+  .go:disabled { opacity:.5; }
+  #status { min-height:22px; margin:18px 0 8px; font-size:14px; }
+  .ok { color:var(--green); } .err { color:var(--pink); }
+  .entry { background:var(--panel); border:1px solid var(--line); border-radius:14px;
+           padding:16px; margin:12px 0; }
+  .entry b { font-size:17px; letter-spacing:.06em; }
+  .meta { color:var(--dim); font-size:13px; margin:6px 0 14px; line-height:1.5; }
+  .check { display:flex; align-items:center; gap:10px; font-size:13px; color:var(--dim); margin:0 0 12px; }
+  .check input { width:20px; height:20px; }
+  .remove { background:transparent; color:var(--pink); border:1px solid var(--pink); width:100%; }
+  .remove:disabled { opacity:.4; }
+  .note { color:var(--dim); font-size:12px; line-height:1.55; margin-top:34px;
+          border-top:1px solid var(--line); padding-top:18px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>FLUX <span>· ADMIN</span></h1>
+  <p class="lede">Remove a leaderboard entry — for a privacy request, or an abusive name.</p>
+
+  <label for="token">ADMIN PASSWORD</label>
+  <input id="token" type="password" autocomplete="off" autocapitalize="off" spellcheck="false"
+         placeholder="Your ADMIN_TOKEN">
+
+  <label for="q">FLUX ID TO FIND</label>
+  <div class="row">
+    <input id="q" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false"
+           placeholder="e.g. TITAN">
+    <button id="find" class="go">FIND</button>
+  </div>
+
+  <div id="status" role="status" aria-live="polite"></div>
+  <div id="results"></div>
+
+  <p class="note">
+    Removing an entry deletes it from the leaderboard and updates the country totals.
+    Tick <b>also remove purchases</b> only when a player asks for their purchase records
+    to be deleted — they will lose those skins. Stripe keeps its own payment records.
+    If the player keeps playing, a new entry will appear with their next score.
+  </p>
+</main>
+<script>
+(function () {
+  var tokenEl = document.getElementById('token');
+  var qEl = document.getElementById('q');
+  var findBtn = document.getElementById('find');
+  var statusEl = document.getElementById('status');
+  var results = document.getElementById('results');
+
+  function say(msg, kind) { statusEl.textContent = msg; statusEl.className = kind || ''; }
+
+  async function call(path, body) {
+    var res = await fetch(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-admin-token': tokenEl.value },
+      body: JSON.stringify(body)
+    });
+    var data = {};
+    try { data = await res.json(); } catch (e) {}
+    if (!res.ok) throw new Error(res.status === 401 ? 'Wrong admin password.' : (data.error || ('Error ' + res.status)));
+    return data;
+  }
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  function render(matches) {
+    results.textContent = '';
+    matches.forEach(function (m) {
+      var card = el('div', 'entry');
+      card.appendChild(el('b', '', m.name));
+      var when = m.updatedAt ? new Date(m.updatedAt).toLocaleString() : 'unknown';
+      card.appendChild(el('div', 'meta',
+        (m.country || '??') + ' · score ' + Number(m.score).toLocaleString() +
+        ' · level ' + m.level + ' · ' + (m.difficulty || '') + '\nlast played ' + when));
+
+      var chk = el('label', 'check');
+      var box = document.createElement('input'); box.type = 'checkbox';
+      chk.appendChild(box); chk.appendChild(document.createTextNode('also remove purchases'));
+      card.appendChild(chk);
+
+      var btn = el('button', 'remove', 'REMOVE THIS ENTRY');
+      btn.onclick = async function () {
+        var extra = box.checked ? '\n\nTheir purchase records will ALSO be deleted — they will lose those skins.' : '';
+        if (!confirm('Remove "' + m.name + '" (' + (m.country || '??') + ', score ' +
+                     Number(m.score).toLocaleString() + ') from the leaderboard?' + extra)) return;
+        btn.disabled = true; btn.textContent = 'REMOVING…';
+        try {
+          var out = await call('/api/admin/remove-player', { pid: m.pid, removePurchases: box.checked });
+          card.textContent = '';
+          card.appendChild(el('b', 'ok', 'REMOVED · ' + out.removed.name));
+          if (out.purchasesRemoved) card.appendChild(el('div', 'meta', out.purchasesRemoved + ' purchase record(s) also removed.'));
+          say('Done. The leaderboard has been updated.', 'ok');
+        } catch (e) {
+          btn.disabled = false; btn.textContent = 'REMOVE THIS ENTRY';
+          say(e.message, 'err');
+        }
+      };
+      card.appendChild(btn);
+      results.appendChild(card);
+    });
+  }
+
+  async function find() {
+    if (!tokenEl.value) { say('Enter your admin password first.', 'err'); return; }
+    if (!qEl.value.trim()) { say('Enter a FLUX ID to search for.', 'err'); return; }
+    findBtn.disabled = true; say('Searching…'); results.textContent = '';
+    try {
+      var data = await call('/api/admin/find-player', { name: qEl.value.trim() });
+      if (!data.matches || !data.matches.length) say('No entries match "' + qEl.value.trim().toUpperCase() + '".');
+      else { say(data.matches.length + ' match' + (data.matches.length === 1 ? '' : 'es') + ' — check the country and score before removing.'); render(data.matches); }
+    } catch (e) { say(e.message, 'err'); }
+    finally { findBtn.disabled = false; }
+  }
+
+  findBtn.onclick = find;
+  qEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') find(); });
+})();
+</script>
+</body>
+</html>
