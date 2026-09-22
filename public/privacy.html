@@ -83,13 +83,15 @@ transmitted anywhere unless listed in section 5:</p>
   <tr><td>FLUX ID, country, difficulty</td><td>Your settings</td></tr>
   <tr><td>Personal best score and level</td><td>Per difficulty</td></tr>
   <tr><td>Player identifier</td><td>Random value described above</td></tr>
+  <tr><td>Restore in progress</td><td>Present for a moment while a restore code is being applied, then deleted</td></tr>
   <tr><td>Owned skins</td><td>Local cache of purchases</td></tr>
   <tr><td>Pending score submissions</td><td>Runs finished while offline, queued for later</td></tr>
   <tr><td>Chosen background and selected skin</td><td>Appearance settings</td></tr>
   <tr><td>Last submission error</td><td>A short diagnostic code, no personal content</td></tr>
 </table>
 <p>Clearing your browser data or deleting the app from your Home Screen removes
-all of it. We cannot recover it, and we cannot see it.</p>
+all of it. We cannot recover it, and we cannot see it. If you saved your
+restore code, entering it in FLUX brings your pilot back.</p>
 
 <h2>5. Information sent to our server</h2>
 <p>When you finish a run and a score is submitted, FLUX sends:</p>
@@ -131,7 +133,7 @@ code.</strong> We receive from Stripe only a confirmation that a specific
 checkout session was paid, which we use to unlock the skin for your player
 identifier. Stripe's handling of your payment information is governed by
 Stripe's own privacy policy at <a href="https://stripe.com/privacy">stripe.com/privacy</a>.</p>
-<p><strong>Purchase recovery.</strong> Purchases are linked to the player identifier stored on the device. FLUX does not currently provide account-based or cross-device purchase recovery. Clearing browser data, deleting the installed app’s data, or losing the player identifier may prevent access to previously purchased skins. The store will remain closed until a secure recovery process is implemented and tested.</p>
+<p><strong>Purchase recovery.</strong> Purchases are linked to the player identifier stored on the device. FLUX does not provide accounts. The game menu shows a restore code for your pilot; entering that code in FLUX restores the pilot and the purchases linked to it, including on a new device. Anyone who has the code can use the pilot, so keep it private. If you lose both the restore code and your device data, we may not be able to restore your pilot or your purchases. The store will remain closed until this recovery process has been tested on real devices.</p>
 <p>Stripe asks for your email address at checkout and sends you a receipt. FLUX
 does not store that email address. If you contact us about a purchase, we can use
 the email address you give us to look the purchase up in Stripe; it is used for
