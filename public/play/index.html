@@ -421,6 +421,21 @@ function targetCap(){const d=DIFFICULTY[difficulty],g=Math.min(2,Math.floor((lev
 function levelThreshold(){return LEVEL_THRESHOLDS[Math.min(9,level)]*DIFFICULTY[difficulty].level} 
 let paddle={x:0,y:0,w:150,h:12,handleH:28,hitFlash:0,hitSide:0};
 let ball,targets=[],particles=[],texts=[],shake=0;
+/* ===========================================================================
+   STORE SWITCH — the ONE place to open or close the paid store.
+
+   false  -> paid skins show COMING SOON and cannot be bought. Chosen for the
+             free-to-play launch while Stripe is still in Sandbox: a visible
+             Sandbox store would decline real cards and hand out free skins to
+             anyone who knows the public test card.
+   true   -> the normal store, with BUY buttons.
+
+   Flip to true ONLY after Stripe live keys and live price IDs are in
+   Cloudflare (T-9). Nothing else needs to change. Skins a player already owns
+   stay owned and usable either way -- ownership is verified by the server.
+   =========================================================================== */
+const STORE_OPEN = false;
+
 const SKINS={
   aurora:{name:'AURORA',price:null,colors:['#35e6ff','#5c9cff','#8c5cff','#c64dff','#ff4f98','#ff6b52','#ffc447','#d9ff39','#45f0c0']},
   toxic:{name:'TOXIC',price:'$1.99',colors:['#9dff2e','#c8ff45','#5cff9c','#2effd6','#e8ff5c','#7bff3d','#39ffb0','#b6ff2e','#4dffe0']},
@@ -1420,10 +1435,11 @@ function buildShopUI(){
     const row=document.createElement('div');
     row.className='shopRow';
     row.innerHTML=`<div class="shopSwatches">${s.colors.slice(0,5).map(c=>`<i style="background:${c}"></i>`).join('')}</div>
-      <div class="shopInfo"><b>${s.name}</b><span>${owned?(equipped?'ACTIVE':'OWNED'):s.price}</span></div>`;
+      <div class="shopInfo"><b>${s.name}</b><span>${owned?(equipped?'ACTIVE':'OWNED'):(STORE_OPEN?s.price:'COMING SOON')}</span></div>`;
     const btn=document.createElement('button');
     if(equipped){btn.textContent='ACTIVE';btn.disabled=true;}
     else if(owned){btn.textContent='USE';btn.onclick=()=>equipSkin(sku);}
+    else if(!STORE_OPEN){btn.textContent='SOON';btn.disabled=true;}   // STORE SWITCH
     else{btn.textContent='BUY '+s.price;btn.onclick=()=>buySkin(sku,btn);}
     row.appendChild(btn);
     list.appendChild(row);
@@ -1906,6 +1922,10 @@ function resetBuyButton(btn, sku){
 }
 
 buySkin = async function (sku, btn) {
+  if (!STORE_OPEN) {                                   // STORE SWITCH
+    showInfo('COMING SOON', 'Premium skins are coming soon. Everything else in FLUX is free to play now.');
+    return;
+  }
   if(isOffline()){
     showInfo('CONNECTION REQUIRED','Purchases need an internet connection. Everything else in FLUX works offline.');
     return;
