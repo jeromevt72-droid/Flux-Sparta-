@@ -1623,6 +1623,23 @@ function clearSubmitFailure(){
   try{ localStorage.removeItem('fluxLastSubmitError'); localStorage.fluxSubmitFailCount=0; }catch(e){}
 }
 
+/* AUDIT A-1: the leaderboard no longer carries playerIds (they are the only
+   proof of identity, so publishing them let anyone become any listed player).
+   Each row carries a one-way hash instead; this computes the same hash of our
+   own id -- SHA-256 of "flux-pid:" + playerId, first 8 bytes as hex, identical
+   to pidHash() in worker.js -- so the game can still highlight "your" row. */
+let _myPidHash = null;
+function myPidHash(){
+  if (!_myPidHash) {
+    _myPidHash = (async () => {
+      try {
+        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('flux-pid:' + playerId));
+        return Array.from(new Uint8Array(buf)).slice(0, 8).map(b => b.toString(16).padStart(2, '0')).join('');
+      } catch (e) { return null; }
+    })();
+  }
+  return _myPidHash;
+}
 function openLeaderboard(){
   if(isOffline()){
     showInfo('CONNECTION REQUIRED','The Global Leaderboard needs an internet connection. Your runs are saved on this device and will be submitted automatically when you are back online.');
@@ -1640,7 +1657,8 @@ function openLeaderboard(){
       throw new Error(message);
     }
     return r.json();
-  }).then(data=>{
+  }).then(async data=>{
+    const myPid = await myPidHash();   // A-1
     const body=d.querySelector('#lbBody');
     if(!data.top||!data.top.length){body.innerHTML='<p class="lbEmpty">No runs submitted yet. Be the first on the board.</p>';return}
     let html='';
@@ -1648,7 +1666,7 @@ function openLeaderboard(){
       html+='<div class="lbLeading">'+(countryFlags[data.leadingCountry.country]||'🌎')+' <b>'+data.leadingCountry.country+'</b> is leading with '+data.leadingCountry.playerCount+' pilot'+(data.leadingCountry.playerCount===1?'':'s')+'</div>';
     }
     html+='<div class="lbList">'+data.top.map((r,i)=>{
-      const mine=r.playerId===playerId;
+      const mine=!!myPid && r.pid===myPid;   // A-1: compare hashes, never ids
       return '<div class="lbRow'+(mine?' lbMine':'')+'"><span class="lbRank">#'+(i+1)+'</span><span class="lbFlag">'+(countryFlags[r.country]||'🌎')+'</span><span class="lbName">'+escapeHtml(r.name)+'</span><span class="lbScore">'+r.score.toLocaleString()+'</span></div>';
     }).join('')+'</div>';
     if(data.countries&&data.countries.length>1){
