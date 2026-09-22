@@ -27,6 +27,8 @@
       "/api/*"
     ]
   },
+  // RC2.8: automatic payment reconciliation every 30 minutes (free on Workers).
+  "triggers": { "crons": ["*/30 * * * *"] },
   "durable_objects": {
     "bindings": [
       {

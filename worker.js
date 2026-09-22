@@ -39,6 +39,10 @@ const validPlayerId = (v) => PLAYER_ID.test(String(v || "")) && !UNSAFE_KEYS.has
 /* ------------------------------------------------------------------ */
 
 export default {
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(reconcilePayments(env).catch((e) => console.error("reconcile:", e && e.message)));
+  },
+
   async fetch(request, env) {
     const url = new URL(request.url);
     const path = url.pathname;
@@ -66,11 +70,23 @@ export default {
         if (path === "/api/verify-session" && request.method === "GET") {
           return withCors(await verifySession(request, env));
         }
-        if (path === "/api/admin/find-player" && request.method === "POST") {
-          return withCors(await adminFind(request, env));
-        }
-        if (path === "/api/admin/remove-player" && request.method === "POST") {
-          return withCors(await adminRemove(request, env));
+        if (request.method === "POST" && path.startsWith("/api/admin/")) {
+          const admin = {
+            "/api/admin/find-player":       () => adminFind(request, env),
+            "/api/admin/remove-score":      () => adminPidAction(request, env, "/admin-remove-score"),
+            "/api/admin/restrict":          () => adminPidAction(request, env, "/admin-restrict", (b) => ({ reason: b.reason })),
+            "/api/admin/unrestrict":        () => adminPidAction(request, env, "/admin-unrestrict"),
+            "/api/admin/privacy-delete":    () => adminPidAction(request, env, "/admin-privacy-delete", (b) => ({ removePurchases: !!b.removePurchases })),
+            "/api/admin/name-ban":          () => adminNameBan(request, env, true),
+            "/api/admin/name-unban":        () => adminNameBan(request, env, false),
+            "/api/admin/exceptions":        () => adminExceptions(request, env),
+            "/api/admin/dismiss-flag":      () => adminDismissFlag(request, env),
+            "/api/admin/resolve-delivery":  () => adminResolveDelivery(request, env),
+            "/api/admin/purchases":         () => adminPurchases(request, env),
+            "/api/admin/purchase-revoke":   () => adminPurchaseChange(request, env, false),
+            "/api/admin/purchase-grant":    () => adminPurchaseChange(request, env, true),
+          }[path];
+          if (admin) return withCors(await admin());
         }
         if (path === "/api/admin/import-kv" && request.method === "POST") {
           return withCors(await importFromKV(request, env));
@@ -160,12 +176,16 @@ async function grantEntitlement(env, playerId, sku, sessionId) {
   if (!validPlayerId(playerId) || !VALID_SKUS.has(sku)) return false;
   const stub = leaderboardStub(env);
   if (!stub) return false;
-  const resp = await stub.fetch("https://do.internal/grant", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ playerId, sku, sessionId: sessionId || null }),
-  });
-  return resp.ok;
+  try {
+    const resp = await stub.fetch("https://do.internal/grant", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ playerId, sku, sessionId: sessionId || null }),
+    });
+    return resp.ok;
+  } catch (e) {
+    return false;          // D-26: a thrown storage error is a failed grant, reported to the caller
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -344,7 +364,7 @@ async function createCheckout(request, env) {
     cosmic: env.STRIPE_PRICE_COSMIC,
     solar: env.STRIPE_PRICE_SOLAR,
   };
-  const price = priceMap[sku];
+  const price = Object.prototype.hasOwnProperty.call(priceMap, sku) ? priceMap[sku] : undefined;   // D-29
   if (!sku || !price) return json({ error: "Unknown or missing sku" }, 400);
   if (!validPlayerId(playerId)) {
     return json({ error: "Missing or invalid playerId — required so the purchase can be restored later" }, 400);
@@ -440,6 +460,17 @@ async function createCheckout(request, env) {
   });
 }
 
+/* D-31 (RC2.8.1): payment confirmation and entitlement delivery are separate
+   states. RC2.8 ignored the grant result here, so a paid session returned
+   200 { paid: true } even when the skin was never saved. Now:
+   - Stripe says paid + skin saved          -> 200 paid:true  delivered:true
+   - Stripe says paid + save failed/threw   -> a durable delivery exception is
+     recorded FIRST, then 200 paid:true delivered:false pendingDelivery:true
+     (the webhook retry and reconciliation will finish the job)
+   - ...and the exception cannot be stored  -> 503, retryable
+   - not paid (unpaid, open, expired)       -> paid:false delivered:false
+   Ownership is never granted from URL parameters: the session is fetched from
+   Stripe with the secret key, and the player must match on the client. */
 async function verifySession(request, env) {
   const sessionId = new URL(request.url).searchParams.get("session_id");
   if (!sessionId) return json({ error: "Missing session_id" }, 400);
@@ -460,13 +491,22 @@ async function verifySession(request, env) {
   const sku = (data.metadata && data.metadata.sku) || null;
   const playerId = (data.metadata && data.metadata.playerId) || data.client_reference_id || null;
 
-  // Record it here too, so the unlock works even if the webhook is slow
-  // or was never configured. Granting is idempotent.
-  if (paid && sku && playerId) {
-    await grantEntitlement(env, playerId, sku, data.id || sessionId);
+  if (!paid) return json({ paid: false, delivered: false, pendingDelivery: false, sku, playerId });
+
+  if (!sku || !playerId) {
+    const recorded = await recordDeliveryException(env, data, "missing ownership binding");
+    if (!recorded) return json({ error: "Temporarily unable to record the payment; retry" }, 503, { "Retry-After": "30" });
+    return json({ paid: true, delivered: false, pendingDelivery: true, sku, playerId });
   }
 
-  return json({ paid, sku, playerId });
+  const delivered = await grantEntitlement(env, playerId, sku, data.id || sessionId);
+  if (delivered) {
+    await clearDeliveryException(env, data.id || sessionId);
+    return json({ paid: true, delivered: true, pendingDelivery: false, sku, playerId });
+  }
+  const recorded = await recordDeliveryException(env, data, "delivery failed; will retry");
+  if (!recorded) return json({ error: "Temporarily unable to record the payment; retry" }, 503, { "Retry-After": "30" });
+  return json({ paid: true, delivered: false, pendingDelivery: true, sku, playerId });
 }
 
 async function stripeWebhook(request, env) {
@@ -492,13 +532,23 @@ async function stripeWebhook(request, env) {
     if (session.payment_status === "paid") {
       const sku = (session.metadata && session.metadata.sku) || null;
       const playerId = (session.metadata && session.metadata.playerId) || session.client_reference_id || null;
+      /* D-26: RC2.7 replied 200 "received" whether or not the skin was saved,
+         so Stripe never retried a failed delivery. Now:
+         - saved                        -> 200
+         - not saved (error or refusal) -> 500, and Stripe retries automatically
+         - no player attached           -> recorded as an exception in KV (a
+           separate store); 200 only once that record exists, else 500      */
       if (sku && playerId) {
-        await grantEntitlement(env, playerId, sku, session.id);
+        const ok = await grantEntitlement(env, playerId, sku, session.id);
+        if (!ok) return json({ error: "Delivery failed; retry" }, 500);
+        await clearDeliveryException(env, session.id);      // resolved: stop showing it
+      } else {
+        const recorded = await recordDeliveryException(env, session, "missing ownership binding");
+        if (!recorded) return json({ error: "Could not record the exception; retry" }, 500);
       }
     }
   }
 
-  // Always 200 on a validly signed event, or Stripe keeps retrying.
   return json({ received: true });
 }
 
@@ -623,24 +673,203 @@ function requireAdmin(request, env) {
   if (!timingSafeEqual(supplied, env.ADMIN_TOKEN)) return json({ error: "Unauthorized" }, 401);
   return null;
 }
-async function adminFind(request, env) {
+const PID_RE = /^[0-9a-f]{16}$/;
+async function adminDO(request, env, doPath, payload) {
   const denied = requireAdmin(request, env); if (denied) return denied;
-  const body = await readJsonObject(request);
-  const q = body && typeof body.name === "string" ? body.name.trim().toUpperCase() : "";
-  if (!q) return json({ error: "Enter a FLUX ID to search for" }, 400);
-  return forwardToDO(request, env, "/admin-find", {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ q }),
+  return forwardToDO(request, env, doPath, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
   });
 }
-async function adminRemove(request, env) {
+async function adminBody(request) { return (await readJsonObject(request)) || {}; }
+async function adminPidAction(request, env, doPath, extra = (b) => ({})) {
   const denied = requireAdmin(request, env); if (denied) return denied;
-  const body = await readJsonObject(request);
-  const pid = body && typeof body.pid === "string" && /^[0-9a-f]{16}$/.test(body.pid) ? body.pid : "";
-  if (!pid) return json({ error: "Invalid entry" }, 400);
-  return forwardToDO(request, env, "/admin-remove", {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ pid, removePurchases: !!(body && body.removePurchases) }),
+  const b = await adminBody(request);
+  if (!(typeof b.pid === "string" && PID_RE.test(b.pid))) return json({ error: "Invalid entry" }, 400);
+  return adminDO(request, env, doPath, { pid: b.pid, ...extra(b) });
+}
+async function adminFind(request, env) {
+  const denied = requireAdmin(request, env); if (denied) return denied;
+  const b = await adminBody(request);
+  const q = String(b.query || b.name || "").trim();
+  if (!q) return json({ error: "Enter a FLUX ID or tag to search for" }, 400);
+  return adminDO(request, env, "/admin-find", { q });
+}
+async function adminNameBan(request, env, on) {
+  const denied = requireAdmin(request, env); if (denied) return denied;
+  const b = await adminBody(request);
+  return adminDO(request, env, on ? "/admin-name-ban" : "/admin-name-unban", { name: String(b.name || "") });
+}
+/* Exceptions = informational flags (DO) + unresolved payment deliveries (KV). */
+async function adminExceptions(request, env) {
+  const denied = requireAdmin(request, env); if (denied) return denied;
+  const resp = await forwardToDO(request, env, "/admin-overview", { method: "POST" });
+  const overview = await resp.json();
+  overview.delivery = await listDeliveryExceptions(env);
+  return json(overview);
+}
+async function adminDismissFlag(request, env) {
+  const denied = requireAdmin(request, env); if (denied) return denied;
+  const b = await adminBody(request);
+  return adminDO(request, env, "/admin-dismiss-flag", { id: String(b.id || "") });
+}
+async function adminResolveDelivery(request, env) {
+  const denied = requireAdmin(request, env); if (denied) return denied;
+  const b = await adminBody(request);
+  if (!env.LEADERBOARD || !b.session) return json({ error: "Nothing to resolve" }, 400);
+  await env.LEADERBOARD.delete(DELIVERY_PREFIX + String(b.session));
+  return json({ ok: true });
+}
+
+/* D-27: purchases, found WITHOUT a leaderboard entry. Buyers rarely know their
+   Checkout Session ID, so lookup uses what they do have: the email address on
+   their Stripe receipt, or a payment reference (pi_...) from the Stripe
+   dashboard. Results never include the playerId; only its public tag. Email
+   addresses are used for the lookup only and are never logged or stored. */
+async function stripeGet(env, pathAndQuery) {
+  const resp = await fetch("https://api.stripe.com/v1/" + pathAndQuery, {
+    headers: { Authorization: `Bearer ${env.STRIPE_SECRET_KEY}` },
   });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error((data.error && data.error.message) || "Stripe rejected the request");
+  return data;
+}
+async function ownsSku(env, playerId, sku) {
+  const stub = leaderboardStub(env);
+  const r = await stub.fetch("https://do.internal/entitlements?playerId=" + encodeURIComponent(playerId));
+  const d = await r.json();
+  return (d.skus || []).includes(sku);
+}
+async function adminPurchases(request, env) {
+  const denied = requireAdmin(request, env); if (denied) return denied;
+  if (!env.STRIPE_SECRET_KEY) return json({ error: "Stripe is not configured" }, 500);
+  const b = await adminBody(request);
+  const email = typeof b.email === "string" ? b.email.trim() : "";
+  const ref = typeof b.reference === "string" ? b.reference.trim() : "";
+  let query;
+  if (/^pi_[A-Za-z0-9]+$/.test(ref)) query = "payment_intent=" + encodeURIComponent(ref);
+  else if (/^cs_[A-Za-z0-9_]+$/.test(ref)) query = null;
+  else if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) query = "customer_details[email]=" + encodeURIComponent(email);
+  else return json({ error: "Enter the buyer's email address or a payment reference (pi_...)" }, 400);
+  try {
+    const list = query ? (await stripeGet(env, "checkout/sessions?limit=20&" + query)).data || []
+                       : [await stripeGet(env, "checkout/sessions/" + encodeURIComponent(ref))];
+    const purchases = [];
+    for (const sesh of list) {
+      const sku = (sesh.metadata && sesh.metadata.sku) || null;
+      const playerId = (sesh.metadata && sesh.metadata.playerId) || sesh.client_reference_id || null;
+      const pid = playerId ? await pidHash(playerId) : null;
+      purchases.push({
+        session: sesh.id, sku, paid: sesh.payment_status === "paid",
+        created: sesh.created || null, amount: sesh.amount_total || null, currency: sesh.currency || null,
+        tag: pid ? tagFromPid(pid, 7) : null,
+        delivered: playerId && sku ? await ownsSku(env, playerId, sku) : false,
+        deliverable: !!(playerId && sku),
+      });
+    }
+    return json({ ok: true, purchases });
+  } catch (e) {
+    return json({ error: e.message }, 502);
+  }
+}
+async function adminPurchaseChange(request, env, grant) {
+  const denied = requireAdmin(request, env); if (denied) return denied;
+  if (!env.STRIPE_SECRET_KEY) return json({ error: "Stripe is not configured" }, 500);
+  const b = await adminBody(request);
+  if (!/^cs_[A-Za-z0-9_]+$/.test(String(b.session || ""))) return json({ error: "Invalid purchase" }, 400);
+  let sesh;
+  try { sesh = await stripeGet(env, "checkout/sessions/" + encodeURIComponent(b.session)); }
+  catch (e) { return json({ error: e.message }, 502); }
+  const sku = (sesh.metadata && sesh.metadata.sku) || null;
+  const playerId = (sesh.metadata && sesh.metadata.playerId) || sesh.client_reference_id || null;
+  if (!sku || !playerId) return json({ error: "That payment has no player attached — handle it in the Stripe dashboard" }, 409);
+  if (grant && sesh.payment_status !== "paid") return json({ error: "That payment is not marked paid" }, 409);
+  const stub = leaderboardStub(env);
+  const r = await stub.fetch("https://do.internal/" + (grant ? "grant" : "revoke"), {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(grant ? { playerId, sku, sessionId: sesh.id, force: true } : { playerId, sku }),
+  });
+  if (!r.ok) return json({ error: "Could not update the purchase record" }, 500);
+  if (grant) await env.LEADERBOARD?.delete(DELIVERY_PREFIX + sesh.id);
+  return json({ ok: true, sku, granted: grant });
+}
+
+/* D-26: payment delivery exceptions live in KV -- a DIFFERENT store from the
+   Durable Object that holds purchases -- so a failure there cannot also erase
+   the record that it failed. */
+const DELIVERY_PREFIX = "exception:delivery:";
+async function recordDeliveryException(env, session, reason) {
+  if (!env.LEADERBOARD) return false;
+  try {
+    await env.LEADERBOARD.put(DELIVERY_PREFIX + session.id, JSON.stringify({
+      session: session.id, reason, at: Date.now(),
+      paid: session.payment_status === "paid",
+      sku: (session.metadata && session.metadata.sku) || null,
+      amount: session.amount_total || null, currency: session.currency || null,
+    }));
+    return true;
+  } catch (e) { return false; }
+}
+async function clearDeliveryException(env, sessionId) {
+  if (!env.LEADERBOARD || !sessionId) return;
+  try { await env.LEADERBOARD.delete(DELIVERY_PREFIX + sessionId); } catch (e) {}
+}
+async function listDeliveryExceptions(env) {
+  if (!env.LEADERBOARD) return [];
+  const out = [];
+  const page = await env.LEADERBOARD.list({ prefix: DELIVERY_PREFIX });
+  for (const k of page.keys || []) {
+    try { out.push(JSON.parse(await env.LEADERBOARD.get(k.name))); } catch (e) {}
+  }
+  return out.sort((a, b) => b.at - a.at);
+}
+
+/* Automatic reconciliation (cron, every 30 minutes): every paid checkout from
+   the last 72 hours is checked against the purchase records and delivered if
+   missing. Independent of the webhook and of the write that may have failed.
+   A purchase the admin deliberately revoked stays revoked (its session is
+   already recorded as handled). */
+/* D-34 (RC2.8.1): reconciliation follows Stripe's pagination. RC2.8 read one
+   page of 100 and stopped, so busy periods could leave purchases unchecked.
+   WINDOW: completed checkouts created in the last 72 hours, checked every 30
+   minutes -- so every payment is re-checked about 144 times before it ages out.
+   Older payments are NOT covered automatically; the admin purchase lookup
+   handles those. Idempotent: owned skins are skipped, grants are keyed by
+   session, and a skin the admin revoked stays revoked (its session is already
+   recorded as handled). Failures are recorded and the run continues. */
+const RECONCILE_WINDOW_SEC = 72 * 3600;
+const RECONCILE_MAX_PAGES = 50;          // 5,000 sessions per run; a safety stop, not a window
+async function reconcilePayments(env) {
+  if (!env.STRIPE_SECRET_KEY) return { skipped: true };
+  const since = Math.floor(Date.now() / 1000) - RECONCILE_WINDOW_SEC;
+  let delivered = 0, exceptions = 0, checked = 0, pages = 0, after = null;
+  const seen = new Set();
+  do {
+    const q = "checkout/sessions?limit=100&status=complete&created[gte]=" + since + (after ? "&starting_after=" + encodeURIComponent(after) : "");
+    const page = await stripeGet(env, q);
+    const list = page.data || [];
+    pages++;
+    for (const sesh of list) {
+      if (!sesh || seen.has(sesh.id)) continue;               // duplicates across pages
+      seen.add(sesh.id); checked++;
+      if (sesh.payment_status !== "paid") continue;          // unpaid, expired, cancelled: never
+      const sku = (sesh.metadata && sesh.metadata.sku) || null;
+      const playerId = (sesh.metadata && sesh.metadata.playerId) || sesh.client_reference_id || null;
+      if (!sku || !playerId) {
+        if (!(await env.LEADERBOARD?.get(DELIVERY_PREFIX + sesh.id))) { await recordDeliveryException(env, sesh, "missing ownership binding"); exceptions++; }
+        continue;
+      }
+      try {
+        if (await ownsSku(env, playerId, sku)) { await clearDeliveryException(env, sesh.id); continue; }
+        const ok = await grantEntitlement(env, playerId, sku, sesh.id);
+        if (ok) { delivered++; await clearDeliveryException(env, sesh.id); }
+        else { await recordDeliveryException(env, sesh, "delivery failed; will retry"); exceptions++; }
+      } catch (e) {
+        await recordDeliveryException(env, sesh, "delivery failed; will retry"); exceptions++;
+      }
+    }
+    after = page.has_more && list.length ? list[list.length - 1].id : null;
+  } while (after && pages < RECONCILE_MAX_PAGES);
+  return { checked, delivered, exceptions, pages, windowHours: RECONCILE_WINDOW_SEC / 3600 };
 }
 
 function timingSafeEqual(a, b) {
@@ -654,69 +883,194 @@ function timingSafeEqual(a, b) {
 /* Durable Object                                                      */
 /* ------------------------------------------------------------------ */
 
+/* D-29 (RC2.8.1): PROTOTYPE-SAFE MAPS.
+   Player IDs, session IDs and names are untrusted strings. Used as keys in
+   ordinary objects, names like "toString", "valueOf" or "hasOwnProperty"
+   resolved to INHERITED functions and were mistaken for stored records -- the
+   server crashed with 500. Every server map is now a prototype-free object
+   (Object.create(null)): no inherited keys, and "__proto__" is an ordinary own
+   key rather than a prototype setter. No blocklist of special names involved. */
+function NP(o) {
+  const n = Object.create(null);
+  if (o) for (const k of Object.keys(o)) n[k] = o[k];
+  return n;
+}
+function setKey(o, k, v) { const n = NP(o); n[k] = v; return n; }
+function dropKey(o, k) { const n = NP(o); delete n[k]; return n; }
+function ownGet(o, k) { return o && Object.prototype.hasOwnProperty.call(o, k) ? o[k] : undefined; }
+
 export class LeaderboardDO {
+  /* RC2.8 DATA MODEL
+     players[playerId] = { playerId, name, country, updatedAt,
+                           bests: { easy?, medium?, hard? : {score, level, updatedAt} } }
+     D-22: RC2.7 kept ONE best per player and then filtered it by difficulty, so
+     a higher Easy score hid the player's Hard score entirely. Each difficulty now
+     keeps its own best. Legacy single-score records convert as they load.
+     restricted[pidHash] = {at, reason}      moderation, keyed by the public hash
+     nameBans[normalisedName] = {at}         exact-name bans, display only
+     flags[]                                  unusual submissions, informational */
   constructor(state) {
     this.state = state;
     this.ready = false;
+    this.pidCache = new Map();
   }
 
   async load() {
     if (this.ready) return;
     await this.state.blockConcurrencyWhile(async () => {
       if (this.ready) return;
-      this.players = (await this.state.storage.get("players")) || {};
-      this.countries = (await this.state.storage.get("countries")) || {};
-      this.entitlements = (await this.state.storage.get("entitlements")) || {};
-      this.seenSessions = (await this.state.storage.get("seenSessions")) || {};
-      this.lastSubmit = (await this.state.storage.get("lastSubmit")) || {};
+      const raw = (await this.state.storage.get("players")) || {};
+      this.players = Object.create(null);                       // D-29
+      for (const id of Object.keys(raw)) this.players[id] = normaliseRecord(raw[id], id);
+      this.countries = NP(await this.state.storage.get("countries"));
+      this.entitlements = NP(await this.state.storage.get("entitlements"));
+      this.seenSessions = NP(await this.state.storage.get("seenSessions"));
+      this.lastSubmit = NP(await this.state.storage.get("lastSubmit"));
+      this.restricted = NP(await this.state.storage.get("restricted"));
+      this.nameBans = NP(await this.state.storage.get("nameBans"));
+      this.tagCache = null;
+      this.flags = (await this.state.storage.get("flags")) || [];
       this.ready = true;
     });
+  }
+
+  async pid(playerId) {
+    if (!this.pidCache.has(playerId)) this.pidCache.set(playerId, await pidHash(playerId));
+    return this.pidCache.get(playerId);
+  }
+  async isRestricted(playerId) { return !!ownGet(this.restricted, await this.pid(playerId)); }
+  displayName(r) {
+    const n = cleanName(r.name);
+    return ownGet(this.nameBans, normaliseForBan(r.name)) ? "PILOT" : n;
+  }
+  async findPlayerIdByPid(pid) {
+    for (const id of new Set([...Object.keys(this.players), ...Object.keys(this.entitlements)])) {
+      if ((await this.pid(id)) === pid) return id;
+    }
+    return null;
   }
 
   async fetch(request) {
     await this.load();
     const url = new URL(request.url);
-
-    if (url.pathname === "/leaderboard") return this.handleLeaderboard(url);
-    if (url.pathname === "/submit") return this.handleSubmit(request);
-    if (url.pathname === "/entitlements") return this.handleEntitlements(url);
-    if (url.pathname === "/grant") return this.handleGrant(request);
-    if (url.pathname === "/import") return this.handleImport(request);
-    if (url.pathname === "/recompute") return this.handleRecompute();
-    if (url.pathname === "/admin-find") return this.handleAdminFind(request);
-    if (url.pathname === "/admin-remove") return this.handleAdminRemove(request);
-    return json({ error: "Not found" }, 404);
+    const route = {
+      "/leaderboard": () => this.handleLeaderboard(url),
+      "/submit": () => this.handleSubmit(request),
+      "/entitlements": () => this.handleEntitlements(url),
+      "/grant": () => this.handleGrant(request),
+      "/revoke": () => this.handleRevoke(request),
+      "/import": () => this.handleImport(request),
+      "/recompute": () => this.handleRecompute(),
+      "/admin-find": () => this.handleAdminFind(request),
+      "/admin-remove-score": () => this.handleAdminRemoveScore(request),
+      "/admin-restrict": () => this.handleAdminRestrict(request, true),
+      "/admin-unrestrict": () => this.handleAdminRestrict(request, false),
+      "/admin-privacy-delete": () => this.handleAdminPrivacyDelete(request),
+      "/admin-name-ban": () => this.handleAdminNameBan(request, true),
+      "/admin-name-unban": () => this.handleAdminNameBan(request, false),
+      "/admin-overview": () => this.handleAdminOverview(),
+      "/admin-dismiss-flag": () => this.handleAdminDismissFlag(request),
+    }[url.pathname];
+    return route ? route() : json({ error: "Not found" }, 404);
   }
+
+  /* Public rows for one board. No difficulty = each player's single best. */
+  async publicRows(difficulty) {
+    const rows = [];
+    for (const r of Object.values(this.players)) {
+      if (await this.isRestricted(r.playerId)) continue;       // moderation exclusion
+      const b = difficulty ? r.bests[difficulty] : bestOf(r);
+      if (!b) continue;
+      rows.push({ r, score: b.score, level: b.level, difficulty: difficulty || b.difficulty, updatedAt: b.updatedAt || r.updatedAt || 0 });
+    }
+    rows.sort((a, b) => b.score - a.score || a.updatedAt - b.updatedAt);
+    return rows;
+  }
+
+  /* D-33 (RC2.8.1): public tags resolved over the COMPLETE player set.
+     RC2.8 checked collisions only among the rows in one response, so a
+     same-name player outside the top 25 could make a tag short in one view and
+     long in another. The tag map is now computed once over every player
+     (restricted included, so restricting someone never changes another
+     player's tag) and cached until players or name bans change. Every view --
+     leaderboard, World Grid, country leaders, submit response, admin -- reads
+     this one map. 7 characters normally; 12 where two players share a displayed
+     name and a short tag. */
+  async tagMap() {
+    if (this.tagCache) return this.tagCache;
+    const groups = new Map();
+    const pids = [];
+    for (const r of Object.values(this.players)) {
+      const pid = await this.pid(r.playerId);
+      pids.push(pid);
+      const key = this.displayName(r) + "#" + tagFromPid(pid, 7);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(pid);
+    }
+    const map = new Map();
+    for (const list of groups.values()) {
+      for (const pid of list) map.set(pid, tagFromPid(pid, list.length > 1 ? 12 : 7));
+    }
+    this.tagCache = map;
+    return map;
+  }
+  async tagFor(playerId) {
+    const pid = await this.pid(playerId);
+    return (await this.tagMap()).get(pid) || tagFromPid(pid, 7);
+  }
+  async tagRows(items) {
+    const out = [];
+    for (const it of items) out.push({ it, pid: await this.pid(it.r.playerId), tag: await this.tagFor(it.r.playerId) });
+    return out;
+  }
+  invalidateTags() { this.tagCache = null; }
 
   async handleLeaderboard(url) {
     const limit = clampInt(url.searchParams.get("limit"), 1, 100, 25);
-    const difficulty = VALID_DIFFICULTIES.has(url.searchParams.get("difficulty"))
-      ? url.searchParams.get("difficulty")
-      : null;
+    const difficulty = VALID_DIFFICULTIES.has(url.searchParams.get("difficulty")) ? url.searchParams.get("difficulty") : null;
+    const rows = (await this.publicRows(difficulty)).slice(0, limit);
+    const tagged = await this.tagRows(rows);
+    const top = tagged.map((o) => ({
+      pid: o.pid,                                  // A-1: a hash, never the playerId
+      tag: o.tag,
+      name: this.displayName(o.it.r),
+      country: o.it.r.country,
+      score: o.it.score,
+      level: o.it.level,
+      difficulty: o.it.difficulty,
+    }));
+    // The leader's tag comes from the SAME live tag map as every other view,
+    // resolved now -- never a copy stored earlier. leaderId never leaves the server.
+    const countries = [];
+    for (const { leaderId, leaderPid, topTag, ...c } of Object.values(this.countries)) {
+      countries.push({ ...c, topTag: leaderId ? await this.tagFor(leaderId) : "" });
+    }
+    countries.sort((a, b) => b.totalScore - a.totalScore);
+    return json({ top, countries, leadingCountry: countries[0] || null, difficulty });
+  }
 
-    let records = Object.values(this.players);
-    if (difficulty) records = records.filter((r) => r.difficulty === difficulty);
-    records.sort((a, b) => b.score - a.score || a.updatedAt - b.updatedAt);
-
-    const top = await Promise.all(records.slice(0, limit).map(async (r) => ({
-      pid: await pidHash(r.playerId),   // A-1: never the playerId itself
-      name: cleanName(r.name),          // A-3: entries stored before the filter are cleaned on the way out
-      country: r.country,
-      score: r.score,
-      level: r.level,
-      difficulty: r.difficulty,
-    })));
-
-    const countries = Object.values(this.countries)
-      .map((c) => ({ ...c, topName: c.topName ? cleanName(c.topName) : c.topName }))   // A-3
-      .sort((a, b) => b.totalScore - a.totalScore);
-
-    return json({
-      top,
-      countries,
-      leadingCountry: countries[0] || null,
-      difficulty: difficulty || "all",
-    });
+  /* D-25: country figures are rebuilt from the player records every time
+     something changes, so totals, counts, top scores and displayed leaders can
+     never drift apart. RC2.7 subtracted a departing player's score but kept
+     their name and top score as the country's leader. Each player counts once,
+     at their single best public score; restricted players are excluded. */
+  async recomputeCountries() {
+    const totals = Object.create(null);   // D-29
+    const leaders = Object.create(null);
+    for (const x of await this.publicRows(null)) {
+      const cc = ISO2.test(String(x.r.country || "")) ? x.r.country : "XX";
+      const c = totals[cc] || (totals[cc] = { country: cc, totalScore: 0, playerCount: 0, topScore: 0, topName: "", leaderId: "" });
+      c.totalScore += x.score;
+      c.playerCount += 1;
+      if (!leaders[cc] || x.score > leaders[cc].score) leaders[cc] = x;
+    }
+    for (const [cc, x] of Object.entries(leaders)) {
+        totals[cc].topScore = x.score;
+      totals[cc].topName = this.displayName(x.r);
+      totals[cc].leaderId = x.r.playerId;           // internal only: stripped from every response
+    }
+    await this.state.storage.put({ countries: totals });
+    this.countries = totals;
   }
 
   async handleSubmit(request) {
@@ -724,181 +1078,276 @@ export class LeaderboardDO {
     const { playerId, name, score, level, difficulty, country } = body;
 
     const now = Date.now();
-    const last = this.lastSubmit[playerId] || 0;
+    const last = ownGet(this.lastSubmit, playerId) || 0;
     if (now - last < SUBMIT_COOLDOWN_MS) {
-      return json({ error: "Slow down — too many submissions" }, 429);
+      return json({ error: "Slow down — too many submissions", retryAfterSec: Math.ceil((SUBMIT_COOLDOWN_MS - (now - last)) / 1000) }, 429,
+                  { "Retry-After": String(Math.ceil((SUBMIT_COOLDOWN_MS - (now - last)) / 1000)) });
     }
-    this.lastSubmit[playerId] = now;
 
-    const prev = this.players[playerId] || null;
-    const isNewBest = !prev || score > prev.score;
-
+    const prev = ownGet(this.players, playerId) || null;
+    const prevBest = prev && ownGet(prev.bests, difficulty) ? prev.bests[difficulty].score : 0;
+    const isNewBest = score > prevBest;
     const record = {
       playerId,
-      name,                       // name always refreshes to the current one
-      country,                    // country always refreshes to the current pick
-      score: isNewBest ? score : prev.score,
-      level: isNewBest ? level : prev.level,
-      difficulty: isNewBest ? difficulty : prev.difficulty,
+      name,                              // name and country always refresh
+      country,
       updatedAt: now,
+      bests: NP(prev ? prev.bests : null),
     };
-    this.players[playerId] = record;
+    if (isNewBest) record.bests[difficulty] = { score, level, updatedAt: now };
 
-    this.applyCountryDelta(prev, record);
+    // Informational only: flag the unusual for optional review. Never hides or
+    // punishes anyone automatically.
+    const flag = await this.maybeFlag(playerId, name, difficulty, score, prevBest, now);
 
-    await this.state.storage.put({
-      players: this.players,
-      countries: this.countries,
-      lastSubmit: this.lastSubmit,
+    // Durable first: memory changes only after the write succeeds.
+    const nextPlayers = setKey(this.players, playerId, record);
+    const nextLast = setKey(this.lastSubmit, playerId, now);
+    const nextFlags = flag ? pruneFlags([...this.flags.filter((f) => f.id !== flag.id), flag], now) : this.flags;
+    await this.state.storage.put({ players: nextPlayers, lastSubmit: nextLast, flags: nextFlags });
+    this.players = nextPlayers; this.lastSubmit = nextLast; this.flags = nextFlags;
+    this.invalidateTags();
+
+    await this.recomputeCountries();
+
+    const pid = await this.pid(playerId);
+    const restricted = !!ownGet(this.restricted, pid);
+    let rank = null;
+    if (!restricted) {
+      const rows = await this.publicRows(difficulty);
+      rank = rows.findIndex((x) => x.r.playerId === playerId) + 1 || null;
+    }
+    const [o] = await this.tagRows([{ r: record }]);
+    return json({
+      ok: true, isNewBest, best: record.bests[difficulty] ? record.bests[difficulty].score : score,
+      country, difficulty,
+      public: !restricted,       // honest: no public rank is invented for a restricted player
+      rank,
+      tag: o.tag,
     });
-
-    const ranked = Object.values(this.players).sort((a, b) => b.score - a.score);
-    const rank = ranked.findIndex((r) => r.playerId === playerId) + 1;
-
-    return json({ ok: true, isNewBest, best: record.score, country, rank });
   }
 
-  applyCountryDelta(prev, record) {
-    // Remove the player's previous contribution, wherever it was filed.
-    if (prev) {
-      const old = this.countries[prev.country];
-      if (old) {
-        old.totalScore -= prev.score;
-        old.playerCount = Math.max(0, old.playerCount - 1);
-        if (old.playerCount === 0 || old.totalScore <= 0) delete this.countries[prev.country];
-      }
-    }
+  async maybeFlag(playerId, name, difficulty, score, prevBest, now) {
+    let boardTop = 0;
+    for (const x of await this.publicRows(difficulty)) { if (x.r.playerId !== playerId) { boardTop = x.score; break; } }
+    let reason = null;
+    if (score >= FLAG_ABSOLUTE) reason = "exceptionally high score";
+    else if (score >= FLAG_MIN_SCORE && boardTop > 0 && score > boardTop * FLAG_JUMP_FACTOR) reason = "far above the current #1";
+    else if (score >= FLAG_MIN_SCORE && prevBest > 0 && score > prevBest * FLAG_PERSONAL_JUMP) reason = "sudden jump over this player's own best";
+    if (!reason) return null;
+    const pid = await this.pid(playerId);
+    return { id: pid + ":" + difficulty, pid, name: cleanName(name), difficulty, score, prevBest, boardTop, reason, at: now };
+  }
 
-    if (!this.countries[record.country]) {
-      this.countries[record.country] = {
-        country: record.country,
-        totalScore: 0,
-        playerCount: 0,
-        topScore: 0,
-        topName: "",
-      };
+  handleEntitlements(url) {
+    const playerId = url.searchParams.get("playerId") || "";
+    const skus = ownGet(this.entitlements, playerId) || [];
+    return json({ playerId, skus });
+  }
+
+  /* D-26: durable first. RC2.7 marked a session "seen" in memory BEFORE the
+     storage write. If the write threw, Stripe's retry was waved through as a
+     duplicate and the skin was never delivered. Memory now changes only after
+     the write succeeds; a failed write leaves nothing behind. */
+  async handleGrant(request) {
+    const { playerId, sku, sessionId, force } = await request.json();
+    if (!force && sessionId && ownGet(this.seenSessions, sessionId)) {
+      return json({ ok: true, duplicate: true, skus: ownGet(this.entitlements, playerId) || [] });
     }
-    const c = this.countries[record.country];
-    c.totalScore += record.score;
-    c.playerCount += 1;
-    if (record.score >= c.topScore) {
-      c.topScore = record.score;
-      c.topName = record.name;
-    }
+    const owned = new Set(ownGet(this.entitlements, playerId) || []);
+    owned.add(sku);
+    const nextEnt = setKey(this.entitlements, playerId, [...owned]);
+    const nextSeen = sessionId ? setKey(this.seenSessions, sessionId, Date.now()) : this.seenSessions;
+    await this.state.storage.put({ entitlements: nextEnt, seenSessions: nextSeen });
+    this.entitlements = nextEnt; this.seenSessions = nextSeen;
+    return json({ ok: true, skus: this.entitlements[playerId] });
+  }
+
+  async handleRevoke(request) {
+    const { playerId, sku } = await request.json();
+    const owned = (ownGet(this.entitlements, playerId) || []).filter((s) => s !== sku);
+    const nextEnt = NP(this.entitlements);
+    if (owned.length) nextEnt[playerId] = owned; else delete nextEnt[playerId];
+    await this.state.storage.put({ entitlements: nextEnt });
+    this.entitlements = nextEnt;
+    return json({ ok: true, skus: owned });
   }
 
   async handleImport(request) {
     const { records } = await request.json();
     let imported = 0;
     let merged = 0;
-
+    const next = NP(this.players);
     for (const rec of Array.isArray(records) ? records : []) {
-      const existing = this.players[rec.playerId];
-      if (!existing) {
-        this.players[rec.playerId] = { ...rec };
-        imported++;
-      } else if (rec.score > existing.score) {
-        // Keep whichever run was actually better.
-        this.players[rec.playerId] = { ...rec };
-        merged++;
-      } else {
-        merged++;
+      if (!rec || typeof rec.playerId !== "string" || !validPlayerId(rec.playerId)) continue;
+      const incoming = normaliseRecord(rec, rec.playerId);
+      const existing = ownGet(next, rec.playerId);
+      if (!existing) { next[rec.playerId] = incoming; imported++; continue; }
+      // Keep whichever run was better, per difficulty.
+      const bests = NP(existing.bests);
+      for (const [d, b] of Object.entries(incoming.bests)) {
+        if (!bests[d] || b.score > bests[d].score) bests[d] = b;
       }
+      next[rec.playerId] = { ...existing, bests };
+      merged++;
     }
-
-    await this.state.storage.put({ players: this.players });
+    await this.state.storage.put({ players: next });
+    this.players = next;
+    this.invalidateTags();
     return json({ ok: true, imported, merged });
   }
 
   async handleRecompute() {
-    const totals = {};
-    for (const r of Object.values(this.players)) {
-      const cc = ISO2.test(String(r.country || "")) ? r.country : "XX";
-      if (!totals[cc]) {
-        totals[cc] = { country: cc, totalScore: 0, playerCount: 0, topScore: 0, topName: "" };
-      }
-      const c = totals[cc];
-      c.totalScore += r.score;
-      c.playerCount += 1;
-      if (r.score >= c.topScore) {
-        c.topScore = r.score;
-        c.topName = r.name;
-      }
-    }
-    this.countries = totals;
-    await this.state.storage.put({ countries: this.countries });
-    return json({
-      ok: true,
-      players: Object.keys(this.players).length,
-      countries: Object.keys(this.countries).length,
-    });
+    await this.recomputeCountries();
+    return json({ ok: true, players: Object.keys(this.players).length, countries: Object.keys(this.countries).length });
   }
 
-  /* A-2: admin search, by FLUX ID. Returns the leaderboard hash, never the id. */
+  /* ------------------------------ admin ------------------------------ */
+
+  async adminView(r) {
+    const pid = await this.pid(r.playerId);
+    const [o] = await this.tagRows([{ r }]);
+    return {
+      pid, tag: o.tag, name: cleanName(r.name), shownAs: this.displayName(r), country: r.country,
+      bests: r.bests, restricted: !!ownGet(this.restricted, pid), restriction: ownGet(this.restricted, pid) || null,
+      updatedAt: r.updatedAt || null,
+    };
+  }
+
   async handleAdminFind(request) {
     const { q } = await request.json();
-    const matches = Object.values(this.players)
-      .filter((r) => String(r.name || "").toUpperCase().includes(q))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 25);
-    const out = await Promise.all(matches.map(async (r) => ({
-      pid: await pidHash(r.playerId),
-      name: r.name, country: r.country, score: r.score, level: r.level,
-      difficulty: r.difficulty, updatedAt: r.updatedAt || null,
-    })));
-    return json({ ok: true, matches: out });
-  }
-
-  /* A-2: admin removal, by leaderboard hash. Deletes the entry, rebuilds the
-     country totals with the existing recompute, and optionally removes the
-     player's purchase records too (a privacy request may ask for both). */
-  async handleAdminRemove(request) {
-    const { pid, removePurchases } = await request.json();
-    let target = null;
+    const query = String(q || "").toUpperCase().replace(/^#/, "").trim();
+    const matches = [];
     for (const r of Object.values(this.players)) {
-      if ((await pidHash(r.playerId)) === pid) { target = r; break; }
+      const v = await this.adminView(r);
+      if (v.name.includes(query) || v.tag.startsWith(query) || tagFromPid(v.pid, 12).startsWith(query)) matches.push(v);
     }
-    if (!target) return json({ error: "Entry not found" }, 404);
-    delete this.players[target.playerId];
-    delete this.lastSubmit[target.playerId];
+    matches.sort((a, b) => (bestOf({ bests: b.bests }) || { score: 0 }).score - (bestOf({ bests: a.bests }) || { score: 0 }).score);
+    return json({ ok: true, matches: matches.slice(0, 25) });
+  }
+
+  /* Remove score: public scores only. Identity lives on the player's device and
+     purchases are untouched. The cooldown is kept, so the same scores cannot be
+     re-posted instantly. Removal alone does not prevent resubmission --
+     restriction is the tool for repeated abuse. */
+  async handleAdminRemoveScore(request) {
+    const { pid } = await request.json();
+    const id = await this.findPlayerIdByPid(pid);
+    if (!id || !ownGet(this.players, id)) return json({ error: "Entry not found" }, 404);
+    const removed = this.players[id];
+    const next = dropKey(this.players, id);
+    const nextFlags = this.flags.filter((f) => f.pid !== pid);
+    await this.state.storage.put({ players: next, flags: nextFlags });
+    this.players = next; this.flags = nextFlags;
+    this.invalidateTags();
+    await this.recomputeCountries();
+    return json({ ok: true, removed: { name: cleanName(removed.name), country: removed.country } });
+  }
+
+  async handleAdminRestrict(request, on) {
+    const { pid, reason } = await request.json();
+    const next = NP(this.restricted);
+    if (on) next[pid] = { at: Date.now(), reason: String(reason || "").slice(0, 120) };
+    else delete next[pid];
+    await this.state.storage.put({ restricted: next });
+    this.restricted = next;
+    await this.recomputeCountries();
+    return json({ ok: true, restricted: on });
+  }
+
+  /* Privacy deletion: the player's scores, name, cooldown and flags are erased,
+     and purchase records too if asked. A restriction record (public hash, date,
+     reason) is kept while the restriction is in force, as the Privacy Policy
+     states -- without it, a restriction could not be enforced. Works for
+     purchase-only players with no leaderboard entry. */
+  async handleAdminPrivacyDelete(request) {
+    const { pid, removePurchases } = await request.json();
+    const id = await this.findPlayerIdByPid(pid);
+    if (!id) return json({ error: "No records found for that entry" }, 404);
+    const nextPlayers = dropKey(this.players, id);
+    const nextLast = dropKey(this.lastSubmit, id);
+    const nextFlags = this.flags.filter((f) => f.pid !== pid);
+    const nextEnt = NP(this.entitlements);
     let purchasesRemoved = 0;
-    if (removePurchases && this.entitlements[target.playerId]) {
-      purchasesRemoved = this.entitlements[target.playerId].length;
-      delete this.entitlements[target.playerId];
-    }
-    await this.state.storage.put({
-      players: this.players, lastSubmit: this.lastSubmit, entitlements: this.entitlements,
+    if (removePurchases && ownGet(nextEnt, id)) { purchasesRemoved = nextEnt[id].length; delete nextEnt[id]; }
+    await this.state.storage.put({ players: nextPlayers, lastSubmit: nextLast, flags: nextFlags, entitlements: nextEnt });
+    this.players = nextPlayers; this.lastSubmit = nextLast; this.flags = nextFlags; this.entitlements = nextEnt;
+    this.invalidateTags();
+    await this.recomputeCountries();
+    return json({ ok: true, purchasesRemoved, restrictionKept: !!ownGet(this.restricted, pid) });
+  }
+
+  async handleAdminNameBan(request, on) {
+    const { name } = await request.json();
+    const key = normaliseForBan(name);
+    if (!key) return json({ error: "Enter a name" }, 400);
+    const next = NP(this.nameBans);
+    if (on) next[key] = { at: Date.now() }; else delete next[key];
+    await this.state.storage.put({ nameBans: next });
+    this.nameBans = next;
+    this.invalidateTags();
+    await this.recomputeCountries();
+    return json({ ok: true, name: key, banned: on });
+  }
+
+  async handleAdminOverview() {
+    const now = Date.now();
+    return json({
+      ok: true,
+      flags: pruneFlags(this.flags, now).sort((a, b) => b.at - a.at),
+      nameBans: Object.keys(this.nameBans).sort(),
+      restrictedCount: Object.keys(this.restricted).length,
     });
-    await this.handleRecompute();
-    return json({ ok: true, removed: { name: target.name, country: target.country, score: target.score }, purchasesRemoved });
   }
 
-  handleEntitlements(url) {
-    const playerId = url.searchParams.get("playerId") || "";
-    const skus = this.entitlements[playerId] || [];
-    return json({ playerId, skus });
+  async handleAdminDismissFlag(request) {
+    const { id } = await request.json();
+    const next = this.flags.filter((f) => f.id !== id);
+    await this.state.storage.put({ flags: next });
+    this.flags = next;
+    return json({ ok: true });
   }
+}
 
-  async handleGrant(request) {
-    const { playerId, sku, sessionId } = await request.json();
-
-    // Idempotent: the webhook and the redirect both call this.
-    if (sessionId && this.seenSessions[sessionId]) {
-      return json({ ok: true, duplicate: true, skus: this.entitlements[playerId] || [] });
-    }
-
-    const owned = new Set(this.entitlements[playerId] || []);
-    owned.add(sku);
-    this.entitlements[playerId] = [...owned];
-    if (sessionId) this.seenSessions[sessionId] = Date.now();
-
-    await this.state.storage.put({
-      entitlements: this.entitlements,
-      seenSessions: this.seenSessions,
-    });
-
-    return json({ ok: true, skus: this.entitlements[playerId] });
+/* Records: legacy single-score -> per-difficulty bests. */
+function normaliseRecord(r, id) {
+  if (r && r.bests && typeof r.bests === "object") return { ...r, bests: NP(r.bests), playerId: r.playerId || id };
+  const d = VALID_DIFFICULTIES.has(r && r.difficulty) ? r.difficulty : "medium";
+  const bests = Object.create(null);
+  if (r && Number.isFinite(r.score)) bests[d] = { score: r.score, level: r.level || 1, updatedAt: r.updatedAt || 0 };
+  return { playerId: (r && r.playerId) || id, name: r && r.name, country: r && r.country, updatedAt: (r && r.updatedAt) || 0, bests };
+}
+function bestOf(r) {
+  let best = null;
+  for (const [d, b] of Object.entries((r && r.bests) || {})) {
+    if (b && (!best || b.score > best.score)) best = { ...b, difficulty: d };
   }
+  return best;
+}
+/* Crockford base32 from the hex leaderboard hash (no I, L, O, U). */
+function tagFromPid(pidHex, len) {
+  const alphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+  let bits = "";
+  for (const ch of String(pidHex)) bits += parseInt(ch, 16).toString(2).padStart(4, "0");
+  let out = "";
+  for (let i = 0; i + 5 <= bits.length && out.length < len; i += 5) out += alphabet[parseInt(bits.slice(i, i + 5), 2)];
+  return out;
+}
+/* Name bans compare the cleaned form, ignoring spacing and look-alike digits. */
+function normaliseForBan(raw) {
+  let s = typeof raw === "string" ? raw : "";
+  try { s = s.normalize("NFKC"); } catch (e) {}
+  s = s.replace(/\p{C}/gu, "").replace(/[^\p{L}\p{N} ._-]/gu, "").replace(/\s+/g, " ").trim().toUpperCase().slice(0, MAX_NAME_LEN).trim();
+  return s;
+}
+const FLAG_ABSOLUTE = 1_000_000;
+const FLAG_MIN_SCORE = 20_000;
+const FLAG_JUMP_FACTOR = 3;
+const FLAG_PERSONAL_JUMP = 10;
+const FLAG_RETENTION_MS = 90 * 24 * 3600 * 1000;   // flags auto-expire after 90 days
+const FLAG_MAX = 200;
+function pruneFlags(flags, now) {
+  return flags.filter((f) => now - f.at < FLAG_RETENTION_MS).slice(-FLAG_MAX);
 }
 
 /* ------------------------------------------------------------------ */
