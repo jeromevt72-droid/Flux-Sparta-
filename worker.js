@@ -66,6 +66,12 @@ export default {
         if (path === "/api/verify-session" && request.method === "GET") {
           return withCors(await verifySession(request, env));
         }
+        if (path === "/api/admin/find-player" && request.method === "POST") {
+          return withCors(await adminFind(request, env));
+        }
+        if (path === "/api/admin/remove-player" && request.method === "POST") {
+          return withCors(await adminRemove(request, env));
+        }
         if (path === "/api/admin/import-kv" && request.method === "POST") {
           return withCors(await importFromKV(request, env));
         }
@@ -116,9 +122,7 @@ async function submitScore(request, env) {
     return json({ error: "Missing or invalid playerId" }, 400);
   }
 
-  let name = typeof body.name === "string" ? body.name.trim() : "";
-  if (!name) name = "PILOT";
-  name = name.slice(0, MAX_NAME_LEN).toUpperCase();
+  const name = cleanName(body.name);   // A-3
 
   const score = Number.isFinite(body.score) ? Math.floor(body.score) : NaN;
   const level = Number.isFinite(body.level) ? Math.floor(body.level) : 1;
@@ -320,6 +324,15 @@ async function sendImportBatch(env, records) {
 /* ------------------------------------------------------------------ */
 
 async function createCheckout(request, env) {
+  /* A-4: the store was closed only inside the app. Anyone sending this request
+     directly could still create a checkout -- and with Sandbox's public test
+     card, get a skin free that would carry over after going live. The store is
+     now closed on the server too, by the STORE_OPEN variable in wrangler.jsonc.
+     verify-session and the webhook are untouched, so any checkout already
+     started still resolves correctly. */
+  if (String(env.STORE_OPEN || "").toLowerCase() !== "true") {
+    return json({ error: "The FLUX store is coming soon.", code: "STORE_CLOSED" }, 403);
+  }
   const body = await readJsonObject(request);
   if (!body) return json({ error: "Invalid request body" }, 400);
 
@@ -527,6 +540,109 @@ async function verifyStripeSignature(payload, header, secret, toleranceSec = 300
   return provided.some((p) => timingSafeEqual(p, expected));
 }
 
+/* ===========================================================================
+   AUDIT FIXES (Sep 21, 2026)
+   =========================================================================== */
+
+/* A-1: the public leaderboard must never reveal a playerId. A playerId is the
+   ONLY proof of who a player is (there is no password), so exposing it let
+   anyone become any listed player. The leaderboard now carries a one-way hash
+   instead. playerIds are random UUIDs, so the hash cannot be reversed; a player
+   recognises their own row by hashing their own id the same way. */
+async function pidHash(playerId) {
+  const data = new TextEncoder().encode("flux-pid:" + String(playerId));
+  const buf = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(buf)).slice(0, 8)
+    .map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/* A-3: FLUX IDs were accepted with ANY characters. Display was always escaped
+   (no code could run), but slurs, impersonation ("ADMIN") and invisible or
+   direction-reversing characters could reach a worldwide leaderboard.
+   Letters and numbers from any language are kept -- FLUX is global -- plus
+   space . - _ ; everything else is removed. A blocked name is shown as PILOT
+   rather than rejected, so the player's score still counts. */
+// Blocked only as the ENTIRE name (brands, and words that are fine inside names).
+const RESERVED_EXACT = new Set([
+  "ADMIN", "ADMINISTRATOR", "MOD", "MODERATOR", "OFFICIAL", "SUPPORT", "STAFF",
+  "SYSTEM", "DEVELOPER", "OWNER", "FLUXTEAM", "FLUX TEAM", "FLUX OFFICIAL",
+  "FLUX ADMIN", "FLUX SUPPORT", "FLUX STAFF", "STRIPE", "APPLE", "GOOGLE", "ANTHROPIC",
+]);
+// Blocked as a word in a short name ("FLUX STAFF"), since they signal authority.
+const RESERVED_WORDS = new Set(["ADMIN", "ADMINISTRATOR", "MODERATOR", "OFFICIAL", "STAFF", "DEVELOPER", "OWNER"]);
+// Matched ANYWHERE after look-alike substitution and removing spaces. Only terms
+// with no common innocent substring belong here.
+const BLOCKED_ANYWHERE = [
+  "NIGGER", "NIGGA", "FAGGOT", "TRANNY", "WETBACK", "RAGHEAD",
+  "FUCK", "CUNT", "BITCH", "WHORE", "SLUT", "SHIT", "HITLER", "KKK", "PORN",
+  "MOLEST", "PEDOPHILE", "JIZZ", "DILDO",
+];
+// Matched only as WHOLE WORDS, because they occur inside innocent words:
+// GRAPE, THERAPIST, PAKISTAN, SPICY, RACCOON, ANALYST, DOCUMENT, COCKPIT,
+// DICKENS, PEDOMETER, NAZIR, RETARDANT, PUSSYCAT ...
+const BLOCKED_WORDS = new Set([
+  "ASS", "FAG", "HOE", "TIT", "TITS", "SEX", "NIG", "JAP", "SPIC", "COON", "PAKI",
+  "ANAL", "CUM", "DICK", "COCK", "RAPE", "RAPIST", "GOOK", "KIKE", "NUDE", "NAZI",
+  "PEDO", "PUSSY", "RETARD", "RETARDED", "CHINK", "BEANER", "PENIS", "VAGINA",
+]);
+
+function deLeet(s) {
+  return s.replace(/0/g, "O").replace(/1/g, "I").replace(/3/g, "E").replace(/4/g, "A")
+    .replace(/5/g, "S").replace(/7/g, "T").replace(/8/g, "B").replace(/@/g, "A")
+    .replace(/\$/g, "S").replace(/!/g, "I");
+}
+function isBlockedName(name) {
+  const upper = String(name).toUpperCase().trim();
+  if (RESERVED_EXACT.has(upper)) return true;
+  const squeezed = deLeet(upper).replace(/[^A-Z]/g, "");
+  if (BLOCKED_ANYWHERE.some((w) => squeezed.includes(w))) return true;
+  const words = deLeet(upper).split(/[^A-Z]+/).filter(Boolean);
+  if (words.some((w) => BLOCKED_WORDS.has(w))) return true;
+  if (words.length <= 2 && words.some((w) => RESERVED_WORDS.has(w))) return true;
+  return false;
+}
+function cleanName(raw) {
+  let s = typeof raw === "string" ? raw : "";
+  try { s = s.normalize("NFKC"); } catch (e) {}
+  s = s.replace(/\p{C}/gu, "");                 // control, zero-width, bidi overrides
+  s = s.replace(/[^\p{L}\p{N} ._-]/gu, "");     // letters/numbers (any script) + space . - _
+  s = s.replace(/\s+/g, " ").trim().toUpperCase().slice(0, MAX_NAME_LEN).trim();
+  if (!s || isBlockedName(s)) return "PILOT";
+  return s;
+}
+
+/* A-2: the Privacy Policy promises to remove an entry within 30 days of a
+   request, and abusive names must be removable -- but the leaderboard lives in
+   a Durable Object that the Cloudflare dashboard cannot edit. These admin
+   actions, guarded by the ADMIN_TOKEN secret, make both possible from the
+   /admin.html page. They work by the leaderboard hash, so even the admin page
+   never sees a playerId. */
+function requireAdmin(request, env) {
+  if (!env.ADMIN_TOKEN) return json({ error: "ADMIN_TOKEN is not configured" }, 500);
+  const supplied = request.headers.get("x-admin-token") || "";
+  if (!timingSafeEqual(supplied, env.ADMIN_TOKEN)) return json({ error: "Unauthorized" }, 401);
+  return null;
+}
+async function adminFind(request, env) {
+  const denied = requireAdmin(request, env); if (denied) return denied;
+  const body = await readJsonObject(request);
+  const q = body && typeof body.name === "string" ? body.name.trim().toUpperCase() : "";
+  if (!q) return json({ error: "Enter a FLUX ID to search for" }, 400);
+  return forwardToDO(request, env, "/admin-find", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ q }),
+  });
+}
+async function adminRemove(request, env) {
+  const denied = requireAdmin(request, env); if (denied) return denied;
+  const body = await readJsonObject(request);
+  const pid = body && typeof body.pid === "string" && /^[0-9a-f]{16}$/.test(body.pid) ? body.pid : "";
+  if (!pid) return json({ error: "Invalid entry" }, 400);
+  return forwardToDO(request, env, "/admin-remove", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ pid, removePurchases: !!(body && body.removePurchases) }),
+  });
+}
+
 function timingSafeEqual(a, b) {
   if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false;
   let diff = 0;
@@ -567,10 +683,12 @@ export class LeaderboardDO {
     if (url.pathname === "/grant") return this.handleGrant(request);
     if (url.pathname === "/import") return this.handleImport(request);
     if (url.pathname === "/recompute") return this.handleRecompute();
+    if (url.pathname === "/admin-find") return this.handleAdminFind(request);
+    if (url.pathname === "/admin-remove") return this.handleAdminRemove(request);
     return json({ error: "Not found" }, 404);
   }
 
-  handleLeaderboard(url) {
+  async handleLeaderboard(url) {
     const limit = clampInt(url.searchParams.get("limit"), 1, 100, 25);
     const difficulty = VALID_DIFFICULTIES.has(url.searchParams.get("difficulty"))
       ? url.searchParams.get("difficulty")
@@ -580,16 +698,18 @@ export class LeaderboardDO {
     if (difficulty) records = records.filter((r) => r.difficulty === difficulty);
     records.sort((a, b) => b.score - a.score || a.updatedAt - b.updatedAt);
 
-    const top = records.slice(0, limit).map((r) => ({
-      playerId: r.playerId,
-      name: r.name,
+    const top = await Promise.all(records.slice(0, limit).map(async (r) => ({
+      pid: await pidHash(r.playerId),   // A-1: never the playerId itself
+      name: cleanName(r.name),          // A-3: entries stored before the filter are cleaned on the way out
       country: r.country,
       score: r.score,
       level: r.level,
       difficulty: r.difficulty,
-    }));
+    })));
 
-    const countries = Object.values(this.countries).sort((a, b) => b.totalScore - a.totalScore);
+    const countries = Object.values(this.countries)
+      .map((c) => ({ ...c, topName: c.topName ? cleanName(c.topName) : c.topName }))   // A-3
+      .sort((a, b) => b.totalScore - a.totalScore);
 
     return json({
       top,
@@ -712,6 +832,45 @@ export class LeaderboardDO {
       players: Object.keys(this.players).length,
       countries: Object.keys(this.countries).length,
     });
+  }
+
+  /* A-2: admin search, by FLUX ID. Returns the leaderboard hash, never the id. */
+  async handleAdminFind(request) {
+    const { q } = await request.json();
+    const matches = Object.values(this.players)
+      .filter((r) => String(r.name || "").toUpperCase().includes(q))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 25);
+    const out = await Promise.all(matches.map(async (r) => ({
+      pid: await pidHash(r.playerId),
+      name: r.name, country: r.country, score: r.score, level: r.level,
+      difficulty: r.difficulty, updatedAt: r.updatedAt || null,
+    })));
+    return json({ ok: true, matches: out });
+  }
+
+  /* A-2: admin removal, by leaderboard hash. Deletes the entry, rebuilds the
+     country totals with the existing recompute, and optionally removes the
+     player's purchase records too (a privacy request may ask for both). */
+  async handleAdminRemove(request) {
+    const { pid, removePurchases } = await request.json();
+    let target = null;
+    for (const r of Object.values(this.players)) {
+      if ((await pidHash(r.playerId)) === pid) { target = r; break; }
+    }
+    if (!target) return json({ error: "Entry not found" }, 404);
+    delete this.players[target.playerId];
+    delete this.lastSubmit[target.playerId];
+    let purchasesRemoved = 0;
+    if (removePurchases && this.entitlements[target.playerId]) {
+      purchasesRemoved = this.entitlements[target.playerId].length;
+      delete this.entitlements[target.playerId];
+    }
+    await this.state.storage.put({
+      players: this.players, lastSubmit: this.lastSubmit, entitlements: this.entitlements,
+    });
+    await this.handleRecompute();
+    return json({ ok: true, removed: { name: target.name, country: target.country, score: target.score }, purchasesRemoved });
   }
 
   handleEntitlements(url) {

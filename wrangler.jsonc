@@ -53,6 +53,10 @@
     "SITE_URL": "https://flux-sparta-3.jeromevt72.workers.dev",
     "STRIPE_PRICE_TOXIC": "price_1UFmSPD3WappewxnvZMd3Uti",
     "STRIPE_PRICE_COSMIC": "price_1UFmXnD3WappewxnIBJOTvtj",
-    "STRIPE_PRICE_SOLAR": "price_1UG5raD3WappewxnfLlKnVUP"
+    "STRIPE_PRICE_SOLAR": "price_1UG5raD3WappewxnfLlKnVUP",
+    // A-4: the store is closed on the SERVER too. Set to "true" only after
+    // Stripe live keys and live price IDs are in place (T-9), together with
+    // STORE_OPEN in public/play/index.html.
+    "STORE_OPEN": "false"
   }
 }
