@@ -10,7 +10,19 @@
 <meta name="apple-mobile-web-app-title" content="FLUX">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/icon-192.png">
-<title>FLUX — Flow • Launch • Unite • Xcelerate</title>
+<title>Play FLUX Sparta — Free Arcade Game</title>
+<meta name="description" content="Play FLUX Sparta free in your browser. Match the color, chain combos and send your points to your country on the Global Grid.">
+<link rel="canonical" href="https://flux-sparta-3.jeromevt72.workers.dev/play/">
+<meta property="og:site_name" content="FLUX Sparta">
+<meta property="og:title" content="Play FLUX Sparta — free, no signup">
+<meta property="og:description" content="Match the color. Chain the combo. Put your country on top.">
+<meta property="og:url" content="https://flux-sparta-3.jeromevt72.workers.dev/play/">
+<meta property="og:image" content="https://flux-sparta-3.jeromevt72.workers.dev/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://flux-sparta-3.jeromevt72.workers.dev/og-image.jpg">
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#050719;color:#eaf7ff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
@@ -2585,6 +2597,47 @@ document.getElementById('restoreLink').onclick=function(){ if(restoreHasPilot())
   ed.onclick=function(e){ if(typeof prev==='function') prev.call(this,e); syncRestoreLink(); };
 })();
 syncRestoreLink();
+</script>
+<!-- D-38 (RC2.8.4): IN-APP BROWSER BANNER. A link tapped inside TikTok,
+     Instagram, Facebook, Messenger, Snapchat or LINE opens in that app's own
+     browser, which keeps its own storage: a pilot made there may not be there
+     next time (the same split that hit the iPhone icon). This asks the player
+     to open FLUX in their real browser first. It never blocks play. -->
+<style>
+#iabBanner{position:fixed;left:10px;right:10px;top:calc(10px + env(safe-area-inset-top,0px));z-index:99999;
+  background:#0b1433;border:1px solid #2c6bff;border-radius:16px;padding:12px 40px 12px 14px;color:#eaf7ff;
+  font:500 13px/1.45 system-ui,-apple-system,sans-serif;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+#iabBanner b{color:#5ff3ff}
+#iabBanner .iabRow{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+#iabBanner button{font:700 12px system-ui,sans-serif;letter-spacing:.06em;border-radius:999px;padding:8px 12px;border:1px solid #2c6bff;background:#12204d;color:#9ff3ff}
+#iabBanner .iabX{position:absolute;top:6px;right:8px;border:0;background:none;color:#8da0c8;font-size:20px;padding:4px 8px}
+</style>
+<script>
+(function(){
+  var ua = navigator.userAgent || '';
+  var apps = [[/TikTok|musical_ly|Bytedance/i,'TikTok'],[/Instagram/i,'Instagram'],[/FBAN|FBAV|FB_IAB|FBIOS/i,'Facebook'],
+              [/Messenger/i,'Messenger'],[/Snapchat/i,'Snapchat'],[/\bLine\//i,'LINE']];
+  var app = null; for (var i=0;i<apps.length;i++){ if (apps[i][0].test(ua)) { app = apps[i][1]; break; } }
+  window.FLUX_IN_APP = app;
+  if (!app) return;
+  try { if (sessionStorage.getItem('fluxIabDismissed') === '1') return; } catch (e) {}
+  function show(){
+    if (document.getElementById('iabBanner')) return;
+    var d = document.createElement('div'); d.id = 'iabBanner'; d.setAttribute('role','note');
+    d.innerHTML = '<b>You\u2019re inside ' + app + '.</b> Your pilot may not stay saved here. ' +
+      'Tap <b>\u22ef</b> at the top right \u2192 <b>Open in browser</b>, then add FLUX to your Home Screen.' +
+      '<div class="iabRow"><button type="button" id="iabCopy">COPY LINK</button></div>' +
+      '<button type="button" class="iabX" aria-label="Close">\u00d7</button>';
+    document.body.appendChild(d);
+    d.querySelector('.iabX').onclick = function(){ d.remove(); try { sessionStorage.setItem('fluxIabDismissed','1'); } catch (e) {} };
+    d.querySelector('#iabCopy').onclick = function(){ var b=this, u=location.href.split('#')[0];
+      try { navigator.clipboard.writeText(u).then(function(){ b.textContent='COPIED \u2014 PASTE IN SAFARI'; }, function(){ b.textContent=u; }); }
+      catch (e) { b.textContent = u; } };
+    var s = document.getElementById('startBtn');          // game page: get out of the way once a run starts
+    if (s) s.addEventListener('click', function(){ d.remove(); }, { once: true });
+  }
+  if (document.body) show(); else document.addEventListener('DOMContentLoaded', show, { once: true });
+})();
 </script>
 </body>
 </html>
