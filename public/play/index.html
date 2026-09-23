@@ -146,7 +146,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 <div id="pressureBadge" class="badge stable">FIELD • STABLE</div>
 </div>
 <div id="pauseOverlay" class="hidden"><div class="panel"><h2>FLUX PAUSED</h2><p>Your field is frozen. Take a breath, then get back in the flow.</p><button id="resumeBtn">RESUME</button><button id="pauseMenuBtn" style="margin-top:8px;background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none">⌂ END RUN &amp; MENU</button></div></div>
-<div id="shop" class="hidden"><div class="panel menuPanel"><h2 style="color:#62eaff;letter-spacing:.14em;margin:0 0 4px">THEMES & SKINS</h2><p style="margin:0 0 14px">Cosmetic only — never changes gameplay fairness.<br><span class="shopNote">Purchases belong to your pilot. Save your restore code (menu → RESTORE CODE): it brings this pilot and its skins back on a new phone, in the Home Screen app, or after clearing data.</span></p><div id="shopList"></div><div class="menuLabel" style="margin-top:16px">WORLD</div><div id="backgroundList"></div><button id="shopClose" style="margin-top:14px">BACK</button></div></div>
+<div id="shop" class="hidden"><div class="panel menuPanel"><h2 style="color:#62eaff;letter-spacing:.14em;margin:0 0 4px">THEMES & SKINS</h2><p style="margin:0 0 14px">Cosmetic only — never changes gameplay fairness.<br><span class="shopNote">Purchases belong to your pilot. Save your restore code (EDIT → RESTORE CODE): it brings this pilot and its skins back on a new phone, in the Home Screen app, or after clearing data.</span></p><div id="shopList"></div><div class="menuLabel" style="margin-top:16px">WORLD</div><div id="backgroundList"></div><button id="shopClose" style="margin-top:14px">BACK</button></div></div>
 <div id="start"><div class="panel menuPanel"><h1>FLUX</h1><div class="acronym">FLOW • LAUNCH • UNITE • XCELERATE</div><div class="menuSection"><div class="menuLabel">SELECT YOUR FLOW</div><div class="difficulty" id="difficulty"><button data-d="easy">EASY</button><button data-d="medium">MEDIUM</button><button data-d="hard">HARD</button></div></div><div id="profileEditor" class="profileRow"><input id="callsign" maxlength="14" placeholder="FLUX ID"><select id="country"><option value="AF">🇦🇫 AFGHANISTAN</option>
 <option value="AL">🇦🇱 ALBANIA</option>
 <option value="DZ">🇩🇿 ALGERIA</option>
@@ -342,7 +342,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 <option value="VN">🇻🇳 VIETNAM</option>
 <option value="YE">🇾🇪 YEMEN</option>
 <option value="ZM">🇿🇲 ZAMBIA</option>
-<option value="ZW">🇿🇼 ZIMBABWE</option><option value="OTHER">🌎 OTHER</option></select></div><button type="button" class="linkBtn restoreLink" id="restoreLink">HAVE A RESTORE CODE?</button><div id="profileSaved" class="profileSaved hidden"><span>PILOT <b id="profileName">PLAYER</b><small id="profileTag" class="profileTag"></small> • <b id="profileCountry">🇺🇸</b></span><button class="editProfile" id="editProfile">EDIT</button></div><button id="startBtn">ENTER THE FLUX</button><div class="menuTiles"><div><span>PERSONAL BEST</span><b id="menuBest">0</b></div><div><span>BEST LEVEL</span><b id="menuLevel">1</b></div></div><div id="uploadStatus" class="uploadStatus" aria-live="polite"></div><div class="menuLinks"><button class="linkBtn" id="leaderBtn">🌎 GLOBAL LEADERBOARD</button><button class="linkBtn" id="skinsBtn">✦ THEMES & SKINS</button><button class="linkBtn" id="restoreBtn">🔑 RESTORE CODE</button></div><p class="offline" id="offlineClaim">● PERSONAL BEST SAVES ON THIS DEVICE</p></div></div>
+<option value="ZW">🇿🇼 ZIMBABWE</option><option value="OTHER">🌎 OTHER</option></select></div><button type="button" class="linkBtn restoreLink" id="restoreLink">HAVE A RESTORE CODE?</button><div id="profileSaved" class="profileSaved hidden"><span>PILOT <b id="profileName">PLAYER</b><small id="profileTag" class="profileTag"></small> • <b id="profileCountry">🇺🇸</b></span><button class="editProfile" id="editProfile">EDIT</button></div><button id="startBtn">ENTER THE FLUX</button><div class="menuTiles"><div><span>PERSONAL BEST</span><b id="menuBest">0</b></div><div><span>BEST LEVEL</span><b id="menuLevel">1</b></div></div><div id="uploadStatus" class="uploadStatus" aria-live="polite"></div><div class="menuLinks"><button class="linkBtn" id="leaderBtn">🌎 GLOBAL LEADERBOARD</button><button class="linkBtn" id="skinsBtn">✦ THEMES & SKINS</button></div><p class="offline" id="offlineClaim">● PERSONAL BEST SAVES ON THIS DEVICE</p></div></div>
 <div id="gameover" class="hidden">
  <div class="panel">
   <h1 style="font-size:38px">FLUX<br>OVERLOAD</h1>
@@ -1027,6 +1027,7 @@ function endGame(){
    recordBestRun(score,level);
    if(score>best){best=score;}
    document.getElementById('finalScore').textContent=score;refreshMenu();
+   document.getElementById('finalMode').textContent=String(difficulty).toUpperCase();   // D-36: was never set here, so it always read MEDIUM
    document.getElementById('best').textContent=best;
    document.getElementById('gameover').classList.remove('hidden');
    submitScore();
@@ -2463,13 +2464,14 @@ function copyText(text,btn){
   }catch(e){}
 }
 
+function restoreSavedName(){ try{ return localStorage.getItem('fluxProfileComplete')==='1' ? (localStorage.getItem('fluxCallsign')||'') : ''; }catch(e){ return ''; } }
 /* ---------- SHOW RESTORE CODE ---------- */
 async function openRestoreCode(){
   const code=await makeRestoreCode(playerId);
   let tag=''; try{ tag=localStorage.fluxPublicTag||''; }catch(e){}
   const d=restoreOverlay(
     '<h2 style="color:#62eaff;letter-spacing:.14em">RESTORE CODE</h2>'+
-    '<p class="restoreWho">PILOT '+restorePilotLabel(callsign,tag,country)+'</p>'+
+    '<p class="restoreWho">PILOT '+restorePilotLabel(restoreSavedName(),tag,country)+'</p>'+
     '<p class="restoreText">Save this code somewhere safe, like Notes or a message to yourself. Enter it in FLUX on a new phone, in the Home Screen app, or after clearing data, to bring back this pilot, its scores and its skins.</p>'+
     '<p class="restoreWarn hidden" id="restoreNoScore">This pilot has not uploaded a score yet. Finish one run while online so the code can be restored.</p>'+
     '<p class="restoreWarn">Anyone with this code can play as this pilot. Keep it private and out of screenshots.</p>'+
@@ -2488,7 +2490,7 @@ async function openRestoreCode(){
     if(r.kind==='notfound') noScore.classList.remove('hidden');
     if(r.kind==='found' && r.info && typeof r.info.tag==='string' && /^[0-9A-Z]{6,}$/.test(r.info.tag)){
       try{ localStorage.fluxPublicTag=r.info.tag; }catch(e){}
-      const who=d.querySelector('.restoreWho'); if(who) who.innerHTML='PILOT '+restorePilotLabel(callsign,r.info.tag,country);
+      const who=d.querySelector('.restoreWho'); if(who) who.innerHTML='PILOT '+restorePilotLabel(restoreSavedName(),r.info.tag,country);
       try{ updateUploadStatus(); }catch(e){}
     }
   });
@@ -2540,13 +2542,17 @@ async function openRestoreConfirm(id,info){
   const cur=await makeRestoreCode(playerId);
   let curTag=''; try{ curTag=localStorage.fluxPublicTag||''; }catch(e){}
   if(!curTag){ const cr=await checkRestoreOnServer(playerId); if(cr.kind==='found' && cr.info && /^[0-9A-Z]{6,}$/.test(String(cr.info.tag||''))) curTag=cr.info.tag; }
+  /* D-36: read the SAVED pilot. Tapping EDIT clears profileComplete in memory,
+     which made the current pilot show as NEW PILOT here. */
+  let savedName='', savedCountry='';
+  try{ if(localStorage.getItem('fluxProfileComplete')==='1'){ savedName=localStorage.getItem('fluxCallsign')||''; savedCountry=localStorage.getItem('fluxCountry')||''; } }catch(e){}
   const curHasSkins=(function(){ try{ return RESTORE_PAID.some(function(s){ return ownsSkin(s); }); }catch(e){ return false; } })();
   const skins=(Array.isArray(info.skus)?info.skus:[]).filter(function(s){ return RESTORE_PAID.indexOf(s)!==-1; });
   const d=restoreOverlay(
     '<h2 style="color:#62eaff;letter-spacing:.14em">RESTORE PILOT?</h2>'+
     '<p class="restoreWho">'+restorePilotLabel(info.name,info.tag,info.country)+'</p>'+
     (skins.length ? '<p class="restoreText">Skins: '+skins.map(function(s){return escapeHtml(s.toUpperCase());}).join(', ')+'</p>' : '')+
-    '<p class="restoreText">This replaces the pilot on this device:<br><b>'+restorePilotLabel(profileComplete?callsign:'',curTag,profileComplete?country:'')+'</b></p>'+
+    '<p class="restoreText">This replaces the pilot on this device:<br><b>'+restorePilotLabel(savedName,curTag,savedName?savedCountry:'')+'</b></p>'+
     ((curTag||curHasSkins) ? '<p class="restoreWarn">To switch back later you need this pilot\'s restore code. Copy it before you continue.</p><div class="restoreCode">'+escapeHtml(cur||'')+'</div><button id="restoreCopyCur">COPY THIS PILOT\'S CODE</button>' : '')+
     '<p class="restoreMsg" id="restoreMsg2" aria-live="polite"></p>'+
     '<button id="restoreYes">YES, RESTORE</button>'+
@@ -2564,8 +2570,21 @@ async function openRestoreConfirm(id,info){
   };
 }
 
-document.getElementById('restoreBtn').onclick=function(){ openRestoreCode(); };
-document.getElementById('restoreLink').onclick=function(){ openRestoreEntry(); };
+/* D-36 (RC2.8.3): the restore code lives inside EDIT, not in the main menu.
+   The link under the name editor has two jobs:
+     - a pilot already exists on this device (EDIT was tapped): show its code;
+     - no pilot yet (first launch, or the icon lost its pilot): enter a code. */
+function restoreHasPilot(){ try{ return localStorage.getItem('fluxProfileComplete')==='1'; }catch(e){ return false; } }
+function syncRestoreLink(){
+  const l=document.getElementById('restoreLink');
+  if(l) l.textContent = restoreHasPilot() ? '\u{1F511} RESTORE CODE' : 'HAVE A RESTORE CODE?';
+}
+document.getElementById('restoreLink').onclick=function(){ if(restoreHasPilot()) openRestoreCode(); else openRestoreEntry(); };
+(function(){
+  const ed=document.getElementById('editProfile'); const prev=ed.onclick;
+  ed.onclick=function(e){ if(typeof prev==='function') prev.call(this,e); syncRestoreLink(); };
+})();
+syncRestoreLink();
 </script>
 </body>
 </html>
