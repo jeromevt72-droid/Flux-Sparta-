@@ -1301,11 +1301,18 @@ export class LeaderboardDO {
 
   async handleAdminFind(request) {
     const { q } = await request.json();
-    const query = String(q || "").toUpperCase().replace(/^#/, "").trim();
+    const raw = String(q || "").toUpperCase().trim();
+    // D-38: "NAME #TAG" -- the way the game shows a pilot -- must match that
+    // pilot. Plain "NAME", "TAG" or "#TAG" work as before.
+    const both = /^(.+?)\s*#\s*([0-9A-Z]+)$/.exec(raw);
+    const query = raw.replace(/^#/, "").trim();
     const matches = [];
     for (const r of Object.values(this.players)) {
       const v = await this.adminView(r);
-      if (v.name.includes(query) || v.tag.startsWith(query) || tagFromPid(v.pid, 12).startsWith(query)) matches.push(v);
+      const hit = both
+        ? (v.name.includes(both[1].trim()) && (v.tag.startsWith(both[2]) || tagFromPid(v.pid, 12).startsWith(both[2])))
+        : (v.name.includes(query) || v.tag.startsWith(query) || tagFromPid(v.pid, 12).startsWith(query));
+      if (hit) matches.push(v);
     }
     matches.sort((a, b) => (bestOf({ bests: b.bests }) || { score: 0 }).score - (bestOf({ bests: a.bests }) || { score: 0 }).score);
     return json({ ok: true, matches: matches.slice(0, 25) });
