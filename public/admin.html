@@ -50,6 +50,8 @@
   summary{cursor:pointer;font-size:12px;letter-spacing:.28em;color:var(--dim);padding:12px 0;font-weight:700}
   .check{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--dim);margin:0 0 10px}.check input{width:19px;height:19px}
   .empty{color:var(--dim);font-size:13px;padding:6px 0}
+  .rcode{font-family:ui-monospace,Menlo,monospace;font-size:13px;word-break:break-all;user-select:all;-webkit-user-select:all;background:#050a22;border:1px solid var(--line);border-radius:10px;padding:10px;margin:8px 0;color:var(--cyan)}
+  .logrow{color:var(--dim);font-size:12px;line-height:1.5;padding:6px 0;border-top:1px solid var(--line);white-space:pre-line}
 </style>
 </head>
 <body>
@@ -133,7 +135,7 @@
     say('Checking…');
     var d = await call('exceptions');
     var flags = d.flags || [], delivery = d.delivery || [];
-    if (!flags.length && !delivery.length) { box.appendChild(el('div', 'empty', 'Nothing needs attention.')); say(''); renderBans(d.nameBans || []); return; }
+    if (!flags.length && !delivery.length) { box.appendChild(el('div', 'empty', 'Nothing needs attention.')); say(''); renderBans(d.nameBans || []); renderRestoreLog(d.restoreLog || []); return; }
     delivery.forEach(function (x) {
       var c = el('div', 'card');
       c.appendChild(el('div', 'name', 'Payment not delivered'));
@@ -161,7 +163,18 @@
           await call('dismiss-flag', { id: f.id }); c.remove(); say(f.name + ' is restricted.', 'ok'); }); }));
       c.appendChild(a); box.appendChild(c);
     });
-    say(''); renderBans(d.nameBans || []);
+    say(''); renderBans(d.nameBans || []); renderRestoreLog(d.restoreLog || []);
+  }
+  /* D-37: every restore code ever issued, newest first. Never shows a code. */
+  function renderRestoreLog(log) {
+    var box = $('exceptions');
+    var c = el('div', 'card');
+    c.appendChild(el('div', 'name', 'Restore codes issued'));
+    if (!log.length) c.appendChild(el('div', 'empty', 'None issued.'));
+    log.forEach(function (x) {
+      c.appendChild(el('div', 'logrow', when(x.at) + ' \u00b7 ' + (x.name || '(no name)') + ' #' + x.tag + '\nverified by: ' + x.reason));
+    });
+    box.appendChild(c);
   }
 
   /* ---------------- players ---------------- */
@@ -202,6 +215,24 @@
           c.appendChild(el('div', 'meta', (o.purchasesRemoved ? o.purchasesRemoved + ' purchase record(s) deleted.\n' : '') +
             (o.restrictionKept ? 'The restriction record is kept while it is in force.' : ''))); say('Privacy deletion done.', 'ok'); }); }));
     }
+    a.appendChild(btn('ISSUE RESTORE CODE', 'ghost', function () { var b = this;
+      var reason = prompt('Issue a restore code for ' + m.name + ' #' + m.tag + '?\n\n' +
+        'Anyone holding the code can play as this pilot and use its skins. Only issue it after you have checked the person owns this pilot. ' +
+        'For a pilot with purchases, their Stripe receipt must match.\n\nHow did you verify them? (kept on record)', '');
+      if (reason === null) return;
+      if (reason.trim().length < 3) { say('Write how you verified this player.', 'err'); return; }
+      act(b, 'ISSUING\u2026', async function () {
+        var o = await call('issue-restore-code', { pid: m.pid, reason: reason });
+        b.remove();
+        var box = el('div');
+        box.appendChild(el('div', 'meta', 'Send this to the player privately. It is shown once and is not stored. Closing or searching again hides it; issuing again adds another log entry.'));
+        var code = el('div', 'rcode', o.code); box.appendChild(code);
+        var r = el('div', 'actions');
+        r.appendChild(btn('COPY', 'go', function () { try { navigator.clipboard.writeText(o.code); this.textContent = 'COPIED'; } catch (e) {} }));
+        r.appendChild(btn('HIDE', 'ghost', function () { box.remove(); }));
+        box.appendChild(r); c.appendChild(box);
+        say('Restore code issued and logged.', 'ok');
+      }); }));
     c.appendChild(a);
     return c;
   }
