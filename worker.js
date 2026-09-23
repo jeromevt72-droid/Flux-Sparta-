@@ -88,6 +88,7 @@ export default {
             "/api/admin/purchases":         () => adminPurchases(request, env),
             "/api/admin/purchase-revoke":   () => adminPurchaseChange(request, env, false),
             "/api/admin/purchase-grant":    () => adminPurchaseChange(request, env, true),
+            "/api/admin/issue-restore-code": () => adminIssueRestore(request, env),   // D-37
           }[path];
           if (admin) return withCors(await admin());
         }
@@ -718,6 +719,34 @@ async function adminFind(request, env) {
   if (!q) return json({ error: "Enter a FLUX ID or tag to search for" }, 400);
   return adminDO(request, env, "/admin-find", { q });
 }
+/* D-37 (RC2.8.3): ISSUE RESTORE CODE. Lets the owner hand a player back their
+   pilot. Safeguards:
+     - admin password (requireAdmin), like every admin action;
+     - a written reason is REQUIRED -- how the player's ownership was checked;
+     - the issue is written to a permanent log (time, tag, name, reason) BEFORE
+       the code is returned; if the log cannot be saved, no code is issued;
+     - the log never contains the code or the playerId;
+     - the response is never cached, and the admin page shows it once. */
+const RESTORE_REASON_MIN = 3;
+const RESTORE_REASON_MAX = 200;
+async function adminIssueRestore(request, env) {
+  const denied = requireAdmin(request, env); if (denied) return denied;
+  const b = await adminBody(request);
+  if (!(typeof b.pid === "string" && PID_RE.test(b.pid))) return json({ error: "Invalid entry" }, 400, { "Cache-Control": "no-store" });
+  const reason = typeof b.reason === "string" ? b.reason.replace(/\s+/g, " ").trim() : "";
+  if (reason.length < RESTORE_REASON_MIN) return json({ error: "Write how you verified this player (kept on record)." }, 400, { "Cache-Control": "no-store" });
+  const resp = await adminDO(request, env, "/admin-issue-restore", { pid: b.pid, reason: reason.slice(0, RESTORE_REASON_MAX) });
+  const headers = new Headers(resp.headers);
+  headers.set("Cache-Control", "no-store");
+  return new Response(resp.body, { status: resp.status, headers });
+}
+/* Same format and checksum as makeRestoreCode() in public/play/index.html. */
+async function restoreCodeFor(playerId) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("flux-restore:" + playerId));
+  const check = [...new Uint8Array(buf)].slice(0, 2).map((x) => x.toString(16).padStart(2, "0")).join("").toUpperCase();
+  return "FX1-" + playerId + "-" + check;
+}
+
 async function adminNameBan(request, env, on) {
   const denied = requireAdmin(request, env); if (denied) return denied;
   const b = await adminBody(request);
@@ -954,6 +983,8 @@ export class LeaderboardDO {
       this.nameBans = NP(await this.state.storage.get("nameBans"));
       this.tagCache = null;
       this.flags = (await this.state.storage.get("flags")) || [];
+      const rl = await this.state.storage.get("restoreLog");
+      this.restoreLog = Array.isArray(rl) ? rl : [];
       this.ready = true;
     });
   }
@@ -995,6 +1026,7 @@ export class LeaderboardDO {
       "/admin-name-unban": () => this.handleAdminNameBan(request, false),
       "/admin-overview": () => this.handleAdminOverview(),
       "/admin-dismiss-flag": () => this.handleAdminDismissFlag(request),
+      "/admin-issue-restore": () => this.handleAdminIssueRestore(request),
     }[url.pathname];
     return route ? route() : json({ error: "Not found" }, 404);
   }
@@ -1323,8 +1355,11 @@ export class LeaderboardDO {
     const nextEnt = NP(this.entitlements);
     let purchasesRemoved = 0;
     if (removePurchases && ownGet(nextEnt, id)) { purchasesRemoved = nextEnt[id].length; delete nextEnt[id]; }
-    await this.state.storage.put({ players: nextPlayers, lastSubmit: nextLast, flags: nextFlags, entitlements: nextEnt });
-    this.players = nextPlayers; this.lastSubmit = nextLast; this.flags = nextFlags; this.entitlements = nextEnt;
+    // D-37: the restore log keeps the date and tag of each issue, but the name
+    // and the written reason (which may mention an email) are erased too.
+    const nextLog = this.restoreLog.map((e) => (e.pid === pid ? { at: e.at, pid: e.pid, tag: e.tag, name: "", reason: "(erased on privacy request)" } : e));
+    await this.state.storage.put({ players: nextPlayers, lastSubmit: nextLast, flags: nextFlags, entitlements: nextEnt, restoreLog: nextLog });
+    this.players = nextPlayers; this.lastSubmit = nextLast; this.flags = nextFlags; this.entitlements = nextEnt; this.restoreLog = nextLog;
     this.invalidateTags();
     await this.recomputeCountries();
     return json({ ok: true, purchasesRemoved, restrictionKept: !!ownGet(this.restricted, pid) });
@@ -1350,7 +1385,24 @@ export class LeaderboardDO {
       flags: pruneFlags(this.flags, now).sort((a, b) => b.at - a.at),
       nameBans: Object.keys(this.nameBans).sort(),
       restrictedCount: Object.keys(this.restricted).length,
+      restoreLog: this.restoreLog.slice(-RESTORE_LOG_SHOWN).reverse(),   // D-37
     });
+  }
+
+  /* D-37: log first, durably; only then return the code. */
+  async handleAdminIssueRestore(request) {
+    const { pid, reason } = await request.json();
+    const id = await this.findPlayerIdByPid(pid);
+    if (!id) return json({ error: "Entry not found" }, 404);
+    const rec = ownGet(this.players, id);
+    const tag = await this.tagFor(id);
+    const name = rec ? cleanName(rec.name) : "";
+    const entry = { at: Date.now(), pid, tag, name, reason: String(reason || "").slice(0, RESTORE_REASON_MAX) };
+    const next = [...this.restoreLog, entry].slice(-RESTORE_LOG_MAX);
+    try { await this.state.storage.put({ restoreLog: next }); }
+    catch (e) { return json({ error: "Could not record this in the log, so no code was issued. Try again." }, 503); }
+    this.restoreLog = next;
+    return json({ ok: true, code: await restoreCodeFor(id), tag, name });
   }
 
   async handleAdminDismissFlag(request) {
@@ -1399,6 +1451,8 @@ const FLAG_JUMP_FACTOR = 3;
 const FLAG_PERSONAL_JUMP = 10;
 const FLAG_RETENTION_MS = 90 * 24 * 3600 * 1000;   // flags auto-expire after 90 days
 const FLAG_MAX = 200;
+const RESTORE_LOG_MAX = 500;    // D-37: kept, not time-pruned; newest 500
+const RESTORE_LOG_SHOWN = 25;
 function pruneFlags(flags, now) {
   return flags.filter((f) => now - f.at < FLAG_RETENTION_MS).slice(-FLAG_MAX);
 }
