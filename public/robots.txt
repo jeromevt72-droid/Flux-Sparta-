@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /admin.html
+Disallow: /api/
+
+Sitemap: https://flux-sparta-3.jeromevt72.workers.dev/sitemap.xml
