@@ -1394,11 +1394,10 @@ try{
       openPlayScreen();
       return;
     }
-    if(isIOSDevice() || deferredInstallPrompt){
-      e.preventDefault();
-      showPlayChoice();
-      return;
-    }
+    // D-47 (RC2.8.6): PLAY goes straight into the game on phones and tablets
+    // too. The "get the app first" screen before a first game is gone (owner
+    // decision); the game offers install AFTER the first game instead. The
+    // screen's markup stays in the page, unused, for rollback.
     // Desktop, or a browser with no install path available -- behave exactly
     // as before: the link's normal href navigation just proceeds untouched.
     // (Desktop has no "standalone app" chrome to protect, so a new tab is
