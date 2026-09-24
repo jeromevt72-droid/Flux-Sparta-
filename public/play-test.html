@@ -1,0 +1,2871 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta name="robots" content="noindex,nofollow">
+<script>
+/* SAFARI DIAGNOSTIC (test page only, never the live game): shows how far the page gets and any error. */
+window.__dbg=[];
+function __d(m){ try{ window.__dbg.push(m); var e=document.getElementById('__dbgbar'); if(e) e.textContent='DIAG: '+window.__dbg.join(' > '); }catch(x){} }
+window.onerror=function(m,src,l,c){ __d('ERROR: '+m+' (line '+l+':'+c+')'); };
+window.addEventListener('unhandledrejection',function(e){ __d('PROMISE: '+(e.reason&&e.reason.message||e.reason)); });
+__d('head ok');
+</script>
+
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#07091d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FLUX">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<title>Play FLUX Sparta — Free Arcade Game</title>
+<meta name="description" content="Play FLUX Sparta free in your browser. Match the color, chain combos and send your points to your country on the Global Grid.">
+<link rel="canonical" href="https://flux-sparta-3.jeromevt72.workers.dev/play/">
+<meta property="og:site_name" content="FLUX Sparta">
+<meta property="og:title" content="Play FLUX Sparta — free, no signup">
+<meta property="og:description" content="Match the color. Chain the combo. Put your country on top.">
+<meta property="og:url" content="https://flux-sparta-3.jeromevt72.workers.dev/play/">
+<meta property="og:image" content="https://flux-sparta-3.jeromevt72.workers.dev/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://flux-sparta-3.jeromevt72.workers.dev/og-image.jpg">
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#050719;color:#eaf7ff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{touch-action:none}
+#app{position:fixed;inset:0;background:radial-gradient(circle at 50% 15%,#111b43 0,#07091d 48%,#03040d 100%);transition:filter .5s ease,background 1.4s ease}
+canvas{position:absolute;inset:0;width:100%;height:100%}
+/* SKIN BACKDROP LAYER — optional full-image backdrop for skins that define
+   one (see SKINS[...].bg in the script below). Sits behind #celestialMotion
+   and the canvas, above #app's own gradient. Opacity is kept well under 1
+   so HUD text and orbs stay readable. Independent of CELESTIAL_THEMES: safe
+   to delete this rule + the #skinBgLayer div + applySkinBackground() without
+   affecting scoring, skins ownership, or the leaderboard. */
+#skinBgLayer{position:absolute;inset:0;z-index:0;background-size:cover;background-position:center;background-repeat:no-repeat;opacity:0;transition:opacity .6s ease;transform-origin:50% 50%;animation:bgLife 66s ease-in-out infinite;will-change:transform,filter}
+@keyframes bgLife{0%{transform:scale(1.06) translate(0,0);filter:brightness(1) saturate(1)}50%{transform:scale(1.06) translate(-2.2%,0);filter:brightness(1.1) saturate(1.06)}100%{transform:scale(1.06) translate(0,0);filter:brightness(1) saturate(1)}}
+/* MOVING CELESTIAL BACKDROP — purely decorative layers that sit behind the
+   (transparent) game canvas, so #app's own gradient + the level-tier color
+   swap in applyCelestialBackground() are untouched. Safe to remove: delete
+   #celestialMotion and its three children from the HTML plus the five rules
+   and two keyframes below. Cannot affect scoring, skins, or the leaderboard. */
+#celestialMotion{position:absolute;inset:-12%;pointer-events:none;z-index:0;overflow:hidden}
+#starsFar,#starsNear{position:absolute;inset:0;background-repeat:repeat}
+#starsFar{background-image:radial-gradient(1.6px 1.6px at 20% 30%,#eaf7ffcc 50%,transparent 52%),radial-gradient(1.2px 1.2px at 65% 12%,#eaf7ffaa 50%,transparent 52%),radial-gradient(1.4px 1.4px at 80% 60%,#eaf7ffcc 50%,transparent 52%),radial-gradient(1px 1px at 35% 75%,#eaf7ff99 50%,transparent 52%),radial-gradient(1.3px 1.3px at 92% 40%,#eaf7ffbb 50%,transparent 52%);background-size:340px 340px;opacity:.5;animation:driftFar 150s linear infinite}
+#starsNear{background-image:radial-gradient(2px 2px at 12% 55%,#bfe9ffdd 50%,transparent 52%),radial-gradient(1.7px 1.7px at 50% 85%,#bfe9ffcc 50%,transparent 52%),radial-gradient(2.1px 2.1px at 72% 20%,#bfe9ffdd 50%,transparent 52%),radial-gradient(1.6px 1.6px at 88% 78%,#bfe9ffbb 50%,transparent 52%);background-size:260px 260px;opacity:.38;animation:driftNear 75s linear infinite}
+#nebulaDrift{position:absolute;width:70vw;height:70vw;max-width:640px;max-height:640px;border-radius:50%;left:50%;top:22%;background:radial-gradient(circle,#7a3fff2e 0,transparent 65%);filter:blur(6px);mix-blend-mode:screen;animation:nebulaFloat 46s ease-in-out infinite}
+@keyframes driftFar{from{background-position:0 0}to{background-position:-340px 220px}}
+@keyframes driftNear{from{background-position:0 0}to{background-position:260px -180px}}
+@keyframes nebulaFloat{0%,100%{transform:translate(-58%,-46%) scale(1)}50%{transform:translate(-42%,-54%) scale(1.16)}}
+/* GUMMY-CANDY REWARDED-AD CREATIVE — self-contained, only used inside
+   showRewardedAd(). Safe to delete along with that markup if you swap in a
+   real ad network SDK; nothing else references these classes. */
+.gummyAdPanel{width:min(440px,90vw);padding:0;border:1px solid #2c4b87;border-radius:24px;overflow:hidden;background:linear-gradient(160deg,#2a0e46,#4a1560 55%,#7a1f4a);box-shadow:0 0 60px #ff4fd233}
+.gummyAdStage{position:relative;height:170px;overflow:hidden;background:radial-gradient(circle at 50% 25%,#5c1f7a 0,#2a0e46 75%)}
+.adBadge{position:absolute;top:10px;left:10px;font-size:8px;letter-spacing:.2em;background:#ffffff26;color:#fff;padding:4px 8px;border-radius:6px;z-index:2}
+.gummyBear{position:absolute;bottom:10px;width:52px;height:52px;transform-origin:bottom center;animation:gummyBounce 1.1s ease-in-out infinite;filter:drop-shadow(0 6px 10px #00000055)}
+@keyframes gummyBounce{0%,100%{transform:translateY(0) scale(1,1)}30%{transform:translateY(-38px) scale(.92,1.1)}55%{transform:translateY(0) scale(1.14,.86)}75%{transform:translateY(-8px) scale(.98,1.02)}}
+.candyDot{position:absolute;bottom:0;border-radius:50%;opacity:0;animation:candyFloat 3.2s ease-in infinite}
+@keyframes candyFloat{0%{transform:translateY(10px) scale(.6);opacity:0}15%{opacity:.9}100%{transform:translateY(-190px) scale(1);opacity:0}}
+.gummyAdBody{padding:16px 22px 22px;text-align:center}
+.adBrand{font-size:22px;font-weight:900;letter-spacing:.1em;color:#fff;text-shadow:0 0 18px #ff4fd2aa;margin:10px 0 2px}
+.adTagline{font-size:10px;letter-spacing:.1em;color:#ffd6f2;margin:0 0 6px}
+#pressureGlow{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .6s ease,background .6s ease;background:radial-gradient(circle at 50% 100%,#ffc44730 0%,transparent 60%);mix-blend-mode:screen;z-index:1}
+#pressureGlow.warn{background:radial-gradient(circle at 50% 100%,#ffc44755 0%,transparent 62%)}
+#pressureGlow.critical{background:radial-gradient(circle at 50% 100%,#ff4f6870 0%,transparent 66%);animation:pulseCritical 1.1s ease-in-out infinite}
+@keyframes pulseCritical{0%,100%{opacity:.55}50%{opacity:.9}}
+#fluxGlow{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .4s ease;background:radial-gradient(circle at 50% 30%,#62eaff40 0%,transparent 65%);mix-blend-mode:screen;z-index:1}
+#fluxGlow.on{opacity:1}
+.hud{position:absolute;top:max(16px,env(safe-area-inset-top));left:0;right:0;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;pointer-events:none}
+.logo{font-weight:900;letter-spacing:.38em;font-size:22px;color:#55e8ff;text-shadow:0 0 18px #18cfff}
+.sub{font-size:8px;letter-spacing:.26em;color:#8da0c8;margin-top:3px}
+.stats{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;max-width:70vw}.fluxbar{position:absolute;top:76px;left:16px;display:flex;align-items:center;gap:7px;font-size:8px;letter-spacing:.22em;color:#8da0c8}.fluxbar div{width:150px;height:6px;border:1px solid #24427b;border-radius:99px;background:#09102b;overflow:hidden}.fluxbar i{display:block;width:0%;height:100%;background:#62eaff;box-shadow:0 0 14px #27d9ff;transition:width .12s}.fluxbar b{font-size:8px;color:#62eaff;min-width:28px}
+.stat{min-width:64px;text-align:center;border:1px solid #263a72;background:#0b1030cc;border-radius:13px;padding:7px 9px;box-shadow:0 0 18px #15255a66}
+.stat b{display:block;font-size:16px}.levelTrack{height:3px;margin-top:5px;border-radius:99px;background:#111b3c;overflow:hidden}.levelTrack i{display:block;width:0%;height:100%;background:#62eaff;box-shadow:0 0 8px #27d9ff;transition:width .15s}
+.stat span{font-size:7px;letter-spacing:.22em;color:#8795bd}
+#start,#gameover,#shop{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#030512aa;backdrop-filter:blur(5px);z-index:3}
+#shop{z-index:7}
+.panel{width:min(440px,88vw);padding:28px;border:1px solid #2c4b87;border-radius:24px;background:#080d29e8;box-shadow:0 0 50px #1c61ff33;text-align:center}
+.panel h1{margin:0;color:#5deaff;font-size:48px;letter-spacing:.25em}
+.panel .acronym{margin:5px 0 20px;color:#9eb0d6;font-size:11px;letter-spacing:.18em}
+.panel .sparta{margin:12px 0 0;color:#62eaff;font-weight:900;letter-spacing:.18em;font-size:10px}.panel p{color:#b9c6e5;line-height:1.55;font-size:14px}
+button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spacing:.15em;color:#04101a;background:#62eaff;box-shadow:0 0 25px #27d9ff88;font-size:14px}
+.hint{font-size:10px!important;color:#7082ad!important;margin-top:16px}
+.hidden{display:none!important}
+#pauseBtn{position:absolute;top:78px;left:16px;width:42px;height:42px;padding:0;border-radius:12px;font-size:17px;line-height:42px;letter-spacing:0;z-index:5;pointer-events:auto;background:#0b1436;color:#62eaff;border:1px solid #2d65a6;box-shadow:0 0 18px #27d9ff55}
+#pauseBtn:active{transform:scale(.94)}
+#pauseOverlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#030512b8;backdrop-filter:blur(7px);z-index:4}
+#pauseOverlay .panel{width:min(390px,84vw)}
+#pauseOverlay h2{margin:0 0 8px;color:#62eaff;font-size:28px;letter-spacing:.18em}
+.device-note{display:none}
+.badge{position:absolute;right:16px;font-size:9px;letter-spacing:.16em;color:#6f82ad;opacity:.9;font-weight:700}
+#audioBadge{top:76px;display:none}
+#pressureBadge{top:98px;display:none}
+.badge.stable{color:#6f82ad}.badge.warn{color:#ffc447}.badge.critical{color:#ff6b98}
+@media (max-width: 700px){
+  .hud{padding:8px 10px;align-items:flex-start}
+  .logo{font-size:18px;letter-spacing:.32em}.sub{font-size:7px;letter-spacing:.16em;white-space:nowrap}
+  .stats{gap:5px;max-width:76vw}
+  .stat{min-width:56px;padding:5px 6px;border-radius:10px}.stat b{font-size:14px}.stat span{font-size:8px}.levelTrack{margin-top:3px}
+  .fluxbar{top:70px;left:10px;font-size:8px}.fluxbar div{width:92px;height:5px}.fluxbar b{font-size:8px}
+  #pauseBtn{top:112px;left:10px;width:40px;height:40px;line-height:40px}
+  .badge{font-size:8px;right:10px}
+  #audioBadge{top:72px}
+  #pressureBadge{top:90px}
+  .device-note{display:block}
+}
+@media (min-width: 701px){
+  #pauseBtn{top:76px}
+}
+@media (max-width: 430px){
+  .logo{font-size:16px}.sub{font-size:6px}
+  .stats{max-width:79vw;gap:3px}.stat{min-width:50px;padding:4px 4px}.stat b{font-size:13px}.stat span{font-size:7px}
+  .fluxbar{top:73px}.fluxbar div{width:78px}
+  #pauseBtn{top:116px}
+  .badge{font-size:7px}
+  #audioBadge{top:73px}
+  #pressureBadge{top:90px}
+}
+#flash{position:absolute;inset:0;pointer-events:none;background:white;opacity:0;mix-blend-mode:screen}
+.menuPanel{max-height:92vh;overflow:auto}.menuSection{margin:12px 0 14px}.menuLabel{font-size:9px;letter-spacing:.24em;color:#8094c0;margin-bottom:8px}.difficulty{display:flex;gap:7px}.difficulty button{flex:1;padding:11px 7px;font-size:10px;background:#0c1537;color:#91a6d4;border:1px solid #294578;box-shadow:none}.difficulty button.selected{background:#62eaff;color:#04101a;box-shadow:0 0 18px #27d9ff66}.profileRow{display:flex;gap:7px;margin:0 0 12px}.profileRow input,.profileRow select{min-width:0;flex:1;border:1px solid #294578;border-radius:12px;background:#070d27;color:#eaf7ff;padding:11px 10px;font-size:16px;font-weight:800}.profileRow select{flex:0 0 118px}.menuTiles{display:flex;gap:8px;margin-top:12px}.menuTiles>div{flex:1;border:1px solid #263a72;background:#0b1030aa;border-radius:12px;padding:8px}.menuTiles span{display:block;font-size:6px;letter-spacing:.2em;color:#7f93bd}.menuTiles b{display:block;margin-top:3px;font-size:16px}.menuLinks{display:flex;gap:8px;margin-top:10px}.linkBtn{flex:1;padding:9px 5px;font-size:7px;background:#0b1230;color:#7fdfff;border:1px solid #234174;box-shadow:none}.offline{font-size:7px!important;letter-spacing:.1em;color:#5c779f!important;margin:11px 0 0!important}.miniOverlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#030512dd;z-index:6}.gameoverModes{margin:14px 0 12px}.gameoverModes .menuLabel{margin-bottom:7px}.gameoverModes .difficulty{max-width:340px;margin:auto}.gameoverModes button{padding:10px 5px;font-size:9px}.profileSaved{display:flex;align-items:center;justify-content:center;gap:8px;margin:0 0 12px;color:#8fa5d1;font-size:9px;letter-spacing:.12em}.profileSaved b{color:#62eaff}.editProfile{background:transparent!important;color:#62eaff!important;border:1px solid #294578!important;box-shadow:none!important;padding:6px 9px!important;font-size:7px!important;letter-spacing:.12em!important}@media(max-width:430px){.menuPanel{padding:20px}.menuPanel h1{font-size:42px}.profileRow select{flex-basis:104px}.menuLinks{flex-direction:column}}
+.lbPanel{max-height:86vh;display:flex;flex-direction:column}.lbBody{flex:1;min-height:0;overflow:auto;margin:14px 0 18px;text-align:left}.lbLoading,.lbEmpty{color:#8da0c8;font-size:12px;text-align:center;padding:20px 0}.lbLeading{text-align:center;font-size:11px;letter-spacing:.08em;color:#9eb0d6;background:#0b1030;border:1px solid #263a72;border-radius:12px;padding:9px;margin-bottom:12px}.lbLeading b{color:#62eaff}.lbSectionLabel{font-size:9px;letter-spacing:.22em;color:#7f93bd;margin:16px 0 8px}.lbList{display:flex;flex-direction:column;gap:6px}.lbRow{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #263a72;background:#0b1030aa;border-radius:10px;font-size:12px}.lbRow.lbMine{border-color:#62eaff;box-shadow:0 0 14px #27d9ff44}.lbRank{width:28px;color:#7f93bd;font-weight:900;font-size:10px}.lbFlag{font-size:15px}.lbName{flex:1;font-weight:800;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lbScore{font-weight:900;color:#62eaff}
+#shop .panel{width:min(420px,88vw)}
+.shopRow{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid #1c2c5c}
+.shopRow:last-child{border-bottom:0}
+.shopSwatches{display:flex;gap:2px}
+.shopSwatches i{width:9px;height:18px;display:block;border-radius:2px}
+.shopInfo{flex:1;text-align:left}
+.shopInfo b{display:block;font-size:12px;letter-spacing:.1em;color:#eaf7ff}
+.shopInfo span{display:block;font-size:9px;letter-spacing:.1em;color:#7f93bd;margin-top:2px}
+.shopRow button{padding:8px 12px;font-size:9px;white-space:nowrap}
+.shopRow button:disabled{opacity:.55;box-shadow:none}
+.profileTag{opacity:.55;font-weight:600;letter-spacing:.06em;margin-left:2px}.lbTag{opacity:.5;font-weight:600;font-size:.8em;letter-spacing:.04em}.shopNote{display:inline-block;margin-top:6px;font-size:.78em;opacity:.7;line-height:1.4}.uploadStatus{min-height:14px;margin:6px 0 0;font-size:10px;letter-spacing:.18em;color:#8fa3d8;text-align:center}
+.restoreLink{display:block;width:100%;margin:-4px 0 12px;flex:none}#profileEditor.hidden+.restoreLink{display:none}.restoreOverlay .panel{max-height:88vh;overflow:auto}.restoreWho{font-size:12px;letter-spacing:.12em;color:#eaf7ff;margin:6px 0 10px}.restoreText{font-size:12px;line-height:1.55;color:#b9c6e6;margin:0 0 10px}.restoreWarn{font-size:11px;line-height:1.5;color:#ffd08a;margin:0 0 10px}.restoreMsg{font-size:12px;line-height:1.5;color:#ff9fc6;min-height:1.5em;margin:4px 0 8px}.restoreCode{font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.5;word-break:break-all;user-select:all;-webkit-user-select:all;background:#050a22;border:1px solid #2c4b87;border-radius:12px;padding:10px;margin:0 0 10px;color:#9ff3ff}.restoreInput{width:100%;box-sizing:border-box;font-family:ui-monospace,Menlo,monospace;font-size:16px;background:#050a22;color:#eaf7ff;border:1px solid #2c4b87;border-radius:12px;padding:10px;margin:0 0 6px;resize:none}.restoreRow{display:flex;gap:8px}.restoreRow button{flex:1}.restoreOverlay button{margin-top:8px}.restoreOther{display:block;width:100%}
+.goName{margin:6px 0 10px;padding:12px;border:1px solid #2c6bff;border-radius:16px;background:rgba(18,32,77,.55)}.goNameT{font-size:11px;letter-spacing:.16em;color:#5ff3ff;font-weight:800;margin-bottom:8px}.goNameRow{display:flex;gap:8px;margin-bottom:8px}.goNameRow input,.goNameRow select{min-width:0;background:#050a22;color:#eaf7ff;border:1px solid #2c4b87;border-radius:12px;padding:10px 12px;font:700 16px system-ui,sans-serif;text-transform:uppercase}.goNameRow input{flex:1}.goNameRow select{flex:0 0 42%;font-size:14px}.goNameRow input::placeholder{color:#6d7fa8}.goNameNote{font-size:11px;color:#9fb3d9;margin-top:6px}.colorHint{position:fixed;left:50%;top:24%;transform:translateX(-50%);z-index:50;pointer-events:none;background:rgba(6,12,34,.86);border:1px solid #2c6bff;border-radius:16px;padding:12px 18px;color:#eaf7ff;font:800 14px/1.35 system-ui,sans-serif;letter-spacing:.08em;text-align:center;max-width:86vw;box-shadow:0 10px 30px rgba(0,0,0,.5);transition:opacity .5s}.colorHint b{color:#5ff3ff}.colorHint.out{opacity:0}
+.installBtn{display:block;width:100%;margin-top:8px}
+/* D-46 lite graphics: the moving star fields, the live-blurred nebula and the FLUX Mode full-screen filter are redrawn every frame; on old devices they cost more than the game itself. */.fluxLite #starsFar,.fluxLite #starsNear{animation:none!important}.fluxLite #nebulaDrift{display:none!important}.fluxLite #app{filter:none!important}
+</style>
+</head>
+<body><div id="__dbgbar" style="position:fixed;left:0;right:0;top:0;z-index:2147483647;background:#ffe500;color:#000;font:bold 13px/1.35 monospace;padding:6px 8px;white-space:pre-wrap;pointer-events:none">DIAG: body reached</div><script>__d("body ok"); __d(navigator.serviceWorker&&navigator.serviceWorker.controller?"SW on":"SW off");</script>
+<div id="app">
+<div id="skinBgLayer"></div>
+<div id="celestialMotion"><div id="starsFar"></div><div id="starsNear"></div><div id="nebulaDrift"></div></div>
+<canvas id="game"></canvas>
+<div id="pressureGlow"></div>
+<div id="fluxGlow"></div>
+<div id="flash"></div>
+<button id="pauseBtn" class="hidden" aria-label="Pause">Ⅱ</button>
+<div class="hud">
+  <div><div class="logo">FLUX</div><div class="sub">FLOW • LAUNCH • UNITE • XCELERATE</div></div>
+  <div class="stats">
+    <div class="stat"><span>SCORE</span><b id="score">0</b></div>
+    <div class="stat"><span>COMBO</span><b id="combo">x1</b></div>
+    <div class="stat"><span>LEVEL</span><b id="level">1</b><div class="levelTrack"><i id="levelProgress"></i></div></div>
+    <div class="stat"><span>MISSES</span><b id="misses">0/3</b></div>
+  </div>
+  <div class="fluxbar"><span>FLUX</span><div><i id="fluxFill"></i></div><b id="fluxPct">0%</b></div>
+<div id="audioBadge" class="badge">SOUND • ON</div>
+<div id="pressureBadge" class="badge stable">FIELD • STABLE</div>
+</div>
+<div id="pauseOverlay" class="hidden"><div class="panel"><h2>FLUX PAUSED</h2><p>Your field is frozen. Take a breath, then get back in the flow.</p><button id="resumeBtn">RESUME</button><button id="pauseMenuBtn" style="margin-top:8px;background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none">⌂ END RUN &amp; MENU</button></div></div>
+<div id="shop" class="hidden"><div class="panel menuPanel"><h2 style="color:#62eaff;letter-spacing:.14em;margin:0 0 4px">THEMES & SKINS</h2><p style="margin:0 0 14px">Cosmetic only — never changes gameplay fairness.<br><span class="shopNote">Purchases belong to your pilot. Save your restore code (EDIT → RESTORE CODE): it brings this pilot and its skins back on a new phone, in the Home Screen app, or after clearing data.</span></p><div id="shopList"></div><div class="menuLabel" style="margin-top:16px">WORLD</div><div id="backgroundList"></div><button id="shopClose" style="margin-top:14px">BACK</button></div></div>
+<div id="start"><div class="panel menuPanel"><h1>FLUX</h1><div class="acronym">FLOW • LAUNCH • UNITE • XCELERATE</div><div class="menuSection"><div class="menuLabel">SELECT YOUR FLOW</div><div class="difficulty" id="difficulty"><button data-d="easy">EASY</button><button data-d="medium">MEDIUM</button><button data-d="hard">HARD</button></div></div><div id="profileEditor" class="profileRow"><input id="callsign" maxlength="14" placeholder="FLUX ID"><select id="country"><option value="AF">🇦🇫 AFGHANISTAN</option>
+<option value="AL">🇦🇱 ALBANIA</option>
+<option value="DZ">🇩🇿 ALGERIA</option>
+<option value="AD">🇦🇩 ANDORRA</option>
+<option value="AO">🇦🇴 ANGOLA</option>
+<option value="AG">🇦🇬 ANTIGUA AND BARBUDA</option>
+<option value="AR">🇦🇷 ARGENTINA</option>
+<option value="AM">🇦🇲 ARMENIA</option>
+<option value="AU">🇦🇺 AUSTRALIA</option>
+<option value="AT">🇦🇹 AUSTRIA</option>
+<option value="AZ">🇦🇿 AZERBAIJAN</option>
+<option value="BS">🇧🇸 BAHAMAS</option>
+<option value="BH">🇧🇭 BAHRAIN</option>
+<option value="BD">🇧🇩 BANGLADESH</option>
+<option value="BB">🇧🇧 BARBADOS</option>
+<option value="BY">🇧🇾 BELARUS</option>
+<option value="BE">🇧🇪 BELGIUM</option>
+<option value="BZ">🇧🇿 BELIZE</option>
+<option value="BJ">🇧🇯 BENIN</option>
+<option value="BT">🇧🇹 BHUTAN</option>
+<option value="BO">🇧🇴 BOLIVIA</option>
+<option value="BA">🇧🇦 BOSNIA AND HERZEGOVINA</option>
+<option value="BW">🇧🇼 BOTSWANA</option>
+<option value="BR">🇧🇷 BRAZIL</option>
+<option value="BN">🇧🇳 BRUNEI</option>
+<option value="BG">🇧🇬 BULGARIA</option>
+<option value="BF">🇧🇫 BURKINA FASO</option>
+<option value="BI">🇧🇮 BURUNDI</option>
+<option value="CV">🇨🇻 CABO VERDE</option>
+<option value="KH">🇰🇭 CAMBODIA</option>
+<option value="CM">🇨🇲 CAMEROON</option>
+<option value="CA">🇨🇦 CANADA</option>
+<option value="CF">🇨🇫 CENTRAL AFRICAN REPUBLIC</option>
+<option value="TD">🇹🇩 CHAD</option>
+<option value="CL">🇨🇱 CHILE</option>
+<option value="CN">🇨🇳 CHINA</option>
+<option value="CO">🇨🇴 COLOMBIA</option>
+<option value="KM">🇰🇲 COMOROS</option>
+<option value="CG">🇨🇬 CONGO</option>
+<option value="CD">🇨🇩 CONGO (DRC)</option>
+<option value="CR">🇨🇷 COSTA RICA</option>
+<option value="CI">🇨🇮 COTE D'IVOIRE</option>
+<option value="HR">🇭🇷 CROATIA</option>
+<option value="CU">🇨🇺 CUBA</option>
+<option value="CY">🇨🇾 CYPRUS</option>
+<option value="CZ">🇨🇿 CZECHIA</option>
+<option value="DK">🇩🇰 DENMARK</option>
+<option value="DJ">🇩🇯 DJIBOUTI</option>
+<option value="DM">🇩🇲 DOMINICA</option>
+<option value="DO">🇩🇴 DOMINICAN REPUBLIC</option>
+<option value="EC">🇪🇨 ECUADOR</option>
+<option value="EG">🇪🇬 EGYPT</option>
+<option value="SV">🇸🇻 EL SALVADOR</option>
+<option value="GQ">🇬🇶 EQUATORIAL GUINEA</option>
+<option value="ER">🇪🇷 ERITREA</option>
+<option value="EE">🇪🇪 ESTONIA</option>
+<option value="SZ">🇸🇿 ESWATINI</option>
+<option value="ET">🇪🇹 ETHIOPIA</option>
+<option value="FJ">🇫🇯 FIJI</option>
+<option value="FI">🇫🇮 FINLAND</option>
+<option value="FR">🇫🇷 FRANCE</option>
+<option value="GA">🇬🇦 GABON</option>
+<option value="GM">🇬🇲 GAMBIA</option>
+<option value="GE">🇬🇪 GEORGIA</option>
+<option value="DE">🇩🇪 GERMANY</option>
+<option value="GH">🇬🇭 GHANA</option>
+<option value="GR">🇬🇷 GREECE</option>
+<option value="GD">🇬🇩 GRENADA</option>
+<option value="GT">🇬🇹 GUATEMALA</option>
+<option value="GN">🇬🇳 GUINEA</option>
+<option value="GW">🇬🇼 GUINEA-BISSAU</option>
+<option value="GY">🇬🇾 GUYANA</option>
+<option value="HT">🇭🇹 HAITI</option>
+<option value="HN">🇭🇳 HONDURAS</option>
+<option value="HU">🇭🇺 HUNGARY</option>
+<option value="IS">🇮🇸 ICELAND</option>
+<option value="IN">🇮🇳 INDIA</option>
+<option value="ID">🇮🇩 INDONESIA</option>
+<option value="IR">🇮🇷 IRAN</option>
+<option value="IQ">🇮🇶 IRAQ</option>
+<option value="IE">🇮🇪 IRELAND</option>
+<option value="IL">🇮🇱 ISRAEL</option>
+<option value="IT">🇮🇹 ITALY</option>
+<option value="JM">🇯🇲 JAMAICA</option>
+<option value="JP">🇯🇵 JAPAN</option>
+<option value="JO">🇯🇴 JORDAN</option>
+<option value="KZ">🇰🇿 KAZAKHSTAN</option>
+<option value="KE">🇰🇪 KENYA</option>
+<option value="KI">🇰🇮 KIRIBATI</option>
+<option value="KW">🇰🇼 KUWAIT</option>
+<option value="KG">🇰🇬 KYRGYZSTAN</option>
+<option value="LA">🇱🇦 LAOS</option>
+<option value="LV">🇱🇻 LATVIA</option>
+<option value="LB">🇱🇧 LEBANON</option>
+<option value="LS">🇱🇸 LESOTHO</option>
+<option value="LR">🇱🇷 LIBERIA</option>
+<option value="LY">🇱🇾 LIBYA</option>
+<option value="LI">🇱🇮 LIECHTENSTEIN</option>
+<option value="LT">🇱🇹 LITHUANIA</option>
+<option value="LU">🇱🇺 LUXEMBOURG</option>
+<option value="MG">🇲🇬 MADAGASCAR</option>
+<option value="MW">🇲🇼 MALAWI</option>
+<option value="MY">🇲🇾 MALAYSIA</option>
+<option value="MV">🇲🇻 MALDIVES</option>
+<option value="ML">🇲🇱 MALI</option>
+<option value="MT">🇲🇹 MALTA</option>
+<option value="MH">🇲🇭 MARSHALL ISLANDS</option>
+<option value="MR">🇲🇷 MAURITANIA</option>
+<option value="MU">🇲🇺 MAURITIUS</option>
+<option value="MX">🇲🇽 MEXICO</option>
+<option value="FM">🇫🇲 MICRONESIA</option>
+<option value="MD">🇲🇩 MOLDOVA</option>
+<option value="MC">🇲🇨 MONACO</option>
+<option value="MN">🇲🇳 MONGOLIA</option>
+<option value="ME">🇲🇪 MONTENEGRO</option>
+<option value="MA">🇲🇦 MOROCCO</option>
+<option value="MZ">🇲🇿 MOZAMBIQUE</option>
+<option value="MM">🇲🇲 MYANMAR</option>
+<option value="NA">🇳🇦 NAMIBIA</option>
+<option value="NR">🇳🇷 NAURU</option>
+<option value="NP">🇳🇵 NEPAL</option>
+<option value="NL">🇳🇱 NETHERLANDS</option>
+<option value="NZ">🇳🇿 NEW ZEALAND</option>
+<option value="NI">🇳🇮 NICARAGUA</option>
+<option value="NE">🇳🇪 NIGER</option>
+<option value="NG">🇳🇬 NIGERIA</option>
+<option value="KP">🇰🇵 NORTH KOREA</option>
+<option value="MK">🇲🇰 NORTH MACEDONIA</option>
+<option value="NO">🇳🇴 NORWAY</option>
+<option value="OM">🇴🇲 OMAN</option>
+<option value="PK">🇵🇰 PAKISTAN</option>
+<option value="PW">🇵🇼 PALAU</option>
+<option value="PS">🇵🇸 PALESTINE</option>
+<option value="PA">🇵🇦 PANAMA</option>
+<option value="PG">🇵🇬 PAPUA NEW GUINEA</option>
+<option value="PY">🇵🇾 PARAGUAY</option>
+<option value="PE">🇵🇪 PERU</option>
+<option value="PH">🇵🇭 PHILIPPINES</option>
+<option value="PL">🇵🇱 POLAND</option>
+<option value="PT">🇵🇹 PORTUGAL</option>
+<option value="QA">🇶🇦 QATAR</option>
+<option value="RO">🇷🇴 ROMANIA</option>
+<option value="RU">🇷🇺 RUSSIA</option>
+<option value="RW">🇷🇼 RWANDA</option>
+<option value="KN">🇰🇳 SAINT KITTS AND NEVIS</option>
+<option value="LC">🇱🇨 SAINT LUCIA</option>
+<option value="VC">🇻🇨 SAINT VINCENT AND THE GRENADINES</option>
+<option value="WS">🇼🇸 SAMOA</option>
+<option value="SM">🇸🇲 SAN MARINO</option>
+<option value="ST">🇸🇹 SAO TOME AND PRINCIPE</option>
+<option value="SA">🇸🇦 SAUDI ARABIA</option>
+<option value="SN">🇸🇳 SENEGAL</option>
+<option value="RS">🇷🇸 SERBIA</option>
+<option value="SC">🇸🇨 SEYCHELLES</option>
+<option value="SL">🇸🇱 SIERRA LEONE</option>
+<option value="SG">🇸🇬 SINGAPORE</option>
+<option value="SK">🇸🇰 SLOVAKIA</option>
+<option value="SI">🇸🇮 SLOVENIA</option>
+<option value="SB">🇸🇧 SOLOMON ISLANDS</option>
+<option value="SO">🇸🇴 SOMALIA</option>
+<option value="ZA">🇿🇦 SOUTH AFRICA</option>
+<option value="KR">🇰🇷 SOUTH KOREA</option>
+<option value="SS">🇸🇸 SOUTH SUDAN</option>
+<option value="ES">🇪🇸 SPAIN</option>
+<option value="LK">🇱🇰 SRI LANKA</option>
+<option value="SD">🇸🇩 SUDAN</option>
+<option value="SR">🇸🇷 SURINAME</option>
+<option value="SE">🇸🇪 SWEDEN</option>
+<option value="CH">🇨🇭 SWITZERLAND</option>
+<option value="SY">🇸🇾 SYRIA</option>
+<option value="TW">🇹🇼 TAIWAN</option>
+<option value="TJ">🇹🇯 TAJIKISTAN</option>
+<option value="TZ">🇹🇿 TANZANIA</option>
+<option value="TH">🇹🇭 THAILAND</option>
+<option value="TL">🇹🇱 TIMOR-LESTE</option>
+<option value="TG">🇹🇬 TOGO</option>
+<option value="TO">🇹🇴 TONGA</option>
+<option value="TT">🇹🇹 TRINIDAD AND TOBAGO</option>
+<option value="TN">🇹🇳 TUNISIA</option>
+<option value="TR">🇹🇷 TURKEY</option>
+<option value="TM">🇹🇲 TURKMENISTAN</option>
+<option value="TV">🇹🇻 TUVALU</option>
+<option value="UG">🇺🇬 UGANDA</option>
+<option value="UA">🇺🇦 UKRAINE</option>
+<option value="AE">🇦🇪 UNITED ARAB EMIRATES</option>
+<option value="GB">🇬🇧 UNITED KINGDOM</option>
+<option value="US">🇺🇸 UNITED STATES</option>
+<option value="UY">🇺🇾 URUGUAY</option>
+<option value="UZ">🇺🇿 UZBEKISTAN</option>
+<option value="VU">🇻🇺 VANUATU</option>
+<option value="VA">🇻🇦 VATICAN CITY</option>
+<option value="VE">🇻🇪 VENEZUELA</option>
+<option value="VN">🇻🇳 VIETNAM</option>
+<option value="YE">🇾🇪 YEMEN</option>
+<option value="ZM">🇿🇲 ZAMBIA</option>
+<option value="ZW">🇿🇼 ZIMBABWE</option><option value="OTHER">🌎 OTHER</option></select></div><button type="button" class="linkBtn restoreLink" id="restoreLink">HAVE A RESTORE CODE?</button><div id="profileSaved" class="profileSaved hidden"><span>PILOT <b id="profileName">PLAYER</b><small id="profileTag" class="profileTag"></small> • <b id="profileCountry">🇺🇸</b></span><button class="editProfile" id="editProfile">EDIT</button></div><button id="startBtn">ENTER THE FLUX</button><div class="menuTiles"><div><span>PERSONAL BEST</span><b id="menuBest">0</b></div><div><span>BEST LEVEL</span><b id="menuLevel">1</b></div></div><div id="uploadStatus" class="uploadStatus" aria-live="polite"></div><div class="menuLinks"><button class="linkBtn" id="leaderBtn">🌎 GLOBAL LEADERBOARD</button><button class="linkBtn" id="skinsBtn">✦ THEMES & SKINS</button></div><button type="button" class="linkBtn installBtn hidden" id="bringPilotBtn">📋 BRING MY PILOT FROM SAFARI</button><p class="offline" id="offlineClaim">● PERSONAL BEST SAVES ON THIS DEVICE</p></div></div>
+<div id="gameover" class="hidden">
+ <div class="panel">
+  <h1 style="font-size:38px">FLUX<br>OVERLOAD</h1>
+  <div class="acronym">THE FLOW BROKE</div><div class="sparta">FLUX COLLAPSE</div>
+  <p>Final score: <b id="finalScore">0</b><br>Best: <b id="best">0</b><br>Mode: <b id="finalMode">MEDIUM</b></p>
+  <div id="goName" class="goName hidden"><div class="goNameT">PUT YOUR SCORE ON THE WORLD GRID</div><div class="goNameRow"><input id="goCallsign" maxlength="14" placeholder="YOUR NAME" autocomplete="off" autocorrect="off" spellcheck="false"><select id="goCountry" aria-label="Country"></select></div><button id="goSave" type="button">SAVE &amp; UPLOAD</button><div class="goNameNote" id="goNameMsg">Your best score counts for your country.</div></div>
+  <div class="gameoverModes"><div class="menuLabel">CHOOSE YOUR NEXT FLOW</div><div class="difficulty" id="gameoverDifficulty"><button data-d="easy">EASY</button><button data-d="medium">MEDIUM</button><button data-d="hard">HARD</button></div></div>
+  <button id="againBtn">RUN IT BACK</button>
+  <button id="gameoverLeaderBtn" style="margin-top:8px;background:transparent;color:#7fdfff;border:1px solid #234174;box-shadow:none">🌎 GLOBAL LEADERBOARD</button>
+  <button id="gameoverMenuBtn" style="margin-top:8px;background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none">⌂ MENU</button>
+  <button id="gameoverInstallBtn" type="button" class="installBtn hidden" style="margin-top:8px;background:transparent;color:#5ff3ff;border:1px solid #2c6bff;box-shadow:none">📲 ADD TO HOME SCREEN</button>
+ </div>
+</div>
+</div>
+<script>__d("script1 start");
+
+/* D-35 (RC2.8.2) RESTORE JOURNAL REPLAY -- must stay the FIRST thing in this
+   script, before anything reads fluxPlayerId, the callsign or a best score.
+   A pilot restore changes several keys. It first writes the whole change, plus
+   a backup of every key it touches, as ONE value (fluxRestoreJournal), then
+   applies it, then deletes the journal. If the app is killed or storage fails
+   part-way, this replays the change on the next launch -- or, if the change
+   cannot be applied, puts every key back from the backup. The device therefore
+   ends with the old pilot or the new pilot, never a mixture (a mixture could
+   upload one pilot's best score under another pilot's name). */
+(function(){
+  var raw=null;
+  try{ raw=localStorage.getItem('fluxRestoreJournal'); }catch(e){ return; }
+  if(raw===null) return;
+  function put(map){
+    for(var k in map){
+      if(!Object.prototype.hasOwnProperty.call(map,k)) continue;
+      if(map[k]===null) localStorage.removeItem(k); else localStorage.setItem(k,String(map[k]));
+    }
+  }
+  try{
+    var j=JSON.parse(raw);
+    if(j && j.v===1 && j.after && typeof j.after==='object'){
+      try{ put(j.after); }
+      catch(e){ try{ if(j.before && typeof j.before==='object') put(j.before); }catch(e2){} }
+    }
+  }catch(e){}
+  try{ localStorage.removeItem('fluxRestoreJournal'); }catch(e){}
+})();
+/* D-45 (RC2.8.5) OLDER DEVICES. ctx.roundRect() only exists from Safari 16.
+   On Safari 15 (iPhone 6s/7/SE, older iPads) the first frame threw
+   "roundRect is not a function" and froze the game. This draws the same
+   rounded rectangle with commands every browser has; newer browsers keep
+   their own implementation. */
+if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+    var rr = typeof r === 'number' ? r : (r && r.length ? (+r[0] || 0) : 0);
+    rr = Math.max(0, Math.min(rr, Math.abs(w) / 2, Math.abs(h) / 2));
+    this.moveTo(x + rr, y); this.arcTo(x + w, y, x + w, y + h, rr); this.arcTo(x + w, y + h, x, y + h, rr);
+    this.arcTo(x, y + h, x, y, rr); this.arcTo(x, y, x + w, y, rr); this.closePath(); return this;
+  };
+}
+const c=document.getElementById('game'),ctx=c.getContext('2d');
+/* D-46 (RC2.8.6) LITE GRAPHICS -- decided on an earlier visit and remembered. */
+window.__fluxLite = (function(){ try{ return localStorage.getItem('fluxLite') === '1'; }catch(e){ return false; } })();
+function fluxApplyLite(){
+  if (!window.__fluxLite) return;
+  try{ document.documentElement.classList.add('fluxLite'); }catch(e){}   // calm the moving background layers (CSS below)
+  try{
+    const d = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'shadowBlur');
+    if (d && d.set) d.set.call(ctx, 0);
+    Object.defineProperty(ctx, 'shadowBlur', { configurable: true, get: function(){ return 0; }, set: function(){} });   // glow off
+  }catch(e){}
+}
+fluxApplyLite();
+let W,H,dpr,playing=false,paused=false,last=0,score=0,combo=1,level=1,streak=0,best=0,misses=0,revivesUsedThisRun=0,flux=0,fluxMode=0,missFragments=[],comboTimer=0,levelBanner=0,perfectFlash=0,levelHold=0,levelPoints=0,orbValue=20,bonusTimer=0,growTimer=0;
+let cachedHudRects=[]; // declared early -- resize() runs at script load time and references this immediately
+let difficulty=localStorage.fluxDifficulty||'medium', callsign=localStorage.fluxCallsign||'', country=localStorage.fluxCountry||'US';
+let profileComplete=localStorage.fluxProfileComplete==='1';
+/* D-43 (RC2.8.5) AUTO NAME. Owner: a child asked "what's my FLUX ID?" before
+   playing. A brand-new pilot now gets a visible, unique default name such as
+   PILOT-7Q2K under their detected flag, and can rename any time (EDIT, or
+   RENAME at game over). Decision recorded: this replaces D-16's "never
+   auto-name" for new pilots, because the default is shown, unique and
+   changeable -- not a silent "PLAYER". Scores count for the country from the
+   first run. Existing pilots are untouched.
+   D-44 (RC2.8.5) EASY FIRST: brand-new pilots start on Easy; anyone who has
+   played or chosen a difficulty keeps their choice. */
+(function () {
+  try {
+    if (localStorage.fluxProfileComplete === '1' || localStorage.fluxCallsign) return;
+    var A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', b = new Uint8Array(4), t = '';
+    try { crypto.getRandomValues(b); } catch (e) { for (var i = 0; i < 4; i++) b[i] = (Math.random() * 256) | 0; }
+    for (var j = 0; j < 4; j++) t += A[b[j] % A.length];
+    callsign = 'PILOT-' + t;
+    localStorage.fluxCallsign = callsign;
+    localStorage.fluxAutoName = '1';
+    localStorage.fluxProfileComplete = '1';
+    profileComplete = true;
+    if (!localStorage.fluxDifficulty) { difficulty = 'easy'; localStorage.fluxDifficulty = 'easy'; }
+  } catch (e) {}
+})();
+if(!localStorage.fluxPlayerId){localStorage.fluxPlayerId=(crypto.randomUUID?crypto.randomUUID():'p'+Date.now()+Math.random().toString(16).slice(2));}
+const playerId=localStorage.fluxPlayerId;
+const countryFlags={AF:'🇦🇫',AL:'🇦🇱',DZ:'🇩🇿',AD:'🇦🇩',AO:'🇦🇴',AG:'🇦🇬',AR:'🇦🇷',AM:'🇦🇲',AU:'🇦🇺',AT:'🇦🇹',AZ:'🇦🇿',BS:'🇧🇸',BH:'🇧🇭',BD:'🇧🇩',BB:'🇧🇧',BY:'🇧🇾',BE:'🇧🇪',BZ:'🇧🇿',BJ:'🇧🇯',BT:'🇧🇹',BO:'🇧🇴',BA:'🇧🇦',BW:'🇧🇼',BR:'🇧🇷',BN:'🇧🇳',BG:'🇧🇬',BF:'🇧🇫',BI:'🇧🇮',CV:'🇨🇻',KH:'🇰🇭',CM:'🇨🇲',CA:'🇨🇦',CF:'🇨🇫',TD:'🇹🇩',CL:'🇨🇱',CN:'🇨🇳',CO:'🇨🇴',KM:'🇰🇲',CG:'🇨🇬',CD:'🇨🇩',CR:'🇨🇷',CI:'🇨🇮',HR:'🇭🇷',CU:'🇨🇺',CY:'🇨🇾',CZ:'🇨🇿',DK:'🇩🇰',DJ:'🇩🇯',DM:'🇩🇲',DO:'🇩🇴',EC:'🇪🇨',EG:'🇪🇬',SV:'🇸🇻',GQ:'🇬🇶',ER:'🇪🇷',EE:'🇪🇪',SZ:'🇸🇿',ET:'🇪🇹',FJ:'🇫🇯',FI:'🇫🇮',FR:'🇫🇷',GA:'🇬🇦',GM:'🇬🇲',GE:'🇬🇪',DE:'🇩🇪',GH:'🇬🇭',GR:'🇬🇷',GD:'🇬🇩',GT:'🇬🇹',GN:'🇬🇳',GW:'🇬🇼',GY:'🇬🇾',HT:'🇭🇹',HN:'🇭🇳',HU:'🇭🇺',IS:'🇮🇸',IN:'🇮🇳',ID:'🇮🇩',IR:'🇮🇷',IQ:'🇮🇶',IE:'🇮🇪',IL:'🇮🇱',IT:'🇮🇹',JM:'🇯🇲',JP:'🇯🇵',JO:'🇯🇴',KZ:'🇰🇿',KE:'🇰🇪',KI:'🇰🇮',KW:'🇰🇼',KG:'🇰🇬',LA:'🇱🇦',LV:'🇱🇻',LB:'🇱🇧',LS:'🇱🇸',LR:'🇱🇷',LY:'🇱🇾',LI:'🇱🇮',LT:'🇱🇹',LU:'🇱🇺',MG:'🇲🇬',MW:'🇲🇼',MY:'🇲🇾',MV:'🇲🇻',ML:'🇲🇱',MT:'🇲🇹',MH:'🇲🇭',MR:'🇲🇷',MU:'🇲🇺',MX:'🇲🇽',FM:'🇫🇲',MD:'🇲🇩',MC:'🇲🇨',MN:'🇲🇳',ME:'🇲🇪',MA:'🇲🇦',MZ:'🇲🇿',MM:'🇲🇲',NA:'🇳🇦',NR:'🇳🇷',NP:'🇳🇵',NL:'🇳🇱',NZ:'🇳🇿',NI:'🇳🇮',NE:'🇳🇪',NG:'🇳🇬',KP:'🇰🇵',MK:'🇲🇰',NO:'🇳🇴',OM:'🇴🇲',PK:'🇵🇰',PW:'🇵🇼',PS:'🇵🇸',PA:'🇵🇦',PG:'🇵🇬',PY:'🇵🇾',PE:'🇵🇪',PH:'🇵🇭',PL:'🇵🇱',PT:'🇵🇹',QA:'🇶🇦',RO:'🇷🇴',RU:'🇷🇺',RW:'🇷🇼',KN:'🇰🇳',LC:'🇱🇨',VC:'🇻🇨',WS:'🇼🇸',SM:'🇸🇲',ST:'🇸🇹',SA:'🇸🇦',SN:'🇸🇳',RS:'🇷🇸',SC:'🇸🇨',SL:'🇸🇱',SG:'🇸🇬',SK:'🇸🇰',SI:'🇸🇮',SB:'🇸🇧',SO:'🇸🇴',ZA:'🇿🇦',KR:'🇰🇷',SS:'🇸🇸',ES:'🇪🇸',LK:'🇱🇰',SD:'🇸🇩',SR:'🇸🇷',SE:'🇸🇪',CH:'🇨🇭',SY:'🇸🇾',TW:'🇹🇼',TJ:'🇹🇯',TZ:'🇹🇿',TH:'🇹🇭',TL:'🇹🇱',TG:'🇹🇬',TO:'🇹🇴',TT:'🇹🇹',TN:'🇹🇳',TR:'🇹🇷',TM:'🇹🇲',TV:'🇹🇻',UG:'🇺🇬',UA:'🇺🇦',AE:'🇦🇪',GB:'🇬🇧',US:'🇺🇸',UY:'🇺🇾',UZ:'🇺🇿',VU:'🇻🇺',VA:'🇻🇦',VE:'🇻🇪',VN:'🇻🇳',YE:'🇾🇪',ZM:'🇿🇲',ZW:'🇿🇼',OTHER:'🌎'};
+const LEVEL_THRESHOLDS=[0,140,210,300,410,540,690,860,1050,1280];
+const DIFFICULTY={easy:{capPhone:3,capPad:5,speed:.82,accel:.82,level:.82,mult:.75},medium:{capPhone:4,capPad:6,speed:1,accel:1,level:1,mult:1},hard:{capPhone:5,capPad:7,speed:1.16,accel:1.12,level:1.16,mult:1.35}};
+function bestKey(){return 'fluxBest_'+difficulty}
+// ---------------------------------------------------------------------------
+// D-09 — BEST-RUN RECORD
+// The score and the level submitted to the leaderboard must come from the SAME
+// run. Previously they were read from two independent keys (fluxBest_<diff> and
+// fluxBestLevel_<diff>), which could pair a score from one run with a level
+// from another and get the submission rejected 422 by the worker's
+// plausibility check -- silently, because the response was discarded.
+//
+// New key: fluxBestRun_<difficulty> = {score, level, difficulty, playerId, at}
+// Backward compatible: if the new key is absent, it is SYNTHESISED from the two
+// old keys on first read. The old keys are still written so an accidental
+// rollback to the previous build keeps working, and no existing best is lost.
+// ---------------------------------------------------------------------------
+function bestRunKey(){return 'fluxBestRun_'+difficulty}
+function bestRun(){
+  try{
+    const raw=localStorage[bestRunKey()];
+    if(raw){
+      const r=JSON.parse(raw);
+      if(r && Number.isFinite(r.score) && Number.isFinite(r.level)) return r;
+    }
+  }catch(e){}
+  // MIGRATION from the two legacy keys. The legacy level may not belong to the
+  // legacy score, so it is clamped to whatever the server would accept for that
+  // score -- this preserves the player's best score instead of losing it.
+  const legacyScore=+localStorage['fluxBest_'+difficulty]||0;
+  const legacyLevel=+localStorage['fluxBestLevel_'+difficulty]||1;
+  const minLevelForScore=Math.max(1,Math.ceil((legacyScore-5000)/50000));
+  const migrated={
+    score:legacyScore,
+    level:Math.max(legacyLevel,minLevelForScore),
+    difficulty:difficulty,
+    playerId:playerId,
+    at:0,
+    migrated:true
+  };
+  if(legacyScore>0){ try{ localStorage[bestRunKey()]=JSON.stringify(migrated); }catch(e){} }
+  return migrated;
+}
+function recordBestRun(runScore,runLevel){
+  // One atomic write of a self-consistent record.
+  const prev=bestRun();
+  if(runScore<=prev.score) return prev;
+  const rec={score:runScore,level:runLevel,difficulty:difficulty,playerId:playerId,at:Date.now()};
+  try{ localStorage[bestRunKey()]=JSON.stringify(rec); }catch(e){}
+  // Legacy keys kept in sync for rollback safety and for the menu tiles.
+  try{ localStorage['fluxBest_'+difficulty]=runScore; }catch(e){}
+  try{ localStorage['fluxBestLevel_'+difficulty]=Math.max(+localStorage['fluxBestLevel_'+difficulty]||1,runLevel); }catch(e){}
+  return rec;
+}
+best=+localStorage[bestKey()]||0;
+function isPhone(){return W<=700}
+function targetCap(){const d=DIFFICULTY[difficulty],g=Math.min(2,Math.floor((level-1)/4));return isPhone()?Math.min(6,d.capPhone+g):Math.min(9,d.capPad+g)}
+function levelThreshold(){return LEVEL_THRESHOLDS[Math.min(9,level)]*DIFFICULTY[difficulty].level} 
+let paddle={x:0,y:0,w:150,h:12,handleH:28,hitFlash:0,hitSide:0};
+let ball,targets=[],particles=[],texts=[],shake=0;
+/* ===========================================================================
+   STORE SWITCH — the ONE place to open or close the paid store.
+
+   false  -> paid skins show COMING SOON and cannot be bought. Chosen for the
+             free-to-play launch while Stripe is still in Sandbox: a visible
+             Sandbox store would decline real cards and hand out free skins to
+             anyone who knows the public test card.
+   true   -> the normal store, with BUY buttons.
+
+   Flip to true ONLY after Stripe live keys and live price IDs are in
+   Cloudflare (T-9). Nothing else needs to change. Skins a player already owns
+   stay owned and usable either way -- ownership is verified by the server.
+   =========================================================================== */
+const STORE_OPEN = false;
+
+const SKINS={
+  aurora:{name:'AURORA',price:null,colors:['#35e6ff','#5c9cff','#8c5cff','#c64dff','#ff4f98','#ff6b52','#ffc447','#d9ff39','#45f0c0']},
+  toxic:{name:'TOXIC',price:'$1.99',colors:['#9dff2e','#c8ff45','#5cff9c','#2effd6','#e8ff5c','#7bff3d','#39ffb0','#b6ff2e','#4dffe0']},
+  cosmic:{name:'COSMIC',price:'$1.99',colors:['#a25cff','#7b3fff','#ff5cf0','#c23fff','#5c7bff','#ff3fb0','#9d3fff','#5cf0ff','#d13fff']},
+  solar:{name:'SOLAR INFERNO',price:'$2.99',bg:'/solar-inferno.webp',colors:['#ff8c2e','#ffb347','#ff5c2e','#ffd166','#ff3f1a','#ff9e4d','#e63900','#ffcc00','#ff6b1a']}
+};
+// CELESTIAL LEVEL-UP BACKGROUND — self-contained and safe to remove.
+// To turn this off entirely: set CELESTIAL_BG_ENABLED=false (one line),
+// or delete this block plus the two applyCelestialBackground(...) calls
+// below (one in newGame(), one in the level-up block). Nothing else in
+// the game reads CELESTIAL_THEMES or calls this function, so removing it
+// cannot break scoring, skins, or the leaderboard.
+const CELESTIAL_BG_ENABLED=true;
+const CELESTIAL_THEMES=[
+  'radial-gradient(circle at 50% 15%,#111b43 0,#07091d 48%,#03040d 100%)', // L1 deep space (default)
+  'radial-gradient(circle at 50% 12%,#152852 0,#0a1230 48%,#03040d 100%)', // L2 dusk nebula
+  'radial-gradient(circle at 50% 15%,#1c2f6b 0,#0d1440 48%,#03040d 100%)', // L3 blue nebula
+  'radial-gradient(circle at 50% 18%,#2a1f5e 0,#120f38 48%,#04030f 100%)', // L4 violet drift
+  'radial-gradient(circle at 50% 20%,#3a1f66 0,#170f3a 48%,#04030f 100%)', // L5 cosmic dust
+  'radial-gradient(circle at 50% 18%,#4a1f5c 0,#1c0f33 48%,#050310 100%)', // L6 aurora rose
+  'radial-gradient(circle at 50% 15%,#5c2250 0,#22102f 48%,#05030f 100%)', // L7 supernova glow
+  'radial-gradient(circle at 50% 12%,#6e2740 0,#28101f 48%,#06030d 100%)', // L8 stellar flare
+  'radial-gradient(circle at 50% 10%,#7e3a2e 0,#2c1210 48%,#07030a 100%)'  // L9 solar core
+];
+function applyCelestialBackground(lvl){
+  if(!CELESTIAL_BG_ENABLED) return;
+  const el=document.getElementById('app');
+  if(!el) return;
+  el.style.background=CELESTIAL_THEMES[Math.max(0,Math.min(CELESTIAL_THEMES.length-1,lvl-1))];
+}
+let activeSkin=localStorage.fluxSkin||'aurora';
+function currentPalette(){return (SKINS[activeSkin]||SKINS.aurora).colors}
+function ownsSkin(sku){return sku==='aurora'}/* T-9: this early declaration is superseded by the server-authoritative ownsSkin later in this file. It used to read the legacy fluxOwned_ key; if the override were ever removed, that would silently grant paid skins again. It now grants only the free skin, so the failure mode is a locked skin rather than a free one. */
+// Backdrop image is now its OWN choice, independent of which color palette
+// (skin) is equipped -- e.g. you can keep the Solar Inferno backdrop while
+// playing with Cosmic or Toxic colors, or turn the backdrop off entirely
+// and keep the plain level-gradient background. "none" is always available
+// for free; any other value requires owning that skin's backdrop asset.
+let activeBackground=localStorage.fluxBackground||'none';
+function applySkinBackground(){
+  const layer=document.getElementById('skinBgLayer');
+  if(!layer)return;
+  const s=SKINS[activeBackground];
+  if(activeBackground!=='none' && s && s.bg && ownsSkin(activeBackground)){
+    layer.style.backgroundImage=`url('${s.bg}')`;layer.style.opacity='0.5';
+  } else {
+    layer.style.opacity='0';
+  }
+}
+function setBackground(bg){
+  activeBackground=bg;
+  try{localStorage.fluxBackground=bg;}catch(e){}
+  applySkinBackground();
+  buildBackgroundUI();
+}
+// `colors` drives every orb/paddle-hit color lookup in the game. It starts as
+// whichever skin was last equipped, and is reassigned (not mutated in place)
+// whenever the player equips a different owned skin from the shop.
+let colors=currentPalette();
+applySkinBackground();
+let stars=[];
+let nebulae=[];
+function makeStars(){
+  const n=Math.round((W*H)/7000);
+  stars=Array.from({length:n},()=>{
+    const depth=rand(.35,1);
+    return {x:rand(0,W),y:rand(0,H),r:rand(.5,2.1)*depth,phase:rand(0,Math.PI*2),speed:rand(.4,1.3),vx:rand(-8,8)*depth,vy:rand(10,26)*depth,depth};
+  });
+  nebulae=Array.from({length:4},()=>({x:rand(0,W),y:rand(0,H),r:rand(120,260),hue:['#2a2f6b','#3a1f5e','#1f3a5e','#2f1f4a'][Math.floor(rand(0,4))],vx:rand(-10,10),vy:rand(6,16),phase:rand(0,Math.PI*2)}));
+}
+function resize(){dpr=window.__fluxLite?1:Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;c.width=W*dpr;c.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);paddle.y=H-Math.max(42,Math.min(90,H*.095));makeStars();refreshHudRects();}
+addEventListener('resize',resize);resize();
+function rand(a,b){return a+Math.random()*(b-a)}
+function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
+function setPaddle(x){paddle.x=Math.max(paddle.w/2+8,Math.min(W-paddle.w/2-8,x))}
+
+// FLUX SPARTA AUDIO + HAPTIC ENGINE
+let audioCtx=null, masterGain=null, audioLimiter=null;
+let audioReady=false;
+function initAudio(){
+  try{
+    const AC=window.AudioContext||window.webkitAudioContext;
+    if(!AC) return;
+    if(!audioCtx) {
+      audioCtx=new AC();
+      // SPARTA LOUD MIX: boost the game's perceived loudness while preventing clipping.
+      masterGain=audioCtx.createGain();
+      masterGain.gain.value=.52;
+      audioLimiter=audioCtx.createDynamicsCompressor();
+      audioLimiter.threshold.value=-12;
+      audioLimiter.knee.value=8;
+      audioLimiter.ratio.value=12;
+      audioLimiter.attack.value=.003;
+      audioLimiter.release.value=.12;
+      masterGain.connect(audioLimiter);
+      audioLimiter.connect(audioCtx.destination);
+    }
+    if(audioCtx.state==='suspended') audioCtx.resume();
+    audioReady=true;
+  }catch(e){audioReady=false}
+}
+function tone(freq,dur,type='sine',gain=.05,slide=0){
+  if(!audioReady||!audioCtx||!masterGain)return;
+  const now=audioCtx.currentTime;
+  const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+  o.type=type;o.frequency.setValueAtTime(freq,now);
+  if(slide) o.frequency.exponentialRampToValueAtTime(Math.max(30,freq+slide),now+dur);
+  g.gain.setValueAtTime(.0001,now);
+  g.gain.exponentialRampToValueAtTime(Math.max(.0001,gain),now+.008);
+  g.gain.exponentialRampToValueAtTime(.0001,now+dur);
+  o.connect(g);g.connect(masterGain);o.start(now);o.stop(now+dur+.02);
+}
+function noise(dur=.08,gain=.03,filter=1200){
+  if(!audioReady||!audioCtx||!masterGain)return;
+  const n=Math.floor(audioCtx.sampleRate*dur), b=audioCtx.createBuffer(1,n,audioCtx.sampleRate);
+  const data=b.getChannelData(0);for(let i=0;i<n;i++)data[i]=(Math.random()*2-1)*(1-i/n);
+  const s=audioCtx.createBufferSource(), f=audioCtx.createBiquadFilter(), g=audioCtx.createGain();
+  f.type='bandpass';f.frequency.value=filter;f.Q.value=.7;
+  g.gain.setValueAtTime(gain,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(.0001,audioCtx.currentTime+dur);
+  s.buffer=b;s.connect(f);f.connect(g);g.connect(masterGain);s.start();s.stop(audioCtx.currentTime+dur+.01);
+}
+function playPaddleHit(intensity){
+  const i=Math.max(0,Math.min(1,intensity));
+  tone(150+250*i,.065,'triangle',.075+.085*i,120+300*i);
+  noise(.045,.028+.032*i,900+1800*i);
+}
+function playOrbHit(speed){
+  const i=Math.max(0,Math.min(1,(speed-6)/12));
+  tone(260+260*i,.075,'sine',.055+.055*i,80+200*i);
+  noise(.025,.018+.018*i,1400+900*i);
+}
+function playFusion(comboNow){
+  const base=360+Math.min(7,comboNow)*42;
+  tone(base,.11,'triangle',.105,base*.45);
+  setTimeout(()=>tone(base*1.5,.14,'sine',.085,base*.25),45);
+  noise(.075,.045,900+comboNow*90);
+}
+function playMiss(){
+  tone(95,.23,'sawtooth',.13,-35);
+  noise(.15,.075,260);
+}
+function playLevelUp(){
+  [440,554,659,880].forEach((f,i)=>setTimeout(()=>tone(f,.17,'triangle',.105,.02*f),i*55));
+  noise(.10,.045,1800);
+}
+function playFlux(){
+  tone(110,.30,'sawtooth',.14,420);
+  setTimeout(()=>tone(330,.34,'triangle',.12,660),80);
+  setTimeout(()=>tone(660,.44,'sine',.11,990),170);
+  noise(.18,.07,700);
+}
+function playGameOver(){
+  tone(220,.24,'sawtooth',.12,-80);
+  setTimeout(()=>tone(110,.44,'sine',.14,-55),90);
+  noise(.28,.08,180);
+}
+function haptic(ms=12){
+  try{
+    if(navigator.vibrate) navigator.vibrate(Math.max(1,Math.round(ms)));
+  }catch(e){}
+}
+function impactHaptic(speed){
+  // Best-effort Web Vibration API. iOS Safari/PWA may not expose navigator.vibrate;
+  // native wrapper can later map the same intensity values to Core Haptics.
+  const i=Math.max(0,Math.min(1,(speed-6)/12));
+  haptic(6+Math.round(i*28));
+}
+
+
+function fieldPressure(){
+  const crowded = Math.max(0, targets.length-(6+Math.min(4,level)));
+  const speed = Math.hypot(ball?.vx||0,ball?.vy||0);
+  return Math.min(1, crowded*.08 + Math.max(0,level-4)*.07 + Math.max(0,speed-11)*.035);
+}
+function updatePressureBadge(){
+  const p=fieldPressure(), el=document.getElementById('pressureBadge'), glow=document.getElementById('pressureGlow');
+  if(!el) return;
+  el.classList.remove('stable','warn','critical');
+  if(p>.72){el.textContent='FIELD • CRITICAL';el.classList.add('critical')}
+  else if(p>.42){el.textContent='FIELD • PRESSURE';el.classList.add('warn')}
+  else {el.textContent='FIELD • STABLE';el.classList.add('stable')}
+  // Background now reads the same pressure value the badge does, so the whole
+  // screen — not just a small label — communicates how close things are to breaking.
+  if(glow){
+    glow.classList.remove('warn','critical');
+    if(p>.72) glow.classList.add('critical');
+    else if(p>.42) glow.classList.add('warn');
+    glow.style.opacity=Math.min(.85,p*.9);
+  }
+}
+function playThreat(){
+  tone(180,.09,'sine',.045,-35);
+  haptic(8);
+}
+
+/* D-23 (RC2.8): an explicit "run in progress" flag. `playing` is false during a
+   pause, a level-transition hold and parts of the revive flow, so RC2.7's update
+   gate could reload the page mid-run and lose it. runActive is true from the
+   moment a run starts until it genuinely ends (game over, or END RUN & MENU). */
+var runActive=false;
+function newGame(){
+ try{ window.parent.postMessage({type:'flux-playing'}, '*'); }catch(e){}
+ score=0;combo=1;level=1;streak=0;flux=0;fluxMode=0;misses=0;revivesUsedThisRun=0;missFragments=[];particles=[];texts=[];shake=0;targets=[];comboTimer=0;levelBanner=0;perfectFlash=0;bonusTimer=rand(5,9);growTimer=rand(9,14);
+ refreshHudRects(); // pauseBtn just became visible -- make sure the exclusion zone reflects that now, not the pre-game state
+ applyCelestialBackground(level);
+ setPaddle(W/2);
+ paddle.w=isPhone()?132:150; paddle.handleH=isPhone()?22:28;
+ document.getElementById('pauseOverlay')?.classList.add('hidden');
+ document.getElementById('pauseBtn').textContent='Ⅱ';
+ ball={x:W/2,y:paddle.y-28,r:13,vx:rand(-3.5,3.5),vy:-6.2*DIFFICULTY[difficulty].speed,color:0,trail:[]};
+ for(let i=0;i<targetCap();i++){
+   const color=i%Math.min(5,3+level);
+   // Deliberately distribute the opening field over multiple zones.
+   const zones=[
+     [rand(50,W*.34),rand(H*.20,H*.40)],
+     [rand(W*.36,W*.66),rand(H*.18,H*.55)],
+     [rand(W*.68,W-50),rand(H*.22,H*.58)],
+     [rand(50,W*.34),rand(H*.45,H*.72)],
+     [rand(W*.66,W-50),rand(H*.45,H*.72)]
+   ];
+   const z=zones[i%zones.length];
+   addTarget(color,z[0],z[1]);
+ }
+ updateHud(); playing=true; runActive=true;
+}
+function addTarget(color,x,y,r=18+Math.random()*6){
+ targets.push({
+   x,y,r,color,spin:rand(0,6),
+   vx:rand(-.32,.32)*(level>=5?1.15:0.7),
+   vy:rand(-.22,.22)*(level>=5?1.0:0.55),
+   phase:rand(0,Math.PI*2),
+   age:0,
+   danger:Math.random()<Math.min(.42,.08+level*.035)
+ });
+}
+// Reads the ACTUAL rendered positions of every HUD element (stat boxes,
+// pause button, flux meter, status badges) so the exclusion zone always
+// matches reality -- rather than hardcoded pixel guesses that silently
+// go stale the moment the HUD layout changes on any breakpoint.
+function hudExclusionRects(){
+  const rects=[];
+  const ids=['pauseBtn','audioBadge','pressureBadge'];
+  ids.forEach(id=>{
+    const el=document.getElementById(id);
+    if(el && !el.classList.contains('hidden') && el.offsetParent!==null) rects.push(el.getBoundingClientRect());
+  });
+  const hud=document.querySelector('.hud');
+  if(hud) rects.push(hud.getBoundingClientRect());
+  const fbar=document.querySelector('.fluxbar');
+  if(fbar) rects.push(fbar.getBoundingClientRect());
+  return rects;
+}
+function pointHitsHud(x,y,r,rects,pad=12){
+  for(let i=0;i<rects.length;i++){
+    const rc=rects[i];
+    if(x+r>rc.left-pad && x-r<rc.right+pad && y+r>rc.top-pad && y-r<rc.bottom+pad) return true;
+  }
+  return false;
+}
+// Cached once per resize (not recomputed every frame -- these elements
+// don't move except on layout changes) so per-frame target movement can
+// stay cheap while still respecting the HUD's real, non-uniform shape:
+// the right-side stat boxes + status badges extend much lower than the
+// left-side pause button + flux meter, so a single flat "top boundary"
+// line (the old bug) is wrong for one side or the other no matter where
+// it's set.
+function refreshHudRects(){ cachedHudRects=hudExclusionRects(); }
+// Real safe top-boundary for a given x column: the lowest bottom-edge
+// among HUD rects that actually span that x position, or the base line
+// if nothing overlaps that column.
+function topBoundAt(x,rPad=0){
+  let bound=108;
+  for(let i=0;i<cachedHudRects.length;i++){
+    const rc=cachedHudRects[i];
+    if(x>=rc.left-12 && x<=rc.right+12){ bound=Math.max(bound, rc.bottom+12); }
+  }
+  return bound+rPad;
+}
+// For the BALL specifically, a per-column boundary (like orbs use) creates
+// a confusing effect: different x-positions bounce at different, invisible
+// heights depending on which HUD element happens to sit above that column,
+// which looks like "bouncing off nothing" in the gaps between elements.
+// The ball instead uses ONE consistent line -- the lowest point of the
+// tallest HUD element anywhere across the top -- so it always bounces at
+// the same predictable height, reading as an intentional ceiling.
+function maxHudBottom(){
+  let m=108;
+  for(let i=0;i<cachedHudRects.length;i++){ m=Math.max(m,cachedHudRects[i].bottom+12); }
+  return m;
+}
+function safeSpawnPoint(r=20){
+ const pad=isPhone()?34:42, top=maxHudBottom(), bottom=Math.max(top+80,H*.79);
+ const hudRects=hudExclusionRects();
+ for(let tries=0;tries<40;tries++){
+   const x=rand(pad,W-pad), y=rand(top,bottom);
+   if(pointHitsHud(x,y,r,hudRects)) continue;
+   const minGap=(isPhone()?58:72);
+   if(!targets.some(t=>Math.hypot(t.x-x,t.y-y)<minGap+t.r+r*.45)) return [x,y];
+ }
+ // Fallback: still avoid the HUD even if every gap-spaced candidate failed --
+ // better to risk a slightly cramped orb than one spawned on top of the score.
+ for(let tries=0;tries<20;tries++){
+   const x=rand(pad,W-pad), y=rand(top,bottom);
+   if(!pointHitsHud(x,y,r,hudRects)) return [x,y];
+ }
+ return [rand(pad,W-pad),Math.max(top,bottom-40)];
+}
+function spawnTarget(forceColor=null){
+ if(targets.length>=targetCap()) return;
+ let color=forceColor==null?Math.floor(Math.random()*Math.min(colors.length,4+Math.floor(level/2))):forceColor;
+ const [x,y]=safeSpawnPoint(20);
+ addTarget(color,x,y,isPhone()?16+Math.random()*5:18+Math.random()*6);
+}
+// XP BONUS ORB — small, color-agnostic, high-value, despawns fast.
+// Rewards taking a risky shot away from the current combo chain instead of
+// only ever chasing the matching-color target.
+function spawnBonusOrb(){
+ if(targets.some(t=>t.bonus)) return;
+ const [x,y]=safeSpawnPoint(12);
+ const r=isPhone()?9:11;
+ targets.push({x,y,r,color:0,spin:0,vx:rand(-.5,.5),vy:rand(-.4,.4),phase:rand(0,Math.PI*2),age:0,bonus:true,danger:false,life:rand(4.2,5.6)});
+}
+// GROWING "OVERLOAD" ORB — charges up to a larger max size over a few seconds.
+// While charging it behaves like a normal orb (still needs color match).
+// Once matured it pulses to signal "pop me now": any contact bursts it for a
+// big score bonus and kicks the ball onto a new trajectory based on impact angle.
+function spawnGrowingOrb(){
+ if(targets.some(t=>t.growing)) return;
+ const [x,y]=safeSpawnPoint(30);
+ const color=Math.floor(Math.random()*Math.min(colors.length,4+Math.floor(level/2)));
+ const maxR=isPhone()?34:40;
+ targets.push({x,y,r:12,maxR,color,spin:rand(0,6),vx:rand(-.22,.22),vy:rand(-.18,.18),phase:rand(0,Math.PI*2),age:0,growing:true,matured:false,danger:false});
+}
+function resetFieldAfterMiss(){
+ // A miss starts a clean practice attempt at the SAME level.
+ // Keep the three-miss pressure, but remove the clutter and reset the point-building run.
+ levelPoints=0;orbValue=20;combo=1;streak=0;comboTimer=0;flux=Math.max(0,flux-25);
+ targets=[];
+ for(let i=0;i<targetCap();i++){
+   const [x,y]=safeSpawnPoint(isPhone()?18:22);
+   const color=i%Math.min(5,3+level);
+   addTarget(color,x,y,isPhone()?16+Math.random()*5:18+Math.random()*6);
+ }
+ updateHud();
+}
+function burst(x,y,col,n=14){
+ for(let i=0;i<n;i++)particles.push({x,y,vx:rand(-5,5),vy:rand(-5,5),life:1,col});
+}
+function popup(x,y,s,col='#fff'){texts.push({x,y,s,life:1,col})}
+function addFlux(v){flux=Math.min(100,flux+v);if(flux>=100&&!fluxMode){flux=0;fluxMode=6;score+=250;popup(W/2,120,'FLUX MODE','#62eaff');burst(W/2,120,'#62eaff',30);haptic(50);playFlux();flash(.22);shake=Math.min(14,shake+6);updateHud();}}
+function registerMiss(){
+ misses++;missFragments.push({x:rand(25,W-25),y:H-24,r:rand(7,12),life:1});
+ burst(ball.x,Math.min(H-25,ball.y),'#ff4f98',18);
+ popup(W/2,H-65,`MISS ${misses}/3 • NEW RUN`,'#ff6b98');
+ haptic(misses===3?90:55);playMiss();flash(misses===3?.16:.08);
+ shake=Math.min(12,shake+(misses===3?7:3));
+ if(misses>=3){
+   if(revivesUsedThisRun<1){ offerRevive(); return; }
+   endGame(); return;
+ }
+ resetFieldAfterMiss();
+ // Restart the orb from a calm launch point.
+ ball.x=paddle.x;ball.y=paddle.y-28;ball.vx=rand(-3.4,3.4);ball.vy=-Math.max(6.0,6.0+level*.12)*DIFFICULTY[difficulty].speed;ball.trail=[];
+ updateHud();
+}
+// One free revive per run: watch a rewarded ad, get one miss back, keep playing.
+// This is the same mechanic Block Blast and most successful casual games use
+// to turn a game-over moment into an ad impression instead of a lost session.
+// Toggle this one flag when you're ready to turn ads back on (real network
+// or the simulated placeholder) — see showRewardedAd() below. Everything
+// else in the revive flow (one extra life, same scoring/physics) is
+// identical either way; this only decides whether an ad step happens first.
+const ADS_ENABLED = false;
+function offerRevive(){
+ paused=true;
+ const grantRevive=()=>{
+   revivesUsedThisRun++;misses=2;paused=false;last=performance.now();
+   resetFieldAfterMiss();
+   ball.x=paddle.x;ball.y=paddle.y-28;ball.vx=rand(-3.4,3.4);ball.vy=-Math.max(6.0,6.0+level*.12)*DIFFICULTY[difficulty].speed;ball.trail=[];
+   updateHud();popup(W/2,H*.4,'REVIVED','#62eaff');burst(W/2,H*.4,'#62eaff',24);
+ };
+ const d=document.createElement('div');
+ d.className='miniOverlay';d.id='reviveOverlay';
+ const promptText = ADS_ENABLED ? 'Watch a short ad to get one more miss and keep this run alive?' : 'Get one more miss and keep this run alive?';
+ const continueLabel = ADS_ENABLED ? '▶ WATCH AD — CONTINUE' : '▶ CONTINUE';
+ d.innerHTML=`<div class="panel"><h2 style="color:#ff6b98;letter-spacing:.14em">OUT OF MISSES</h2><p>${promptText}</p><button id="reviveWatchBtn">${continueLabel}</button><button id="reviveDeclineBtn" style="margin-top:8px;background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none">END RUN</button></div>`;
+ document.getElementById('app').appendChild(d);
+ document.getElementById('reviveWatchBtn').onclick=()=>{
+   d.remove();
+   if(ADS_ENABLED){
+     showRewardedAd(grantRevive,()=>{paused=false;endGame();});
+   }else{
+     grantRevive();
+   }
+ };
+ document.getElementById('reviveDeclineBtn').onclick=()=>{d.remove();paused=false;endGame();};
+}
+// Ad abstraction — this is the ONLY function that needs to change once FLUX
+// is built as a real native app. window.FluxNativeAds is the hook the
+// Capacitor AdMob wrapper (see the flux-native project) attaches at startup;
+// if it's not there — i.e. this is the plain web build you're testing today —
+// this falls back to a clearly-labeled simulated ad so the revive flow itself
+// can be tested end-to-end right now, in the browser.
+function showRewardedAd(onReward,onFail){
+ if(window.FluxNativeAds && window.FluxNativeAds.showRewarded){
+   window.FluxNativeAds.showRewarded().then(onReward).catch(onFail);
+   return;
+ }
+ // House ad creative (gummy-candy themed) — this is the actual 5s rewarded
+ // spot shown on web/PWA. It's entirely original SVG/CSS, no third-party
+ // network involved. Swap this markup for an AdMob/Unity Ads SDK call inside
+ // window.FluxNativeAds once you wire a real ad network; the countdown/bar
+ // ids (#adBar/#adCountdown) and timing loop below don't need to change.
+ const d=document.createElement('div');
+ d.className='miniOverlay';d.style.zIndex=9;
+ d.innerHTML=`<div class="gummyAdPanel">
+   <div class="gummyAdStage">
+     <span class="adBadge">AD</span>
+     <div class="candyDot" style="left:14%;width:9px;height:9px;background:#ff5cb0;animation-delay:.1s"></div>
+     <div class="candyDot" style="left:32%;width:7px;height:7px;background:#ffd23f;animation-delay:.9s"></div>
+     <div class="candyDot" style="left:58%;width:10px;height:10px;background:#5cff9c;animation-delay:.4s"></div>
+     <div class="candyDot" style="left:74%;width:8px;height:8px;background:#5cc8ff;animation-delay:1.3s"></div>
+     <div class="candyDot" style="left:88%;width:6px;height:6px;background:#ff8f4d;animation-delay:1.7s"></div>
+     <svg class="gummyBear" style="left:20%;animation-delay:0s" viewBox="0 0 64 64"><g fill="#ff4fb0"><circle cx="18" cy="14" r="8"/><circle cx="46" cy="14" r="8"/><circle cx="32" cy="36" r="24"/><circle cx="20" cy="30" r="7"/><circle cx="44" cy="30" r="7"/></g><g fill="#ffffff88"><circle cx="24" cy="32" r="3"/><circle cx="40" cy="32" r="3"/></g></svg>
+     <svg class="gummyBear" style="left:46%;animation-delay:.35s" viewBox="0 0 64 64"><g fill="#5cff9c"><circle cx="18" cy="14" r="8"/><circle cx="46" cy="14" r="8"/><circle cx="32" cy="36" r="24"/><circle cx="20" cy="30" r="7"/><circle cx="44" cy="30" r="7"/></g><g fill="#ffffff88"><circle cx="24" cy="32" r="3"/><circle cx="40" cy="32" r="3"/></g></svg>
+     <svg class="gummyBear" style="left:70%;animation-delay:.7s" viewBox="0 0 64 64"><g fill="#5cc8ff"><circle cx="18" cy="14" r="8"/><circle cx="46" cy="14" r="8"/><circle cx="32" cy="36" r="24"/><circle cx="20" cy="30" r="7"/><circle cx="44" cy="30" r="7"/></g><g fill="#ffffff88"><circle cx="24" cy="32" r="3"/><circle cx="40" cy="32" r="3"/></g></svg>
+   </div>
+   <div class="gummyAdBody">
+     <div class="adBrand">GUMMY BURST</div>
+     <p class="adTagline">Chew the flow. New sour-fusion flavors, out now.</p>
+     <div style="height:6px;background:#0c1537;border-radius:4px;overflow:hidden;margin:14px 0">
+       <div id="adBar" style="height:100%;width:0%;background:#62eaff;transition:width .1s linear"></div>
+     </div>
+     <b id="adCountdown" style="font-size:20px">5</b>
+   </div>
+ </div>`;
+ document.getElementById('app').appendChild(d);
+ let t=5;
+ const bar=d.querySelector('#adBar'),count=d.querySelector('#adCountdown');
+ const iv=setInterval(()=>{
+   t-=.1;bar.style.width=((5-t)/5*100)+'%';count.textContent=Math.max(0,Math.ceil(t));
+   if(t<=0){clearInterval(iv);d.remove();onReward();}
+ },100);
+}
+function fuse(t){
+ const idx=targets.indexOf(t); if(idx<0)return;
+ const newColor=(t.color+1)%Math.min(colors.length,4+Math.floor(level/2));
+ streak++;
+ combo=Math.min(12,combo+1);
+ comboTimer=2.6;
+ // Orb value grows only from PERFECT paddle control. Fusions score, but do not inflate the level run.
+ const points=Math.round((orbValue + combo*2)*(t.r>23?1.15:1)*(fluxMode>0?1.15:1));
+ score+=points;
+ addFlux(8+combo*1.5);
+ haptic(14+Math.min(32,combo*2));
+ playFusion(combo);
+ // Clearing a danger orb (now visibly marked, see draw()) pays a small bonus —
+ // rewards playing the field instead of just tracking colors, without touching
+ // the level-progress math you tuned.
+ if(t.danger){score+=15;addFlux(4);burst(t.x,t.y,'#ff4f68',10);popup(t.x,t.y-14,'CLEARED •15','#ff8fae');}
+
+ // LEVELS ARE SEQUENTIAL: one successful action can earn at most ONE level.
+ // A large score spike can never jump 2 -> 6 (or 2 -> 8) anymore.
+ if(level<9 && levelPoints>=levelThreshold()){
+   level++;
+   levelPoints=0;orbValue=20;
+   levelBanner=5.0;
+   levelHold=.85;
+   playing=false;
+   playLevelUp();
+   applyCelestialBackground(level);
+   haptic(80);
+   burst(W/2,135,'#62eaff',38);
+   popup(W/2,155,'LEVEL '+level,'#62eaff');
+   paddle.w=Math.max(isPhone()?96:112,(isPhone()?132:150)-(level-1)*4);
+   targets=[];
+   for(let i=0;i<targetCap();i++)spawnTarget(i%Math.min(5,3+level));
+ }
+ // The orb changes color after a successful fusion. This creates a deliberate chain:
+ // hit the matching color, then immediately hunt the newly required color.
+ ball.color=newColor;
+ burst(t.x,t.y,colors[t.color],28);
+ popup(t.x,t.y,'+'+points,colors[t.color]);
+ targets.splice(idx,1);
+ addTarget(newColor,t.x+rand(-36,36),t.y+rand(-36,36),Math.min(30,t.r+3));
+ // Higher levels create more meaningful choices instead of a single obvious cluster.
+ if(level>=5 && Math.random()<.20 && targets.length<targetCap()) spawnTarget();
+ const speed=Math.min(17.5,Math.hypot(ball.vx,ball.vy)*1.045+0.18+level*.025);
+ const ang=Math.atan2(ball.vy,ball.vx);
+ ball.vx=Math.cos(ang)*speed;ball.vy=Math.sin(ang)*speed;
+ flash(.16+Math.min(.12,combo*.01));shake=Math.min(14,shake+4+combo*.25);
+ perfectFlash=0.18;
+ if(targets.length<targetCap())spawnTarget();
+ updateHud();
+}
+// XP bonus orb: any contact pops it — no color requirement, no bounce, just a
+// straight reward for going out of your way to grab it before it despawns.
+function popBonus(t){
+ const idx=targets.indexOf(t); if(idx<0)return;
+ const points=Math.round(120+combo*10+(fluxMode>0?60:0));
+ score+=points;
+ addFlux(10);
+ haptic(30);
+ playFusion(Math.min(12,combo+3));
+ burst(t.x,t.y,'#ffd45c',22);
+ popup(t.x,t.y,'BONUS +'+points,'#ffd45c');
+ targets.splice(idx,1);
+ flash(.12);shake=Math.min(10,shake+3);
+ updateHud();
+}
+// Overload orb burst: rewards a matured orb with a big score bonus AND kicks
+// the ball onto a new trajectory based on exactly where it was struck — a
+// strong deflection, not a random one, so a skilled player can aim the kick.
+function burstGrowing(t,maxSpeed){
+ const idx=targets.indexOf(t); if(idx<0)return;
+ const points=Math.round(200+combo*15+(fluxMode>0?100:0));
+ score+=points;
+ addFlux(18);
+ haptic(60);
+ playFlux();
+ const a=Math.atan2(ball.y-t.y,ball.x-t.x);
+ const kickSpeed=Math.min(maxSpeed,Math.max(9,Math.hypot(ball.vx,ball.vy)*1.35+2));
+ ball.vx=Math.cos(a)*kickSpeed;ball.vy=Math.sin(a)*kickSpeed;
+ burst(t.x,t.y,colors[t.color],40);
+ popup(t.x,t.y,'OVERLOAD +'+points,colors[t.color]);
+ targets.splice(idx,1);
+ flash(.28);shake=Math.min(16,shake+9);
+ updateHud();
+}
+function flash(v){document.getElementById('flash').style.opacity=v;setTimeout(()=>document.getElementById('flash').style.opacity=0,80)}
+function updateHud(){
+ document.getElementById('score').textContent=score;
+ document.getElementById('combo').textContent='x'+combo;
+ document.getElementById('level').textContent=level;
+ document.getElementById('misses').textContent=misses+'/3';
+ document.getElementById('fluxPct').textContent=Math.round(flux)+'%';
+ document.getElementById('fluxFill').style.width=flux+'%';
+ const track=document.getElementById('levelProgress');
+ if(track){
+   const pct=level>=9?100:Math.max(0,Math.min(100,(levelPoints/levelThreshold())*100));
+   track.style.width=pct+'%';
+ }
+}
+function endGame(){
+ playing=false; runActive=false;
+ document.getElementById('pauseBtn').classList.add('hidden');
+ document.getElementById('pauseOverlay')?.classList.add('hidden');
+ playGameOver();haptic(90);
+ flash(.34);shake=18;
+ // Pull the field inward for the signature FLUX COLLAPSE moment.
+ const cx=W/2,cy=H*.42;
+ targets.forEach(t=>{t.vx=(cx-t.x)*.018;t.vy=(cy-t.y)*.018;});
+ for(let i=0;i<70;i++){
+   const a=Math.random()*Math.PI*2, rr=rand(80,Math.min(W,H)*.52);
+   particles.push({x:cx+Math.cos(a)*rr,y:cy+Math.sin(a)*rr,vx:-Math.cos(a)*5,vy:-Math.sin(a)*5,life:1,col:colors[i%colors.length]});
+ }
+ popup(cx,cy,'FLUX COLLAPSE','#ff6b98');
+ setTimeout(()=>{
+   recordBestRun(score,level);
+   if(score>best){best=score;}
+   document.getElementById('finalScore').textContent=score;refreshMenu();
+   document.getElementById('finalMode').textContent=String(difficulty).toUpperCase();   // D-36: was never set here, so it always read MEDIUM
+   document.getElementById('best').textContent=best;
+   document.getElementById('gameover').classList.remove('hidden');
+   uploadOrAskName();   // D-39: nothing uploads until the pilot has a name
+   // Tell whatever's hosting us (the Gateway's embedded play screen) that
+   // we've reached game-over -- postMessage is the only way to signal
+   // across origins, since the Gateway can't inspect this page directly.
+   // Harmless no-op when played standalone (nothing listening).
+   try{ window.parent.postMessage({type:'flux-gameover'}, '*'); }catch(e){}
+ },420);
+}
+function update(dt){
+ if(levelBanner>0) levelBanner=Math.max(0,levelBanner-dt);
+ // Combo is a real pressure mechanic: keep chaining fusions before the timer expires.
+ if(comboTimer>0) comboTimer-=dt;
+ else if(combo>1){combo=1;streak=0;popup(W/2,150,'COMBO LOST','#8da0c8');updateHud();}
+ if(perfectFlash>0)perfectFlash-=dt;
+ const maxSpeed=fluxMode>0?18.5:Math.min(17.5,(12+level*.48)*DIFFICULTY[difficulty].speed);
+ if(fluxMode>0){fluxMode-=dt;document.getElementById('app').style.filter='brightness(1.18) saturate(1.35)';document.getElementById('fluxGlow').classList.add('on');}else{document.getElementById('app').style.filter='none';document.getElementById('fluxGlow').classList.remove('on');}
+ let sp=Math.hypot(ball.vx,ball.vy);
+ if(sp<maxSpeed) {
+   // Snap back to full speed quickly (under a second) instead of the old
+   // per-frame trickle, which took 8+ seconds to recover and read as the
+   // ball "floating" after a miss/respawn.
+   const newSp=Math.min(maxSpeed,sp+maxSpeed*2.2*dt);
+   const scale=sp>0.0001?newSp/sp:1;
+   ball.vx*=scale;ball.vy*=scale;
+ }
+ ball.trail.unshift({x:ball.x,y:ball.y});if(ball.trail.length>10)ball.trail.pop();
+ ball.x+=ball.vx*dt*60;ball.y+=ball.vy*dt*60;
+ if(ball.x-ball.r<8){ball.x=8+ball.r;ball.vx=Math.abs(ball.vx);burst(ball.x,ball.y,'#59eaff',4)}
+ if(ball.x+ball.r>W-8){ball.x=W-8-ball.r;ball.vx=-Math.abs(ball.vx);burst(ball.x,ball.y,'#59eaff',4)}
+ {const ballTop=maxHudBottom()+ball.r; if(ball.y<ballTop){ball.y=ballTop;ball.vy=Math.abs(ball.vy)}}
+ // Targets now move subtly, with stronger pressure from Level 5 onward.
+ for(const t of targets){
+   t.age += dt;
+   t.phase += dt*(.7+level*.035);
+   const drift = level>=5 ? 1 : .45;
+   t.x += (t.vx + Math.cos(t.phase)*.08)*dt*60*drift;
+   t.y += (t.vy + Math.sin(t.phase*.83)*.06)*dt*60*drift;
+   const topBound=maxHudBottom()+t.r, botBound=Math.max(topBound+60,H*.79)-t.r;
+   if(t.x<t.r+16 || t.x>W-t.r-16){t.vx*=-1;t.x=Math.max(t.r+16,Math.min(W-t.r-16,t.x));}
+   if(t.y<topBound || t.y>botBound){t.vy*=-1;t.y=Math.max(topBound,Math.min(botBound,t.y));}
+   if(t.growing && !t.matured){
+     t.r=Math.min(t.maxR,12+(t.age/4.2)*(t.maxR-12));
+     if(t.r>=t.maxR){t.matured=true;burst(t.x,t.y,'#fff',10);haptic(20);}
+   }
+   if(t.hitPulse>0) t.hitPulse=Math.max(0,t.hitPulse-dt);
+   if(t.grazeCooldown>0) t.grazeCooldown=Math.max(0,t.grazeCooldown-dt);
+ }
+ // Bonus orb lifespan: despawn quietly if the player doesn't grab it in time.
+ for(const t of [...targets]){
+   if(t.bonus){
+     t.life-=dt;
+     if(t.life<=0){const i=targets.indexOf(t);if(i>=0)targets.splice(i,1);}
+   }
+ }
+ // Timed spawns for the two special orb types, independent of the normal target cap.
+ bonusTimer-=dt;
+ if(bonusTimer<=0 && playing){spawnBonusOrb();bonusTimer=rand(7,12);}
+ growTimer-=dt;
+ if(growTimer<=0 && playing && level>=2){spawnGrowingOrb();growTimer=rand(13,19);}
+ // target collisions — every overlapping orb this frame gets checked, so a
+ // matching orb behind a wrong-color one is never silently skipped.
+ for(const t of [...targets]){
+   if(dist(ball,t)<ball.r+t.r){
+     if(t.bonus){popBonus(t);continue}
+     if(t.growing && t.matured){burstGrowing(t,maxSpeed);continue}
+     if(t.color===ball.color){fuse(t)}
+     else{
+       // Pass-through, not a bounce: the ball keeps its exact velocity and
+       // position, traveling straight into and out of the orb. The big blast
+       // fires once per pass (throttled per orb) so crossing through still
+       // feels like a dramatic hit, without ever redirecting the ball.
+       if(!t.grazeCooldown||t.grazeCooldown<=0){
+         const speed=Math.hypot(ball.vx,ball.vy);
+         burst(t.x,t.y,colors[t.color],26);
+         burst(ball.x,ball.y,'#ffffff',9);
+         playOrbHit(speed);
+         impactHaptic(speed);
+         flash(.10);
+         shake=Math.min(15,shake+5+speed*.25);
+         t.hitPulse=0.28;
+         t.grazeCooldown=0.35;
+       }
+     }
+   }
+ }
+ // At higher levels, the nearest matching target gets a subtle pulse: it is a hint, not an auto-aim.
+ if(level>=5 && ball){
+   let bestT=null,bestD=Infinity;
+   for(const t of targets) if(t.color===ball.color){
+     const d=dist(ball,t); if(d<bestD){bestD=d;bestT=t;}
+   }
+   targets.forEach(t=>t.hint=(t===bestT && bestD<Math.min(W,H)*.52));
+   if(bestT && bestD<Math.min(W,H)*.28 && Math.random()<dt*.75) playThreat();
+ }
+ // paddle collision: angle determined by hit position
+ if(ball.vy>0 && ball.y+ball.r>=paddle.y-paddle.h/2 && ball.y<paddle.y+18 &&
+    ball.x>paddle.x-paddle.w/2-ball.r && ball.x<paddle.x+paddle.w/2+ball.r){
+   ball.y=paddle.y-paddle.h/2-ball.r;
+   const hit=(ball.x-paddle.x)/(paddle.w/2);
+   const speed=Math.min(maxSpeed,Math.max(7*DIFFICULTY[difficulty].speed,Math.hypot(ball.vx,ball.vy)*1.035));
+   const angle= -Math.PI/2 + hit*1.05;
+   ball.vx=Math.cos(angle)*speed;ball.vy=Math.sin(angle)*speed;
+   const perfect=Math.abs(hit)<.14;
+   const paddlePoints=perfect?Math.max(2,Math.round(5*combo*DIFFICULTY[difficulty].mult)):2;
+   score+=paddlePoints;
+   // Paddle hit-feedback: every single contact gets a quick squash + flash,
+   // scaled up on a perfect hit. This is the single most frequent moment in
+   // the game, so making it feel physical compounds across every rally.
+   paddle.hitFlash = perfect ? 1 : 0.55;
+   paddle.hitSide = hit; // -1..1, used to bias the squash toward impact point
+   if(perfect){
+     comboTimer=Math.max(comboTimer,1.2);
+     levelPoints += Math.min(18,8+combo)*DIFFICULTY[difficulty].mult;
+     orbValue=Math.min(42,orbValue + 1);
+     burst(ball.x,ball.y,'#ffffff',12);popup(ball.x,ball.y,'PERFECT • ORB +'+orbValue,'#ffffff');flash(.055);shake=Math.min(10,shake+2);haptic(18+Math.min(20,combo));
+   }else{burst(ball.x,ball.y,'#65efff',7);popup(ball.x,ball.y,'+ '+paddlePoints,'#65efff');}
+   impactHaptic(speed);playPaddleHit((speed-6)/12);
+   addFlux(3+Math.min(5,combo));
+   if(targets.length<targetCap())spawnTarget();
+   updateHud();
+ }
+ if(ball.y-ball.r>H){registerMiss();if(!playing)return;ball.x=paddle.x;ball.y=paddle.y-28;ball.vx=rand(-3.8,3.8);ball.vy=-Math.max(6.2,6.0+level*.15)*DIFFICULTY[difficulty].speed;ball.trail=[];}
+ // particles
+ particles.forEach(p=>{p.x+=p.vx*dt*60;p.y+=p.vy*dt*60;p.vy+=.08*dt*60;p.life-=dt*1.8});particles=particles.filter(p=>p.life>0);
+ texts.forEach(t=>{t.y-=.6*dt*60;t.life-=dt});texts=texts.filter(t=>t.life>0);
+ if(paddle.hitFlash>0) paddle.hitFlash=Math.max(0,paddle.hitFlash-dt*4.2);
+ shake*=.9;
+ updatePressureBadge();
+}
+function glowCircle(x,y,r,col,alpha=1){
+ ctx.save();ctx.globalAlpha=alpha;ctx.shadowBlur=r*1.8;ctx.shadowColor=col;ctx.fillStyle=col;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();ctx.restore();
+}
+const glyphs=['●','▲','■','◆','★','✚','▼','◉','⬢'];
+function draw(){
+ ctx.clearRect(0,0,W,H);
+ // celestial background — drifting nebula glow + slow-scrolling, twinkling starfield
+ const nowT=performance.now()*.001;
+ ctx.save();
+ for(const nb of nebulae){
+   const nx=((nb.x+nb.vx*nowT)%W+W)%W, ny=((nb.y+nb.vy*nowT)%H+H)%H;
+   const grad=ctx.createRadialGradient(nx,ny,0,nx,ny,nb.r);
+   grad.addColorStop(0,nb.hue+'55');grad.addColorStop(1,nb.hue+'00');
+   ctx.globalAlpha=.5+.15*Math.sin(nowT*.3+nb.phase);
+   ctx.fillStyle=grad;ctx.beginPath();ctx.arc(nx,ny,nb.r,0,Math.PI*2);ctx.fill();
+ }
+ for(const s of stars){
+   const sx=((s.x+s.vx*nowT)%W+W)%W, sy=((s.y+s.vy*nowT)%H+H)%H;
+   const a=(.22+.4*(.5+.5*Math.sin(nowT*s.speed+s.phase)))*(.5+.5*s.depth);
+   ctx.globalAlpha=a;ctx.fillStyle=s.depth>.75?'#eaf7ff':'#8fb2ff';
+   ctx.beginPath();ctx.arc(sx,sy,s.r,0,Math.PI*2);ctx.fill();
+ }
+ ctx.restore();
+ const sx=shake?rand(-shake,shake):0,sy=shake?rand(-shake,shake):0;ctx.save();ctx.translate(sx,sy);
+ // ceiling -- a soft gradient band at the exact height the ball/orbs
+ // actually bounce off, so the boundary reads as an intentional part of
+ // the field rather than an invisible wall. Purely decorative -- draws at
+ // whatever height maxHudBottom() already computes, so it can never drift
+ // out of sync with the real collision boundary. Chosen over a hard line:
+ // gentle enough to not compete with the HUD, doesn't eat into visible
+ // play space, still has a faint center line for definition.
+ {
+   const ceilY=maxHudBottom();
+   const shimmer=.5+.25*Math.sin(nowT*1.4);
+   const grad=ctx.createLinearGradient(0,ceilY-22,0,ceilY+22);
+   grad.addColorStop(0,'rgba(98,234,255,0)');
+   grad.addColorStop(.5,`rgba(98,234,255,${(0.28*shimmer).toFixed(3)})`);
+   grad.addColorStop(1,'rgba(98,234,255,0)');
+   ctx.save();
+   ctx.fillStyle=grad;
+   ctx.fillRect(0,ceilY-22,W,44);
+   ctx.globalAlpha=.5;ctx.strokeStyle='#a9f2ff';ctx.lineWidth=1;
+   ctx.beginPath();ctx.moveTo(18,ceilY);ctx.lineTo(W-18,ceilY);ctx.stroke();
+   ctx.restore();
+ }
+ // targets
+ for(const t of targets){
+   if(t.bonus){
+     ctx.save();
+     const pulse=.75+.25*Math.sin(performance.now()*.012+t.phase);
+     ctx.globalAlpha=Math.min(1,t.life);
+     ctx.shadowBlur=26;ctx.shadowColor='#ffd45c';ctx.fillStyle='#ffd45c40';ctx.strokeStyle='#ffd45c';ctx.lineWidth=2;
+     ctx.beginPath();ctx.arc(t.x,t.y,t.r*pulse,0,Math.PI*2);ctx.fill();ctx.stroke();
+     ctx.globalAlpha=.95;ctx.fillStyle='#fff8e0';ctx.font='900 '+(t.r*1.1)+'px -apple-system,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+     ctx.fillText('✦',t.x,t.y+1);
+     ctx.restore();
+     continue;
+   }
+   if(t.growing){
+     ctx.save();
+     const growPct=t.matured?1:t.r/t.maxR;
+     const glow=t.matured?(.6+.4*Math.sin(performance.now()*.01+t.phase)):.3+.25*growPct;
+     ctx.shadowBlur=t.matured?32:18;ctx.shadowColor=colors[t.color];ctx.fillStyle=colors[t.color]+'30';ctx.strokeStyle=colors[t.color];ctx.lineWidth=t.matured?3:2;
+     ctx.globalAlpha=1;
+     ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.fill();ctx.stroke();
+     if(t.matured){
+       ctx.globalAlpha=glow;ctx.lineWidth=2;ctx.setLineDash([3,5]);
+       ctx.beginPath();ctx.arc(t.x,t.y,t.r+8,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+     }
+     ctx.globalAlpha=.85;ctx.fillStyle=t.matured?'#ffffff':'#04101a';ctx.font='900 '+(t.r*.7)+'px -apple-system,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+     ctx.fillText(t.matured?'⚡':glyphs[t.color%glyphs.length],t.x,t.y+1);
+     ctx.restore();
+     continue;
+   }
+   ctx.save();ctx.shadowBlur=22;ctx.shadowColor=colors[t.color];ctx.fillStyle=colors[t.color]+'28';ctx.strokeStyle=colors[t.color];ctx.lineWidth=2;
+   const pulseScale=t.hitPulse>0?1+(t.hitPulse/0.28)*.35:1;
+   if(t.hitPulse>0){
+     ctx.shadowBlur=40;ctx.globalAlpha=t.hitPulse/0.28;
+     ctx.beginPath();ctx.arc(t.x,t.y,t.r*pulseScale,0,Math.PI*2);ctx.fillStyle='#ffffff55';ctx.fill();
+     ctx.globalAlpha=1;
+   }
+   ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.fill();ctx.stroke();
+   ctx.globalAlpha=.7;ctx.beginPath();ctx.arc(t.x- t.r*.25,t.y-t.r*.28,t.r*.2,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();
+   // Colorblind-friendly cue: each color also gets a fixed glyph, drawn regardless of hue.
+   ctx.globalAlpha=.85;ctx.fillStyle='#04101a';ctx.font=(t.r*.7)+'px -apple-system,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+   ctx.fillText(glyphs[t.color%glyphs.length],t.x,t.y+1);
+   if(t.hint){
+     ctx.globalAlpha=.48+.18*Math.sin(t.phase*3);
+     ctx.strokeStyle=colors[t.color];ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(t.x,t.y,t.r+7,0,Math.PI*2);ctx.stroke();
+   }
+   // Danger orbs now actually show up: a pulsing red warning ring instead of
+   // a flag that was tracked in data but never reached the screen.
+   if(t.danger){
+     ctx.globalAlpha=.55+.35*Math.sin(t.phase*4);
+     ctx.strokeStyle='#ff4f68';ctx.lineWidth=2;ctx.setLineDash([4,4]);
+     ctx.beginPath();ctx.arc(t.x,t.y,t.r+4,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+   }
+   ctx.restore();
+ }
+ // trail
+ ball?.trail.forEach((p,i)=>{if(i%2===0)glowCircle(p.x,p.y,Math.max(2,ball.r*(1-i/12)*.45),colors[ball.color],(1-i/12)*.25)});
+ if(ball){glowCircle(ball.x,ball.y,ball.r,colors[ball.color]);glowCircle(ball.x-ball.r*.28,ball.y-ball.r*.3,ball.r*.22,'#fff',.9)}
+ // trajectory guide: a faint projected path from the FLUX orb toward the lower field.
+ if(ball && level>=4){
+   ctx.save();
+   ctx.globalAlpha=.10+Math.min(.12,(level-4)*.018);
+   ctx.setLineDash([5,9]);ctx.strokeStyle=colors[ball.color];ctx.lineWidth=1.5;
+   ctx.beginPath();ctx.moveTo(ball.x,ball.y);
+   let gx=ball.x, gy=ball.y, gvx=ball.vx, gvy=ball.vy;
+   for(let k=0;k<7;k++){
+     gx+=gvx*7; gy+=gvy*7;
+     if(gx<18||gx>W-18)gvx*=-1;
+     if(gy<92)gvy=Math.abs(gvy);
+     ctx.lineTo(gx,gy);
+     if(gy>paddle.y)break;
+   }
+   ctx.stroke();ctx.restore();
+ }
+ // T-paddle: keep the full hit bar, add a short centered handle below it.
+ // Hit-feedback: brief squash (thicker+wider bar) and a white flash pulse on
+ // every contact, scaled up for a perfect hit. Purely visual -- paddle.w/h
+ // (used for collision) are never touched, only local draw-time multipliers.
+ // Paddle color now follows the active skin's palette (colors[0]) instead of
+ // a fixed cyan, so it matches the ball/orbs -- e.g. warm orange on Solar
+ // Inferno, green on Toxic, violet on Cosmic, cyan on Aurora (default).
+ const paddleCol = colors[0]||'#62eaff';
+ const hf = paddle.hitFlash||0;
+ const ease = hf*hf*(3-2*hf); // smoothstep, so it punches in fast and eases out
+ const visualW = paddle.w*(1+ease*0.10);
+ const visualH = paddle.h*(1+ease*0.55);
+ const grad=ctx.createLinearGradient(paddle.x-visualW/2,0,paddle.x+visualW/2,0);
+ grad.addColorStop(0,paddleCol);grad.addColorStop(.5,'#fff');grad.addColorStop(1,paddleCol);
+ ctx.save();
+ // Extra soft underglow so the whole bar pops clearly against a dark field.
+ ctx.shadowBlur=44+ease*30;ctx.strokeStyle=paddleCol;ctx.globalAlpha=.5+ease*.3;ctx.lineWidth=visualH+10;ctx.lineCap='round';
+ ctx.beginPath();ctx.moveTo(paddle.x-visualW/2,paddle.y);ctx.lineTo(paddle.x+visualW/2,paddle.y);ctx.stroke();
+ ctx.globalAlpha=1;
+ ctx.shadowBlur=32;ctx.shadowColor=paddleCol;
+ // Short handle first so the bar remains the visual collision point.
+ ctx.strokeStyle=paddleCol;ctx.lineWidth=isPhone()?7:8;ctx.lineCap='round';
+ ctx.beginPath();ctx.moveTo(paddle.x,paddle.y+3);ctx.lineTo(paddle.x,paddle.y+paddle.handleH);ctx.stroke();
+ ctx.shadowBlur=32+ease*24;ctx.strokeStyle=grad;ctx.lineWidth=visualH;ctx.lineCap='round';
+ ctx.beginPath();ctx.moveTo(paddle.x-visualW/2,paddle.y);ctx.lineTo(paddle.x+visualW/2,paddle.y);ctx.stroke();
+ // White flash overlay on top, fading out with the squash -- kept pure
+ // white (not skin-tinted) since a crisp white spark reads as "impact"
+ // clearly over any skin color, the same way it does in most action games.
+ if(ease>0.02){
+   ctx.globalAlpha=ease*.85;ctx.shadowBlur=0;ctx.strokeStyle='#ffffff';ctx.lineWidth=visualH*.6;ctx.lineCap='round';
+   ctx.beginPath();ctx.moveTo(paddle.x-visualW/2,paddle.y);ctx.lineTo(paddle.x+visualW/2,paddle.y);ctx.stroke();
+   ctx.globalAlpha=1;
+ }
+ // Small grip accent at the bottom of the handle.
+ ctx.shadowBlur=14;ctx.strokeStyle='#ffffff';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(paddle.x-7,paddle.y+paddle.handleH);ctx.lineTo(paddle.x+7,paddle.y+paddle.handleH);ctx.stroke();
+ ctx.restore();
+ // Permanent MISS TRACKER: each missed ball stays visible until the run ends.
+ ctx.save();
+ const boxW=isPhone()?112:132, boxH=42, bx=W-boxW-14, by=H-boxH-16;
+ ctx.globalAlpha=.94;ctx.fillStyle='#060a20cc';ctx.strokeStyle='#ff4f98aa';ctx.lineWidth=1.5;
+ ctx.beginPath();ctx.roundRect(bx,by,boxW,boxH,12);ctx.fill();ctx.stroke();
+ ctx.fillStyle='#ff7baa';ctx.font='900 7px -apple-system,sans-serif';ctx.textAlign='left';ctx.fillText('FLUX LIVES',bx+10,by+12);
+ for(let i=0;i<3;i++){
+   const mx=bx+13+i*25,my=by+27,missed=i<misses;
+   ctx.globalAlpha=missed?1:.16;ctx.fillStyle='#ff4f98';ctx.shadowBlur=missed?14:0;ctx.shadowColor='#ff4f98';
+   ctx.beginPath();ctx.arc(mx,my,7,0,Math.PI*2);ctx.fill();
+   if(!missed){ctx.globalAlpha=.75;ctx.shadowBlur=0;ctx.strokeStyle='#ff7baa';ctx.lineWidth=1;ctx.stroke();}
+ }
+ ctx.globalAlpha=.9;ctx.shadowBlur=0;ctx.fillStyle='#eaf7ff';ctx.font='900 8px -apple-system,sans-serif';ctx.textAlign='right';ctx.fillText(Math.max(0,3-misses)+' LEFT',bx+boxW-9,by+30);
+ ctx.restore();
+ // particles
+ for(const p of particles){ctx.globalAlpha=Math.max(0,p.life);glowCircle(p.x,p.y,Math.max(1,p.life*4),p.col,p.life);ctx.globalAlpha=1}
+ for(const t of texts){ctx.globalAlpha=t.life;ctx.fillStyle=t.col;ctx.font='900 13px -apple-system,sans-serif';ctx.textAlign='center';ctx.fillText(t.s,t.x,t.y);ctx.globalAlpha=1}
+ // Moment-to-moment feedback: FLUX MODE and level-up should feel like events, not numbers.
+ if(fluxMode>0){
+   ctx.save();ctx.globalAlpha=.75;ctx.textAlign='center';ctx.font='900 11px -apple-system,sans-serif';ctx.fillStyle='#62eaff';ctx.shadowBlur=18;ctx.shadowColor='#62eaff';ctx.fillText('FLUX MODE  '+Math.ceil(fluxMode)+'s',W/2,maxHudBottom()+22);ctx.restore();
+ }
+ if(levelBanner>0){
+   ctx.save();ctx.globalAlpha=Math.min(1,levelBanner<.7?levelBanner/.7:1);ctx.textAlign='center';ctx.font='900 26px -apple-system,sans-serif';ctx.fillStyle='#ffffff';ctx.shadowBlur=28;ctx.shadowColor='#62eaff';ctx.fillText('LEVEL '+level,W/2,H*.22);
+   ctx.font='900 10px -apple-system,sans-serif';ctx.fillStyle='#62eaff';
+   ctx.fillText('LEVEL SECURED • FIELD '+(level>=7?'CRITICAL':level>=4?'UNSTABLE':'STABLE'),W/2,H*.22+24);ctx.restore();
+ }
+ if(perfectFlash>0){
+   ctx.save();ctx.globalAlpha=perfectFlash/.18;ctx.strokeStyle='#ffffff';ctx.lineWidth=3;ctx.shadowBlur=25;ctx.shadowColor='#ffffff';ctx.beginPath();ctx.arc(ball.x,ball.y,ball.r+12+(1-perfectFlash/.18)*22,0,Math.PI*2);ctx.stroke();ctx.restore();
+ }
+ ctx.restore();
+}
+function setPaused(next){
+ if(!playing && !paused) return;
+ paused=next;
+ if(paused){
+   playing=false;
+   document.getElementById('pauseOverlay').classList.remove('hidden');
+   // While paused, RESUME is the single clear action. Hide the duplicate top-left control.
+   document.getElementById('pauseBtn').classList.add('hidden');
+ }else{
+   document.getElementById('pauseOverlay').classList.add('hidden');
+   document.getElementById('pauseBtn').textContent='Ⅱ';
+   document.getElementById('pauseBtn').classList.remove('hidden');
+   playing=true;
+   last=performance.now();
+ }
+}
+
+function loop(ts){
+ if(!window.__f1){window.__f1=1;__d("first frame");}
+ requestAnimationFrame(loop);   // D-45: next frame first, so one bad frame can never freeze the game
+ const dt=Math.min(.032,(ts-last)/1000||.016);
+ if(playing && !paused) fluxPerfSample(ts-last);   // D-46
+ last=ts;
+ if(playing && !paused) update(dt);
+ else if(!paused && levelHold>0){
+   levelHold-=dt;
+   levelBanner=Math.max(0,levelBanner-dt);
+   if(levelHold<=0){levelHold=0;playing=true;updateHud();}
+ }
+ draw();
+}
+requestAnimationFrame(loop);
+function pointer(e){let x=(e.touches?e.touches[0].clientX:e.clientX);setPaddle(x)}
+// ---------------------------------------------------------------------------
+// D-11 — PAGE LIFECYCLE
+// iOS suspends the AudioContext when the app is backgrounded and nothing here
+// resumed it, so a run went permanently silent after a home-button trip.
+// Deliberately narrow: it resumes an EXISTING context only, never creates one,
+// never plays a sound, never touches playing/paused, and re-anchors the frame
+// clock so resuming cannot produce a delta-time jump. Registered exactly once,
+// at top level, alongside the other three listeners.
+// ---------------------------------------------------------------------------
+addEventListener('visibilitychange',function(){
+  if(document.hidden){
+    // Nothing to do: rAF is already throttled by the browser, and dt is clamped.
+    return;
+  }
+  // Re-anchor the clock BEFORE anything else -- protects the 32ms clamp.
+  last=performance.now();
+  // D-11 (RC2.2): the v1 check was `state==='suspended'`, which NEVER matched
+  // on iOS. Safari parks a backgrounded AudioContext in state 'interrupted',
+  // not 'suspended' -- so the resume never fired and the run stayed silent
+  // until the app was killed. Anything that is not 'running' is now resumed.
+  tryResumeAudio();
+},{passive:true});
+
+// Single resume routine, shared by the visibility handler and the gesture
+// fallback below. Never creates a context, never adds nodes, never touches
+// game state, and does nothing at all unless the player already enabled sound
+// (audioReady only becomes true after an explicit tap).
+function tryResumeAudio(){
+  try{
+    if(!audioReady || !audioCtx) return;
+    if(audioCtx.state !== 'running') audioCtx.resume();
+  }catch(e){}
+}
+
+// iOS often refuses resume() outside a user gesture, so returning to the app
+// is not always enough on its own. The first real interaction after coming
+// back retries it. ONE listener, registered once at top level, capture phase
+// so it runs before the paddle handler and never interferes with it.
+addEventListener('pointerdown', tryResumeAudio, {passive:true, capture:true});
+addEventListener('touchstart', tryResumeAudio, {passive:true, capture:true});
+addEventListener('pointermove',pointer,{passive:true});
+addEventListener('touchmove',e=>{pointer(e);e.preventDefault()},{passive:false});
+document.getElementById('pauseBtn').onclick=()=>{ if(!document.getElementById('start').classList.contains('hidden')) return; if(document.getElementById('gameover').classList.contains('hidden')) setPaused(!paused); };
+document.getElementById('resumeBtn').onclick=()=>setPaused(false);
+document.getElementById('pauseMenuBtn').onclick=()=>{
+  // Deliberately quitting mid-run from the pause screen: save exactly what
+  // endGame() would save (best score, best level, submit to leaderboard),
+  // just without the collapse animation/gameover screen, since the player
+  // asked to leave, not lose. Same persistence rules, no scoring changes.
+  recordBestRun(score,level);
+  if(score>best){best=score;}
+  if(profileComplete) submitScore();   // D-39: unnamed pilots upload once they name themselves
+  playing=false;paused=false;runActive=false;
+  document.getElementById('pauseOverlay').classList.add('hidden');
+  document.getElementById('pauseBtn').classList.add('hidden');
+  refreshMenu();
+  document.getElementById('start').classList.remove('hidden');
+  // D-08: quitting mid-run is a real state transition, distinct from game over.
+  // The Gateway needs to know so its Back control returns. Harmless no-op when
+  // played standalone (nothing is listening).
+  try{ window.parent.postMessage({type:'flux-menu'}, '*'); }catch(e){}
+};
+function saveProfile(){
+ callsign=(document.getElementById('callsign').value.trim()||'PLAYER').toUpperCase();
+ country=document.getElementById('country').value||'US';
+ localStorage.fluxCallsign=callsign;localStorage.fluxCountry=country;localStorage.fluxProfileComplete='1';profileComplete=true;refreshMenu();
+}
+function refreshMenu(){
+ document.querySelectorAll('#difficulty button').forEach(b=>b.classList.toggle('selected',b.dataset.d===difficulty));
+ document.querySelectorAll('#gameoverDifficulty button').forEach(b=>b.classList.toggle('selected',b.dataset.d===difficulty));
+ best=+localStorage[bestKey()]||0;document.getElementById('menuBest').textContent=best.toLocaleString();
+ document.getElementById('menuLevel').textContent=+localStorage['fluxBestLevel_'+difficulty]||1;
+ document.getElementById('callsign').value=callsign;document.getElementById('country').value=country;
+ document.getElementById('profileEditor').classList.toggle('hidden',profileComplete);document.getElementById('profileSaved').classList.toggle('hidden',!profileComplete);
+ document.getElementById('profileName').textContent=callsign||'PLAYER';document.getElementById('profileCountry').textContent=countryFlags[country]||'🌎';
+}
+document.querySelectorAll('#difficulty button').forEach(b=>b.onclick=()=>{difficulty=b.dataset.d;localStorage.fluxDifficulty=difficulty;refreshMenu()});
+document.querySelectorAll('#gameoverDifficulty button').forEach(b=>b.onclick=()=>{difficulty=b.dataset.d;localStorage.fluxDifficulty=difficulty;best=+localStorage[bestKey()]||0;document.getElementById('best').textContent=best.toLocaleString();document.getElementById('finalMode').textContent=difficulty.toUpperCase();refreshMenu()});
+document.getElementById('callsign').onchange=e=>{callsign=(e.target.value.trim()||'PLAYER').toUpperCase();e.target.value=callsign};
+document.getElementById('country').onchange=e=>{country=e.target.value};
+document.getElementById('editProfile').onclick=()=>{profileComplete=false;document.getElementById('profileEditor').classList.remove('hidden');document.getElementById('profileSaved').classList.add('hidden');};
+function equipSkin(sku){
+  if(!ownsSkin(sku))return;
+  activeSkin=sku;localStorage.fluxSkin=sku;colors=currentPalette();
+  applySkinBackground();
+  buildShopUI();
+}
+function buildShopUI(){
+  const list=document.getElementById('shopList');
+  if(!list)return;
+  list.innerHTML='';
+  Object.entries(SKINS).forEach(([sku,s])=>{
+    const owned=ownsSkin(sku), equipped=activeSkin===sku;
+    const row=document.createElement('div');
+    row.className='shopRow';
+    row.innerHTML=`<div class="shopSwatches">${s.colors.slice(0,5).map(c=>`<i style="background:${c}"></i>`).join('')}</div>
+      <div class="shopInfo"><b>${s.name}</b><span>${owned?(equipped?'ACTIVE':'OWNED'):(STORE_OPEN?s.price:'COMING SOON')}</span></div>`;
+    const btn=document.createElement('button');
+    if(equipped){btn.textContent='ACTIVE';btn.disabled=true;}
+    else if(owned){btn.textContent='USE';btn.onclick=()=>equipSkin(sku);}
+    else if(!STORE_OPEN){btn.textContent='SOON';btn.disabled=true;}   // STORE SWITCH
+    else{btn.textContent='BUY '+s.price;btn.onclick=()=>buySkin(sku,btn);}
+    row.appendChild(btn);
+    list.appendChild(row);
+  });
+  buildBackgroundUI();
+}
+// Backdrop picker: lists "Original" (always free) plus any skin that has its
+// own backdrop image AND is owned. Fully independent of buildShopUI() above
+// -- picking a backdrop here never touches activeSkin/colors, and equipping
+// a color skin above never touches activeBackground.
+function buildBackgroundUI(){
+  const list=document.getElementById('backgroundList');
+  if(!list)return;
+  list.innerHTML='';
+  const options=[['none',{name:'CELESTIAL'}]].concat(
+    Object.entries(SKINS).filter(([sku,s])=>s.bg && ownsSkin(sku))
+  );
+  options.forEach(([key,s])=>{
+    const active=activeBackground===key;
+    const row=document.createElement('div');
+    row.className='shopRow';
+    row.innerHTML=`<div class="shopSwatches">${key==='none'?'<i style="background:#1c2c5c"></i>':`<i style="background:${s.colors[0]}"></i>`}</div>
+      <div class="shopInfo"><b>${s.name}</b></div>`;
+    const btn=document.createElement('button');
+    if(active){btn.textContent='ACTIVE';btn.disabled=true;}
+    else{btn.textContent='USE';btn.onclick=()=>setBackground(key);}
+    row.appendChild(btn);
+    list.appendChild(row);
+  });
+}
+async function buySkin(sku,btn){
+  btn.disabled=true;btn.textContent='LOADING…';
+  try{
+    const res=await fetch('/api/create-checkout-session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sku})});
+    const data=await res.json();
+    if(data.url){location.href=data.url;}
+    else{throw new Error(data.error||'checkout failed')}
+  }catch(e){
+    btn.disabled=false;btn.textContent='BUY '+SKINS[sku].price;
+    showInfo('CHECKOUT ERROR',e.message||"Couldn't start checkout. Try again in a moment.");
+  }
+}
+async function verifyPendingPurchase(){
+  const p=new URLSearchParams(location.search);
+  const sessionId=p.get('session_id'),sku=p.get('sku');
+  if(!sessionId||!sku)return;
+  // ONE-APP: mark this session as being handled so resumePendingCheckout()
+  // does not resolve it a second time.
+  (window.__fluxHandledSessions || (window.__fluxHandledSessions = new Set())).add(sessionId);
+  history.replaceState({},'',location.pathname);
+  try{
+    const res=await fetch('/api/verify-session?session_id='+encodeURIComponent(sessionId));
+    const data=await res.json();
+    /* T-9: the SKU that gets unlocked is the one the SERVER confirmed for this
+       session, never the one in the URL. Previously `sku` came from the query
+       string, so a real paid session for a cheap skin could be replayed with
+       ?sku=solar to unlock a different one. The server also returns the
+       playerId the session was created for; if it is not this player, nothing
+       is granted. Ownership is then taken from a fresh server sync rather than
+       written locally -- the server stays the single authority. */
+    const confirmedSku = data.sku;
+    const confirmedFor = data.playerId;
+    // D-31 (RC2.8.1): paid but still being delivered -> never claim completion.
+    if(data.paid && confirmedFor === playerId && data.pendingDelivery === true){
+      showInfo('PAYMENT RECEIVED','Your payment went through. Your skin is still being delivered and will unlock automatically — reopen FLUX in a few minutes. If it has not arrived within a day, email playfluxofficial@gmail.com.');
+      return;
+    }
+    if(data.paid && confirmedSku && confirmedFor === playerId && data.delivered !== false){
+      try { if ((JSON.parse(localStorage.fluxPendingCheckout||'null')||{}).sessionId === sessionId) localStorage.removeItem('fluxPendingCheckout'); } catch (e) {}
+      await syncEntitlements();
+      showInfo('PURCHASE COMPLETE',(SKINS[confirmedSku]?.name||confirmedSku)+' is unlocked. Open THEMES & SKINS to equip it.');
+    }else if(data.paid && confirmedFor && confirmedFor !== playerId){
+      /* ONE-APP: on iOS, Stripe's return can open outside the installed app,
+         in a separate storage context. The payment is still recorded against
+         the player who paid (server-side, from the Stripe session), so point
+         them back to the app rather than implying something went wrong.
+         Nothing is granted to THIS context. */
+      showInfo('PAYMENT RECEIVED',"Your purchase is recorded. Open FLUX from your Home Screen to use it.");
+    }else{
+      showInfo('PAYMENT NOT COMPLETE',"We couldn't confirm that payment went through. If you were charged, contact support.");
+    }
+  }catch(e){/* silent — user can retry via support if a charge went through without unlocking */}
+}
+verifyPendingPurchase();
+function showInfo(title,msg){const d=document.createElement('div');d.className='miniOverlay';d.innerHTML='<div class="panel"><h2 style="color:#62eaff;letter-spacing:.14em">'+title+'</h2><p>'+msg+'</p><button>BACK</button></div>';document.getElementById('app').appendChild(d);d.querySelector('button').onclick=()=>d.remove()}
+
+// Sends the personal-best RUN to the server: score and level from the SAME
+// run (see bestRun() / recordBestRun()), never two values from different runs.
+// The country the player picked is sent through; worker.js falls back to the
+// connecting IP only when it is missing or malformed. A failure is recorded
+// locally for diagnostics -- it is no longer swallowed silently.
+// ---------------------------------------------------------------------------
+// D-02 / D-09 — SCORE SUBMISSION WITH AN OFFLINE QUEUE
+// A completed run is never discarded because the network is down. The queued
+// item is the WHOLE run record (score+level+difficulty+playerId), never
+// reassembled from independent "best" values.
+//
+// Failures are split three ways on purpose:
+//   network / 5xx / 429 -> temporary: keep it queued, retry later
+//   other 4xx           -> permanent server rejection: drop it, record why
+//   success             -> remove from the queue
+// Attempts are capped so a bad item cannot retry forever.
+// ---------------------------------------------------------------------------
+const SUBMIT_QUEUE_KEY='fluxPendingSubmits';
+const SUBMIT_MAX_ATTEMPTS=Infinity;   // RC2.8: temporary failures never exhaust a best (see D-24)
+const SUBMIT_QUEUE_MAX=20;
+function loadQueue(){
+  try{ const q=JSON.parse(localStorage[SUBMIT_QUEUE_KEY]||'[]'); return Array.isArray(q)?q:[]; }
+  catch(e){ return []; }
+}
+function saveQueue(q){
+  try{ localStorage[SUBMIT_QUEUE_KEY]=JSON.stringify(q.slice(-SUBMIT_QUEUE_MAX)); }catch(e){}
+}
+function buildSubmission(){
+  const run=bestRun();
+  if(!(run.score>0)) return null;
+  return {
+    id:playerId+':'+difficulty+':'+run.score+':'+run.level,
+    playerId:playerId,
+    name:callsign||'PILOT',
+    score:run.score,
+    level:run.level,
+    difficulty:run.difficulty||difficulty,
+    country:(country&&country!=='OTHER')?country:undefined,
+    at:Date.now(),
+    attempts:0
+  };
+}
+/* D-24 (RC2.8): RELIABLE QUEUED SCORES
+   RC2.7 deleted a queued personal best after 8 temporary failures, counted
+   network errors, HTTP 429 and server errors against the same budget, never
+   scheduled a retry on its own, and let several flushes run at once.
+   Now:
+   - temporary failures (network, 429, 5xx) NEVER delete an unsent best;
+   - ONE queue processor at a time; extra calls share the running one;
+   - retries are scheduled automatically with growing waits, honouring
+     Retry-After and the server's 10-second cooldown;
+   - the queue keeps only the best unsent record per player and difficulty.
+   Only a permanent rejection (the server refusing the score itself) removes
+   an item, and that is recorded. */
+const SUBMIT_BACKOFF_MS=[5000,15000,45000,120000,300000,600000];
+const SUBMIT_COOLDOWN_WAIT_MS=11000;
+let _flushing=null, _retryTimer=null, _flushAgain=false;
+
+function enqueueSubmission(item){
+  if(!item) return;
+  const q=loadQueue();
+  const same=function(x){ return x.playerId===item.playerId && x.difficulty===item.difficulty; };
+  const existing=q.find(same);
+  if(existing && existing.score>=item.score) return;          // keep the better unsent best
+  saveQueue(q.filter(function(x){ return !same(x); }).concat([item]));
+  updateUploadStatus();
+}
+function dequeueSubmission(id){
+  saveQueue(loadQueue().filter(function(x){return x.id!==id;}));
+}
+async function postSubmission(item){
+  let res;
+  try{
+    res=await fetch('/api/submit-score',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        playerId:item.playerId, name:item.name, score:item.score,
+        level:item.level, difficulty:item.difficulty, country:item.country
+      })
+    });
+  }catch(e){ return { kind:'temporary', waitMs:0 }; }
+  if(res.ok){
+    let body=null; try{ body=await res.json(); }catch(e){}
+    return { kind:'ok', body:body };
+  }
+  if(res.status===429||res.status>=500){
+    let waitMs=0;
+    try{
+      const ra=res.headers && res.headers.get && res.headers.get('Retry-After');
+      if(ra && isFinite(+ra)) waitMs=(+ra)*1000;
+    }catch(e){}
+    if(res.status===429) waitMs=Math.max(waitMs, SUBMIT_COOLDOWN_WAIT_MS);
+    return { kind:'temporary', waitMs:waitMs };
+  }
+  return { kind:'permanent' };
+}
+function scheduleFlush(ms){
+  if(_retryTimer) { try{ clearTimeout(_retryTimer); }catch(e){} }
+  _retryTimer=setTimeout(function(){ _retryTimer=null; flushSubmitQueue(); }, ms);
+}
+function flushSubmitQueue(){
+  // One processor at a time. A request that arrives WHILE it runs (e.g. a run
+  // ends during a background retry) sets _flushAgain, so the processor takes
+  // one more pass instead of leaving the new score waiting for the next timer.
+  if(_flushing){ _flushAgain=true; return _flushing; }
+  _flushing=(async function(){
+    // Yield once BEFORE doing anything. Without this, an empty queue (every app
+    // launch) finishes the whole body -- including the finally that clears
+    // _flushing -- synchronously, BEFORE this assignment completes. The stale
+    // promise would then be stored and never cleared, and every later flush
+    // would wait on it forever: scores would queue and never send.
+    await Promise.resolve();
+    try{
+      do {
+      _flushAgain=false;
+      if(typeof navigator!=='undefined' && navigator.onLine===false) return;
+      let retryScheduled=false;
+      for(const item of loadQueue()){
+        const r=await postSubmission(item);
+        if(r.kind==='ok'){
+          dequeueSubmission(item.id); clearSubmitFailure();
+          const b=r.body||{};
+          if(b.tag && /^[0-9A-Z]{6,}$/.test(b.tag)){ try{ localStorage.fluxPublicTag=b.tag; }catch(e){} }
+          lastUploadResult=b;
+        } else if(r.kind==='permanent'){
+          dequeueSubmission(item.id); recordSubmitFailure('rejected');
+        } else {
+          item.attempts=(item.attempts||0)+1;
+          const cur=loadQueue();
+          const k=cur.findIndex(function(x){return x.id===item.id;});
+          if(k>=0){ cur[k]=item; saveQueue(cur); }
+          recordSubmitFailure('queued');
+          const backoff=SUBMIT_BACKOFF_MS[Math.min(item.attempts-1, SUBMIT_BACKOFF_MS.length-1)];
+          scheduleFlush(Math.max(backoff, r.waitMs||0));
+          retryScheduled=true;
+          break;                                                // retry later, in order
+        }
+      }
+      if(retryScheduled) break;                                 // never hammer a failing server
+      } while(_flushAgain);
+    } finally {
+      _flushing=null;
+      updateUploadStatus();
+    }
+  })();
+  return _flushing;
+}
+function submitScore(){
+  const item=buildSubmission();
+  if(!item) return Promise.resolve();
+  enqueueSubmission(item);
+  return flushSubmitQueue();
+}
+
+/* Honest, automatic score status (RC2.8). Shows only what is true:
+   "PENDING UPLOAD" while a best is waiting to be sent; the player's public rank
+   only when the server says they have one; nothing otherwise. There is no
+   review queue, so "pending review" is never shown. */
+let lastUploadResult=null;
+function updateUploadStatus(){
+  try{
+    const el=document.getElementById('uploadStatus');
+    if(el){
+      const waiting=loadQueue().length>0;
+      if(waiting) el.textContent='● BEST PENDING UPLOAD';
+      else if(lastUploadResult && lastUploadResult.public===true && Number.isFinite(lastUploadResult.rank) && lastUploadResult.rank>0)
+        el.textContent='GLOBAL RANK #'+lastUploadResult.rank+' ('+String(lastUploadResult.difficulty||difficulty).toUpperCase()+')';
+      else el.textContent='';
+    }
+    const tagEl=document.getElementById('profileTag');
+    if(tagEl){
+      let t=''; try{ t=localStorage.fluxPublicTag||''; }catch(e){}
+      tagEl.textContent = t ? ' #'+t : '';
+    }
+  }catch(e){}
+}
+function recordSubmitFailure(reason){
+  try{
+    localStorage.fluxLastSubmitError=JSON.stringify({reason:reason,at:Date.now(),difficulty:difficulty});
+    localStorage.fluxSubmitFailCount=(+localStorage.fluxSubmitFailCount||0)+1;
+  }catch(e){}
+}
+function clearSubmitFailure(){
+  try{ localStorage.removeItem('fluxLastSubmitError'); localStorage.fluxSubmitFailCount=0; }catch(e){}
+}
+
+/* AUDIT A-1: the leaderboard no longer carries playerIds (they are the only
+   proof of identity, so publishing them let anyone become any listed player).
+   Each row carries a one-way hash instead; this computes the same hash of our
+   own id -- SHA-256 of "flux-pid:" + playerId, first 8 bytes as hex, identical
+   to pidHash() in worker.js -- so the game can still highlight "your" row. */
+let _myPidHash = null;
+function myPidHash(){
+  if (!_myPidHash) {
+    _myPidHash = (async () => {
+      try {
+        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('flux-pid:' + playerId));
+        return Array.from(new Uint8Array(buf)).slice(0, 8).map(b => b.toString(16).padStart(2, '0')).join('');
+      } catch (e) { return null; }
+    })();
+  }
+  return _myPidHash;
+}
+function openLeaderboard(){
+  if(isOffline()){
+    showInfo('CONNECTION REQUIRED','The Global Leaderboard needs an internet connection. Your runs are saved on this device and will be submitted automatically when you are back online.');
+    return;
+  }
+  const d=document.createElement('div');
+  d.className='miniOverlay';
+  d.innerHTML='<div class="panel lbPanel"><h2 style="color:#62eaff;letter-spacing:.14em">GLOBAL LEADERBOARD</h2><div id="lbBody" class="lbBody"><p class="lbLoading">Loading rankings…</p></div><button id="lbClose">BACK</button></div>';
+  document.getElementById('app').appendChild(d);
+  d.querySelector('#lbClose').onclick=()=>d.remove();
+  fetch('/api/leaderboard?limit=25').then(async r=>{
+    if(!r.ok){
+      let message='Leaderboard service is not configured yet.';
+      try{const err=await r.json();if(err&&err.error)message=err.error;}catch(e){}
+      throw new Error(message);
+    }
+    return r.json();
+  }).then(async data=>{
+    const myPid = await myPidHash();   // A-1
+    const body=d.querySelector('#lbBody');
+    if(!data.top||!data.top.length){body.innerHTML='<p class="lbEmpty">No runs submitted yet. Be the first on the board.</p>';return}
+    let html='';
+    if(data.leadingCountry){
+      html+='<div class="lbLeading">'+(countryFlags[data.leadingCountry.country]||'🌎')+' <b>'+data.leadingCountry.country+'</b> is leading with '+data.leadingCountry.playerCount+' pilot'+(data.leadingCountry.playerCount===1?'':'s')+'</div>';
+    }
+    html+='<div class="lbList">'+data.top.map((r,i)=>{
+      const mine=!!myPid && r.pid===myPid;   // A-1: compare hashes, never ids
+      return '<div class="lbRow'+(mine?' lbMine':'')+'"><span class="lbRank">#'+(i+1)+'</span><span class="lbFlag">'+(countryFlags[r.country]||'🌎')+'</span><span class="lbName">'+escapeHtml(r.name)+(r.tag?'<small class="lbTag"> #'+escapeHtml(r.tag)+'</small>':'')+'</span><span class="lbScore">'+r.score.toLocaleString()+'</span></div>';
+    }).join('')+'</div>';
+    if(data.countries&&data.countries.length>1){
+      html+='<div class="lbSectionLabel">TOP COUNTRIES</div><div class="lbList">'+data.countries.slice(0,8).map(c=>{
+        return '<div class="lbRow"><span class="lbFlag">'+(countryFlags[c.country]||'🌎')+'</span><span class="lbName">'+c.country+'</span><span class="lbScore">'+c.totalScore.toLocaleString()+'</span></div>';
+      }).join('')+'</div>';
+    }
+    body.innerHTML=html;
+  }).catch((err)=>{
+    const msg=escapeHtml(err&&err.message?err.message:'Couldn\'t reach the leaderboard.');
+    d.querySelector('#lbBody').innerHTML='<p class="lbEmpty">'+msg+'<br><br>Cloudflare leaderboard setup is required before cross-device scores can appear.</p>';
+  });
+}/* ==================================================================
+   FLUX v4 CLIENT PATCH
+   ------------------------------------------------------------------
+   Paste this whole block into index.html on the line directly ABOVE
+   the closing <script> tag, at the very bottom of the file.
+
+   It overrides the original functions rather than editing them, so
+   nothing above it needs to change. Safe to remove later by deleting
+   from this comment down to the END marker.
+   ================================================================== */
+
+/* --- 1. Player ID must match what the server accepts --- */
+(function () {
+  const VALID = /^[A-Za-z0-9_-]{1,64}$/;
+  const RESERVED = ['__proto__', 'constructor', 'prototype'];
+  const current = localStorage.fluxPlayerId;
+  if (!current || !VALID.test(current) || RESERVED.includes(current)) {
+    try {
+      localStorage.fluxPlayerId = crypto.randomUUID
+        ? crypto.randomUUID()
+        : 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+      location.reload();
+    } catch (e) {}
+  }
+})();
+
+/* --- 2. Skin ownership comes from the server, not localStorage --- */
+let fluxOwnedSkus = new Set();
+let fluxEntitlementsLoaded = false;
+
+/* ---------------------------------------------------------------------------
+   T-9 — PRODUCTION OWNERSHIP AUTHORITY
+
+   The server is the authority for paid skins. This used to fall back to
+   localStorage['fluxOwned_'+sku]==='1' whenever entitlements had not loaded
+   yet, which meant a legacy mock/beta key from testing unlocked a paid skin
+   on a production build -- offline, or simply before the first sync returned.
+
+   Ownership now comes from a VERSIONED, PROVENANCE-AWARE cache that is only
+   written after the production server has confirmed the SKU for THIS playerId.
+   A legacy key on its own proves nothing and grants nothing.
+
+   Offline still works, but only for skins previously verified against the
+   server: server confirms -> verified cache written -> skin works offline.
+   --------------------------------------------------------------------------- */
+const ENT_CACHE_KEY = 'fluxEntitlementsV1';
+
+function readVerifiedEntitlements() {
+  try {
+    const raw = localStorage[ENT_CACHE_KEY];
+    if (!raw) return null;
+    const c = JSON.parse(raw);
+    if (!c || c.v !== 1) return null;                    // version gate
+    if (c.source !== 'server') return null;              // provenance gate
+    if (c.playerId !== playerId) return null;            // one player's proof
+    if (!Array.isArray(c.skus)) return null;             //   is not another's
+    return c;
+  } catch (e) { return null; }
+}
+
+function writeVerifiedEntitlements(skus) {
+  try {
+    localStorage[ENT_CACHE_KEY] = JSON.stringify({
+      v: 1, source: 'server', playerId: playerId,
+      skus: Array.from(new Set(skus)), verifiedAt: Date.now()
+    });
+  } catch (e) {}
+}
+
+ownsSkin = function (sku) {
+  if (sku === 'aurora') return true;                     // always free
+  if (fluxEntitlementsLoaded) return fluxOwnedSkus.has(sku);
+  const cached = readVerifiedEntitlements();
+  return !!cached && cached.skus.indexOf(sku) !== -1;
+  // Deliberately NO legacy fluxOwned_* fallback. See the note above.
+};
+
+async function syncEntitlements() {
+  try {
+    const r = await fetch('/api/entitlements?playerId=' + encodeURIComponent(playerId));
+    if (!r.ok) return;
+    const d = await r.json();
+    if (!d || !Array.isArray(d.skus)) return;
+
+    fluxOwnedSkus = new Set(d.skus);
+    fluxEntitlementsLoaded = true;
+
+    // T-9: the server just spoke. Record its answer as the verified cache so
+    // these skins keep working offline.
+    writeVerifiedEntitlements(d.skus);
+
+    // T-9: reconcile this device against the server. A paid SKU the server
+    // does NOT list must stop counting as ownership here -- that is how an old
+    // tester/mock unlock gets cleaned up. Only paid-skin keys are touched:
+    // scores, FLUX ID, country, settings and personal bests are never read or
+    // written by this block.
+    try {
+      ['toxic', 'cosmic', 'solar'].forEach(paidSku => {
+        if (!fluxOwnedSkus.has(paidSku)) localStorage.removeItem('fluxOwned_' + paidSku);
+      });
+    } catch (e) {}
+
+    if (!ownsSkin(activeSkin)) {
+      activeSkin = 'aurora';
+      try { localStorage.fluxSkin = 'aurora'; } catch (e) {}
+      colors = currentPalette();
+    }
+    if (activeBackground !== 'none' && !ownsSkin(activeBackground)) setBackground('none');
+
+    applySkinBackground();
+    buildShopUI();
+  } catch (e) {
+    /* offline — cached values stand */
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   ONE-APP (RC2.5.6 audit) — THE INSTALLED APP RESOLVES ITS OWN PURCHASE
+
+   Verification used to happen ONLY when a page loaded carrying ?session_id=.
+   On iOS the Stripe return can open in a different storage context from the
+   installed app (owner-observed: a return page showing a different player). In
+   that case the app never verified, never showed the skin, and the BUY lock was
+   never released.
+
+   Now the app records its own pending checkout (session id + sku + playerId)
+   before leaving for Stripe, and resolves it itself whenever it comes back to
+   the foreground -- visibilitychange, pageshow (back-gesture / bfcache restore,
+   which does NOT reload the page) and first load.
+
+   Nothing here grants ownership on the client. /api/verify-session asks Stripe
+   with the secret key; the server grants to the playerId stored in the Stripe
+   session metadata; the app then re-reads ownership via syncEntitlements().
+   A pending record belonging to a different playerId is ignored.
+   --------------------------------------------------------------------------- */
+const PENDING_CHECKOUT_KEY = 'fluxPendingCheckout';
+const PENDING_CHECKOUT_TTL = 2 * 60 * 60 * 1000;   // 2 hours
+
+function rememberPendingCheckout(sessionId, sku) {
+  if (!sessionId) return;
+  try {
+    localStorage[PENDING_CHECKOUT_KEY] = JSON.stringify({
+      sessionId: String(sessionId), sku: String(sku), playerId: playerId, at: Date.now()
+    });
+  } catch (e) {}
+}
+function clearPendingCheckout() {
+  try { localStorage.removeItem(PENDING_CHECKOUT_KEY); } catch (e) {}
+}
+function readPendingCheckout() {
+  try {
+    const p = JSON.parse(localStorage[PENDING_CHECKOUT_KEY] || 'null');
+    if (!p || !p.sessionId || p.playerId !== playerId) return null;   // not ours
+    if (Date.now() - (p.at || 0) > PENDING_CHECKOUT_TTL) { clearPendingCheckout(); return null; }
+    return p;
+  } catch (e) { return null; }
+}
+// Shared with verifyPendingPurchase so the same session is never resolved twice
+// (which would show two PURCHASE COMPLETE dialogs). A window property, so it is
+// safe no matter which of the two runs first during page load.
+function handledSessions() {
+  return window.__fluxHandledSessions || (window.__fluxHandledSessions = new Set());
+}
+
+let resolvingCheckout = false;
+async function resumePendingCheckout() {
+  // Coming back from Stripe must never leave a purchase lock held.
+  purchaseInFlight = false;
+  const p = readPendingCheckout();
+  if (!p || resolvingCheckout || isOffline() || handledSessions().has(p.sessionId)) {
+    try { buildShopUI(); } catch (e) {}
+    return;
+  }
+  resolvingCheckout = true;
+  handledSessions().add(p.sessionId);
+  try {
+    const res = await fetch('/api/verify-session?session_id=' + encodeURIComponent(p.sessionId));
+    const data = await res.json();
+    /* D-31 (RC2.8.1): paid is not the same as delivered. If Stripe confirmed the
+       payment but the skin is still being saved, say so plainly, keep the
+       pending record, and check again on the next return. */
+    if (data.paid && data.playerId === playerId && data.pendingDelivery === true) {
+      handledSessions().delete(p.sessionId);
+      showInfo('PAYMENT RECEIVED', 'Your payment went through. Your skin is still being delivered and will unlock automatically — reopen FLUX in a few minutes. If it has not arrived within a day, email playfluxofficial@gmail.com.');
+      try { buildShopUI(); } catch (e) {}
+    } else if (data.paid && data.sku && data.playerId === playerId && data.delivered !== false) {
+      clearPendingCheckout();
+      await syncEntitlements();              // server is the authority
+      showInfo('PURCHASE COMPLETE', (SKINS[data.sku]?.name || data.sku) + ' is unlocked. Open THEMES & SKINS to equip it.');
+    } else if (data.paid && data.playerId && data.playerId !== playerId) {
+      clearPendingCheckout();                // never ours to claim
+      try { buildShopUI(); } catch (e) {}
+    } else {
+      // Not paid: cancelled, or still in progress. Allow a later foreground to
+      // check again, and restore the BUY buttons now.
+      handledSessions().delete(p.sessionId);
+      try { buildShopUI(); } catch (e) {}
+    }
+  } catch (e) {
+    handledSessions().delete(p.sessionId);
+    try { buildShopUI(); } catch (_) {}
+  } finally {
+    resolvingCheckout = false;
+  }
+}
+addEventListener('visibilitychange', function () { if (!document.hidden) resumePendingCheckout(); });
+addEventListener('pageshow', function () { resumePendingCheckout(); });
+
+/* --- 3. Checkout must send the player ID --- */
+/* ---------------------------------------------------------------------------
+   AUDIT-F06 (RC2.5.4) — CHECKOUT NAVIGATION THAT WORKS INSIDE THE GATEWAY
+
+   Stripe Checkout sets frame-ancestors and will not render in an iframe. When
+   FLUX runs inside the Gateway's play overlay, `location.href = url` therefore
+   left the player on Stripe's skeleton screen forever with no error. Standalone
+   FLUX was never affected -- it is already top-level.
+
+   So: if we are framed, hand the URL to the parent and let IT navigate the
+   whole installed window. If we are top-level, navigate ourselves exactly as
+   before. The URL is validated here too -- we never post an arbitrary string
+   upward, and the Gateway validates it again on receipt.
+
+   This sends only a URL. It grants nothing, and the server-authoritative
+   entitlement system is untouched.
+   --------------------------------------------------------------------------- */
+function isStripeCheckoutUrl(raw){
+  if (typeof raw !== 'string' || raw.length > 2048) return false;
+  let u;
+  try { u = new URL(raw); } catch (e) { return false; }
+  if (u.protocol !== 'https:') return false;
+  const h = u.hostname.toLowerCase();
+  return h === 'checkout.stripe.com' || h === 'stripe.com' || /\.stripe\.com$/.test(h);
+}
+
+function isFramed(){
+  try { return window.parent && window.parent !== window; } catch (e) { return true; }
+}
+
+function goToCheckout(url){
+  if (!isStripeCheckoutUrl(url)) throw new Error('Unexpected checkout destination');
+  if (isFramed()) {
+    // Targeted at the Gateway's own origin, never '*': the URL is only for it.
+    try {
+      window.parent.postMessage({ type: 'flux-open-checkout', url: url }, document.referrer ? new URL(document.referrer).origin : '*');
+      return 'handoff';
+    } catch (e) { /* fall through to a normal navigation */ }
+  }
+  location.href = url;
+  return 'navigated';
+}
+
+/* T-9 (RC2.5.5): ONE PURCHASE AT A TIME.
+   Owner-observed: tapping several BUY buttons left Toxic, Cosmic and Solar all
+   sitting at LOADING... at once. Two faults behind that. First, nothing stopped
+   a second purchase starting while one was unresolved. Second, the button was
+   never restored on the path that hands off instead of navigating, so a
+   handoff that went nowhere left it stuck forever.
+   A single in-flight flag fixes the first; restoring the label after a handoff
+   that has not navigated within a few seconds fixes the second. */
+let purchaseInFlight = false;
+function resetBuyButton(btn, sku){
+  try {
+    btn.disabled = false;
+    btn.textContent = 'BUY ' + SKINS[sku].price;
+  } catch (e) {}
+}
+
+buySkin = async function (sku, btn) {
+  if (!STORE_OPEN) {                                   // STORE SWITCH
+    showInfo('COMING SOON', 'Premium skins are coming soon. Everything else in FLUX is free to play now.');
+    return;
+  }
+  if(isOffline()){
+    showInfo('CONNECTION REQUIRED','Purchases need an internet connection. Everything else in FLUX works offline.');
+    return;
+  }
+  if (purchaseInFlight) {
+    showInfo('ONE AT A TIME', 'A purchase is already being set up. Finish or cancel that one first.');
+    return;
+  }
+  purchaseInFlight = true;
+  btn.disabled = true;
+  btn.textContent = 'LOADING…';
+  /* T-9: FLUX's own pre-navigation request must never hang forever. This
+     bounds only OUR call to the worker -- once we navigate to Stripe, their
+     hosted page is theirs and we do not touch it. 15s is generous for a
+     Cloudflare Worker round trip. */
+  const ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  const killTimer = setTimeout(() => { try { ctl && ctl.abort(); } catch (e) {} }, 15000);
+  try {
+    const res = await fetch('/api/create-checkout-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sku, playerId }),
+      signal: ctl ? ctl.signal : undefined
+    });
+    const data = await res.json();
+    if (!res.ok && data && data.error) throw new Error(data.error);
+    if (data.url) {
+      // ONE-APP (RC2.5.6 audit): remember THIS player's checkout before leaving.
+      // Stripe's return can land in a different iOS storage context than the
+      // installed app, so the app must be able to resolve its own purchase
+      // itself, without depending on the return page at all.
+      rememberPendingCheckout(data.sessionId, sku);
+      const navigated = goToCheckout(data.url);
+      if (navigated === 'handoff') {
+        // We asked the parent to navigate. If the window is still here a few
+        // seconds later, the handoff did not take -- give the button back
+        // instead of leaving it stuck on LOADING forever.
+        setTimeout(() => {
+          purchaseInFlight = false;
+          resetBuyButton(btn, sku);
+        }, 4000);
+      }
+    }
+    else { throw new Error(data.error || 'checkout failed'); }
+  } catch (e) {
+    purchaseInFlight = false;
+    resetBuyButton(btn, sku);
+    const aborted = e && (e.name === 'AbortError' || /abort/i.test(String(e.message || '')));
+    showInfo('CHECKOUT ERROR', aborted
+      ? "Checkout is taking longer than expected. Check your connection and try again."
+      : (e.message || "Couldn't start checkout. Try again in a moment."));
+  } finally {
+    clearTimeout(killTimer);
+  }
+};
+
+/* --- 4. Country handling — see the canonical submitScore() above ---------
+   AUDIT-F02 (RC2.5.2): this slot used to hold
+       submitScore = function () { ... }
+   a leftover from the v4 patch era. Because it executed at load, it REPLACED
+   the canonical `function submitScore()` defined earlier in this file, so the
+   shipped game ran the old implementation: score and level rebuilt from two
+   independent localStorage keys (the D-09 mismatch), no offline queue, and a
+   bare .catch(() => {}) that discarded every failure.
+
+   It is removed. The canonical implementation is now the only one. It already
+   sends the player's chosen country, which is all this patch was still for.
+   Do not reintroduce an assignment to submitScore anywhere in this file --
+   the regression suite fails the build if a second definition appears. */
+
+/* --- 5. A callsign is required; no more silent "PLAYER" --- */
+saveProfile = function () {
+  const typed = document.getElementById('callsign').value.trim();
+  if (!typed) {
+    const input = document.getElementById('callsign');
+    input.placeholder = 'ENTER FLUX ID';
+    input.style.borderColor = '#ff4f98';
+    input.focus();
+    setTimeout(() => { input.style.borderColor = ''; }, 1600);
+    return false;
+  }
+  callsign = typed.toUpperCase();
+  country = document.getElementById('country').value || 'US';
+  localStorage.fluxCallsign = callsign;
+  localStorage.fluxCountry = country;
+  localStorage.fluxProfileComplete = '1';
+  profileComplete = true;
+  refreshMenu();
+  return true;
+};
+
+document.getElementById('callsign').onchange = e => {
+  const v = e.target.value.trim().toUpperCase();
+  callsign = v;
+  e.target.value = v;
+};
+
+/* --- 6. (RC2.8.5) The start button has ONE handler: the D-39/D-43 one near the
+   end of this script. Two older assignments here were always overwritten
+   before a player could tap, and were removed so start behaviour lives in one
+   place. --- */
+
+/* --- 7. First run: preselect the real country instead of 🇺🇸 --- */
+if (!localStorage.fluxCountry) {
+  fetch('/api/geo')
+    .then(r => r.json())
+    .then(d => {
+      if (!d || !d.country || localStorage.fluxCountry) return;
+      if (!countryFlags[d.country]) return;
+      country = d.country;
+      if (localStorage.fluxAutoName === '1') localStorage.fluxCountry = country;   // D-43: keep the flag they were shown
+      const sel = document.getElementById('country');
+      if (sel) sel.value = country;
+      refreshMenu();
+    })
+    .catch(() => {});
+}
+
+/* --- 8. Load entitlements now, and again after any purchase redirect --- */
+syncEntitlements();
+setTimeout(syncEntitlements, 3000);
+
+/* ================= END FLUX v4 CLIENT PATCH ================= */
+
+document.getElementById('leaderBtn').onclick=openLeaderboard;
+document.getElementById('gameoverLeaderBtn').onclick=openLeaderboard;
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+document.getElementById('skinsBtn').onclick=()=>{buildShopUI();document.getElementById('shop').classList.remove('hidden');};
+document.getElementById('shopClose').onclick=()=>document.getElementById('shop').classList.add('hidden');
+document.getElementById('againBtn').onclick=()=>{initAudio();document.getElementById('gameover').classList.add('hidden');document.getElementById('pauseBtn').classList.remove('hidden');newGame();paused=false;document.getElementById('pauseBtn').textContent='Ⅱ'};
+document.getElementById('gameoverMenuBtn').onclick=()=>{
+  // Score/best/level are already saved by endGame() before this screen ever
+  // shows, so this is just a screen swap -- no scoring logic touched.
+  document.getElementById('gameover').classList.add('hidden');
+  refreshMenu();
+  document.getElementById('start').classList.remove('hidden');
+  try{ window.parent.postMessage({type:'flux-menu'}, '*'); }catch(e){}
+};
+refreshMenu();
+
+/* ===========================================================================
+   D-02 — OFFLINE SUPPORT
+   Registration + update flow + the "needs a connection" messaging for the
+   features that genuinely cannot work offline. Core gameplay depends on none
+   of this: if registration fails the game still runs, it just isn't cached.
+   =========================================================================== */
+if('serviceWorker' in navigator){
+  addEventListener('load',function(){
+    navigator.serviceWorker.register('/sw.js', {scope:'/'}).then(function(reg){
+      // Version A -> Version B: a new worker installs alongside the old one and
+      // waits. We activate it as soon as it is ready, but only when no run is
+      // in progress, so a player is never swapped mid-game.
+      function activateWhenIdle(worker){
+        if(!worker) return;
+        var tryActivate=function(){
+          // D-23: paused runs, level transitions and revive screens are still runs.
+          if(playing || paused || runActive){ setTimeout(tryActivate,2000); return; }
+          worker.postMessage({type:'SKIP_WAITING'});
+        };
+        tryActivate();
+      }
+      if(reg.waiting) activateWhenIdle(reg.waiting);
+      reg.addEventListener('updatefound',function(){
+        var nw=reg.installing;
+        if(!nw) return;
+        nw.addEventListener('statechange',function(){
+          if(nw.state==='installed' && navigator.serviceWorker.controller) activateWhenIdle(nw);
+        });
+      });
+    }).catch(function(){ /* no caching this session; game still works */ });
+
+    var reloading=false;
+    navigator.serviceWorker.addEventListener('controllerchange',function(){
+      if(reloading) return; reloading=true;
+      location.reload();     // Version B assets become authoritative
+    });
+
+    // D-02 (RC2.2): OFFLINE READY is no longer shown merely because
+    // registration resolved. The worker is asked whether every precached
+    // asset AND the shell key are actually present; only then does the claim
+    // appear. Re-asked on controller change so it reflects the live worker.
+    function askOfflineReady(){
+      var ctrl = navigator.serviceWorker.controller;
+      if(!ctrl) return;
+      try{ ctrl.postMessage({type:'GET_READY'}); }catch(e){}
+    }
+    navigator.serviceWorker.addEventListener('message',function(e){
+      var d=e.data;
+      if(!d || d.type!=='SW_READY') return;
+      var el=document.getElementById('offlineClaim');
+      if(!el) return;
+      el.textContent = d.ready
+        ? '● OFFLINE READY • PERSONAL BEST SAVES ON THIS DEVICE'
+        : '● PERSONAL BEST SAVES ON THIS DEVICE';
+    });
+    navigator.serviceWorker.ready.then(function(){ askOfflineReady(); });
+    navigator.serviceWorker.addEventListener('controllerchange', askOfflineReady);
+  });
+}
+
+// Retry any runs that finished while the device was offline.
+addEventListener('online',function(){ try{ flushSubmitQueue(); }catch(e){} });
+try{ flushSubmitQueue(); }catch(e){}
+
+// Network-dependent features report the requirement instead of failing oddly.
+function isOffline(){ return typeof navigator!=='undefined' && navigator.onLine===false; }
+
+/* --- FLUX v4 PATCH, PART 2 — must sit AFTER the original handlers --- */
+/* D-39 (RC2.8.5) PLAY FIRST, NAME LATER. Owner-observed: a child could not
+   start the game -- an empty name blocked ENTER THE FLUX. Now an empty name no
+   longer blocks the first run. D-16's rule still holds: nothing reaches the
+   public board without a real name. Scores stay on the device until the
+   pilot is named (at game over, or in the menu), then upload as usual. */
+/* D-43: no rename suggestion at game over (owner decision). The default name
+   is visible in the menu next to EDIT; players rename there if they want. */
+function uploadOrAskName(){
+  const box=document.getElementById('goName');
+  if(profileComplete){ if(box) box.classList.add('hidden'); return submitScore(); }
+  showNamePrompt();
+}
+function showNamePrompt(){
+  const box=document.getElementById('goName'); if(!box) return;
+  const sel=document.getElementById('goCountry'), menuSel=document.getElementById('country');
+  if(sel && menuSel){ if(!sel.options.length) sel.innerHTML=menuSel.innerHTML; sel.value=menuSel.value||country||'US'; }
+  box.classList.remove('hidden');
+}
+document.getElementById('goSave').onclick=function(){
+  const inp=document.getElementById('goCallsign'); const typed=(inp.value||'').trim();
+  if(!typed){ inp.placeholder='ENTER YOUR NAME'; inp.style.borderColor='#ff4f98'; inp.focus(); setTimeout(function(){ inp.style.borderColor=''; },1600); return; }
+  document.getElementById('callsign').value=typed;
+  document.getElementById('country').value=document.getElementById('goCountry').value;
+  if(!saveProfile()) return;
+  try{ localStorage.removeItem('fluxAutoName'); }catch(e){}
+  document.getElementById('goName').classList.add('hidden');
+  submitScore();   // the server refreshes the name on every upload
+};
+/* D-40 (RC2.8.5) The color rule was never explained in the game. A short
+   hint on the very first run only; it never blocks play or touches input. */
+function showColorHint(){
+  try{ if(localStorage.getItem('fluxColorHintSeen')==='1') return; localStorage.setItem('fluxColorHintSeen','1'); }catch(e){}
+  const h=document.createElement('div'); h.className='colorHint'; h.id='colorHint';
+  h.innerHTML='HIT ORBS THAT <b>MATCH YOUR BALL\u2019S COLOR</b>';
+  document.getElementById('app').appendChild(h);
+  setTimeout(function(){ h.classList.add('out'); },3200);
+  setTimeout(function(){ h.remove(); },3800);
+}
+document.getElementById('startBtn').onclick = () => {
+  initAudio();
+  if (!profileComplete && document.getElementById('callsign').value.trim()) {
+    const was = callsign, typed = document.getElementById('callsign').value.trim().toUpperCase();
+    if (saveProfile()) { if (typed !== was) { try { localStorage.removeItem('fluxAutoName'); } catch (e) {} } submitScore(); }
+  } else if (!profileComplete && localStorage.fluxCallsign) {
+    callsign = localStorage.fluxCallsign; profileComplete = true;   // EDIT opened, then cleared: keep the current name
+  }
+  document.getElementById('start').classList.add('hidden');
+  document.getElementById('pauseBtn').classList.remove('hidden');
+  newGame();
+  paused = false;
+  document.getElementById('pauseBtn').textContent = 'Ⅱ';
+  showColorHint();
+};
+
+
+
+/* ==================================================================
+   D-35 (RC2.8.2) -- PILOT RESTORE CODE
+   ------------------------------------------------------------------
+   Owner-observed on iPhone: a Home Screen icon asked for a new FLUX ID while
+   Safari on the same phone still had the pilot. On iOS, Safari and each
+   installed icon keep separate storage, and a pilot lives only in the storage
+   where it was created. Nothing could bring it back.
+
+   The restore code is the pilot's own secret player ID plus a 4-character
+   checksum:  FX1-<playerId>-<CHECK>. The player ID is already the only proof
+   of identity (A-1: it is never published), so the code grants nothing that
+   holding the device did not already grant -- it just lets the player carry it.
+
+   Restoring:
+     1. the code is checked locally (format + checksum, so a partial copy or a
+        typo is caught before anything is sent);
+     2. the server is asked whether that pilot exists (scores or purchases);
+        an unknown code changes nothing -- no ghost pilots from typos;
+     3. the player confirms, seeing BOTH pilots, and is shown the current
+        pilot's own code first so they can switch back;
+     4. every key is changed through one journal (see the top of this
+        script), then the page reloads so every cache is rebuilt for the
+        restored pilot. Skins come back through the normal server check.
+
+   Refused while a run is in progress or while a purchase for the current
+   pilot is still being completed. Personal bests are replaced by the restored
+   pilot's server bests, so one pilot's best can never be uploaded under
+   another pilot. Unsent runs keep the player ID they were recorded with and
+   still upload to the pilot that played them.
+   ================================================================== */
+const RESTORE_ID_RE=/^[A-Za-z0-9_-]{1,64}$/;
+const RESTORE_RESERVED=['__proto__','constructor','prototype'];
+const RESTORE_JOURNAL_KEY='fluxRestoreJournal';
+const RESTORE_PAID=['toxic','cosmic','solar'];
+const RESTORE_DIFFS=['easy','medium','hard'];
+
+function restoreIdOk(id){
+  return typeof id==='string' && RESTORE_ID_RE.test(id) && RESTORE_RESERVED.indexOf(id)===-1;
+}
+async function restoreChecksum(id){
+  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('flux-restore:'+id));
+  return Array.from(new Uint8Array(buf)).slice(0,2).map(function(b){return b.toString(16).padStart(2,'0');}).join('').toUpperCase();
+}
+async function makeRestoreCode(id){
+  if(!restoreIdOk(id)) return null;
+  return 'FX1-'+id+'-'+(await restoreChecksum(id));
+}
+/* Accepts what people actually paste: surrounding spaces, line breaks, quotes,
+   zero-width characters and typographic dashes. The player ID keeps its case;
+   if the checksum only matches the lower-case form (the code was retyped in
+   capitals), that form is used. */
+async function parseRestoreCode(raw){
+  let s=String(raw==null?'':raw)
+    .replace(/[\s\u200B-\u200D\u2060\uFEFF]/g,'')
+    .replace(/[\u2010-\u2015\u2212]/g,'-')
+    .replace(/^["'\u2018\u2019\u201C\u201D]+|["'\u2018\u2019\u201C\u201D]+$/g,'');
+  const m=/^FX1-(.+)-([0-9A-Fa-f]{4})$/i.exec(s);
+  if(!m) return {ok:false,reason:'format'};
+  const want=m[2].toUpperCase();
+  const tries=[m[1]];
+  if(m[1].toLowerCase()!==m[1]) tries.push(m[1].toLowerCase());
+  for(const id of tries){
+    if(restoreIdOk(id) && (await restoreChecksum(id))===want) return {ok:true,playerId:id};
+  }
+  return {ok:false,reason:'checksum'};
+}
+
+function restoreBlockedReason(){
+  if(playing) return 'Finish your run first, then restore from the menu.';
+  let pending=null; try{ pending=readPendingCheckout(); }catch(e){}
+  if(purchaseInFlight || pending) return 'A purchase for this pilot is still being completed. Wait until it finishes, then try again.';
+  return null;
+}
+
+/* Pure: the complete set of key changes for one restore. null = remove. */
+function buildRestorePlan(info,id){
+  const after=Object.create(null);
+  const name=typeof info.name==='string' ? info.name.trim().toUpperCase().slice(0,16) : '';
+  after.fluxPlayerId=id;
+  after.fluxCallsign=name || null;
+  after.fluxProfileComplete=name ? '1' : null;           // no name on the server: ask for one
+  after.fluxAutoName=null;                               // D-43: a restored pilot keeps its own name
+  const cc=typeof info.country==='string' ? info.country : '';
+  if(/^[A-Z]{2}$/.test(cc) && Object.prototype.hasOwnProperty.call(countryFlags,cc)) after.fluxCountry=cc;
+  after.fluxPublicTag=(typeof info.tag==='string' && /^[0-9A-Z]{6,}$/.test(info.tag)) ? info.tag : null;
+  after[ENT_CACHE_KEY]=null;                              // re-verified for the new pilot
+  RESTORE_PAID.forEach(function(s){ after['fluxOwned_'+s]=null; });
+  const skus=Array.isArray(info.skus) ? info.skus : [];
+  let curSkin=null, curBg=null;
+  try{ curSkin=localStorage.getItem('fluxSkin'); curBg=localStorage.getItem('fluxBackground'); }catch(e){}
+  if(RESTORE_PAID.indexOf(curSkin)!==-1 && skus.indexOf(curSkin)===-1) after.fluxSkin='aurora';
+  if(RESTORE_PAID.indexOf(curBg)!==-1 && skus.indexOf(curBg)===-1) after.fluxBackground='none';
+  const bests=(info.bests && typeof info.bests==='object') ? info.bests : {};
+  const now=Date.now();
+  RESTORE_DIFFS.forEach(function(d){
+    const b=Object.prototype.hasOwnProperty.call(bests,d) ? bests[d] : null;
+    const sc=b && Number.isFinite(b.score) && b.score>0 ? Math.floor(b.score) : 0;
+    const lv=b && Number.isFinite(b.level) && b.level>=1 ? Math.floor(b.level) : 1;
+    if(sc>0){
+      after['fluxBest_'+d]=String(sc);
+      after['fluxBestLevel_'+d]=String(lv);
+      after['fluxBestRun_'+d]=JSON.stringify({score:sc,level:lv,difficulty:d,playerId:id,at:now,restored:true});
+    } else {
+      after['fluxBest_'+d]=null; after['fluxBestLevel_'+d]=null; after['fluxBestRun_'+d]=null;
+    }
+  });
+  after.fluxLastSubmitError=null;
+  after.fluxSubmitFailCount='0';
+  return after;
+}
+
+/* Journal first (one write), then the changes, then drop the journal.
+   Returns true only if the device now holds exactly the new pilot. */
+function applyRestorePlan(after){
+  const before=Object.create(null);
+  for(const k in after){ let v=null; try{ v=localStorage.getItem(k); }catch(e){} before[k]=v; }
+  try{ localStorage.setItem(RESTORE_JOURNAL_KEY, JSON.stringify({v:1,after:after,before:before})); }
+  catch(e){ return false; }                               // nothing changed
+  const put=function(map){ for(const k in map){ if(map[k]===null) localStorage.removeItem(k); else localStorage.setItem(k,map[k]); } };
+  try{
+    put(after);
+    for(const k in after){
+      const got=localStorage.getItem(k);
+      if(got!==(after[k]===null?null:String(after[k]))) throw new Error('verify '+k);
+    }
+  }catch(e){
+    try{ put(before); }catch(e2){}
+    try{ localStorage.removeItem(RESTORE_JOURNAL_KEY); }catch(e3){}
+    return false;
+  }
+  try{ localStorage.removeItem(RESTORE_JOURNAL_KEY); }catch(e){}
+  return true;
+}
+
+async function checkRestoreOnServer(id){
+  let res;
+  try{
+    res=await fetch('/api/restore-check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({playerId:id})});
+  }catch(e){ return {kind:'network'}; }
+  if(!res.ok) return {kind:res.status===429?'busy':'error'};
+  let d=null; try{ d=await res.json(); }catch(e){ return {kind:'error'}; }
+  if(!d || typeof d!=='object') return {kind:'error'};
+  if(d.found!==true) return {kind:'notfound'};
+  return {kind:'found',info:d};
+}
+
+function restorePilotLabel(name,tag,cc){
+  return escapeHtml(name||'NEW PILOT')+(tag?' <span class="profileTag">#'+escapeHtml(tag)+'</span>':'')+(cc&&countryFlags[cc]?' '+countryFlags[cc]:'');
+}
+function restoreOverlay(html){
+  const d=document.createElement('div');
+  d.className='miniOverlay restoreOverlay';
+  d.innerHTML='<div class="panel menuPanel">'+html+'</div>';
+  document.getElementById('app').appendChild(d);
+  return d;
+}
+function copyText(text,btn){
+  const done=function(){ if(btn){ const t=btn.textContent; btn.textContent='COPIED'; setTimeout(function(){ btn.textContent=t; },1500); } };
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(done,function(){}); return; }
+  }catch(e){}
+}
+
+function restoreSavedName(){ try{ return localStorage.getItem('fluxProfileComplete')==='1' ? (localStorage.getItem('fluxCallsign')||'') : ''; }catch(e){ return ''; } }
+/* ---------- SHOW RESTORE CODE ---------- */
+async function openRestoreCode(){
+  const code=await makeRestoreCode(playerId);
+  let tag=''; try{ tag=localStorage.fluxPublicTag||''; }catch(e){}
+  const d=restoreOverlay(
+    '<h2 style="color:#62eaff;letter-spacing:.14em">RESTORE CODE</h2>'+
+    '<p class="restoreWho">PILOT '+restorePilotLabel(restoreSavedName(),tag,country)+'</p>'+
+    '<p class="restoreText">Save this code somewhere safe, like Notes or a message to yourself. Enter it in FLUX on a new phone, in the Home Screen app, or after clearing data, to bring back this pilot, its scores and its skins.</p>'+
+    '<p class="restoreWarn hidden" id="restoreNoScore">This pilot has not uploaded a score yet. Finish one run while online so the code can be restored.</p>'+
+    '<p class="restoreWarn">Anyone with this code can play as this pilot. Keep it private and out of screenshots.</p>'+
+    '<div class="restoreCode hidden" id="restoreCodeBox"></div>'+
+    '<button id="restoreReveal">SHOW CODE</button>'+
+    '<div class="restoreRow hidden" id="restoreCodeActions"><button id="restoreCopy">COPY</button><button id="restoreShare">SAVE / SEND</button></div>'+
+    '<button class="linkBtn restoreOther" id="restoreOther">RESTORE A DIFFERENT PILOT</button>'+
+    '<button id="restoreClose">BACK</button>');
+  d.querySelector('#restoreClose').onclick=function(){ d.remove(); };
+  d.querySelector('#restoreOther').onclick=function(){ d.remove(); openRestoreEntry(); };
+  /* Ask the server, not local memory, whether this pilot can be restored:
+     pilots that uploaded with an older build have no tag saved on the device. */
+  const noScore=d.querySelector('#restoreNoScore');
+  if(isOffline()){ if(!tag) noScore.classList.remove('hidden'); }
+  else checkRestoreOnServer(playerId).then(function(r){
+    if(r.kind==='notfound') noScore.classList.remove('hidden');
+    if(r.kind==='found' && r.info && typeof r.info.tag==='string' && /^[0-9A-Z]{6,}$/.test(r.info.tag)){
+      try{ localStorage.fluxPublicTag=r.info.tag; }catch(e){}
+      const who=d.querySelector('.restoreWho'); if(who) who.innerHTML='PILOT '+restorePilotLabel(restoreSavedName(),r.info.tag,country);
+      try{ updateUploadStatus(); }catch(e){}
+    }
+  });
+  d.querySelector('#restoreReveal').onclick=function(){
+    const box=d.querySelector('#restoreCodeBox');
+    box.textContent=code||'';
+    box.classList.remove('hidden');
+    d.querySelector('#restoreCodeActions').classList.remove('hidden');
+    d.querySelector('#restoreReveal').classList.add('hidden');
+  };
+  d.querySelector('#restoreCopy').onclick=function(e){ copyText(code,e.target); };
+  const share=d.querySelector('#restoreShare');
+  if(!(navigator.share)) share.classList.add('hidden');
+  share.onclick=function(){ try{ navigator.share({title:'FLUX restore code',text:'My FLUX restore code (keep private): '+code}).catch(function(){}); }catch(e){} };
+}
+
+/* ---------- ENTER A RESTORE CODE ---------- */
+function openRestoreEntry(){
+  const d=restoreOverlay(
+    '<h2 style="color:#62eaff;letter-spacing:.14em">RESTORE A PILOT</h2>'+
+    '<p class="restoreText">Paste the restore code from the device where you played. It starts with FX1-.</p>'+
+    '<textarea id="restoreInput" class="restoreInput" rows="3" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" placeholder="FX1-..."></textarea>'+
+    '<p class="restoreMsg" id="restoreMsg" aria-live="polite"></p>'+
+    '<button id="restoreGo">CONTINUE</button>'+
+    '<button id="restoreCancel">BACK</button>');
+  const msg=d.querySelector('#restoreMsg');
+  const go=d.querySelector('#restoreGo');
+  d.querySelector('#restoreCancel').onclick=function(){ d.remove(); };
+  go.onclick=async function(){
+    if(go.disabled) return;
+    const say=function(t){ msg.textContent=t; };
+    const blocked=restoreBlockedReason(); if(blocked){ say(blocked); return; }
+    const parsed=await parseRestoreCode(d.querySelector('#restoreInput').value);
+    if(!parsed.ok){ say(parsed.reason==='checksum' ? 'That code has a typo or was not copied completely. Copy it again from the other device.' : 'That is not a FLUX restore code. It starts with FX1-.'); return; }
+    if(parsed.playerId===playerId){ say('This is already the pilot on this device.'); return; }
+    if(isOffline()){ say('Restoring needs an internet connection.'); return; }
+    go.disabled=true; say('Checking...');
+    const r=await checkRestoreOnServer(parsed.playerId);
+    go.disabled=false;
+    if(r.kind==='network'){ say('Could not reach FLUX. Check your connection and try again.'); return; }
+    if(r.kind==='busy'||r.kind==='error'){ say('FLUX could not check that code right now. Try again in a minute.'); return; }
+    if(r.kind==='notfound'){ say('No pilot was found for this code. A pilot can be restored once it has uploaded a score or bought a skin.'); return; }
+    d.remove();
+    openRestoreConfirm(parsed.playerId, r.info);
+  };
+}
+
+async function openRestoreConfirm(id,info){
+  const cur=await makeRestoreCode(playerId);
+  let curTag=''; try{ curTag=localStorage.fluxPublicTag||''; }catch(e){}
+  if(!curTag){ const cr=await checkRestoreOnServer(playerId); if(cr.kind==='found' && cr.info && /^[0-9A-Z]{6,}$/.test(String(cr.info.tag||''))) curTag=cr.info.tag; }
+  /* D-36: read the SAVED pilot. Tapping EDIT clears profileComplete in memory,
+     which made the current pilot show as NEW PILOT here. */
+  let savedName='', savedCountry='';
+  try{ if(localStorage.getItem('fluxProfileComplete')==='1'){ savedName=localStorage.getItem('fluxCallsign')||''; savedCountry=localStorage.getItem('fluxCountry')||''; } }catch(e){}
+  const curHasSkins=(function(){ try{ return RESTORE_PAID.some(function(s){ return ownsSkin(s); }); }catch(e){ return false; } })();
+  const skins=(Array.isArray(info.skus)?info.skus:[]).filter(function(s){ return RESTORE_PAID.indexOf(s)!==-1; });
+  const d=restoreOverlay(
+    '<h2 style="color:#62eaff;letter-spacing:.14em">RESTORE PILOT?</h2>'+
+    '<p class="restoreWho">'+restorePilotLabel(info.name,info.tag,info.country)+'</p>'+
+    (skins.length ? '<p class="restoreText">Skins: '+skins.map(function(s){return escapeHtml(s.toUpperCase());}).join(', ')+'</p>' : '')+
+    '<p class="restoreText">This replaces the pilot on this device:<br><b>'+restorePilotLabel(savedName,curTag,savedName?savedCountry:'')+'</b></p>'+
+    ((curTag||curHasSkins) ? '<p class="restoreWarn">To switch back later you need this pilot\'s restore code. Copy it before you continue.</p><div class="restoreCode">'+escapeHtml(cur||'')+'</div><button id="restoreCopyCur">COPY THIS PILOT\'S CODE</button>' : '')+
+    '<p class="restoreMsg" id="restoreMsg2" aria-live="polite"></p>'+
+    '<button id="restoreYes">YES, RESTORE</button>'+
+    '<button id="restoreNo">CANCEL</button>');
+  const copyCur=d.querySelector('#restoreCopyCur');
+  if(copyCur) copyCur.onclick=function(e){ copyText(cur,e.target); };
+  d.querySelector('#restoreNo').onclick=function(){ d.remove(); };
+  d.querySelector('#restoreYes').onclick=function(){
+    const msg=d.querySelector('#restoreMsg2');
+    const blocked=restoreBlockedReason(); if(blocked){ msg.textContent=blocked; return; }
+    const ok=applyRestorePlan(buildRestorePlan(info,id));
+    if(!ok){ msg.textContent='This device could not save the pilot. Nothing was changed. Free up some storage and try again.'; return; }
+    msg.textContent='Restored. Reloading...';
+    location.reload();
+  };
+}
+
+/* D-36 (RC2.8.3): the restore code lives inside EDIT, not in the main menu.
+   The link under the name editor has two jobs:
+     - a pilot already exists on this device (EDIT was tapped): show its code;
+     - no pilot yet (first launch, or the icon lost its pilot): enter a code. */
+function restoreHasPilot(){ try{
+  if(localStorage.getItem('fluxProfileComplete')!=='1') return false;
+  // D-43: a brand-new auto-named pilot with nothing uploaded is offered code ENTRY
+  // (the "lost my pilot" case); once it has scores it has a code worth saving.
+  return !(localStorage.getItem('fluxAutoName')==='1' && !localStorage.getItem('fluxPublicTag'));
+}catch(e){ return false; } }
+function syncRestoreLink(){
+  const l=document.getElementById('restoreLink');
+  if(l) l.textContent = restoreHasPilot() ? '\u{1F511} RESTORE CODE' : 'HAVE A RESTORE CODE?';
+}
+document.getElementById('restoreLink').onclick=function(){ if(restoreHasPilot()) openRestoreCode(); else openRestoreEntry(); };
+(function(){
+  const ed=document.getElementById('editProfile'); const prev=ed.onclick;
+  ed.onclick=function(e){ if(typeof prev==='function') prev.call(this,e); syncRestoreLink(); };
+})();
+syncRestoreLink();
+
+/* ==================================================================
+   RC2.8.6 -- D-47 INSTALL AFTER FIRST PLAY, D-48 BRING MY PILOT,
+              D-46 LITE GRAPHICS (runtime part)
+   ================================================================== */
+/* D-48: the install offer never appears before a first game (owner decision).
+   After a run, a single button appears on the GAME-OVER screen only
+   (owner decision: not in the menu), and is gone once installed:
+     Android (browser offers install)  -> "INSTALL NOW" = the phone's own prompt
+     iPhone / iPad                     -> "ADD TO HOME SCREEN" = 3-step picture
+     already installed / other browser -> no button
+   No pop-ups. */
+let fluxDeferredInstall = null;
+function fluxIsStandalone(){ try{ return window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches; }catch(e){ return false; } }
+function fluxIsIOS(){ try{ return /iP(hone|od|ad)/.test(navigator.platform) || (navigator.userAgent.indexOf('Mac') !== -1 && 'ontouchend' in document); }catch(e){ return false; } }
+function fluxHasPlayed(){ try{ return (+localStorage.getItem('fluxRunsPlayed') || 0) >= 1; }catch(e){ return false; } }
+function fluxInstallMode(){
+  if (fluxIsStandalone() || !fluxHasPlayed()) return null;
+  if (fluxDeferredInstall) return 'android';
+  if (fluxIsIOS()) return 'ios';
+  return null;
+}
+function fluxNeedsPilotBring(){
+  try{ return fluxIsStandalone() && localStorage.getItem('fluxAutoName') === '1' && !localStorage.getItem('fluxPublicTag'); }catch(e){ return false; }
+}
+function refreshInstallButtons(){
+  const mode = fluxInstallMode();
+  const label = mode === 'android' ? '\u{1F4F2} INSTALL NOW' : '\u{1F4F2} ADD TO HOME SCREEN';
+  ['gameoverInstallBtn'].forEach(function(id){   // owner decision: after a run only, never in the menu
+    const b = document.getElementById(id); if (!b) return;
+    b.textContent = label;
+    if (mode) b.classList.remove('hidden'); else b.classList.add('hidden');
+  });
+  const bring = document.getElementById('bringPilotBtn');
+  if (bring){ if (fluxNeedsPilotBring()) bring.classList.remove('hidden'); else bring.classList.add('hidden'); }
+}
+window.onbeforeinstallprompt = function(e){ try{ e.preventDefault(); }catch(_){} fluxDeferredInstall = e; refreshInstallButtons(); };
+window.onappinstalled = function(){ fluxDeferredInstall = null; refreshInstallButtons(); };
+function fluxDoInstall(){
+  const mode = fluxInstallMode();
+  if (mode === 'android' && fluxDeferredInstall){
+    const p = fluxDeferredInstall; fluxDeferredInstall = null;
+    try{ p.prompt(); }catch(e){}
+    Promise.resolve(p.userChoice).then(refreshInstallButtons, refreshInstallButtons);
+    refreshInstallButtons();
+    return;
+  }
+  if (mode === 'ios') fluxShowIosGuide();
+}
+/* D-49: iPhone keeps Safari and the Home Screen app in separate storage, so a
+   new icon would start as a NEW pilot (the owner's TITAN split). The guide
+   copies the pilot's restore code first; the installed app then offers
+   "BRING MY PILOT FROM SAFARI", which reads it back through the existing,
+   tested restore flow (server check + confirm). */
+async function fluxShowIosGuide(){
+  let hasScores = false;
+  try{ hasScores = !!localStorage.getItem('fluxPublicTag') || RESTORE_DIFFS.some(function(d){ return (+localStorage.getItem('fluxBest_' + d) || 0) > 0; }); }catch(e){}
+  const code = hasScores ? await makeRestoreCode(playerId) : null;
+  const d = restoreOverlay(
+    '<h2 style="color:#62eaff;letter-spacing:.12em">ADD FLUX TO YOUR HOME SCREEN</h2>' +
+    (code ? '<p class="restoreText"><b>1.</b> Copy your pilot so the app starts as you:</p><button id="guideCopyPilot">COPY MY PILOT</button>' : '') +
+    '<p class="restoreText" style="margin-top:12px"><b>' + (code ? '2' : '1') + '.</b> Tap <b>Share</b> (the square with an arrow) in Safari</p>' +
+    '<p class="restoreText"><b>' + (code ? '3' : '2') + '.</b> Choose <b>Add to Home Screen</b> \u2192 <b>Add</b></p>' +
+    (code ? '<p class="restoreText"><b>4.</b> Open FLUX from the new icon and tap <b>BRING MY PILOT FROM SAFARI</b></p>' : '') +
+    '<button id="guideDone">DONE</button>');
+  const cp = d.querySelector('#guideCopyPilot');
+  if (cp) cp.onclick = function(e){ copyText(code, e.target); };
+  d.querySelector('#guideDone').onclick = function(){ d.remove(); };
+}
+async function fluxBringPilot(){
+  let text = '';
+  try{ if (navigator.clipboard && navigator.clipboard.readText) text = await navigator.clipboard.readText(); }catch(e){}
+  const parsed = await parseRestoreCode(text);
+  if (!parsed.ok || parsed.playerId === playerId){ openRestoreEntry(); return; }   // fall back to pasting by hand
+  const r = await checkRestoreOnServer(parsed.playerId);
+  if (r.kind !== 'found'){ openRestoreEntry(); return; }
+  openRestoreConfirm(parsed.playerId, r.info);
+}
+document.getElementById('gameoverInstallBtn').onclick = fluxDoInstall;
+document.getElementById('bringPilotBtn').onclick = fluxBringPilot;
+(function(){
+  const endGame0 = endGame;
+  endGame = function(){
+    const r = endGame0.apply(this, arguments);
+    try{ localStorage.setItem('fluxRunsPlayed', String((+localStorage.getItem('fluxRunsPlayed') || 0) + 1)); }catch(e){}
+    refreshInstallButtons();
+    return r;
+  };
+})();
+refreshInstallButtons();
+
+/* D-46 LITE GRAPHICS (runtime). The first seconds of play are timed; if most
+   frames take longer than 25 ms (under 40 fps) the device switches to lite
+   graphics and remembers it: normal (not Retina) sharpness, no glow, half the
+   particles. Gameplay, speed and scoring are unchanged. Fast devices never
+   switch. */
+let fluxPerfN = 0, fluxPerfSlow = 0, fluxPerfSkip = 20;
+const FLUX_PERF_FRAMES = 60, FLUX_PERF_SLOW_MS = 25, FLUX_PERF_SLOW_SHARE = 0.6;
+function fluxPerfSample(ms){
+  if (window.__fluxLite || fluxPerfN >= FLUX_PERF_FRAMES) return;
+  if (fluxPerfSkip > 0){ fluxPerfSkip--; return; }
+  if (!(ms > 0 && ms < 1000)) return;           // ignore paused / backgrounded gaps
+  fluxPerfN++; if (ms > FLUX_PERF_SLOW_MS) fluxPerfSlow++;
+  if (fluxPerfN === FLUX_PERF_FRAMES && fluxPerfSlow >= FLUX_PERF_FRAMES * FLUX_PERF_SLOW_SHARE) fluxEnableLite();
+}
+const fluxBurst0 = burst;
+function fluxApplyLiteParticles(){ burst = function(x, y, col, n){ return fluxBurst0(x, y, col, Math.max(3, Math.ceil((n == null ? 14 : n) / 2))); }; }
+function fluxEnableLite(){
+  window.__fluxLite = true;
+  try{ localStorage.setItem('fluxLite', '1'); }catch(e){}
+  fluxApplyLite(); fluxApplyLiteParticles();
+  try{ resize(); }catch(e){}
+}
+if (window.__fluxLite) fluxApplyLiteParticles();
+
+;__d("script1 end");</script>
+<!-- D-38 (RC2.8.4): IN-APP BROWSER BANNER. A link tapped inside TikTok,
+     Instagram, Facebook, Messenger, Snapchat or LINE opens in that app's own
+     browser, which keeps its own storage: a pilot made there may not be there
+     next time (the same split that hit the iPhone icon). This asks the player
+     to open FLUX in their real browser first. It never blocks play. -->
+<style>
+#iabBanner{position:fixed;left:10px;right:10px;top:calc(10px + env(safe-area-inset-top,0px));z-index:99999;
+  background:#0b1433;border:1px solid #2c6bff;border-radius:16px;padding:12px 40px 12px 14px;color:#eaf7ff;
+  font:500 13px/1.45 system-ui,-apple-system,sans-serif;box-shadow:0 10px 30px rgba(0,0,0,.5)}
+#iabBanner b{color:#5ff3ff}
+#iabBanner .iabRow{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+#iabBanner button{font:700 12px system-ui,sans-serif;letter-spacing:.06em;border-radius:999px;padding:8px 12px;border:1px solid #2c6bff;background:#12204d;color:#9ff3ff}
+#iabBanner .iabX{position:absolute;top:6px;right:8px;border:0;background:none;color:#8da0c8;font-size:20px;padding:4px 8px}
+</style>
+<script>__d("script2 start");
+
+(function(){
+  var ua = navigator.userAgent || '';
+  var apps = [[/TikTok|musical_ly|Bytedance/i,'TikTok'],[/Instagram/i,'Instagram'],[/FBAN|FBAV|FB_IAB|FBIOS/i,'Facebook'],
+              [/Messenger/i,'Messenger'],[/Snapchat/i,'Snapchat'],[/\bLine\//i,'LINE']];
+  var app = null; for (var i=0;i<apps.length;i++){ if (apps[i][0].test(ua)) { app = apps[i][1]; break; } }
+  window.FLUX_IN_APP = app;
+  if (!app) return;
+  try { if (sessionStorage.getItem('fluxIabDismissed') === '1') return; } catch (e) {}
+  function show(){
+    if (document.getElementById('iabBanner')) return;
+    var d = document.createElement('div'); d.id = 'iabBanner'; d.setAttribute('role','note');
+    d.innerHTML = '<b>You\u2019re inside ' + app + '.</b> Your pilot may not stay saved here. ' +
+      'Tap <b>\u22ef</b> at the top right \u2192 <b>Open in browser</b>, then add FLUX to your Home Screen.' +
+      '<div class="iabRow"><button type="button" id="iabCopy">COPY LINK</button></div>' +
+      '<button type="button" class="iabX" aria-label="Close">\u00d7</button>';
+    document.body.appendChild(d);
+    d.querySelector('.iabX').onclick = function(){ d.remove(); try { sessionStorage.setItem('fluxIabDismissed','1'); } catch (e) {} };
+    d.querySelector('#iabCopy').onclick = function(){ var b=this, u=location.href.split('#')[0];
+      try { navigator.clipboard.writeText(u).then(function(){ b.textContent='COPIED \u2014 PASTE IN SAFARI'; }, function(){ b.textContent=u; }); }
+      catch (e) { b.textContent = u; } };
+    var s = document.getElementById('startBtn');          // game page: get out of the way once a run starts
+    if (s) s.addEventListener('click', function(){ d.remove(); }, { once: true });
+  }
+  if (document.body) show(); else document.addEventListener('DOMContentLoaded', show, { once: true });
+})();
+
+;__d("script2 end");</script>
+</body>
+</html>
