@@ -16,7 +16,11 @@
 
 const MAX_NAME_LEN = 16;
 const MAX_SCORE = 5_000_000;
-const MAX_LEVEL = 999;
+// D-41 (RC2.8.5): the game has 9 levels (play/index.html: level<9). Accepting
+// level 999 let a forged submission reach MAX_SCORE through the per-level rule
+// (score <= level * SCORE_PER_LEVEL + SCORE_BASE_ALLOWANCE). With level capped
+// at 9 the highest score any submission can claim is 9*50,000+5,000 = 455,000.
+const MAX_LEVEL = 9;
 const VALID_DIFFICULTIES = new Set(["easy", "medium", "hard"]);
 const VALID_SKUS = new Set(["toxic", "cosmic", "solar"]);
 
