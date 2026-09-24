@@ -135,6 +135,8 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 .profileTag{opacity:.55;font-weight:600;letter-spacing:.06em;margin-left:2px}.lbTag{opacity:.5;font-weight:600;font-size:.8em;letter-spacing:.04em}.shopNote{display:inline-block;margin-top:6px;font-size:.78em;opacity:.7;line-height:1.4}.uploadStatus{min-height:14px;margin:6px 0 0;font-size:10px;letter-spacing:.18em;color:#8fa3d8;text-align:center}
 .restoreLink{display:block;width:100%;margin:-4px 0 12px;flex:none}#profileEditor.hidden+.restoreLink{display:none}.restoreOverlay .panel{max-height:88vh;overflow:auto}.restoreWho{font-size:12px;letter-spacing:.12em;color:#eaf7ff;margin:6px 0 10px}.restoreText{font-size:12px;line-height:1.55;color:#b9c6e6;margin:0 0 10px}.restoreWarn{font-size:11px;line-height:1.5;color:#ffd08a;margin:0 0 10px}.restoreMsg{font-size:12px;line-height:1.5;color:#ff9fc6;min-height:1.5em;margin:4px 0 8px}.restoreCode{font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.5;word-break:break-all;user-select:all;-webkit-user-select:all;background:#050a22;border:1px solid #2c4b87;border-radius:12px;padding:10px;margin:0 0 10px;color:#9ff3ff}.restoreInput{width:100%;box-sizing:border-box;font-family:ui-monospace,Menlo,monospace;font-size:16px;background:#050a22;color:#eaf7ff;border:1px solid #2c4b87;border-radius:12px;padding:10px;margin:0 0 6px;resize:none}.restoreRow{display:flex;gap:8px}.restoreRow button{flex:1}.restoreOverlay button{margin-top:8px}.restoreOther{display:block;width:100%}
 .goName{margin:6px 0 10px;padding:12px;border:1px solid #2c6bff;border-radius:16px;background:rgba(18,32,77,.55)}.goNameT{font-size:11px;letter-spacing:.16em;color:#5ff3ff;font-weight:800;margin-bottom:8px}.goNameRow{display:flex;gap:8px;margin-bottom:8px}.goNameRow input,.goNameRow select{min-width:0;background:#050a22;color:#eaf7ff;border:1px solid #2c4b87;border-radius:12px;padding:10px 12px;font:700 16px system-ui,sans-serif;text-transform:uppercase}.goNameRow input{flex:1}.goNameRow select{flex:0 0 42%;font-size:14px}.goNameRow input::placeholder{color:#6d7fa8}.goNameNote{font-size:11px;color:#9fb3d9;margin-top:6px}.colorHint{position:fixed;left:50%;top:24%;transform:translateX(-50%);z-index:50;pointer-events:none;background:rgba(6,12,34,.86);border:1px solid #2c6bff;border-radius:16px;padding:12px 18px;color:#eaf7ff;font:800 14px/1.35 system-ui,sans-serif;letter-spacing:.08em;text-align:center;max-width:86vw;box-shadow:0 10px 30px rgba(0,0,0,.5);transition:opacity .5s}.colorHint b{color:#5ff3ff}.colorHint.out{opacity:0}
+.installBtn{display:block;width:100%;margin-top:8px}
+/* D-46 lite graphics: the moving star fields, the live-blurred nebula and the FLUX Mode full-screen filter are redrawn every frame; on old devices they cost more than the game itself. */.fluxLite #starsFar,.fluxLite #starsNear{animation:none!important}.fluxLite #nebulaDrift{display:none!important}.fluxLite #app{filter:none!important}
 </style>
 </head>
 <body>
@@ -355,7 +357,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 <option value="VN">🇻🇳 VIETNAM</option>
 <option value="YE">🇾🇪 YEMEN</option>
 <option value="ZM">🇿🇲 ZAMBIA</option>
-<option value="ZW">🇿🇼 ZIMBABWE</option><option value="OTHER">🌎 OTHER</option></select></div><button type="button" class="linkBtn restoreLink" id="restoreLink">HAVE A RESTORE CODE?</button><div id="profileSaved" class="profileSaved hidden"><span>PILOT <b id="profileName">PLAYER</b><small id="profileTag" class="profileTag"></small> • <b id="profileCountry">🇺🇸</b></span><button class="editProfile" id="editProfile">EDIT</button></div><button id="startBtn">ENTER THE FLUX</button><div class="menuTiles"><div><span>PERSONAL BEST</span><b id="menuBest">0</b></div><div><span>BEST LEVEL</span><b id="menuLevel">1</b></div></div><div id="uploadStatus" class="uploadStatus" aria-live="polite"></div><div class="menuLinks"><button class="linkBtn" id="leaderBtn">🌎 GLOBAL LEADERBOARD</button><button class="linkBtn" id="skinsBtn">✦ THEMES & SKINS</button></div><p class="offline" id="offlineClaim">● PERSONAL BEST SAVES ON THIS DEVICE</p></div></div>
+<option value="ZW">🇿🇼 ZIMBABWE</option><option value="OTHER">🌎 OTHER</option></select></div><button type="button" class="linkBtn restoreLink" id="restoreLink">HAVE A RESTORE CODE?</button><div id="profileSaved" class="profileSaved hidden"><span>PILOT <b id="profileName">PLAYER</b><small id="profileTag" class="profileTag"></small> • <b id="profileCountry">🇺🇸</b></span><button class="editProfile" id="editProfile">EDIT</button></div><button id="startBtn">ENTER THE FLUX</button><div class="menuTiles"><div><span>PERSONAL BEST</span><b id="menuBest">0</b></div><div><span>BEST LEVEL</span><b id="menuLevel">1</b></div></div><div id="uploadStatus" class="uploadStatus" aria-live="polite"></div><div class="menuLinks"><button class="linkBtn" id="leaderBtn">🌎 GLOBAL LEADERBOARD</button><button class="linkBtn" id="skinsBtn">✦ THEMES & SKINS</button></div><button type="button" class="linkBtn installBtn hidden" id="bringPilotBtn">📋 BRING MY PILOT FROM SAFARI</button><p class="offline" id="offlineClaim">● PERSONAL BEST SAVES ON THIS DEVICE</p></div></div>
 <div id="gameover" class="hidden">
  <div class="panel">
   <h1 style="font-size:38px">FLUX<br>OVERLOAD</h1>
@@ -366,6 +368,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
   <button id="againBtn">RUN IT BACK</button>
   <button id="gameoverLeaderBtn" style="margin-top:8px;background:transparent;color:#7fdfff;border:1px solid #234174;box-shadow:none">🌎 GLOBAL LEADERBOARD</button>
   <button id="gameoverMenuBtn" style="margin-top:8px;background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none">⌂ MENU</button>
+  <button id="gameoverInstallBtn" type="button" class="installBtn hidden" style="margin-top:8px;background:transparent;color:#5ff3ff;border:1px solid #2c6bff;box-shadow:none">📲 ADD TO HOME SCREEN</button>
  </div>
 </div>
 </div>
@@ -412,6 +415,18 @@ if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D
   };
 }
 const c=document.getElementById('game'),ctx=c.getContext('2d');
+/* D-46 (RC2.8.6) LITE GRAPHICS -- decided on an earlier visit and remembered. */
+window.__fluxLite = (function(){ try{ return localStorage.getItem('fluxLite') === '1'; }catch(e){ return false; } })();
+function fluxApplyLite(){
+  if (!window.__fluxLite) return;
+  try{ document.documentElement.classList.add('fluxLite'); }catch(e){}   // calm the moving background layers (CSS below)
+  try{
+    const d = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'shadowBlur');
+    if (d && d.set) d.set.call(ctx, 0);
+    Object.defineProperty(ctx, 'shadowBlur', { configurable: true, get: function(){ return 0; }, set: function(){} });   // glow off
+  }catch(e){}
+}
+fluxApplyLite();
 let W,H,dpr,playing=false,paused=false,last=0,score=0,combo=1,level=1,streak=0,best=0,misses=0,revivesUsedThisRun=0,flux=0,fluxMode=0,missFragments=[],comboTimer=0,levelBanner=0,perfectFlash=0,levelHold=0,levelPoints=0,orbValue=20,bonusTimer=0,growTimer=0;
 let cachedHudRects=[]; // declared early -- resize() runs at script load time and references this immediately
 let difficulty=localStorage.fluxDifficulty||'medium', callsign=localStorage.fluxCallsign||'', country=localStorage.fluxCountry||'US';
@@ -586,7 +601,7 @@ function makeStars(){
   });
   nebulae=Array.from({length:4},()=>({x:rand(0,W),y:rand(0,H),r:rand(120,260),hue:['#2a2f6b','#3a1f5e','#1f3a5e','#2f1f4a'][Math.floor(rand(0,4))],vx:rand(-10,10),vy:rand(6,16),phase:rand(0,Math.PI*2)}));
 }
-function resize(){dpr=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;c.width=W*dpr;c.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);paddle.y=H-Math.max(42,Math.min(90,H*.095));makeStars();refreshHudRects();}
+function resize(){dpr=window.__fluxLite?1:Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;c.width=W*dpr;c.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);paddle.y=H-Math.max(42,Math.min(90,H*.095));makeStars();refreshHudRects();}
 addEventListener('resize',resize);resize();
 function rand(a,b){return a+Math.random()*(b-a)}
 function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
@@ -1414,6 +1429,7 @@ function setPaused(next){
 function loop(ts){
  requestAnimationFrame(loop);   // D-45: next frame first, so one bad frame can never freeze the game
  const dt=Math.min(.032,(ts-last)/1000||.016);
+ if(playing && !paused) fluxPerfSample(ts-last);   // D-46
  last=ts;
  if(playing && !paused) update(dt);
  else if(!paused && levelHold>0){
@@ -2680,6 +2696,120 @@ document.getElementById('restoreLink').onclick=function(){ if(restoreHasPilot())
   ed.onclick=function(e){ if(typeof prev==='function') prev.call(this,e); syncRestoreLink(); };
 })();
 syncRestoreLink();
+
+/* ==================================================================
+   RC2.8.6 -- D-47 INSTALL AFTER FIRST PLAY, D-48 BRING MY PILOT,
+              D-46 LITE GRAPHICS (runtime part)
+   ================================================================== */
+/* D-48: the install offer never appears before a first game (owner decision).
+   After a run, a single button appears on the GAME-OVER screen only
+   (owner decision: not in the menu), and is gone once installed:
+     Android (browser offers install)  -> "INSTALL NOW" = the phone's own prompt
+     iPhone / iPad                     -> "ADD TO HOME SCREEN" = 3-step picture
+     already installed / other browser -> no button
+   No pop-ups. */
+let fluxDeferredInstall = null;
+function fluxIsStandalone(){ try{ return window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches; }catch(e){ return false; } }
+function fluxIsIOS(){ try{ return /iP(hone|od|ad)/.test(navigator.platform) || (navigator.userAgent.indexOf('Mac') !== -1 && 'ontouchend' in document); }catch(e){ return false; } }
+function fluxHasPlayed(){ try{ return (+localStorage.getItem('fluxRunsPlayed') || 0) >= 1; }catch(e){ return false; } }
+function fluxInstallMode(){
+  if (fluxIsStandalone() || !fluxHasPlayed()) return null;
+  if (fluxDeferredInstall) return 'android';
+  if (fluxIsIOS()) return 'ios';
+  return null;
+}
+function fluxNeedsPilotBring(){
+  try{ return fluxIsStandalone() && localStorage.getItem('fluxAutoName') === '1' && !localStorage.getItem('fluxPublicTag'); }catch(e){ return false; }
+}
+function refreshInstallButtons(){
+  const mode = fluxInstallMode();
+  const label = mode === 'android' ? '\u{1F4F2} INSTALL NOW' : '\u{1F4F2} ADD TO HOME SCREEN';
+  ['gameoverInstallBtn'].forEach(function(id){   // owner decision: after a run only, never in the menu
+    const b = document.getElementById(id); if (!b) return;
+    b.textContent = label;
+    if (mode) b.classList.remove('hidden'); else b.classList.add('hidden');
+  });
+  const bring = document.getElementById('bringPilotBtn');
+  if (bring){ if (fluxNeedsPilotBring()) bring.classList.remove('hidden'); else bring.classList.add('hidden'); }
+}
+window.onbeforeinstallprompt = function(e){ try{ e.preventDefault(); }catch(_){} fluxDeferredInstall = e; refreshInstallButtons(); };
+window.onappinstalled = function(){ fluxDeferredInstall = null; refreshInstallButtons(); };
+function fluxDoInstall(){
+  const mode = fluxInstallMode();
+  if (mode === 'android' && fluxDeferredInstall){
+    const p = fluxDeferredInstall; fluxDeferredInstall = null;
+    try{ p.prompt(); }catch(e){}
+    Promise.resolve(p.userChoice).then(refreshInstallButtons, refreshInstallButtons);
+    refreshInstallButtons();
+    return;
+  }
+  if (mode === 'ios') fluxShowIosGuide();
+}
+/* D-49: iPhone keeps Safari and the Home Screen app in separate storage, so a
+   new icon would start as a NEW pilot (the owner's TITAN split). The guide
+   copies the pilot's restore code first; the installed app then offers
+   "BRING MY PILOT FROM SAFARI", which reads it back through the existing,
+   tested restore flow (server check + confirm). */
+async function fluxShowIosGuide(){
+  let hasScores = false;
+  try{ hasScores = !!localStorage.getItem('fluxPublicTag') || RESTORE_DIFFS.some(function(d){ return (+localStorage.getItem('fluxBest_' + d) || 0) > 0; }); }catch(e){}
+  const code = hasScores ? await makeRestoreCode(playerId) : null;
+  const d = restoreOverlay(
+    '<h2 style="color:#62eaff;letter-spacing:.12em">ADD FLUX TO YOUR HOME SCREEN</h2>' +
+    (code ? '<p class="restoreText"><b>1.</b> Copy your pilot so the app starts as you:</p><button id="guideCopyPilot">COPY MY PILOT</button>' : '') +
+    '<p class="restoreText" style="margin-top:12px"><b>' + (code ? '2' : '1') + '.</b> Tap <b>Share</b> (the square with an arrow) in Safari</p>' +
+    '<p class="restoreText"><b>' + (code ? '3' : '2') + '.</b> Choose <b>Add to Home Screen</b> \u2192 <b>Add</b></p>' +
+    (code ? '<p class="restoreText"><b>4.</b> Open FLUX from the new icon and tap <b>BRING MY PILOT FROM SAFARI</b></p>' : '') +
+    '<button id="guideDone">DONE</button>');
+  const cp = d.querySelector('#guideCopyPilot');
+  if (cp) cp.onclick = function(e){ copyText(code, e.target); };
+  d.querySelector('#guideDone').onclick = function(){ d.remove(); };
+}
+async function fluxBringPilot(){
+  let text = '';
+  try{ if (navigator.clipboard && navigator.clipboard.readText) text = await navigator.clipboard.readText(); }catch(e){}
+  const parsed = await parseRestoreCode(text);
+  if (!parsed.ok || parsed.playerId === playerId){ openRestoreEntry(); return; }   // fall back to pasting by hand
+  const r = await checkRestoreOnServer(parsed.playerId);
+  if (r.kind !== 'found'){ openRestoreEntry(); return; }
+  openRestoreConfirm(parsed.playerId, r.info);
+}
+document.getElementById('gameoverInstallBtn').onclick = fluxDoInstall;
+document.getElementById('bringPilotBtn').onclick = fluxBringPilot;
+(function(){
+  const endGame0 = endGame;
+  endGame = function(){
+    const r = endGame0.apply(this, arguments);
+    try{ localStorage.setItem('fluxRunsPlayed', String((+localStorage.getItem('fluxRunsPlayed') || 0) + 1)); }catch(e){}
+    refreshInstallButtons();
+    return r;
+  };
+})();
+refreshInstallButtons();
+
+/* D-46 LITE GRAPHICS (runtime). The first seconds of play are timed; if most
+   frames take longer than 25 ms (under 40 fps) the device switches to lite
+   graphics and remembers it: normal (not Retina) sharpness, no glow, half the
+   particles. Gameplay, speed and scoring are unchanged. Fast devices never
+   switch. */
+let fluxPerfN = 0, fluxPerfSlow = 0, fluxPerfSkip = 20;
+const FLUX_PERF_FRAMES = 60, FLUX_PERF_SLOW_MS = 25, FLUX_PERF_SLOW_SHARE = 0.6;
+function fluxPerfSample(ms){
+  if (window.__fluxLite || fluxPerfN >= FLUX_PERF_FRAMES) return;
+  if (fluxPerfSkip > 0){ fluxPerfSkip--; return; }
+  if (!(ms > 0 && ms < 1000)) return;           // ignore paused / backgrounded gaps
+  fluxPerfN++; if (ms > FLUX_PERF_SLOW_MS) fluxPerfSlow++;
+  if (fluxPerfN === FLUX_PERF_FRAMES && fluxPerfSlow >= FLUX_PERF_FRAMES * FLUX_PERF_SLOW_SHARE) fluxEnableLite();
+}
+const fluxBurst0 = burst;
+function fluxApplyLiteParticles(){ burst = function(x, y, col, n){ return fluxBurst0(x, y, col, Math.max(3, Math.ceil((n == null ? 14 : n) / 2))); }; }
+function fluxEnableLite(){
+  window.__fluxLite = true;
+  try{ localStorage.setItem('fluxLite', '1'); }catch(e){}
+  fluxApplyLite(); fluxApplyLiteParticles();
+  try{ resize(); }catch(e){}
+}
+if (window.__fluxLite) fluxApplyLiteParticles();
 </script>
 <!-- D-38 (RC2.8.4): IN-APP BROWSER BANNER. A link tapped inside TikTok,
      Instagram, Facebook, Messenger, Snapchat or LINE opens in that app's own
