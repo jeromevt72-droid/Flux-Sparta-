@@ -134,6 +134,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 .shopRow button:disabled{opacity:.55;box-shadow:none}
 .profileTag{opacity:.55;font-weight:600;letter-spacing:.06em;margin-left:2px}.lbTag{opacity:.5;font-weight:600;font-size:.8em;letter-spacing:.04em}.shopNote{display:inline-block;margin-top:6px;font-size:.78em;opacity:.7;line-height:1.4}.uploadStatus{min-height:14px;margin:6px 0 0;font-size:10px;letter-spacing:.18em;color:#8fa3d8;text-align:center}
 .restoreLink{display:block;width:100%;margin:-4px 0 12px;flex:none}#profileEditor.hidden+.restoreLink{display:none}.restoreOverlay .panel{max-height:88vh;overflow:auto}.restoreWho{font-size:12px;letter-spacing:.12em;color:#eaf7ff;margin:6px 0 10px}.restoreText{font-size:12px;line-height:1.55;color:#b9c6e6;margin:0 0 10px}.restoreWarn{font-size:11px;line-height:1.5;color:#ffd08a;margin:0 0 10px}.restoreMsg{font-size:12px;line-height:1.5;color:#ff9fc6;min-height:1.5em;margin:4px 0 8px}.restoreCode{font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.5;word-break:break-all;user-select:all;-webkit-user-select:all;background:#050a22;border:1px solid #2c4b87;border-radius:12px;padding:10px;margin:0 0 10px;color:#9ff3ff}.restoreInput{width:100%;box-sizing:border-box;font-family:ui-monospace,Menlo,monospace;font-size:16px;background:#050a22;color:#eaf7ff;border:1px solid #2c4b87;border-radius:12px;padding:10px;margin:0 0 6px;resize:none}.restoreRow{display:flex;gap:8px}.restoreRow button{flex:1}.restoreOverlay button{margin-top:8px}.restoreOther{display:block;width:100%}
+.goName{margin:6px 0 10px;padding:12px;border:1px solid #2c6bff;border-radius:16px;background:rgba(18,32,77,.55)}.goNameT{font-size:11px;letter-spacing:.16em;color:#5ff3ff;font-weight:800;margin-bottom:8px}.goNameRow{display:flex;gap:8px;margin-bottom:8px}.goNameRow input,.goNameRow select{min-width:0;background:#050a22;color:#eaf7ff;border:1px solid #2c4b87;border-radius:12px;padding:10px 12px;font:700 16px system-ui,sans-serif;text-transform:uppercase}.goNameRow input{flex:1}.goNameRow select{flex:0 0 42%;font-size:14px}.goNameRow input::placeholder{color:#6d7fa8}.goNameNote{font-size:11px;color:#9fb3d9;margin-top:6px}.colorHint{position:fixed;left:50%;top:24%;transform:translateX(-50%);z-index:50;pointer-events:none;background:rgba(6,12,34,.86);border:1px solid #2c6bff;border-radius:16px;padding:12px 18px;color:#eaf7ff;font:800 14px/1.35 system-ui,sans-serif;letter-spacing:.08em;text-align:center;max-width:86vw;box-shadow:0 10px 30px rgba(0,0,0,.5);transition:opacity .5s}.colorHint b{color:#5ff3ff}.colorHint.out{opacity:0}
 </style>
 </head>
 <body>
@@ -360,6 +361,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
   <h1 style="font-size:38px">FLUX<br>OVERLOAD</h1>
   <div class="acronym">THE FLOW BROKE</div><div class="sparta">FLUX COLLAPSE</div>
   <p>Final score: <b id="finalScore">0</b><br>Best: <b id="best">0</b><br>Mode: <b id="finalMode">MEDIUM</b></p>
+  <div id="goName" class="goName hidden"><div class="goNameT">PUT YOUR SCORE ON THE WORLD GRID</div><div class="goNameRow"><input id="goCallsign" maxlength="14" placeholder="YOUR NAME" autocomplete="off" autocorrect="off" spellcheck="false"><select id="goCountry" aria-label="Country"></select></div><button id="goSave" type="button">SAVE &amp; UPLOAD</button><div class="goNameNote" id="goNameMsg">Your best score counts for your country.</div></div>
   <div class="gameoverModes"><div class="menuLabel">CHOOSE YOUR NEXT FLOW</div><div class="difficulty" id="gameoverDifficulty"><button data-d="easy">EASY</button><button data-d="medium">MEDIUM</button><button data-d="hard">HARD</button></div></div>
   <button id="againBtn">RUN IT BACK</button>
   <button id="gameoverLeaderBtn" style="margin-top:8px;background:transparent;color:#7fdfff;border:1px solid #234174;box-shadow:none">🌎 GLOBAL LEADERBOARD</button>
@@ -396,11 +398,47 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
   }catch(e){}
   try{ localStorage.removeItem('fluxRestoreJournal'); }catch(e){}
 })();
+/* D-45 (RC2.8.5) OLDER DEVICES. ctx.roundRect() only exists from Safari 16.
+   On Safari 15 (iPhone 6s/7/SE, older iPads) the first frame threw
+   "roundRect is not a function" and froze the game. This draws the same
+   rounded rectangle with commands every browser has; newer browsers keep
+   their own implementation. */
+if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+    var rr = typeof r === 'number' ? r : (r && r.length ? (+r[0] || 0) : 0);
+    rr = Math.max(0, Math.min(rr, Math.abs(w) / 2, Math.abs(h) / 2));
+    this.moveTo(x + rr, y); this.arcTo(x + w, y, x + w, y + h, rr); this.arcTo(x + w, y + h, x, y + h, rr);
+    this.arcTo(x, y + h, x, y, rr); this.arcTo(x, y, x + w, y, rr); this.closePath(); return this;
+  };
+}
 const c=document.getElementById('game'),ctx=c.getContext('2d');
 let W,H,dpr,playing=false,paused=false,last=0,score=0,combo=1,level=1,streak=0,best=0,misses=0,revivesUsedThisRun=0,flux=0,fluxMode=0,missFragments=[],comboTimer=0,levelBanner=0,perfectFlash=0,levelHold=0,levelPoints=0,orbValue=20,bonusTimer=0,growTimer=0;
 let cachedHudRects=[]; // declared early -- resize() runs at script load time and references this immediately
 let difficulty=localStorage.fluxDifficulty||'medium', callsign=localStorage.fluxCallsign||'', country=localStorage.fluxCountry||'US';
 let profileComplete=localStorage.fluxProfileComplete==='1';
+/* D-43 (RC2.8.5) AUTO NAME. Owner: a child asked "what's my FLUX ID?" before
+   playing. A brand-new pilot now gets a visible, unique default name such as
+   PILOT-7Q2K under their detected flag, and can rename any time (EDIT, or
+   RENAME at game over). Decision recorded: this replaces D-16's "never
+   auto-name" for new pilots, because the default is shown, unique and
+   changeable -- not a silent "PLAYER". Scores count for the country from the
+   first run. Existing pilots are untouched.
+   D-44 (RC2.8.5) EASY FIRST: brand-new pilots start on Easy; anyone who has
+   played or chosen a difficulty keeps their choice. */
+(function () {
+  try {
+    if (localStorage.fluxProfileComplete === '1' || localStorage.fluxCallsign) return;
+    var A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', b = new Uint8Array(4), t = '';
+    try { crypto.getRandomValues(b); } catch (e) { for (var i = 0; i < 4; i++) b[i] = (Math.random() * 256) | 0; }
+    for (var j = 0; j < 4; j++) t += A[b[j] % A.length];
+    callsign = 'PILOT-' + t;
+    localStorage.fluxCallsign = callsign;
+    localStorage.fluxAutoName = '1';
+    localStorage.fluxProfileComplete = '1';
+    profileComplete = true;
+    if (!localStorage.fluxDifficulty) { difficulty = 'easy'; localStorage.fluxDifficulty = 'easy'; }
+  } catch (e) {}
+})();
 if(!localStorage.fluxPlayerId){localStorage.fluxPlayerId=(crypto.randomUUID?crypto.randomUUID():'p'+Date.now()+Math.random().toString(16).slice(2));}
 const playerId=localStorage.fluxPlayerId;
 const countryFlags={AF:'🇦🇫',AL:'🇦🇱',DZ:'🇩🇿',AD:'🇦🇩',AO:'🇦🇴',AG:'🇦🇬',AR:'🇦🇷',AM:'🇦🇲',AU:'🇦🇺',AT:'🇦🇹',AZ:'🇦🇿',BS:'🇧🇸',BH:'🇧🇭',BD:'🇧🇩',BB:'🇧🇧',BY:'🇧🇾',BE:'🇧🇪',BZ:'🇧🇿',BJ:'🇧🇯',BT:'🇧🇹',BO:'🇧🇴',BA:'🇧🇦',BW:'🇧🇼',BR:'🇧🇷',BN:'🇧🇳',BG:'🇧🇬',BF:'🇧🇫',BI:'🇧🇮',CV:'🇨🇻',KH:'🇰🇭',CM:'🇨🇲',CA:'🇨🇦',CF:'🇨🇫',TD:'🇹🇩',CL:'🇨🇱',CN:'🇨🇳',CO:'🇨🇴',KM:'🇰🇲',CG:'🇨🇬',CD:'🇨🇩',CR:'🇨🇷',CI:'🇨🇮',HR:'🇭🇷',CU:'🇨🇺',CY:'🇨🇾',CZ:'🇨🇿',DK:'🇩🇰',DJ:'🇩🇯',DM:'🇩🇲',DO:'🇩🇴',EC:'🇪🇨',EG:'🇪🇬',SV:'🇸🇻',GQ:'🇬🇶',ER:'🇪🇷',EE:'🇪🇪',SZ:'🇸🇿',ET:'🇪🇹',FJ:'🇫🇯',FI:'🇫🇮',FR:'🇫🇷',GA:'🇬🇦',GM:'🇬🇲',GE:'🇬🇪',DE:'🇩🇪',GH:'🇬🇭',GR:'🇬🇷',GD:'🇬🇩',GT:'🇬🇹',GN:'🇬🇳',GW:'🇬🇼',GY:'🇬🇾',HT:'🇭🇹',HN:'🇭🇳',HU:'🇭🇺',IS:'🇮🇸',IN:'🇮🇳',ID:'🇮🇩',IR:'🇮🇷',IQ:'🇮🇶',IE:'🇮🇪',IL:'🇮🇱',IT:'🇮🇹',JM:'🇯🇲',JP:'🇯🇵',JO:'🇯🇴',KZ:'🇰🇿',KE:'🇰🇪',KI:'🇰🇮',KW:'🇰🇼',KG:'🇰🇬',LA:'🇱🇦',LV:'🇱🇻',LB:'🇱🇧',LS:'🇱🇸',LR:'🇱🇷',LY:'🇱🇾',LI:'🇱🇮',LT:'🇱🇹',LU:'🇱🇺',MG:'🇲🇬',MW:'🇲🇼',MY:'🇲🇾',MV:'🇲🇻',ML:'🇲🇱',MT:'🇲🇹',MH:'🇲🇭',MR:'🇲🇷',MU:'🇲🇺',MX:'🇲🇽',FM:'🇫🇲',MD:'🇲🇩',MC:'🇲🇨',MN:'🇲🇳',ME:'🇲🇪',MA:'🇲🇦',MZ:'🇲🇿',MM:'🇲🇲',NA:'🇳🇦',NR:'🇳🇷',NP:'🇳🇵',NL:'🇳🇱',NZ:'🇳🇿',NI:'🇳🇮',NE:'🇳🇪',NG:'🇳🇬',KP:'🇰🇵',MK:'🇲🇰',NO:'🇳🇴',OM:'🇴🇲',PK:'🇵🇰',PW:'🇵🇼',PS:'🇵🇸',PA:'🇵🇦',PG:'🇵🇬',PY:'🇵🇾',PE:'🇵🇪',PH:'🇵🇭',PL:'🇵🇱',PT:'🇵🇹',QA:'🇶🇦',RO:'🇷🇴',RU:'🇷🇺',RW:'🇷🇼',KN:'🇰🇳',LC:'🇱🇨',VC:'🇻🇨',WS:'🇼🇸',SM:'🇸🇲',ST:'🇸🇹',SA:'🇸🇦',SN:'🇸🇳',RS:'🇷🇸',SC:'🇸🇨',SL:'🇸🇱',SG:'🇸🇬',SK:'🇸🇰',SI:'🇸🇮',SB:'🇸🇧',SO:'🇸🇴',ZA:'🇿🇦',KR:'🇰🇷',SS:'🇸🇸',ES:'🇪🇸',LK:'🇱🇰',SD:'🇸🇩',SR:'🇸🇷',SE:'🇸🇪',CH:'🇨🇭',SY:'🇸🇾',TW:'🇹🇼',TJ:'🇹🇯',TZ:'🇹🇿',TH:'🇹🇭',TL:'🇹🇱',TG:'🇹🇬',TO:'🇹🇴',TT:'🇹🇹',TN:'🇹🇳',TR:'🇹🇷',TM:'🇹🇲',TV:'🇹🇻',UG:'🇺🇬',UA:'🇺🇦',AE:'🇦🇪',GB:'🇬🇧',US:'🇺🇸',UY:'🇺🇾',UZ:'🇺🇿',VU:'🇻🇺',VA:'🇻🇦',VE:'🇻🇪',VN:'🇻🇳',YE:'🇾🇪',ZM:'🇿🇲',ZW:'🇿🇼',OTHER:'🌎'};
@@ -1042,7 +1080,7 @@ function endGame(){
    document.getElementById('finalMode').textContent=String(difficulty).toUpperCase();   // D-36: was never set here, so it always read MEDIUM
    document.getElementById('best').textContent=best;
    document.getElementById('gameover').classList.remove('hidden');
-   submitScore();
+   uploadOrAskName();   // D-39: nothing uploads until the pilot has a name
    // Tell whatever's hosting us (the Gateway's embedded play screen) that
    // we've reached game-over -- postMessage is the only way to signal
    // across origins, since the Gateway can't inspect this page directly.
@@ -1374,6 +1412,7 @@ function setPaused(next){
 }
 
 function loop(ts){
+ requestAnimationFrame(loop);   // D-45: next frame first, so one bad frame can never freeze the game
  const dt=Math.min(.032,(ts-last)/1000||.016);
  last=ts;
  if(playing && !paused) update(dt);
@@ -1383,7 +1422,6 @@ function loop(ts){
    if(levelHold<=0){levelHold=0;playing=true;updateHud();}
  }
  draw();
- requestAnimationFrame(loop)
 }
 requestAnimationFrame(loop);
 function pointer(e){let x=(e.touches?e.touches[0].clientX:e.clientX);setPaddle(x)}
@@ -1438,7 +1476,7 @@ document.getElementById('pauseMenuBtn').onclick=()=>{
   // asked to leave, not lose. Same persistence rules, no scoring changes.
   recordBestRun(score,level);
   if(score>best){best=score;}
-  submitScore();
+  if(profileComplete) submitScore();   // D-39: unnamed pilots upload once they name themselves
   playing=false;paused=false;runActive=false;
   document.getElementById('pauseOverlay').classList.add('hidden');
   document.getElementById('pauseBtn').classList.add('hidden');
@@ -2186,16 +2224,10 @@ document.getElementById('callsign').onchange = e => {
   e.target.value = v;
 };
 
-/* --- 6. Don't start a run until the callsign is set --- */
-document.getElementById('startBtn').onclick = () => {
-  initAudio();
-  if (!profileComplete && !saveProfile()) return;
-  document.getElementById('start').classList.add('hidden');
-  document.getElementById('pauseBtn').classList.remove('hidden');
-  newGame();
-  paused = false;
-  document.getElementById('pauseBtn').textContent = 'Ⅱ';
-};
+/* --- 6. (RC2.8.5) The start button has ONE handler: the D-39/D-43 one near the
+   end of this script. Two older assignments here were always overwritten
+   before a player could tap, and were removed so start behaviour lives in one
+   place. --- */
 
 /* --- 7. First run: preselect the real country instead of 🇺🇸 --- */
 if (!localStorage.fluxCountry) {
@@ -2205,6 +2237,7 @@ if (!localStorage.fluxCountry) {
       if (!d || !d.country || localStorage.fluxCountry) return;
       if (!countryFlags[d.country]) return;
       country = d.country;
+      if (localStorage.fluxAutoName === '1') localStorage.fluxCountry = country;   // D-43: keep the flag they were shown
       const sel = document.getElementById('country');
       if (sel) sel.value = country;
       refreshMenu();
@@ -2223,7 +2256,6 @@ document.getElementById('gameoverLeaderBtn').onclick=openLeaderboard;
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 document.getElementById('skinsBtn').onclick=()=>{buildShopUI();document.getElementById('shop').classList.remove('hidden');};
 document.getElementById('shopClose').onclick=()=>document.getElementById('shop').classList.add('hidden');
-document.getElementById('startBtn').onclick=()=>{initAudio();if(!profileComplete)saveProfile();document.getElementById('start').classList.add('hidden');document.getElementById('pauseBtn').classList.remove('hidden');newGame();paused=false;document.getElementById('pauseBtn').textContent='Ⅱ'};
 document.getElementById('againBtn').onclick=()=>{initAudio();document.getElementById('gameover').classList.add('hidden');document.getElementById('pauseBtn').classList.remove('hidden');newGame();paused=false;document.getElementById('pauseBtn').textContent='Ⅱ'};
 document.getElementById('gameoverMenuBtn').onclick=()=>{
   // Score/best/level are already saved by endGame() before this screen ever
@@ -2303,15 +2335,60 @@ try{ flushSubmitQueue(); }catch(e){}
 function isOffline(){ return typeof navigator!=='undefined' && navigator.onLine===false; }
 
 /* --- FLUX v4 PATCH, PART 2 — must sit AFTER the original handlers --- */
+/* D-39 (RC2.8.5) PLAY FIRST, NAME LATER. Owner-observed: a child could not
+   start the game -- an empty name blocked ENTER THE FLUX. Now an empty name no
+   longer blocks the first run. D-16's rule still holds: nothing reaches the
+   public board without a real name. Scores stay on the device until the
+   pilot is named (at game over, or in the menu), then upload as usual. */
+/* D-43: no rename suggestion at game over (owner decision). The default name
+   is visible in the menu next to EDIT; players rename there if they want. */
+function uploadOrAskName(){
+  const box=document.getElementById('goName');
+  if(profileComplete){ if(box) box.classList.add('hidden'); return submitScore(); }
+  showNamePrompt();
+}
+function showNamePrompt(){
+  const box=document.getElementById('goName'); if(!box) return;
+  const sel=document.getElementById('goCountry'), menuSel=document.getElementById('country');
+  if(sel && menuSel){ if(!sel.options.length) sel.innerHTML=menuSel.innerHTML; sel.value=menuSel.value||country||'US'; }
+  box.classList.remove('hidden');
+}
+document.getElementById('goSave').onclick=function(){
+  const inp=document.getElementById('goCallsign'); const typed=(inp.value||'').trim();
+  if(!typed){ inp.placeholder='ENTER YOUR NAME'; inp.style.borderColor='#ff4f98'; inp.focus(); setTimeout(function(){ inp.style.borderColor=''; },1600); return; }
+  document.getElementById('callsign').value=typed;
+  document.getElementById('country').value=document.getElementById('goCountry').value;
+  if(!saveProfile()) return;
+  try{ localStorage.removeItem('fluxAutoName'); }catch(e){}
+  document.getElementById('goName').classList.add('hidden');
+  submitScore();   // the server refreshes the name on every upload
+};
+/* D-40 (RC2.8.5) The color rule was never explained in the game. A short
+   hint on the very first run only; it never blocks play or touches input. */
+function showColorHint(){
+  try{ if(localStorage.getItem('fluxColorHintSeen')==='1') return; localStorage.setItem('fluxColorHintSeen','1'); }catch(e){}
+  const h=document.createElement('div'); h.className='colorHint'; h.id='colorHint';
+  h.innerHTML='HIT ORBS THAT <b>MATCH YOUR BALL\u2019S COLOR</b>';
+  document.getElementById('app').appendChild(h);
+  setTimeout(function(){ h.classList.add('out'); },3200);
+  setTimeout(function(){ h.remove(); },3800);
+}
 document.getElementById('startBtn').onclick = () => {
   initAudio();
-  if (!profileComplete && !saveProfile()) return;
+  if (!profileComplete && document.getElementById('callsign').value.trim()) {
+    const was = callsign, typed = document.getElementById('callsign').value.trim().toUpperCase();
+    if (saveProfile()) { if (typed !== was) { try { localStorage.removeItem('fluxAutoName'); } catch (e) {} } submitScore(); }
+  } else if (!profileComplete && localStorage.fluxCallsign) {
+    callsign = localStorage.fluxCallsign; profileComplete = true;   // EDIT opened, then cleared: keep the current name
+  }
   document.getElementById('start').classList.add('hidden');
   document.getElementById('pauseBtn').classList.remove('hidden');
   newGame();
   paused = false;
   document.getElementById('pauseBtn').textContent = 'Ⅱ';
+  showColorHint();
 };
+
 
 
 /* ==================================================================
@@ -2395,6 +2472,7 @@ function buildRestorePlan(info,id){
   after.fluxPlayerId=id;
   after.fluxCallsign=name || null;
   after.fluxProfileComplete=name ? '1' : null;           // no name on the server: ask for one
+  after.fluxAutoName=null;                               // D-43: a restored pilot keeps its own name
   const cc=typeof info.country==='string' ? info.country : '';
   if(/^[A-Z]{2}$/.test(cc) && Object.prototype.hasOwnProperty.call(countryFlags,cc)) after.fluxCountry=cc;
   after.fluxPublicTag=(typeof info.tag==='string' && /^[0-9A-Z]{6,}$/.test(info.tag)) ? info.tag : null;
@@ -2586,7 +2664,12 @@ async function openRestoreConfirm(id,info){
    The link under the name editor has two jobs:
      - a pilot already exists on this device (EDIT was tapped): show its code;
      - no pilot yet (first launch, or the icon lost its pilot): enter a code. */
-function restoreHasPilot(){ try{ return localStorage.getItem('fluxProfileComplete')==='1'; }catch(e){ return false; } }
+function restoreHasPilot(){ try{
+  if(localStorage.getItem('fluxProfileComplete')!=='1') return false;
+  // D-43: a brand-new auto-named pilot with nothing uploaded is offered code ENTRY
+  // (the "lost my pilot" case); once it has scores it has a code worth saving.
+  return !(localStorage.getItem('fluxAutoName')==='1' && !localStorage.getItem('fluxPublicTag'));
+}catch(e){ return false; } }
 function syncRestoreLink(){
   const l=document.getElementById('restoreLink');
   if(l) l.textContent = restoreHasPilot() ? '\u{1F511} RESTORE CODE' : 'HAVE A RESTORE CODE?';
