@@ -2,6 +2,20 @@
 <html lang="en">
 <head>
 <script>
+/* D-45 (RC2.8.5) OLDER DEVICES. ctx.roundRect() only exists from Safari 16.
+   On Safari 15 (iPhone 6s/7/SE, older iPads) the first frame threw
+   "roundRect is not a function" and froze the game. This draws the same
+   rounded rectangle with commands every browser has; newer browsers keep
+   their own implementation. */
+if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+    var rr = typeof r === 'number' ? r : (r && r.length ? (+r[0] || 0) : 0);
+    rr = Math.max(0, Math.min(rr, Math.abs(w) / 2, Math.abs(h) / 2));
+    this.moveTo(x + rr, y); this.arcTo(x + w, y, x + w, y + h, rr); this.arcTo(x + w, y + h, x, y + h, rr);
+    this.arcTo(x, y + h, x, y, rr); this.arcTo(x, y, x + w, y, rr); this.closePath(); return this;
+  };
+}
+
 /* ===========================================================================
    MERGE (RC2.5.6) — DEMO MODE: THE HERO DEMO CAN NEVER TOUCH REAL PLAYER DATA
 
