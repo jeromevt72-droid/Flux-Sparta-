@@ -16,18 +16,31 @@
 
 const MAX_NAME_LEN = 16;
 const MAX_SCORE = 5_000_000;
-// D-41 (RC2.8.5): the game has 9 levels (play/index.html: level<9). Accepting
-// level 999 let a forged submission reach MAX_SCORE through the per-level rule
-// (score <= level * SCORE_PER_LEVEL + SCORE_BASE_ALLOWANCE). With level capped
-// at 9 the highest score any submission can claim is 9*50,000+5,000 = 455,000.
+// D-41 (RC2.8.5): the game has 9 levels (play/index.html: level<9). Levels
+// above 9 are refused. (RC2.8.7: the per-level score ceiling this cap fed is
+// replaced by the D-51 score-to-level rule below; MAX_SCORE still applies.)
 const MAX_LEVEL = 9;
 const VALID_DIFFICULTIES = new Set(["easy", "medium", "hard"]);
 const VALID_SKUS = new Set(["toxic", "cosmic", "solar"]);
 
-// Highest believable score for a given level. Tune once you know the
-// real ceiling of a legitimate run.
-const SCORE_PER_LEVEL = 50_000;
-const SCORE_BASE_ALLOWANCE = 5_000;
+// D-51 (RC2.8.7): levels are reached by SCORE (D-50). A submission's level
+// must be the level its score reaches on that difficulty, give or take one
+// (a run can end during the 5-second SPEED UP countdown). This replaces the
+// per-level score ceiling (score <= level * 50,000 + 5,000). MUST stay
+// identical to LEVEL_SCORE_THRESHOLDS / LEVEL_SCORE_MULT in play/index.html.
+const LEVEL_SCORE_THRESHOLDS = [2500, 6000, 10000, 15000, 21000, 28000, 36000, 45000];   // Medium, levels 2..9
+const LEVEL_SCORE_MULT = { easy: 0.75, medium: 1, hard: 1.35 };
+const LEVEL_TOLERANCE = 1;
+// RC2.8.7: a hard ceiling kept IN ADDITION to D-51. The level rule alone lets
+// any score through once level 9 is claimed; nothing above the RC2.8.5
+// maximum (9 * 50,000 + 5,000) is accepted.
+const SCORE_CEILING = 455_000;
+function levelForScore(score, difficulty) {
+  const m = LEVEL_SCORE_MULT[difficulty] || 1;
+  let lv = 1;
+  for (const t of LEVEL_SCORE_THRESHOLDS) { if (score >= Math.round(t * m)) lv++; else break; }
+  return Math.min(MAX_LEVEL, lv);
+}
 
 // Minimum gap between two accepted submissions from one playerId.
 const SUBMIT_COOLDOWN_MS = 10_000;
@@ -158,8 +171,11 @@ async function submitScore(request, env) {
   if (!Number.isFinite(level) || level < 1 || level > MAX_LEVEL) {
     return json({ error: "Invalid level" }, 400);
   }
-  if (score > level * SCORE_PER_LEVEL + SCORE_BASE_ALLOWANCE) {
+  if (Math.abs(level - levelForScore(score, difficulty)) > LEVEL_TOLERANCE) {   // D-51
     return json({ error: "Score is not plausible for that level" }, 422);
+  }
+  if (score > SCORE_CEILING) {
+    return json({ error: "Score is above the maximum" }, 422);
   }
 
   // Player's pick wins; cf.country is the fallback for "OTHER"/unset.

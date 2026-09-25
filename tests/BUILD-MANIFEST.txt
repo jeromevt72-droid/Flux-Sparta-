@@ -1,0 +1,66 @@
+FLUX RC2.8.7 — BUILD MANIFEST
+Contains: RC2.8.6 build 2 + D-50..D-61 (levels by score, HUD/game-over clarity, palettes, sound) + 455,000 score ceiling.
+Changed vs RC2.8.6 build 2: worker.js, public/play/index.html
+Retained: public/google5415e96c084db88e.html (Google verification — never delete)
+
+sha256 (first 16 hex) of every deployable file:
+e118b2eecfbbdcaf  FLUX-Sparta/STRIPE_SETUP.md
+b5216ada8befed7d  FLUX-Sparta/public/admin.html
+5c96b09fc2a0fef8  FLUX-Sparta/public/assets/celestial.webp
+3e2f8e17c55718b6  FLUX-Sparta/public/assets/event.webp
+c86966cb3db87a45  FLUX-Sparta/public/assets/frozen.webp
+03b947fc51bbc2e9  FLUX-Sparta/public/assets/matrix.webp
+0e8181114ba208b1  FLUX-Sparta/public/assets/neon.webp
+d3a16e532fc636d3  FLUX-Sparta/public/assets/ocean.webp
+01ba4719c80b6fe9  FLUX-Sparta/public/assets/placeholder.txt
+eec3da151512d45b  FLUX-Sparta/public/assets/solar.webp
+e21f1362c6086a29  FLUX-Sparta/public/assets/storm.webp
+212874d5349c3c7d  FLUX-Sparta/public/assets2x/celestial@2x.webp
+be0500d38b40e0b0  FLUX-Sparta/public/assets2x/frozen@2x.webp
+5a6a4eec981f66bc  FLUX-Sparta/public/assets2x/matrix@2x.webp
+536355615f271254  FLUX-Sparta/public/assets2x/neon@2x.webp
+032e07c786f805f7  FLUX-Sparta/public/assets2x/ocean@2x.webp
+01ba4719c80b6fe9  FLUX-Sparta/public/assets2x/placeholder.txt
+5014f45725dbab0c  FLUX-Sparta/public/assets2x/solar@2x.webp
+4c43b2d13f1d123c  FLUX-Sparta/public/assets2x/storm@2x.webp
+6febf9c8a60b3df1  FLUX-Sparta/public/gateway-icon-192.png
+418f8ae23fbc0dc1  FLUX-Sparta/public/gateway-icon-512.png
+c98a6568e255c5bd  FLUX-Sparta/public/google5415e96c084db88e.html
+c61696c2d5b5f72f  FLUX-Sparta/public/hero-demo.html
+6febf9c8a60b3df1  FLUX-Sparta/public/icon-192.png
+418f8ae23fbc0dc1  FLUX-Sparta/public/icon-512.png
+87ff3d29885de48b  FLUX-Sparta/public/index.html
+3cb4cebe08f393bc  FLUX-Sparta/public/manifest.webmanifest
+1701533414903c5c  FLUX-Sparta/public/neon-tokyo.webp
+c52bb9f8660a2d1d  FLUX-Sparta/public/og-image.jpg
+f752990de95af7e5  FLUX-Sparta/public/play/index.html
+22ff9396327f92d1  FLUX-Sparta/public/privacy.html
+700e3ce925b33da3  FLUX-Sparta/public/robots.txt
+4efebf522008b19a  FLUX-Sparta/public/sitemap.xml
+c433c809ba3958b6  FLUX-Sparta/public/solar-inferno.webp
+2aba1430cf5de2ec  FLUX-Sparta/public/sw.js
+cafc31ce1536bb12  FLUX-Sparta/public/terms.html
+5c96b09fc2a0fef8  FLUX-Sparta/public/welcome/assets/celestial.webp
+3e2f8e17c55718b6  FLUX-Sparta/public/welcome/assets/event.webp
+c86966cb3db87a45  FLUX-Sparta/public/welcome/assets/frozen.webp
+03b947fc51bbc2e9  FLUX-Sparta/public/welcome/assets/matrix.webp
+0e8181114ba208b1  FLUX-Sparta/public/welcome/assets/neon.webp
+d3a16e532fc636d3  FLUX-Sparta/public/welcome/assets/ocean.webp
+eec3da151512d45b  FLUX-Sparta/public/welcome/assets/solar.webp
+e21f1362c6086a29  FLUX-Sparta/public/welcome/assets/storm.webp
+212874d5349c3c7d  FLUX-Sparta/public/welcome/assets2x/celestial@2x.webp
+c8b037ec7b2685bb  FLUX-Sparta/public/welcome/assets2x/event@2x.webp
+be0500d38b40e0b0  FLUX-Sparta/public/welcome/assets2x/frozen@2x.webp
+5a6a4eec981f66bc  FLUX-Sparta/public/welcome/assets2x/matrix@2x.webp
+536355615f271254  FLUX-Sparta/public/welcome/assets2x/neon@2x.webp
+032e07c786f805f7  FLUX-Sparta/public/welcome/assets2x/ocean@2x.webp
+5014f45725dbab0c  FLUX-Sparta/public/welcome/assets2x/solar@2x.webp
+4c43b2d13f1d123c  FLUX-Sparta/public/welcome/assets2x/storm@2x.webp
+6febf9c8a60b3df1  FLUX-Sparta/public/welcome/gateway-icon-192.png
+418f8ae23fbc0dc1  FLUX-Sparta/public/welcome/gateway-icon-512.png
+cfc2e3edbb2c4538  FLUX-Sparta/public/welcome/hero-demo.html
+879cf73b14a75aae  FLUX-Sparta/public/welcome/index.html
+b7fb3007cd8a036b  FLUX-Sparta/public/welcome/privacy.html
+42f70993bd0e2ea7  FLUX-Sparta/public/welcome/terms.html
+297976d4faaaf6e1  FLUX-Sparta/worker.js
+c15efa2d0fa8e979  FLUX-Sparta/wrangler.jsonc

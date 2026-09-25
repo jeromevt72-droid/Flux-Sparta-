@@ -1,0 +1,6 @@
+{
+  "name": "flux-rc2-1-tests",
+  "private": true,
+  "type": "module",
+  "description": "Test harness only. Lets the suites import FLUX-Sparta/worker.js (which uses ESM export syntax) directly, with no copy step and no absolute paths. Not part of the deployed application."
+}

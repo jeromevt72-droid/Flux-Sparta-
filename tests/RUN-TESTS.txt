@@ -1,0 +1,47 @@
+RELEASE GATE (RC2.8.1) — run this; it fails if ANY suite fails:
+
+    node run-all-tests.mjs
+
+Individual suites (the gate runs all of them):
+FLUX RC2.1 — how to run the suites
+==================================
+Needs Node 18+ and Python 3. Works from any directory; no copy step,
+no absolute paths, no environment assumptions.
+
+  cd <this folder>
+
+  python3 regression-suite.py        # 73 checks: Phase 1 + Phase 2 + D-01..D-15
+  node test-sw.mjs                   # 30: SW, cold offline launch, cache versioning, A->B
+node test-audio-lifecycle.mjs      # 20: iOS Web Audio interrupted-state recovery
+node test-d16-fluxid.mjs           # 23: FLUX ID label + identity compatibility
+node test-d17-d03.mjs              # 38: standalone greeting + legal pages
+node test-d19-d20.mjs              # 42: FLUX brand reveal on phone + timeline
+node test-d19-orientation.mjs      # 47: measured reflow + 4-way orientation matrix
+node test-runtime-integration.mjs  # 22: EXECUTES the page — init order + real bindings
+node test-country-parity.mjs       # 28: all 196 countries render flag + name
+node test-offline-runtime.mjs      # 18: offline queue via the RUNTIME binding
+node test-t9-entitlements.mjs      # 34: paid-skin ownership authority (T-9)
+node test-checkout-navigation.mjs  # 60: installed-PWA checkout navigation
+node test-rc287.mjs              # RC2.8.7: D-50..D-61 (levels, HUD, palettes, game over, sound) + negative controls
+node test-rc287-browser.mjs      # RC2.8.7 extra, not in the gate: real Chromium, 360px fit, 11px text, 44px buttons, notch inset
+node test-rc281.mjs              # RC2.8.1: D-29 D-31 D-33 D-34 + pending-delivery message
+node test-rc28-worker.mjs          # RC2.8 server: D-22 D-25 D-26 D-27, moderation, tags, reconciliation (REAL worker)
+node test-rc28-client.mjs          # RC2.8 game: D-23 D-24, honest status, tags (REAL game page)
+node test-audit-fixes.mjs         # 60+: AUDIT A-1..A-4 on the REAL worker + game hash agreement
+node test-one-app-runtime.mjs      # 40: RUNS the real Gateway+game: 10 relaunches, demo, Stripe return
+node test-negative-controls.mjs    # 10: re-inserts each defect and REQUIRES a failure
+node test-merge-one-identity.mjs   # 40: MERGE — one origin, one identity, demo isolated
+node test-single-identity.mjs      # 27: top-level Play, one identity, purchase lock
+  node test-offline-queue.mjs        # 19: offline queue, retry, permanent vs temporary
+  node test-d09-bestrun.mjs          # 20: best-run record + legacy migration
+  node test-d01-d08-lifecycle.mjs    # 19: demo suspend/resume, pill, hostile origin
+  node test-worker.mjs               # 63: worker API
+  node test-import.mjs               # 47: KV -> Durable Object import
+  node fuzz.mjs                      # adversarial pass
+
+package.json exists only so the suites can import FLUX-Sparta/worker.js,
+which uses ESM export syntax. It is not part of the deployed application
+and should not be uploaded to Cloudflare or GitHub.
+
+Every suite must pass before any future FLUX build is accepted.
+D-01 through D-15 are permanent regression entries. Old bugs stay dead.
