@@ -1,6 +1,7 @@
 // AUDIT FIXES A-1..A-4 — runs the REAL worker.js end to end, and the REAL game
 // page for the "your row" hash, and checks the two implementations agree.
 import worker, { LeaderboardDO } from "./FLUX-Sparta/worker.js";
+import { levelFor } from './level-rule.mjs';   // RC2.8.7: D-51 fixture levels
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -74,7 +75,7 @@ async function call(env, p, { method="GET", body, headers={}, cf } = {}) {
 const PID_A = "11111111-aaaa-4bbb-8ccc-000000000001";
 const PID_B = "22222222-aaaa-4bbb-8ccc-000000000002";
 async function submit(env, playerId, name, score, country="US") {
-  return call(env, "/api/submit-score", { method:"POST", body:{ playerId, name, score, level: 5, difficulty:"medium", country } });
+  return call(env, "/api/submit-score", { method:"POST", body:{ playerId, name, score, level: levelFor(score, "medium"), difficulty:"medium", country } });
 }
 
 console.log("== A-1: the public leaderboard never reveals a playerId ==");

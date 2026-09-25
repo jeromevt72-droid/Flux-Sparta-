@@ -1,4 +1,5 @@
 import worker, { LeaderboardDO } from "./FLUX-Sparta/worker.js";
+import { levelFor } from './level-rule.mjs';   // RC2.8.7: D-51 fixture levels
 
 class FakeStorage {
   constructor() { this.map = new Map(); }
@@ -121,7 +122,7 @@ console.log("\n=== same-player race ===");
   const results = await Promise.all(Array.from({ length: 20 }, () =>
     call(env, "/api/submit-score", {
       method: "POST", cf: { country: "US" },
-      body: { playerId: "racer", name: "R", score: 30000, level: 2, difficulty: "medium" },
+      body: { playerId: "racer", name: "R", score: 30000, level: levelFor(30000), difficulty: "medium" },
     })
   ));
   const accepted = results.filter(r => r.status === 200).length;
@@ -142,7 +143,7 @@ console.log("\n=== scale sanity ===");
   await Promise.all(Array.from({ length: 300 }, (_, i) =>
     call(env, "/api/submit-score", {
       method: "POST", cf: { country: "US" },
-      body: { playerId: "s" + i, name: "S" + i, score: (i % 90) * 1000 + 500, level: 2,
+      body: { playerId: "s" + i, name: "S" + i, score: (i % 90) * 1000 + 500, level: levelFor((i % 90) * 1000 + 500, ["easy","medium","hard"][i % 3]),
               difficulty: ["easy","medium","hard"][i % 3], country: cc[i % cc.length] },
     })
   ));

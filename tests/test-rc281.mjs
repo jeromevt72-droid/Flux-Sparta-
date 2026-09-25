@@ -3,6 +3,7 @@
 // pending-delivery message. Written FIRST and run against RC2.8, where each
 // defect test must FAIL. Real worker.js and real game page; Stripe/KV stand-ins.
 import worker, { LeaderboardDO } from "./FLUX-Sparta/worker.js";
+import { levelFor } from './level-rule.mjs';   // RC2.8.7: D-51 fixture levels
 import fs from "fs"; import path from "path"; import { fileURLToPath } from "url";
 import { boot, makeStore } from "./harness.mjs";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -86,7 +87,7 @@ async function call(env,p,{method="GET",body,headers={},raw}={}){
   return { status:res.status, data, raw:JSON.stringify(data) };
 }
 const inst=(env)=>[...env.LEADERBOARD_DO._instances.values()][0];
-const submit=(env,id,name,score,d="medium",c="US",level=9)=>   // D-41: the real game tops out at level 9
+const submit=(env,id,name,score,d="medium",c="US",level=levelFor(score,d))=>   // D-51: the level this score reaches
 call(env,"/api/submit-score",{method:"POST",body:{playerId:id,name,score,level,difficulty:d,country:c}});
 const section=async(title,fn)=>{ console.log("\n== "+title+" =="); try{ await fn(); }catch(e){ ck("section completed without crashing",false,String(e).slice(0,100)); } };
 async function webhook(env,session){ const payload=JSON.stringify({id:"evt_"+Math.random(),type:"checkout.session.completed",data:{object:session}});

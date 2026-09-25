@@ -1,4 +1,4 @@
-// RELEASE GATE (RC2.8.6; D-30). Runs every suite from THIS folder and exits
+// RELEASE GATE (RC2.8.7; D-30). Runs every suite from THIS folder and exits
 // nonzero if ANY suite fails -- by exit code, not by whether it finished.
 // Usage:  node run-all-tests.mjs
 import { spawnSync } from 'child_process';
@@ -7,7 +7,7 @@ const ROOT = path.dirname(fileURLToPath(import.meta.url));
 fs.copyFileSync(path.join(ROOT,'FLUX-Sparta','worker.js'), path.join(ROOT,'worker.mjs'));   // fuzz imports it
 const SUITES = [
   ['python3','regression-suite.py'],
-  ...['test-rc286.mjs','test-rc285.mjs','test-d38.mjs','test-d36-d37.mjs','test-d35-restore.mjs','test-rc281.mjs','test-rc28-worker.mjs','test-rc28-client.mjs','test-audit-fixes.mjs','test-one-app-runtime.mjs',
+  ...['test-rc287.mjs','test-rc286.mjs','test-rc285.mjs','test-d38.mjs','test-d36-d37.mjs','test-d35-restore.mjs','test-rc281.mjs','test-rc28-worker.mjs','test-rc28-client.mjs','test-audit-fixes.mjs','test-one-app-runtime.mjs',
       'test-negative-controls.mjs','test-merge-one-identity.mjs','test-single-identity.mjs','test-checkout-navigation.mjs',
       'test-t9-entitlements.mjs','test-runtime-integration.mjs','test-country-parity.mjs','test-offline-runtime.mjs',
       'test-d19-orientation.mjs','test-d19-d20.mjs','test-d17-d03.mjs','test-d16-fluxid.mjs','test-sw.mjs',

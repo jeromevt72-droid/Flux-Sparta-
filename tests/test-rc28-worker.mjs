@@ -2,6 +2,7 @@
 // and purchase tools. Written FIRST and run against RC2.7, where each defect
 // test must FAIL. Runs the REAL worker.js; Stripe and KV are local stand-ins.
 import worker, { LeaderboardDO } from "./FLUX-Sparta/worker.js";
+import { levelFor } from './level-rule.mjs';   // RC2.8.7: D-51 fixture levels
 let F=0; const ck=(l,c,x='')=>{console.log((c?'  PASS  ':'  FAIL  ')+l+(x?'  ['+x+']':''));if(!c)F++;};
 /* ---------------- fake Durable Object runtime ---------------- */
 
@@ -85,7 +86,7 @@ async function call(env, p, { method="GET", body, headers={}, raw } = {}) {
   return { status: res.status, data, raw: JSON.stringify(data) };
 }
 const P = (n) => "aaaaaaaa-bbbb-4ccc-8ddd-" + String(n).padStart(12, "0");
-const submit = (env, id, name, score, difficulty="medium", country="US", level=9) =>   // D-41: the real game tops out at level 9
+const submit = (env, id, name, score, difficulty="medium", country="US", level=levelFor(score, difficulty)) =>   // D-51: the level this score reaches
   call(env, "/api/submit-score", { method:"POST", body:{ playerId:id, name, score, level, difficulty, country } });
 const inst = (env) => [...env.LEADERBOARD_DO._instances.values()][0];
 async function tick(){ await new Promise(r=>setTimeout(r,5)); }
@@ -117,7 +118,7 @@ await (async () => { try {
   await submit(env, P(2), "ALPHA", 2000, "medium", "US");
   await submit(env, P(3), "BRAVO", 1500, "medium", "US");
   inst(env).lastSubmit = {};
-  await submit(env, P(1), "BIGSHOT", 10, "medium", "PH", 9); // moves country (best stays 455,000)
+  await submit(env, P(1), "BIGSHOT", 10, "medium", "PH"); // moves country (best stays 455,000)
   const lb = await call(env, "/api/leaderboard");
   const us = lb.data.countries.find(c=>c.country==="US"), ph = lb.data.countries.find(c=>c.country==="PH");
   ck("former country total = remaining players (3,500 from 2)", us?.totalScore===3500 && us.playerCount===2, JSON.stringify(us));

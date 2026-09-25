@@ -55,14 +55,14 @@ canvas{position:absolute;inset:0;width:100%;height:100%}
    real ad network SDK; nothing else references these classes. */
 .gummyAdPanel{width:min(440px,90vw);padding:0;border:1px solid #2c4b87;border-radius:24px;overflow:hidden;background:linear-gradient(160deg,#2a0e46,#4a1560 55%,#7a1f4a);box-shadow:0 0 60px #ff4fd233}
 .gummyAdStage{position:relative;height:170px;overflow:hidden;background:radial-gradient(circle at 50% 25%,#5c1f7a 0,#2a0e46 75%)}
-.adBadge{position:absolute;top:10px;left:10px;font-size:8px;letter-spacing:.2em;background:#ffffff26;color:#fff;padding:4px 8px;border-radius:6px;z-index:2}
+.adBadge{position:absolute;top:10px;left:10px;font-size:11px;letter-spacing:.2em;background:#ffffff26;color:#fff;padding:4px 8px;border-radius:6px;z-index:2}
 .gummyBear{position:absolute;bottom:10px;width:52px;height:52px;transform-origin:bottom center;animation:gummyBounce 1.1s ease-in-out infinite;filter:drop-shadow(0 6px 10px #00000055)}
 @keyframes gummyBounce{0%,100%{transform:translateY(0) scale(1,1)}30%{transform:translateY(-38px) scale(.92,1.1)}55%{transform:translateY(0) scale(1.14,.86)}75%{transform:translateY(-8px) scale(.98,1.02)}}
 .candyDot{position:absolute;bottom:0;border-radius:50%;opacity:0;animation:candyFloat 3.2s ease-in infinite}
 @keyframes candyFloat{0%{transform:translateY(10px) scale(.6);opacity:0}15%{opacity:.9}100%{transform:translateY(-190px) scale(1);opacity:0}}
 .gummyAdBody{padding:16px 22px 22px;text-align:center}
 .adBrand{font-size:22px;font-weight:900;letter-spacing:.1em;color:#fff;text-shadow:0 0 18px #ff4fd2aa;margin:10px 0 2px}
-.adTagline{font-size:10px;letter-spacing:.1em;color:#ffd6f2;margin:0 0 6px}
+.adTagline{font-size:11px;letter-spacing:.1em;color:#ffd6f2;margin:0 0 6px}
 #pressureGlow{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .6s ease,background .6s ease;background:radial-gradient(circle at 50% 100%,#ffc44730 0%,transparent 60%);mix-blend-mode:screen;z-index:1}
 #pressureGlow.warn{background:radial-gradient(circle at 50% 100%,#ffc44755 0%,transparent 62%)}
 #pressureGlow.critical{background:radial-gradient(circle at 50% 100%,#ff4f6870 0%,transparent 66%);animation:pulseCritical 1.1s ease-in-out infinite}
@@ -71,57 +71,41 @@ canvas{position:absolute;inset:0;width:100%;height:100%}
 #fluxGlow.on{opacity:1}
 .hud{position:absolute;top:max(16px,env(safe-area-inset-top));left:0;right:0;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;pointer-events:none}
 .logo{font-weight:900;letter-spacing:.38em;font-size:22px;color:#55e8ff;text-shadow:0 0 18px #18cfff}
-.sub{font-size:8px;letter-spacing:.26em;color:#8da0c8;margin-top:3px}
-.stats{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;max-width:70vw}.fluxbar{position:absolute;top:76px;left:16px;display:flex;align-items:center;gap:7px;font-size:8px;letter-spacing:.22em;color:#8da0c8}.fluxbar div{width:150px;height:6px;border:1px solid #24427b;border-radius:99px;background:#09102b;overflow:hidden}.fluxbar i{display:block;width:0%;height:100%;background:#62eaff;box-shadow:0 0 14px #27d9ff;transition:width .12s}.fluxbar b{font-size:8px;color:#62eaff;min-width:28px}
+.stats{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;max-width:70vw}/* D-53 (RC2.8.7): the pause button sits IN the FLUX meter row, inside .hud, so it moves with the safe-area inset (iOS Home Screen) instead of being pinned at a fixed height the notch could push the meter onto. */.fluxbar{position:absolute;top:76px;left:16px;display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:.14em;color:#8da0c8}.fluxbar div{width:150px;height:6px;border:1px solid #24427b;border-radius:99px;background:#09102b;overflow:hidden}.fluxbar i{display:block;width:0%;height:100%;background:#62eaff;box-shadow:0 0 14px #27d9ff;transition:width .12s}.fluxbar b{font-size:11px;color:#62eaff;min-width:36px}
 .stat{min-width:64px;text-align:center;border:1px solid #263a72;background:#0b1030cc;border-radius:13px;padding:7px 9px;box-shadow:0 0 18px #15255a66}
 .stat b{display:block;font-size:16px}.levelTrack{height:3px;margin-top:5px;border-radius:99px;background:#111b3c;overflow:hidden}.levelTrack i{display:block;width:0%;height:100%;background:#62eaff;box-shadow:0 0 8px #27d9ff;transition:width .15s}
-.stat span{font-size:7px;letter-spacing:.22em;color:#8795bd}
+.stat span{display:block;font-size:11px;letter-spacing:.06em;color:#8795bd;white-space:nowrap}/* D-50 SPEED UP countdown and D-52 LAST LIFE: the stat box itself changes colour. */.stat.speedUp{border-color:#ffb020;background:#2a1a00dd;box-shadow:0 0 18px #ffb02077}.stat.speedUp span{color:#ffc447}.stat.speedUp b{color:#ffd23f}.stat.speedUp .levelTrack i{background:#ffc447;box-shadow:0 0 8px #ffb020}.stat.lastLife{border-color:#ff3b5c;background:#3a0714dd;box-shadow:0 0 18px #ff3b5c77}.stat.lastLife span,.stat.lastLife b{color:#ff6b81}
 #start,#gameover,#shop{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#030512aa;backdrop-filter:blur(5px);z-index:3}
 #shop{z-index:7}
 .panel{width:min(440px,88vw);padding:28px;border:1px solid #2c4b87;border-radius:24px;background:#080d29e8;box-shadow:0 0 50px #1c61ff33;text-align:center}
 .panel h1{margin:0;color:#5deaff;font-size:48px;letter-spacing:.25em}
 .panel .acronym{margin:5px 0 20px;color:#9eb0d6;font-size:11px;letter-spacing:.18em}
-.panel .sparta{margin:12px 0 0;color:#62eaff;font-weight:900;letter-spacing:.18em;font-size:10px}.panel p{color:#b9c6e5;line-height:1.55;font-size:14px}
-button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spacing:.15em;color:#04101a;background:#62eaff;box-shadow:0 0 25px #27d9ff88;font-size:14px}
-.hint{font-size:10px!important;color:#7082ad!important;margin-top:16px}
+.panel .sparta{margin:12px 0 0;color:#62eaff;font-weight:900;letter-spacing:.18em;font-size:11px}.panel p{color:#b9c6e5;line-height:1.55;font-size:14px}
+button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spacing:.15em;color:#04101a;background:#62eaff;box-shadow:0 0 25px #27d9ff88;font-size:14px;min-height:44px}/* D-55: every button is at least 44px tall */
+.hint{font-size:11px!important;color:#7082ad!important;margin-top:16px}
 .hidden{display:none!important}
-#pauseBtn{position:absolute;top:78px;left:16px;width:42px;height:42px;padding:0;border-radius:12px;font-size:17px;line-height:42px;letter-spacing:0;z-index:5;pointer-events:auto;background:#0b1436;color:#62eaff;border:1px solid #2d65a6;box-shadow:0 0 18px #27d9ff55}
+#pauseBtn{position:relative;flex:none;width:44px;height:44px;padding:0;border-radius:12px;font-size:17px;line-height:44px;letter-spacing:0;z-index:5;pointer-events:auto;background:#0b1436;color:#62eaff;border:1px solid #2d65a6;box-shadow:0 0 18px #27d9ff55}
 #pauseBtn:active{transform:scale(.94)}
 #pauseOverlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#030512b8;backdrop-filter:blur(7px);z-index:4}
 #pauseOverlay .panel{width:min(390px,84vw)}
 #pauseOverlay h2{margin:0 0 8px;color:#62eaff;font-size:28px;letter-spacing:.18em}
 .device-note{display:none}
-.badge{position:absolute;right:16px;font-size:9px;letter-spacing:.16em;color:#6f82ad;opacity:.9;font-weight:700}
-#audioBadge{top:76px;display:none}
-#pressureBadge{top:98px;display:none}
-.badge.stable{color:#6f82ad}.badge.warn{color:#ffc447}.badge.critical{color:#ff6b98}
 @media (max-width: 700px){
   .hud{padding:8px 10px;align-items:flex-start}
-  .logo{font-size:18px;letter-spacing:.32em}.sub{font-size:7px;letter-spacing:.16em;white-space:nowrap}
+  .logo{font-size:18px;letter-spacing:.32em}
   .stats{gap:5px;max-width:76vw}
-  .stat{min-width:56px;padding:5px 6px;border-radius:10px}.stat b{font-size:14px}.stat span{font-size:8px}.levelTrack{margin-top:3px}
-  .fluxbar{top:70px;left:10px;font-size:8px}.fluxbar div{width:92px;height:5px}.fluxbar b{font-size:8px}
-  #pauseBtn{top:112px;left:10px;width:40px;height:40px;line-height:40px}
-  .badge{font-size:8px;right:10px}
-  #audioBadge{top:72px}
-  #pressureBadge{top:90px}
+  .stat{min-width:56px;padding:5px 6px;border-radius:10px}.stat b{font-size:14px}.levelTrack{margin-top:3px}
+  .fluxbar{top:66px;left:10px}.fluxbar div{width:92px;height:5px}
   .device-note{display:block}
 }
-@media (min-width: 701px){
-  #pauseBtn{top:76px}
-}
 @media (max-width: 430px){
-  .logo{font-size:16px}.sub{font-size:6px}
-  .stats{max-width:79vw;gap:3px}.stat{min-width:50px;padding:4px 4px}.stat b{font-size:13px}.stat span{font-size:7px}
-  .fluxbar{top:73px}.fluxbar div{width:78px}
-  #pauseBtn{top:116px}
-  .badge{font-size:7px}
-  #audioBadge{top:73px}
-  #pressureBadge{top:90px}
+  .logo{font-size:16px;letter-spacing:.2em}
+  .stats{max-width:80vw;gap:3px}.stat{min-width:50px;padding:4px 4px}.stat b{font-size:13px}.stat span{letter-spacing:.02em}
+  .fluxbar{top:66px;gap:6px;letter-spacing:.08em}.fluxbar div{width:78px}
 }
 #flash{position:absolute;inset:0;pointer-events:none;background:white;opacity:0;mix-blend-mode:screen}
-.menuPanel{max-height:92vh;overflow:auto}.menuSection{margin:12px 0 14px}.menuLabel{font-size:9px;letter-spacing:.24em;color:#8094c0;margin-bottom:8px}.difficulty{display:flex;gap:7px}.difficulty button{flex:1;padding:11px 7px;font-size:10px;background:#0c1537;color:#91a6d4;border:1px solid #294578;box-shadow:none}.difficulty button.selected{background:#62eaff;color:#04101a;box-shadow:0 0 18px #27d9ff66}.profileRow{display:flex;gap:7px;margin:0 0 12px}.profileRow input,.profileRow select{min-width:0;flex:1;border:1px solid #294578;border-radius:12px;background:#070d27;color:#eaf7ff;padding:11px 10px;font-size:16px;font-weight:800}.profileRow select{flex:0 0 118px}.menuTiles{display:flex;gap:8px;margin-top:12px}.menuTiles>div{flex:1;border:1px solid #263a72;background:#0b1030aa;border-radius:12px;padding:8px}.menuTiles span{display:block;font-size:6px;letter-spacing:.2em;color:#7f93bd}.menuTiles b{display:block;margin-top:3px;font-size:16px}.menuLinks{display:flex;gap:8px;margin-top:10px}.linkBtn{flex:1;padding:9px 5px;font-size:7px;background:#0b1230;color:#7fdfff;border:1px solid #234174;box-shadow:none}.offline{font-size:7px!important;letter-spacing:.1em;color:#5c779f!important;margin:11px 0 0!important}.miniOverlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#030512dd;z-index:6}.gameoverModes{margin:14px 0 12px}.gameoverModes .menuLabel{margin-bottom:7px}.gameoverModes .difficulty{max-width:340px;margin:auto}.gameoverModes button{padding:10px 5px;font-size:9px}.profileSaved{display:flex;align-items:center;justify-content:center;gap:8px;margin:0 0 12px;color:#8fa5d1;font-size:9px;letter-spacing:.12em}.profileSaved b{color:#62eaff}.editProfile{background:transparent!important;color:#62eaff!important;border:1px solid #294578!important;box-shadow:none!important;padding:6px 9px!important;font-size:7px!important;letter-spacing:.12em!important}@media(max-width:430px){.menuPanel{padding:20px}.menuPanel h1{font-size:42px}.profileRow select{flex-basis:104px}.menuLinks{flex-direction:column}}
-.lbPanel{max-height:86vh;display:flex;flex-direction:column}.lbBody{flex:1;min-height:0;overflow:auto;margin:14px 0 18px;text-align:left}.lbLoading,.lbEmpty{color:#8da0c8;font-size:12px;text-align:center;padding:20px 0}.lbLeading{text-align:center;font-size:11px;letter-spacing:.08em;color:#9eb0d6;background:#0b1030;border:1px solid #263a72;border-radius:12px;padding:9px;margin-bottom:12px}.lbLeading b{color:#62eaff}.lbSectionLabel{font-size:9px;letter-spacing:.22em;color:#7f93bd;margin:16px 0 8px}.lbList{display:flex;flex-direction:column;gap:6px}.lbRow{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #263a72;background:#0b1030aa;border-radius:10px;font-size:12px}.lbRow.lbMine{border-color:#62eaff;box-shadow:0 0 14px #27d9ff44}.lbRank{width:28px;color:#7f93bd;font-weight:900;font-size:10px}.lbFlag{font-size:15px}.lbName{flex:1;font-weight:800;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lbScore{font-weight:900;color:#62eaff}
+.menuPanel{max-height:92vh;overflow:auto}.menuSection{margin:12px 0 14px}.menuLabel{font-size:11px;letter-spacing:.16em;color:#8094c0;margin-bottom:8px}.difficulty{display:flex;gap:7px}.difficulty button{flex:1;padding:11px 4px;font-size:11px;letter-spacing:.08em;background:#0c1537;color:#91a6d4;border:1px solid #294578;box-shadow:none}.difficulty button.selected{background:#62eaff;color:#04101a;box-shadow:0 0 18px #27d9ff66}.profileRow{display:flex;gap:7px;margin:0 0 12px}.profileRow input,.profileRow select{min-width:0;flex:1;border:1px solid #294578;border-radius:12px;background:#070d27;color:#eaf7ff;padding:11px 10px;font-size:16px;font-weight:800}.profileRow select{flex:0 0 118px}.menuTiles{display:flex;gap:8px;margin-top:12px}.menuTiles>div{flex:1;border:1px solid #263a72;background:#0b1030aa;border-radius:12px;padding:8px}.menuTiles span{display:block;font-size:11px;letter-spacing:.08em;color:#7f93bd}.menuTiles b{display:block;margin-top:3px;font-size:16px}.menuLinks{display:flex;gap:8px;margin-top:10px}.linkBtn{flex:1;padding:9px 8px;font-size:11px;letter-spacing:.08em;background:#0b1230;color:#7fdfff;border:1px solid #234174;box-shadow:none}.offline{font-size:11px!important;letter-spacing:.06em;color:#5c779f!important;margin:11px 0 0!important}.miniOverlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#030512dd;z-index:6}.gameoverModes{margin:14px 0 12px}.gameoverModes .menuLabel{margin-bottom:7px}.gameoverModes .difficulty{max-width:340px;margin:auto}.gameoverModes button{padding:10px 4px;font-size:11px}.profileSaved{display:flex;align-items:center;justify-content:center;gap:8px;margin:0 0 12px;color:#8fa5d1;font-size:12px;letter-spacing:.08em}.profileSaved b{color:#62eaff}.editProfile{background:transparent!important;color:#62eaff!important;border:1px solid #294578!important;box-shadow:none!important;padding:6px 14px!important;font-size:11px!important;letter-spacing:.1em!important;min-height:44px}@media(max-width:430px){.menuPanel{padding:20px}.menuPanel h1{font-size:42px}.profileRow select{flex-basis:104px}.menuLinks{flex-direction:column}}
+.lbPanel{max-height:86vh;display:flex;flex-direction:column}.lbBody{flex:1;min-height:0;overflow:auto;margin:14px 0 18px;text-align:left}.lbLoading,.lbEmpty{color:#8da0c8;font-size:12px;text-align:center;padding:20px 0}.lbLeading{text-align:center;font-size:11px;letter-spacing:.08em;color:#9eb0d6;background:#0b1030;border:1px solid #263a72;border-radius:12px;padding:9px;margin-bottom:12px}.lbLeading b{color:#62eaff}.lbSectionLabel{font-size:11px;letter-spacing:.16em;color:#7f93bd;margin:16px 0 8px}.lbList{display:flex;flex-direction:column;gap:6px}.lbRow{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #263a72;background:#0b1030aa;border-radius:10px;font-size:12px}.lbRow.lbMine{border-color:#62eaff;box-shadow:0 0 14px #27d9ff44}.lbRank{width:32px;color:#7f93bd;font-weight:900;font-size:11px}.lbFlag{font-size:15px}.lbName{flex:1;font-weight:800;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lbScore{font-weight:900;color:#62eaff}
 #shop .panel{width:min(420px,88vw)}
 .shopRow{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid #1c2c5c}
 .shopRow:last-child{border-bottom:0}
@@ -129,13 +113,14 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 .shopSwatches i{width:9px;height:18px;display:block;border-radius:2px}
 .shopInfo{flex:1;text-align:left}
 .shopInfo b{display:block;font-size:12px;letter-spacing:.1em;color:#eaf7ff}
-.shopInfo span{display:block;font-size:9px;letter-spacing:.1em;color:#7f93bd;margin-top:2px}
-.shopRow button{padding:8px 12px;font-size:9px;white-space:nowrap}
+.shopInfo span{display:block;font-size:11px;letter-spacing:.1em;color:#7f93bd;margin-top:2px}
+.shopRow button{padding:8px 12px;font-size:11px;white-space:nowrap}
 .shopRow button:disabled{opacity:.55;box-shadow:none}
-.profileTag{opacity:.55;font-weight:600;letter-spacing:.06em;margin-left:2px}.lbTag{opacity:.5;font-weight:600;font-size:.8em;letter-spacing:.04em}.shopNote{display:inline-block;margin-top:6px;font-size:.78em;opacity:.7;line-height:1.4}.uploadStatus{min-height:14px;margin:6px 0 0;font-size:10px;letter-spacing:.18em;color:#8fa3d8;text-align:center}
+.profileTag{opacity:.55;font-weight:600;letter-spacing:.06em;margin-left:2px;font-size:11px}.lbTag{opacity:.5;font-weight:600;font-size:11px;letter-spacing:.04em}.shopNote{display:inline-block;margin-top:6px;font-size:12px;opacity:.7;line-height:1.4}.uploadStatus{min-height:14px;margin:6px 0 0;font-size:11px;letter-spacing:.12em;color:#8fa3d8;text-align:center}
 .restoreLink{display:block;width:100%;margin:-4px 0 12px;flex:none}#profileEditor.hidden+.restoreLink{display:none}.restoreOverlay .panel{max-height:88vh;overflow:auto}.restoreWho{font-size:12px;letter-spacing:.12em;color:#eaf7ff;margin:6px 0 10px}.restoreText{font-size:12px;line-height:1.55;color:#b9c6e6;margin:0 0 10px}.restoreWarn{font-size:11px;line-height:1.5;color:#ffd08a;margin:0 0 10px}.restoreMsg{font-size:12px;line-height:1.5;color:#ff9fc6;min-height:1.5em;margin:4px 0 8px}.restoreCode{font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.5;word-break:break-all;user-select:all;-webkit-user-select:all;background:#050a22;border:1px solid #2c4b87;border-radius:12px;padding:10px;margin:0 0 10px;color:#9ff3ff}.restoreInput{width:100%;box-sizing:border-box;font-family:ui-monospace,Menlo,monospace;font-size:16px;background:#050a22;color:#eaf7ff;border:1px solid #2c4b87;border-radius:12px;padding:10px;margin:0 0 6px;resize:none}.restoreRow{display:flex;gap:8px}.restoreRow button{flex:1}.restoreOverlay button{margin-top:8px}.restoreOther{display:block;width:100%}
 .goName{margin:6px 0 10px;padding:12px;border:1px solid #2c6bff;border-radius:16px;background:rgba(18,32,77,.55)}.goNameT{font-size:11px;letter-spacing:.16em;color:#5ff3ff;font-weight:800;margin-bottom:8px}.goNameRow{display:flex;gap:8px;margin-bottom:8px}.goNameRow input,.goNameRow select{min-width:0;background:#050a22;color:#eaf7ff;border:1px solid #2c4b87;border-radius:12px;padding:10px 12px;font:700 16px system-ui,sans-serif;text-transform:uppercase}.goNameRow input{flex:1}.goNameRow select{flex:0 0 42%;font-size:14px}.goNameRow input::placeholder{color:#6d7fa8}.goNameNote{font-size:11px;color:#9fb3d9;margin-top:6px}.colorHint{position:fixed;left:50%;top:24%;transform:translateX(-50%);z-index:50;pointer-events:none;background:rgba(6,12,34,.86);border:1px solid #2c6bff;border-radius:16px;padding:12px 18px;color:#eaf7ff;font:800 14px/1.35 system-ui,sans-serif;letter-spacing:.08em;text-align:center;max-width:86vw;box-shadow:0 10px 30px rgba(0,0,0,.5);transition:opacity .5s}.colorHint b{color:#5ff3ff}.colorHint.out{opacity:0}
 .installBtn{display:block;width:100%;margin-top:8px}
+/* RC2.8.7: D-57 game over = the score + one line; D-60 name offer; D-58 "Playing for". */.goScore{font-size:56px;font-weight:900;line-height:1.05;color:#5deaff;letter-spacing:.04em;text-shadow:0 0 24px #27d9ff66;margin:0}.goLine{margin:8px 0 4px!important;color:#eaf7ff!important;font-size:15px!important;font-weight:800;line-height:1.4!important}.goLine .goNew{color:#ffd23f}.goMeta{margin:0 0 4px!important;color:#8fa5d1!important;font-size:12px!important;letter-spacing:.08em}.goClaim{margin:8px 0 10px;padding:12px;border:1px solid #2c6bff;border-radius:16px;background:rgba(18,32,77,.55)}.goClaimT{font-size:14px;font-weight:800;color:#eaf7ff;margin-bottom:8px}.goClaimRow{display:flex;gap:8px}.goClaimRow button{flex:1;padding:10px 8px;font-size:12px;letter-spacing:.08em}.goClaimRow button.goClaimNo{background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none}.playingFor{display:block;width:100%;margin:8px 0 0;padding:8px 10px;background:transparent;color:#b9c6e5;border:0;box-shadow:none;font-size:13px;font-weight:700;letter-spacing:.02em;text-transform:none}.playingFor u{color:#62eaff;text-underline-offset:3px}
 /* D-46 lite graphics: the moving star fields, the live-blurred nebula and the FLUX Mode full-screen filter are redrawn every frame; on old devices they cost more than the game itself. */.fluxLite #starsFar,.fluxLite #starsNear{animation:none!important}.fluxLite #nebulaDrift{display:none!important}.fluxLite #app{filter:none!important}
 </style>
 </head>
@@ -147,18 +132,15 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 <div id="pressureGlow"></div>
 <div id="fluxGlow"></div>
 <div id="flash"></div>
-<button id="pauseBtn" class="hidden" aria-label="Pause">Ⅱ</button>
 <div class="hud">
-  <div><div class="logo">FLUX</div><div class="sub">FLOW • LAUNCH • UNITE • XCELERATE</div></div>
+  <div><div class="logo">FLUX</div></div>
   <div class="stats">
     <div class="stat"><span>SCORE</span><b id="score">0</b></div>
     <div class="stat"><span>COMBO</span><b id="combo">x1</b></div>
-    <div class="stat"><span>LEVEL</span><b id="level">1</b><div class="levelTrack"><i id="levelProgress"></i></div></div>
-    <div class="stat"><span>MISSES</span><b id="misses">0/3</b></div>
+    <div class="stat" id="levelBox"><span id="levelLabel">LEVEL</span><b id="level">1</b><div class="levelTrack"><i id="levelProgress"></i></div></div>
+    <div class="stat" id="livesBox"><span id="livesLabel">LIVES</span><b id="lives">3</b></div>
   </div>
-  <div class="fluxbar"><span>FLUX</span><div><i id="fluxFill"></i></div><b id="fluxPct">0%</b></div>
-<div id="audioBadge" class="badge">SOUND • ON</div>
-<div id="pressureBadge" class="badge stable">FIELD • STABLE</div>
+  <div class="fluxbar"><button id="pauseBtn" class="hidden" aria-label="Pause">Ⅱ</button><span>FLUX</span><div><i id="fluxFill"></i></div><b id="fluxPct">0%</b></div>
 </div>
 <div id="pauseOverlay" class="hidden"><div class="panel"><h2>FLUX PAUSED</h2><p>Your field is frozen. Take a breath, then get back in the flow.</p><button id="resumeBtn">RESUME</button><button id="pauseMenuBtn" style="margin-top:8px;background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none">⌂ END RUN &amp; MENU</button></div></div>
 <div id="shop" class="hidden"><div class="panel menuPanel"><h2 style="color:#62eaff;letter-spacing:.14em;margin:0 0 4px">THEMES & SKINS</h2><p style="margin:0 0 14px">Cosmetic only — never changes gameplay fairness.<br><span class="shopNote">Purchases belong to your pilot. Save your restore code (EDIT → RESTORE CODE): it brings this pilot and its skins back on a new phone, in the Home Screen app, or after clearing data.</span></p><div id="shopList"></div><div class="menuLabel" style="margin-top:16px">WORLD</div><div id="backgroundList"></div><button id="shopClose" style="margin-top:14px">BACK</button></div></div>
@@ -357,12 +339,13 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 <option value="VN">🇻🇳 VIETNAM</option>
 <option value="YE">🇾🇪 YEMEN</option>
 <option value="ZM">🇿🇲 ZAMBIA</option>
-<option value="ZW">🇿🇼 ZIMBABWE</option><option value="OTHER">🌎 OTHER</option></select></div><button type="button" class="linkBtn restoreLink" id="restoreLink">HAVE A RESTORE CODE?</button><div id="profileSaved" class="profileSaved hidden"><span>PILOT <b id="profileName">PLAYER</b><small id="profileTag" class="profileTag"></small> • <b id="profileCountry">🇺🇸</b></span><button class="editProfile" id="editProfile">EDIT</button></div><button id="startBtn">ENTER THE FLUX</button><div class="menuTiles"><div><span>PERSONAL BEST</span><b id="menuBest">0</b></div><div><span>BEST LEVEL</span><b id="menuLevel">1</b></div></div><div id="uploadStatus" class="uploadStatus" aria-live="polite"></div><div class="menuLinks"><button class="linkBtn" id="leaderBtn">🌎 GLOBAL LEADERBOARD</button><button class="linkBtn" id="skinsBtn">✦ THEMES & SKINS</button></div><button type="button" class="linkBtn installBtn hidden" id="bringPilotBtn">📋 BRING MY PILOT FROM SAFARI</button><p class="offline" id="offlineClaim">● PERSONAL BEST SAVES ON THIS DEVICE</p></div></div>
+<option value="ZW">🇿🇼 ZIMBABWE</option><option value="OTHER">🌎 OTHER</option></select></div><button type="button" class="linkBtn restoreLink" id="restoreLink">HAVE A RESTORE CODE?</button><div id="profileSaved" class="profileSaved hidden"><span>PILOT <b id="profileName">PLAYER</b><small id="profileTag" class="profileTag"></small> • <b id="profileCountry">🇺🇸</b></span><button class="editProfile" id="editProfile">EDIT</button></div><button id="startBtn">ENTER THE FLUX</button><button type="button" id="playingFor" class="playingFor hidden">Playing for <span id="playingForWho">🇺🇸 United States</span> · <u>change</u></button><div class="menuTiles"><div><span>PERSONAL BEST</span><b id="menuBest">0</b></div><div><span>BEST LEVEL</span><b id="menuLevel">1</b></div></div><div id="uploadStatus" class="uploadStatus" aria-live="polite"></div><div class="menuLinks"><button class="linkBtn" id="leaderBtn">🌎 GLOBAL LEADERBOARD</button><button class="linkBtn" id="skinsBtn">✦ THEMES & SKINS</button></div><button type="button" class="linkBtn installBtn hidden" id="bringPilotBtn">📋 BRING MY PILOT FROM SAFARI</button><p class="offline" id="offlineClaim">● PERSONAL BEST SAVES ON THIS DEVICE</p></div></div>
 <div id="gameover" class="hidden">
  <div class="panel">
-  <h1 style="font-size:38px">FLUX<br>OVERLOAD</h1>
-  <div class="acronym">THE FLOW BROKE</div><div class="sparta">FLUX COLLAPSE</div>
-  <p>Final score: <b id="finalScore">0</b><br>Best: <b id="best">0</b><br>Mode: <b id="finalMode">MEDIUM</b></p>
+  <div class="goScore" id="finalScore">0</div>
+  <p class="goLine" id="goLine"></p>
+  <p class="goMeta"><b id="finalMode">MEDIUM</b> · BEST <b id="best">0</b></p>
+  <div id="goClaim" class="goClaim hidden"><div class="goClaimT">Put your name on the board?</div><div class="goClaimRow"><button id="goClaimYes" type="button">YES</button><button id="goClaimNo" type="button" class="goClaimNo">NOT NOW</button></div></div>
   <div id="goName" class="goName hidden"><div class="goNameT">PUT YOUR SCORE ON THE WORLD GRID</div><div class="goNameRow"><input id="goCallsign" maxlength="14" placeholder="YOUR NAME" autocomplete="off" autocorrect="off" spellcheck="false"><select id="goCountry" aria-label="Country"></select></div><button id="goSave" type="button">SAVE &amp; UPLOAD</button><div class="goNameNote" id="goNameMsg">Your best score counts for your country.</div></div>
   <div class="gameoverModes"><div class="menuLabel">CHOOSE YOUR NEXT FLOW</div><div class="difficulty" id="gameoverDifficulty"><button data-d="easy">EASY</button><button data-d="medium">MEDIUM</button><button data-d="hard">HARD</button></div></div>
   <button id="againBtn">RUN IT BACK</button>
@@ -427,7 +410,8 @@ function fluxApplyLite(){
   }catch(e){}
 }
 fluxApplyLite();
-let W,H,dpr,playing=false,paused=false,last=0,score=0,combo=1,level=1,streak=0,best=0,misses=0,revivesUsedThisRun=0,flux=0,fluxMode=0,missFragments=[],comboTimer=0,levelBanner=0,perfectFlash=0,levelHold=0,levelPoints=0,orbValue=20,bonusTimer=0,growTimer=0;
+let W,H,dpr,playing=false,paused=false,last=0,score=0,combo=1,level=1,streak=0,best=0,misses=0,revivesUsedThisRun=0,flux=0,fluxMode=0,missFragments=[],comboTimer=0,levelBanner=0,perfectFlash=0,levelHold=0,orbValue=20,bonusTimer=0,growTimer=0;
+let pendingLevel=0,levelCountdown=0,levelTickAt=0,speedLevel=1;   // D-50: SPEED UP countdown + smooth speed ramp
 let cachedHudRects=[]; // declared early -- resize() runs at script load time and references this immediately
 let difficulty=localStorage.fluxDifficulty||'medium', callsign=localStorage.fluxCallsign||'', country=localStorage.fluxCountry||'US';
 let profileComplete=localStorage.fluxProfileComplete==='1';
@@ -457,7 +441,42 @@ let profileComplete=localStorage.fluxProfileComplete==='1';
 if(!localStorage.fluxPlayerId){localStorage.fluxPlayerId=(crypto.randomUUID?crypto.randomUUID():'p'+Date.now()+Math.random().toString(16).slice(2));}
 const playerId=localStorage.fluxPlayerId;
 const countryFlags={AF:'🇦🇫',AL:'🇦🇱',DZ:'🇩🇿',AD:'🇦🇩',AO:'🇦🇴',AG:'🇦🇬',AR:'🇦🇷',AM:'🇦🇲',AU:'🇦🇺',AT:'🇦🇹',AZ:'🇦🇿',BS:'🇧🇸',BH:'🇧🇭',BD:'🇧🇩',BB:'🇧🇧',BY:'🇧🇾',BE:'🇧🇪',BZ:'🇧🇿',BJ:'🇧🇯',BT:'🇧🇹',BO:'🇧🇴',BA:'🇧🇦',BW:'🇧🇼',BR:'🇧🇷',BN:'🇧🇳',BG:'🇧🇬',BF:'🇧🇫',BI:'🇧🇮',CV:'🇨🇻',KH:'🇰🇭',CM:'🇨🇲',CA:'🇨🇦',CF:'🇨🇫',TD:'🇹🇩',CL:'🇨🇱',CN:'🇨🇳',CO:'🇨🇴',KM:'🇰🇲',CG:'🇨🇬',CD:'🇨🇩',CR:'🇨🇷',CI:'🇨🇮',HR:'🇭🇷',CU:'🇨🇺',CY:'🇨🇾',CZ:'🇨🇿',DK:'🇩🇰',DJ:'🇩🇯',DM:'🇩🇲',DO:'🇩🇴',EC:'🇪🇨',EG:'🇪🇬',SV:'🇸🇻',GQ:'🇬🇶',ER:'🇪🇷',EE:'🇪🇪',SZ:'🇸🇿',ET:'🇪🇹',FJ:'🇫🇯',FI:'🇫🇮',FR:'🇫🇷',GA:'🇬🇦',GM:'🇬🇲',GE:'🇬🇪',DE:'🇩🇪',GH:'🇬🇭',GR:'🇬🇷',GD:'🇬🇩',GT:'🇬🇹',GN:'🇬🇳',GW:'🇬🇼',GY:'🇬🇾',HT:'🇭🇹',HN:'🇭🇳',HU:'🇭🇺',IS:'🇮🇸',IN:'🇮🇳',ID:'🇮🇩',IR:'🇮🇷',IQ:'🇮🇶',IE:'🇮🇪',IL:'🇮🇱',IT:'🇮🇹',JM:'🇯🇲',JP:'🇯🇵',JO:'🇯🇴',KZ:'🇰🇿',KE:'🇰🇪',KI:'🇰🇮',KW:'🇰🇼',KG:'🇰🇬',LA:'🇱🇦',LV:'🇱🇻',LB:'🇱🇧',LS:'🇱🇸',LR:'🇱🇷',LY:'🇱🇾',LI:'🇱🇮',LT:'🇱🇹',LU:'🇱🇺',MG:'🇲🇬',MW:'🇲🇼',MY:'🇲🇾',MV:'🇲🇻',ML:'🇲🇱',MT:'🇲🇹',MH:'🇲🇭',MR:'🇲🇷',MU:'🇲🇺',MX:'🇲🇽',FM:'🇫🇲',MD:'🇲🇩',MC:'🇲🇨',MN:'🇲🇳',ME:'🇲🇪',MA:'🇲🇦',MZ:'🇲🇿',MM:'🇲🇲',NA:'🇳🇦',NR:'🇳🇷',NP:'🇳🇵',NL:'🇳🇱',NZ:'🇳🇿',NI:'🇳🇮',NE:'🇳🇪',NG:'🇳🇬',KP:'🇰🇵',MK:'🇲🇰',NO:'🇳🇴',OM:'🇴🇲',PK:'🇵🇰',PW:'🇵🇼',PS:'🇵🇸',PA:'🇵🇦',PG:'🇵🇬',PY:'🇵🇾',PE:'🇵🇪',PH:'🇵🇭',PL:'🇵🇱',PT:'🇵🇹',QA:'🇶🇦',RO:'🇷🇴',RU:'🇷🇺',RW:'🇷🇼',KN:'🇰🇳',LC:'🇱🇨',VC:'🇻🇨',WS:'🇼🇸',SM:'🇸🇲',ST:'🇸🇹',SA:'🇸🇦',SN:'🇸🇳',RS:'🇷🇸',SC:'🇸🇨',SL:'🇸🇱',SG:'🇸🇬',SK:'🇸🇰',SI:'🇸🇮',SB:'🇸🇧',SO:'🇸🇴',ZA:'🇿🇦',KR:'🇰🇷',SS:'🇸🇸',ES:'🇪🇸',LK:'🇱🇰',SD:'🇸🇩',SR:'🇸🇷',SE:'🇸🇪',CH:'🇨🇭',SY:'🇸🇾',TW:'🇹🇼',TJ:'🇹🇯',TZ:'🇹🇿',TH:'🇹🇭',TL:'🇹🇱',TG:'🇹🇬',TO:'🇹🇴',TT:'🇹🇹',TN:'🇹🇳',TR:'🇹🇷',TM:'🇹🇲',TV:'🇹🇻',UG:'🇺🇬',UA:'🇺🇦',AE:'🇦🇪',GB:'🇬🇧',US:'🇺🇸',UY:'🇺🇾',UZ:'🇺🇿',VU:'🇻🇺',VA:'🇻🇦',VE:'🇻🇪',VN:'🇻🇳',YE:'🇾🇪',ZM:'🇿🇲',ZW:'🇿🇼',OTHER:'🌎'};
-const LEVEL_THRESHOLDS=[0,140,210,300,410,540,690,860,1050,1280];
+/* D-50 (RC2.8.7) SCORE-BASED LEVELS. A level is reached by SCORE. Perfect
+   catches still score, but no longer drive the level. Medium thresholds for
+   levels 2..9; Easy x0.75, Hard x1.35. MUST stay identical to
+   LEVEL_SCORE_THRESHOLDS / LEVEL_SCORE_MULT in worker.js (D-51 checks it). */
+const LEVEL_SCORE_THRESHOLDS=[2500,6000,10000,15000,21000,28000,36000,45000];
+const LEVEL_SCORE_MULT={easy:.75,medium:1,hard:1.35};
+const LEVEL_COUNTDOWN_S=5, LEVEL_RAMP_S=2;
+function levelScoreAt(lv,d){   // score needed to reach level lv (lv 1 = 0)
+  if(lv<=1) return 0;
+  return Math.round(LEVEL_SCORE_THRESHOLDS[Math.min(8,lv-2)]*(LEVEL_SCORE_MULT[d]||1));
+}
+function levelForScore(sc,d){
+  let lv=1;
+  while(lv<9 && sc>=levelScoreAt(lv+1,d)) lv++;
+  return lv;
+}
+/* D-51: the server now requires the level a score reaches. Bests and queued
+   uploads saved by earlier versions carry levels from the old perfect-catch
+   system, which the server would refuse (and a refused upload also loses a
+   rename). Rewrite them once at start-up; scores are never touched. */
+(function normalizeStoredLevels(){
+  try{
+    ['easy','medium','hard'].forEach(function(d){
+      const k='fluxBestRun_'+d, raw=localStorage.getItem(k);
+      if(raw){ const r=JSON.parse(raw);
+        if(r && Number.isFinite(r.score)){ const lv=levelForScore(r.score,r.difficulty||d); if(r.level!==lv){ r.level=lv; localStorage.setItem(k,JSON.stringify(r)); } } }
+      const b=+localStorage.getItem('fluxBest_'+d)||0;
+      if(b>0 || localStorage.getItem('fluxBestLevel_'+d)!==null) localStorage.setItem('fluxBestLevel_'+d,String(levelForScore(b,d)));
+    });
+    const qraw=localStorage.getItem('fluxPendingSubmits');
+    if(qraw){ const q=JSON.parse(qraw);
+      if(Array.isArray(q)){ let changed=false;
+        q.forEach(function(it){ if(it && Number.isFinite(it.score)){ const lv=levelForScore(it.score,it.difficulty||'medium'); if(it.level!==lv){ it.level=lv; changed=true; } } });
+        if(changed) localStorage.setItem('fluxPendingSubmits',JSON.stringify(q)); } }
+  }catch(e){}
+})();
 const DIFFICULTY={easy:{capPhone:3,capPad:5,speed:.82,accel:.82,level:.82,mult:.75},medium:{capPhone:4,capPad:6,speed:1,accel:1,level:1,mult:1},hard:{capPhone:5,capPad:7,speed:1.16,accel:1.12,level:1.16,mult:1.35}};
 function bestKey(){return 'fluxBest_'+difficulty}
 // ---------------------------------------------------------------------------
@@ -513,7 +532,6 @@ function recordBestRun(runScore,runLevel){
 best=+localStorage[bestKey()]||0;
 function isPhone(){return W<=700}
 function targetCap(){const d=DIFFICULTY[difficulty],g=Math.min(2,Math.floor((level-1)/4));return isPhone()?Math.min(6,d.capPhone+g):Math.min(9,d.capPad+g)}
-function levelThreshold(){return LEVEL_THRESHOLDS[Math.min(9,level)]*DIFFICULTY[difficulty].level} 
 let paddle={x:0,y:0,w:150,h:12,handleH:28,hitFlash:0,hitSide:0};
 let ball,targets=[],particles=[],texts=[],shake=0;
 /* ===========================================================================
@@ -532,10 +550,13 @@ let ball,targets=[],particles=[],texts=[],shake=0;
 const STORE_OPEN = false;
 
 const SKINS={
-  aurora:{name:'AURORA',price:null,colors:['#35e6ff','#5c9cff','#8c5cff','#c64dff','#ff4f98','#ff6b52','#ffc447','#d9ff39','#45f0c0']},
-  toxic:{name:'TOXIC',price:'$1.99',colors:['#9dff2e','#c8ff45','#5cff9c','#2effd6','#e8ff5c','#7bff3d','#39ffb0','#b6ff2e','#4dffe0']},
-  cosmic:{name:'COSMIC',price:'$1.99',colors:['#a25cff','#7b3fff','#ff5cf0','#c23fff','#5c7bff','#ff3fb0','#9d3fff','#5cf0ff','#d13fff']},
-  solar:{name:'SOLAR INFERNO',price:'$2.99',bg:'/solar-inferno.webp',colors:['#ff8c2e','#ffb347','#ff5c2e','#ffd166','#ff3f1a','#ff9e4d','#e63900','#ffcc00','#ff6b1a']}
+  /* D-56 (RC2.8.7) PALETTES. Every colour is bright on the dark field; the
+     first four (the ones in play until level 2) differ in hue AND lightness;
+     no palette pairs a red with a green (the common colour-blind confusion). */
+  aurora:{name:'AURORA',price:null,colors:['#ffd23f','#35e6ff','#ff4f98','#b48cff','#ff9a3d','#5c8cff','#f0f4ff','#e05cff','#7dffea']},
+  toxic:{name:'TOXIC',price:'$1.99',colors:['#d6ff3d','#2ee6b8','#5cb8ff','#b06bff','#fff36b','#7dff8a','#f0f4ff','#2ecfff','#e8a6ff']},
+  cosmic:{name:'COSMIC',price:'$1.99',colors:['#ffe066','#5ce1ff','#ff7ae0','#9d7bff','#7a9dff','#ff9ec8','#f0f4ff','#c46bff','#8cfff0']},
+  solar:{name:'SOLAR INFERNO',price:'$2.99',bg:'/solar-inferno.webp',colors:['#ffcf33','#7cc0ff','#c48cff','#ff3a24','#ffe8a3','#ff9e5c','#f0f4ff','#ff7ac0','#ffb830']}
 };
 // CELESTIAL LEVEL-UP BACKGROUND — self-contained and safe to remove.
 // To turn this off entirely: set CELESTIAL_BG_ENABLED=false (one line),
@@ -610,6 +631,7 @@ function setPaddle(x){paddle.x=Math.max(paddle.w/2+8,Math.min(W-paddle.w/2-8,x))
 // FLUX SPARTA AUDIO + HAPTIC ENGINE
 let audioCtx=null, masterGain=null, audioLimiter=null;
 let audioReady=false;
+const SOUND_LEVEL=.30, SOUND_FADE_IN_S=1.5;   // D-61
 function initAudio(){
   try{
     const AC=window.AudioContext||window.webkitAudioContext;
@@ -618,7 +640,13 @@ function initAudio(){
       audioCtx=new AC();
       // SPARTA LOUD MIX: boost the game's perceived loudness while preventing clipping.
       masterGain=audioCtx.createGain();
-      masterGain.gain.value=.52;
+      // D-61 (RC2.8.7): start quiet and fade in over 1.5 s to ~30%. Nothing
+      // in the game ever raises the volume after this.
+      masterGain.gain.value=0;
+      try{
+        masterGain.gain.setValueAtTime(0,audioCtx.currentTime);
+        masterGain.gain.linearRampToValueAtTime(SOUND_LEVEL,audioCtx.currentTime+SOUND_FADE_IN_S);
+      }catch(e){ masterGain.gain.value=SOUND_LEVEL; }
       audioLimiter=audioCtx.createDynamicsCompressor();
       audioLimiter.threshold.value=-12;
       audioLimiter.knee.value=8;
@@ -663,7 +691,8 @@ function playOrbHit(speed){
   noise(.025,.018+.018*i,1400+900*i);
 }
 function playFusion(comboNow){
-  const base=360+Math.min(7,comboNow)*42;
+  // D-61: one semitone higher for every combo step, all the way to x12.
+  const base=360*Math.pow(2,(Math.max(1,Math.min(12,comboNow))-1)/12);
   tone(base,.11,'triangle',.105,base*.45);
   setTimeout(()=>tone(base*1.5,.14,'sine',.085,base*.25),45);
   noise(.075,.045,900+comboNow*90);
@@ -676,6 +705,7 @@ function playLevelUp(){
   [440,554,659,880].forEach((f,i)=>setTimeout(()=>tone(f,.17,'triangle',.105,.02*f),i*55));
   noise(.10,.045,1800);
 }
+function playTick(){ tone(1320,.05,'sine',.035); }   // D-50: soft countdown tick
 function playFlux(){
   tone(110,.30,'sawtooth',.14,420);
   setTimeout(()=>tone(330,.34,'triangle',.12,660),80);
@@ -706,14 +736,9 @@ function fieldPressure(){
   return Math.min(1, crowded*.08 + Math.max(0,level-4)*.07 + Math.max(0,speed-11)*.035);
 }
 function updatePressureBadge(){
-  const p=fieldPressure(), el=document.getElementById('pressureBadge'), glow=document.getElementById('pressureGlow');
-  if(!el) return;
-  el.classList.remove('stable','warn','critical');
-  if(p>.72){el.textContent='FIELD • CRITICAL';el.classList.add('critical')}
-  else if(p>.42){el.textContent='FIELD • PRESSURE';el.classList.add('warn')}
-  else {el.textContent='FIELD • STABLE';el.classList.add('stable')}
-  // Background now reads the same pressure value the badge does, so the whole
-  // screen — not just a small label — communicates how close things are to breaking.
+  // D-54 (RC2.8.7): the FIELD • STABLE text badge is gone; the background glow
+  // alone shows how close things are to breaking.
+  const p=fieldPressure(), glow=document.getElementById('pressureGlow');
   if(glow){
     glow.classList.remove('warn','critical');
     if(p>.72) glow.classList.add('critical');
@@ -733,6 +758,7 @@ function playThreat(){
 var runActive=false;
 function newGame(){
  try{ window.parent.postMessage({type:'flux-playing'}, '*'); }catch(e){}
+ pendingLevel=0;levelCountdown=0;levelTickAt=0;speedLevel=1;
  score=0;combo=1;level=1;streak=0;flux=0;fluxMode=0;misses=0;revivesUsedThisRun=0;missFragments=[];particles=[];texts=[];shake=0;targets=[];comboTimer=0;levelBanner=0;perfectFlash=0;bonusTimer=rand(5,9);growTimer=rand(9,14);
  refreshHudRects(); // pauseBtn just became visible -- make sure the exclusion zone reflects that now, not the pre-game state
  applyCelestialBackground(level);
@@ -772,7 +798,7 @@ function addTarget(color,x,y,r=18+Math.random()*6){
 // go stale the moment the HUD layout changes on any breakpoint.
 function hudExclusionRects(){
   const rects=[];
-  const ids=['pauseBtn','audioBadge','pressureBadge'];
+  const ids=['pauseBtn'];
   ids.forEach(id=>{
     const el=document.getElementById(id);
     if(el && !el.classList.contains('hidden') && el.offsetParent!==null) rects.push(el.getBoundingClientRect());
@@ -867,7 +893,7 @@ function spawnGrowingOrb(){
 function resetFieldAfterMiss(){
  // A miss starts a clean practice attempt at the SAME level.
  // Keep the three-miss pressure, but remove the clutter and reset the point-building run.
- levelPoints=0;orbValue=20;combo=1;streak=0;comboTimer=0;flux=Math.max(0,flux-25);
+ orbValue=20;combo=1;streak=0;comboTimer=0;flux=Math.max(0,flux-25);
  targets=[];
  for(let i=0;i<targetCap();i++){
    const [x,y]=safeSpawnPoint(isPhone()?18:22);
@@ -914,9 +940,10 @@ function offerRevive(){
  };
  const d=document.createElement('div');
  d.className='miniOverlay';d.id='reviveOverlay';
- const promptText = ADS_ENABLED ? 'Watch a short ad to get one more miss and keep this run alive?' : 'Get one more miss and keep this run alive?';
- const continueLabel = ADS_ENABLED ? '▶ WATCH AD — CONTINUE' : '▶ CONTINUE';
- d.innerHTML=`<div class="panel"><h2 style="color:#ff6b98;letter-spacing:.14em">OUT OF MISSES</h2><p>${promptText}</p><button id="reviveWatchBtn">${continueLabel}</button><button id="reviveDeclineBtn" style="margin-top:8px;background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none">END RUN</button></div>`;
+ // D-59 (RC2.8.7): plain words. The revive is free (ADS_ENABLED is false).
+ const promptText = ADS_ENABLED ? 'Watch a short ad to get one more life and keep this run alive?' : 'FREE extra life?';
+ const continueLabel = ADS_ENABLED ? '▶ WATCH AD — CONTINUE' : 'YES, FREE';
+ d.innerHTML=`<div class="panel"><h2 style="color:#ff6b98;letter-spacing:.06em">${promptText}</h2><button id="reviveWatchBtn">${continueLabel}</button><button id="reviveDeclineBtn" style="margin-top:8px;background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none">END RUN</button></div>`;
  document.getElementById('app').appendChild(d);
  document.getElementById('reviveWatchBtn').onclick=()=>{
    d.remove();
@@ -992,23 +1019,6 @@ function fuse(t){
  // the level-progress math you tuned.
  if(t.danger){score+=15;addFlux(4);burst(t.x,t.y,'#ff4f68',10);popup(t.x,t.y-14,'CLEARED •15','#ff8fae');}
 
- // LEVELS ARE SEQUENTIAL: one successful action can earn at most ONE level.
- // A large score spike can never jump 2 -> 6 (or 2 -> 8) anymore.
- if(level<9 && levelPoints>=levelThreshold()){
-   level++;
-   levelPoints=0;orbValue=20;
-   levelBanner=5.0;
-   levelHold=.85;
-   playing=false;
-   playLevelUp();
-   applyCelestialBackground(level);
-   haptic(80);
-   burst(W/2,135,'#62eaff',38);
-   popup(W/2,155,'LEVEL '+level,'#62eaff');
-   paddle.w=Math.max(isPhone()?96:112,(isPhone()?132:150)-(level-1)*4);
-   targets=[];
-   for(let i=0;i<targetCap();i++)spawnTarget(i%Math.min(5,3+level));
- }
  // The orb changes color after a successful fusion. This creates a deliberate chain:
  // hit the matching color, then immediately hunt the newly required color.
  ball.color=newColor;
@@ -1018,7 +1028,7 @@ function fuse(t){
  addTarget(newColor,t.x+rand(-36,36),t.y+rand(-36,36),Math.min(30,t.r+3));
  // Higher levels create more meaningful choices instead of a single obvious cluster.
  if(level>=5 && Math.random()<.20 && targets.length<targetCap()) spawnTarget();
- const speed=Math.min(17.5,Math.hypot(ball.vx,ball.vy)*1.045+0.18+level*.025);
+ const speed=Math.min(17.5,Math.hypot(ball.vx,ball.vy)*1.045+0.18+speedLevel*.025);
  const ang=Math.atan2(ball.vy,ball.vx);
  ball.vx=Math.cos(ang)*speed;ball.vy=Math.sin(ang)*speed;
  flash(.16+Math.min(.12,combo*.01));shake=Math.min(14,shake+4+combo*.25);
@@ -1060,21 +1070,74 @@ function burstGrowing(t,maxSpeed){
  flash(.28);shake=Math.min(16,shake+9);
  updateHud();
 }
+/* D-50 (RC2.8.7) LEVEL-UP SEQUENCE. Reaching the score threshold shows the
+   banner with "NEXT LEVEL: n"; the LEVEL box turns amber, reads SPEED UP and
+   counts 5-4-3-2-1 with a soft tick each second; then the new level starts
+   and the ball's speed limit rises smoothly over ~2 s (speedLevel) instead of
+   jumping. Levels still come one at a time. */
+function checkScoreLevel(){
+ if(pendingLevel || level>=9) return;
+ if(levelForScore(score,difficulty)>level) startLevelUp(level+1);
+}
+function startLevelUp(n){
+ pendingLevel=n; levelCountdown=LEVEL_COUNTDOWN_S; levelTickAt=LEVEL_COUNTDOWN_S;
+ levelBanner=3.2;
+ playLevelUp(); playTick(); haptic(80);
+ burst(W/2,135,'#62eaff',38);
+ updateHud();
+}
+function tickLevelUp(dt){
+ if(speedLevel<level) speedLevel=Math.min(level,speedLevel+dt/LEVEL_RAMP_S);   // ramp first: it starts the frame AFTER the level changes
+ if(pendingLevel){
+   levelCountdown-=dt;
+   const shown=Math.ceil(levelCountdown);
+   if(shown>=1 && shown<levelTickAt){ levelTickAt=shown; playTick(); updateHud(); }
+   if(levelCountdown<=0) finishLevelUp();
+ }
+}
+function finishLevelUp(){
+ const from=level;
+ level++;   // pendingLevel is always level+1: one level per level-up, never a jump
+ pendingLevel=0; levelCountdown=0; levelTickAt=0;
+ speedLevel=from;   // ramps up to the new level over LEVEL_RAMP_S
+ orbValue=20;
+ applyCelestialBackground(level);
+ popup(W/2,155,'LEVEL '+level,'#62eaff');
+ paddle.w=Math.max(isPhone()?96:112,(isPhone()?132:150)-(level-1)*4);
+ targets=[];
+ for(let i=0;i<targetCap();i++)spawnTarget(i%Math.min(5,3+level));
+ updateHud();
+}
 function flash(v){document.getElementById('flash').style.opacity=v;setTimeout(()=>document.getElementById('flash').style.opacity=0,80)}
 function updateHud(){
  document.getElementById('score').textContent=score;
  document.getElementById('combo').textContent='x'+combo;
- document.getElementById('level').textContent=level;
- document.getElementById('misses').textContent=misses+'/3';
+ // D-50: the LEVEL box becomes the SPEED UP countdown while a level-up is pending.
+ const lvBox=document.getElementById('levelBox'), lvLabel=document.getElementById('levelLabel');
+ if(pendingLevel){
+   lvLabel.textContent='SPEED UP'; lvBox.classList.add('speedUp');
+   document.getElementById('level').textContent=Math.max(1,Math.ceil(levelCountdown));
+ }else{
+   lvLabel.textContent='LEVEL'; lvBox.classList.remove('speedUp');
+   document.getElementById('level').textContent=level;
+ }
+ // D-52: lives, not misses. The last one turns the box red.
+ const lives=Math.max(0,3-misses), lvsBox=document.getElementById('livesBox');
+ document.getElementById('lives').textContent=lives;
+ if(lives===1){ document.getElementById('livesLabel').textContent='LAST LIFE'; lvsBox.classList.add('lastLife'); }
+ else{ document.getElementById('livesLabel').textContent='LIVES'; lvsBox.classList.remove('lastLife'); }
  document.getElementById('fluxPct').textContent=Math.round(flux)+'%';
  document.getElementById('fluxFill').style.width=flux+'%';
  const track=document.getElementById('levelProgress');
  if(track){
-   const pct=level>=9?100:Math.max(0,Math.min(100,(levelPoints/levelThreshold())*100));
+   // D-50: progress toward the NEXT level's score threshold.
+   const cur=pendingLevel||level;
+   const pct=cur>=9?100:Math.max(0,Math.min(100,(score-levelScoreAt(cur,difficulty))/(levelScoreAt(cur+1,difficulty)-levelScoreAt(cur,difficulty))*100));
    track.style.width=pct+'%';
  }
 }
 function endGame(){
+ const runNo=(+localStorage.fluxRunsPlayed||0)+1;   // D-60: counted before the wrapper below increments it
  playing=false; runActive=false;
  document.getElementById('pauseBtn').classList.add('hidden');
  document.getElementById('pauseOverlay')?.classList.add('hidden');
@@ -1089,11 +1152,14 @@ function endGame(){
  }
  popup(cx,cy,'FLUX COLLAPSE','#ff6b98');
  setTimeout(()=>{
-   recordBestRun(score,level);
+   const prevBest=bestRun().score, prevOverall=overallBestScore();   // D-57, before this run is recorded
+   recordBestRun(score,levelForScore(score,difficulty));   // D-50: the level is the one this score reaches
    if(score>best){best=score;}
-   document.getElementById('finalScore').textContent=score;refreshMenu();
+   document.getElementById('finalScore').textContent=score.toLocaleString();refreshMenu();
+   showGameOverLine(score,prevBest,prevOverall);   // D-57
+   offerNameClaim(score,prevBest,runNo);   // D-60
    document.getElementById('finalMode').textContent=String(difficulty).toUpperCase();   // D-36: was never set here, so it always read MEDIUM
-   document.getElementById('best').textContent=best;
+   document.getElementById('best').textContent=best.toLocaleString();
    document.getElementById('gameover').classList.remove('hidden');
    uploadOrAskName();   // D-39: nothing uploads until the pilot has a name
    // Tell whatever's hosting us (the Gateway's embedded play screen) that
@@ -1105,11 +1171,12 @@ function endGame(){
 }
 function update(dt){
  if(levelBanner>0) levelBanner=Math.max(0,levelBanner-dt);
+ checkScoreLevel(); tickLevelUp(dt);   // D-50
  // Combo is a real pressure mechanic: keep chaining fusions before the timer expires.
  if(comboTimer>0) comboTimer-=dt;
  else if(combo>1){combo=1;streak=0;popup(W/2,150,'COMBO LOST','#8da0c8');updateHud();}
  if(perfectFlash>0)perfectFlash-=dt;
- const maxSpeed=fluxMode>0?18.5:Math.min(17.5,(12+level*.48)*DIFFICULTY[difficulty].speed);
+ const maxSpeed=fluxMode>0?18.5:Math.min(17.5,(12+speedLevel*.48)*DIFFICULTY[difficulty].speed);
  if(fluxMode>0){fluxMode-=dt;document.getElementById('app').style.filter='brightness(1.18) saturate(1.35)';document.getElementById('fluxGlow').classList.add('on');}else{document.getElementById('app').style.filter='none';document.getElementById('fluxGlow').classList.remove('on');}
  let sp=Math.hypot(ball.vx,ball.vy);
  if(sp<maxSpeed) {
@@ -1207,7 +1274,6 @@ function update(dt){
    paddle.hitSide = hit; // -1..1, used to bias the squash toward impact point
    if(perfect){
      comboTimer=Math.max(comboTimer,1.2);
-     levelPoints += Math.min(18,8+combo)*DIFFICULTY[difficulty].mult;
      orbValue=Math.min(42,orbValue + 1);
      burst(ball.x,ball.y,'#ffffff',12);popup(ball.x,ball.y,'PERFECT • ORB +'+orbValue,'#ffffff');flash(.055);shake=Math.min(10,shake+2);haptic(18+Math.min(20,combo));
    }else{burst(ball.x,ball.y,'#65efff',7);popup(ball.x,ball.y,'+ '+paddlePoints,'#65efff');}
@@ -1228,6 +1294,7 @@ function glowCircle(x,y,r,col,alpha=1){
  ctx.save();ctx.globalAlpha=alpha;ctx.shadowBlur=r*1.8;ctx.shadowColor=col;ctx.fillStyle=col;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();ctx.restore();
 }
 const glyphs=['●','▲','■','◆','★','✚','▼','◉','⬢'];
+const ORB_GLYPH_ALPHA=.3;   // D-56: subtle
 function draw(){
  ctx.clearRect(0,0,W,H);
  // celestial background — drifting nebula glow + slow-scrolling, twinkling starfield
@@ -1277,7 +1344,7 @@ function draw(){
      ctx.globalAlpha=Math.min(1,t.life);
      ctx.shadowBlur=26;ctx.shadowColor='#ffd45c';ctx.fillStyle='#ffd45c40';ctx.strokeStyle='#ffd45c';ctx.lineWidth=2;
      ctx.beginPath();ctx.arc(t.x,t.y,t.r*pulse,0,Math.PI*2);ctx.fill();ctx.stroke();
-     ctx.globalAlpha=.95;ctx.fillStyle='#fff8e0';ctx.font='900 '+(t.r*1.1)+'px -apple-system,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+     ctx.globalAlpha=.95;ctx.fillStyle='#fff8e0';ctx.font='900 '+Math.max(11,t.r*1.1)+'px -apple-system,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
      ctx.fillText('✦',t.x,t.y+1);
      ctx.restore();
      continue;
@@ -1293,7 +1360,7 @@ function draw(){
        ctx.globalAlpha=glow;ctx.lineWidth=2;ctx.setLineDash([3,5]);
        ctx.beginPath();ctx.arc(t.x,t.y,t.r+8,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
      }
-     ctx.globalAlpha=.85;ctx.fillStyle=t.matured?'#ffffff':'#04101a';ctx.font='900 '+(t.r*.7)+'px -apple-system,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+     ctx.globalAlpha=t.matured?.85:ORB_GLYPH_ALPHA;ctx.fillStyle=t.matured?'#ffffff':'#04101a';ctx.font='900 '+Math.max(11,t.r*(t.matured?.7:.55))+'px -apple-system,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
      ctx.fillText(t.matured?'⚡':glyphs[t.color%glyphs.length],t.x,t.y+1);
      ctx.restore();
      continue;
@@ -1308,7 +1375,8 @@ function draw(){
    ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.fill();ctx.stroke();
    ctx.globalAlpha=.7;ctx.beginPath();ctx.arc(t.x- t.r*.25,t.y-t.r*.28,t.r*.2,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();
    // Colorblind-friendly cue: each color also gets a fixed glyph, drawn regardless of hue.
-   ctx.globalAlpha=.85;ctx.fillStyle='#04101a';ctx.font=(t.r*.7)+'px -apple-system,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+   // D-56: the symbol stays (colour-blind cue) but is subtle.
+   ctx.globalAlpha=ORB_GLYPH_ALPHA;ctx.fillStyle='#04101a';ctx.font=Math.max(11,t.r*.55)+'px -apple-system,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
    ctx.fillText(glyphs[t.color%glyphs.length],t.x,t.y+1);
    if(t.hint){
      ctx.globalAlpha=.48+.18*Math.sin(t.phase*3);
@@ -1325,7 +1393,8 @@ function draw(){
  }
  // trail
  ball?.trail.forEach((p,i)=>{if(i%2===0)glowCircle(p.x,p.y,Math.max(2,ball.r*(1-i/12)*.45),colors[ball.color],(1-i/12)*.25)});
- if(ball){glowCircle(ball.x,ball.y,ball.r,colors[ball.color]);glowCircle(ball.x-ball.r*.28,ball.y-ball.r*.3,ball.r*.22,'#fff',.9)}
+ // D-56: the ball is the brightest thing on the field -- a solid disc with a white-hot core; orbs are translucent.
+ if(ball){glowCircle(ball.x,ball.y,ball.r,colors[ball.color]);glowCircle(ball.x,ball.y,ball.r*.55,'#ffffff',.5);glowCircle(ball.x-ball.r*.28,ball.y-ball.r*.3,ball.r*.22,'#fff',.9)}
  // trajectory guide: a faint projected path from the FLUX orb toward the lower field.
  if(ball && level>=4){
    ctx.save();
@@ -1347,8 +1416,8 @@ function draw(){
  // every contact, scaled up for a perfect hit. Purely visual -- paddle.w/h
  // (used for collision) are never touched, only local draw-time multipliers.
  // Paddle color now follows the active skin's palette (colors[0]) instead of
- // a fixed cyan, so it matches the ball/orbs -- e.g. warm orange on Solar
- // Inferno, green on Toxic, violet on Cosmic, cyan on Aurora (default).
+ // a fixed cyan, so it matches the ball/orbs -- e.g. gold on Solar
+ // Inferno, lime on Toxic, yellow on Cosmic, yellow on Aurora (default, D-56).
  const paddleCol = colors[0]||'#62eaff';
  const hf = paddle.hitFlash||0;
  const ease = hf*hf*(3-2*hf); // smoothstep, so it punches in fast and eases out
@@ -1378,20 +1447,7 @@ function draw(){
  // Small grip accent at the bottom of the handle.
  ctx.shadowBlur=14;ctx.strokeStyle='#ffffff';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(paddle.x-7,paddle.y+paddle.handleH);ctx.lineTo(paddle.x+7,paddle.y+paddle.handleH);ctx.stroke();
  ctx.restore();
- // Permanent MISS TRACKER: each missed ball stays visible until the run ends.
- ctx.save();
- const boxW=isPhone()?112:132, boxH=42, bx=W-boxW-14, by=H-boxH-16;
- ctx.globalAlpha=.94;ctx.fillStyle='#060a20cc';ctx.strokeStyle='#ff4f98aa';ctx.lineWidth=1.5;
- ctx.beginPath();ctx.roundRect(bx,by,boxW,boxH,12);ctx.fill();ctx.stroke();
- ctx.fillStyle='#ff7baa';ctx.font='900 7px -apple-system,sans-serif';ctx.textAlign='left';ctx.fillText('FLUX LIVES',bx+10,by+12);
- for(let i=0;i<3;i++){
-   const mx=bx+13+i*25,my=by+27,missed=i<misses;
-   ctx.globalAlpha=missed?1:.16;ctx.fillStyle='#ff4f98';ctx.shadowBlur=missed?14:0;ctx.shadowColor='#ff4f98';
-   ctx.beginPath();ctx.arc(mx,my,7,0,Math.PI*2);ctx.fill();
-   if(!missed){ctx.globalAlpha=.75;ctx.shadowBlur=0;ctx.strokeStyle='#ff7baa';ctx.lineWidth=1;ctx.stroke();}
- }
- ctx.globalAlpha=.9;ctx.shadowBlur=0;ctx.fillStyle='#eaf7ff';ctx.font='900 8px -apple-system,sans-serif';ctx.textAlign='right';ctx.fillText(Math.max(0,3-misses)+' LEFT',bx+boxW-9,by+30);
- ctx.restore();
+ // D-52 (RC2.8.7): the bottom-right FLUX LIVES box is gone; lives live in the top LIVES box.
  // particles
  for(const p of particles){ctx.globalAlpha=Math.max(0,p.life);glowCircle(p.x,p.y,Math.max(1,p.life*4),p.col,p.life);ctx.globalAlpha=1}
  for(const t of texts){ctx.globalAlpha=t.life;ctx.fillStyle=t.col;ctx.font='900 13px -apple-system,sans-serif';ctx.textAlign='center';ctx.fillText(t.s,t.x,t.y);ctx.globalAlpha=1}
@@ -1401,8 +1457,10 @@ function draw(){
  }
  if(levelBanner>0){
    ctx.save();ctx.globalAlpha=Math.min(1,levelBanner<.7?levelBanner/.7:1);ctx.textAlign='center';ctx.font='900 26px -apple-system,sans-serif';ctx.fillStyle='#ffffff';ctx.shadowBlur=28;ctx.shadowColor='#62eaff';ctx.fillText('LEVEL '+level,W/2,H*.22);
-   ctx.font='900 10px -apple-system,sans-serif';ctx.fillStyle='#62eaff';
-   ctx.fillText('LEVEL SECURED • FIELD '+(level>=7?'CRITICAL':level>=4?'UNSTABLE':'STABLE'),W/2,H*.22+24);ctx.restore();
+   ctx.font='900 12px -apple-system,sans-serif';ctx.fillStyle='#62eaff';
+   ctx.fillText('LEVEL SECURED • FIELD '+(level>=7?'CRITICAL':level>=4?'UNSTABLE':'STABLE'),W/2,H*.22+24);
+   if(pendingLevel){ ctx.font='900 18px -apple-system,sans-serif';ctx.fillStyle='#ffc447';ctx.shadowColor='#ffb020';ctx.fillText('NEXT LEVEL: '+pendingLevel,W/2,H*.22+52); }   // D-50
+   ctx.restore();
  }
  if(perfectFlash>0){
    ctx.save();ctx.globalAlpha=perfectFlash/.18;ctx.strokeStyle='#ffffff';ctx.lineWidth=3;ctx.shadowBlur=25;ctx.shadowColor='#ffffff';ctx.beginPath();ctx.arc(ball.x,ball.y,ball.r+12+(1-perfectFlash/.18)*22,0,Math.PI*2);ctx.stroke();ctx.restore();
@@ -1490,7 +1548,7 @@ document.getElementById('pauseMenuBtn').onclick=()=>{
   // endGame() would save (best score, best level, submit to leaderboard),
   // just without the collapse animation/gameover screen, since the player
   // asked to leave, not lose. Same persistence rules, no scoring changes.
-  recordBestRun(score,level);
+  recordBestRun(score,levelForScore(score,difficulty));   // D-50
   if(score>best){best=score;}
   if(profileComplete) submitScore();   // D-39: unnamed pilots upload once they name themselves
   playing=false;paused=false;runActive=false;
@@ -1516,6 +1574,7 @@ function refreshMenu(){
  document.getElementById('callsign').value=callsign;document.getElementById('country').value=country;
  document.getElementById('profileEditor').classList.toggle('hidden',profileComplete);document.getElementById('profileSaved').classList.toggle('hidden',!profileComplete);
  document.getElementById('profileName').textContent=callsign||'PLAYER';document.getElementById('profileCountry').textContent=countryFlags[country]||'🌎';
+ if(typeof refreshPlayingFor==='function') refreshPlayingFor();   // D-58
 }
 document.querySelectorAll('#difficulty button').forEach(b=>b.onclick=()=>{difficulty=b.dataset.d;localStorage.fluxDifficulty=difficulty;refreshMenu()});
 document.querySelectorAll('#gameoverDifficulty button').forEach(b=>b.onclick=()=>{difficulty=b.dataset.d;localStorage.fluxDifficulty=difficulty;best=+localStorage[bestKey()]||0;document.getElementById('best').textContent=best.toLocaleString();document.getElementById('finalMode').textContent=difficulty.toUpperCase();refreshMenu()});
@@ -2389,6 +2448,76 @@ function showColorHint(){
   setTimeout(function(){ h.classList.add('out'); },3200);
   setTimeout(function(){ h.remove(); },3800);
 }
+/* ==================================================================
+   RC2.8.7 -- D-57 GAME-OVER LINE, D-60 NAME OFFER, D-58 PLAYING FOR
+   ================================================================== */
+function countryLabel(cc){
+  if(!cc || cc==='OTHER' || !countryFlags[cc]) return { flag:'\u{1F30E}', name:'your country' };
+  let name=cc;
+  try{ name=new Intl.DisplayNames(['en'],{type:'region'}).of(cc)||cc; }catch(e){}
+  return { flag:countryFlags[cc], name:name };
+}
+function storedBestScore(d){
+  try{ const r=JSON.parse(localStorage['fluxBestRun_'+d]||'null'); if(r && Number.isFinite(r.score)) return r.score; }catch(e){}
+  return +localStorage['fluxBest_'+d]||0;
+}
+// A country's total counts each pilot ONCE, at their single best score across
+// all difficulties (worker.js recomputeCountries). Only beating THAT adds to it.
+function overallBestScore(){
+  return Math.max(0, ...['easy','medium','hard'].map(storedBestScore));
+}
+/* D-57: the score is the headline; ONE line says what it meant. */
+function gameOverLine(sc,prevBest,prevOverall){
+  const c=countryLabel(country);
+  const isNew=sc>0 && sc>prevBest;
+  const first=isNew ? 'NEW BEST!' : (sc===prevBest ? 'Tied your best' : (prevBest-sc).toLocaleString()+' from your best');
+  let second;
+  if(!profileComplete) second='Add your name to count for '+c.flag;
+  else if(sc>0 && sc>prevOverall) second=c.flag+' +'+(sc-prevOverall).toLocaleString()+' for '+c.name;
+  else second='Beat '+Math.max(prevOverall,sc).toLocaleString()+' to add to '+c.flag;
+  return { isNew:isNew, first:first, second:second };
+}
+function showGameOverLine(sc,prevBest,prevOverall){
+  const el=document.getElementById('goLine'); if(!el) return;
+  const l=gameOverLine(sc,prevBest,prevOverall);
+  el.innerHTML='<span class="'+(l.isNew?'goNew':'')+'">'+escapeHtml(l.first)+'</span> · '+escapeHtml(l.second);
+}
+/* D-60: an auto-named pilot (PILOT-XXXX) who sets a new best on their second
+   run or later is offered -- once, dismissable -- to put a name on the board. */
+function shouldOfferNameClaim(sc,prevBest,runNo){
+  try{
+    return localStorage.fluxAutoName==='1' && /^PILOT-[A-Z0-9]{4}$/.test(callsign) &&
+      runNo>=2 && sc>0 && sc>prevBest && localStorage.fluxNameClaimOffered!=='1';
+  }catch(e){ return false; }
+}
+function offerNameClaim(sc,prevBest,runNo){
+  const box=document.getElementById('goClaim'); if(!box) return;
+  if(!shouldOfferNameClaim(sc,prevBest,runNo)){ box.classList.add('hidden'); return; }
+  try{ localStorage.fluxNameClaimOffered='1'; }catch(e){}
+  box.classList.remove('hidden');
+}
+document.getElementById('goClaimYes').onclick=function(){
+  document.getElementById('goClaim').classList.add('hidden');
+  showNamePrompt();
+  try{ document.getElementById('goCallsign').focus(); }catch(e){}
+};
+document.getElementById('goClaimNo').onclick=function(){ document.getElementById('goClaim').classList.add('hidden'); };
+/* D-58: on first launch, say which country the runs will count for, with a
+   44px "change" target that opens the profile editor. */
+function refreshPlayingFor(){
+  const b=document.getElementById('playingFor'); if(!b) return;
+  let first=false; try{ first=!((+localStorage.fluxRunsPlayed||0)>0); }catch(e){}
+  if(!first || !profileComplete){ b.classList.add('hidden'); return; }
+  const c=countryLabel(country);
+  document.getElementById('playingForWho').textContent=c.flag+' '+c.name;
+  b.classList.remove('hidden');
+}
+document.getElementById('playingFor').onclick=function(){
+  document.getElementById('editProfile').onclick();
+  document.getElementById('playingFor').classList.add('hidden');
+  try{ document.getElementById('country').focus(); }catch(e){}
+};
+refreshPlayingFor();
 document.getElementById('startBtn').onclick = () => {
   initAudio();
   if (!profileComplete && document.getElementById('callsign').value.trim()) {

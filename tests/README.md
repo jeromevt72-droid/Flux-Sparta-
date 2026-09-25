@@ -1,4 +1,4 @@
-# FLUX Sparta — source code (RC2.8.6)
+# FLUX Sparta — source code (RC2.8.7)
 
 Free, no-signup, country-vs-country arcade game. Runs as one Cloudflare Worker
 (`flux-sparta-3`) with a Durable Object for scores and purchases, and static
@@ -22,7 +22,8 @@ pages for the Gateway, the game and the admin panel.
 | `FLUX-Sparta/public/google5415e96c084db88e.html` | **Google Search Console ownership file. Never delete it** or Google verification is lost. |
 | `FLUX-Sparta/public/privacy.html`, `terms.html` | Legal pages |
 | `FLUX-Gateway-Redirect/` | The old `flux-gateway` address — only redirects to the live site |
-| `test-*.mjs`, `regression-suite.py`, `fuzz.mjs`, `run-all-tests.mjs` | The release gate (31 suites) |
+| `test-*.mjs`, `regression-suite.py`, `fuzz.mjs`, `run-all-tests.mjs` | The release gate (32 suites) |
+| `level-rule.mjs` | RC2.8.7: the score-to-level rule, shared by the server test fixtures |
 | `RC2.8.x-RELEASE-NOTES.md` | What changed in each release |
 
 ## Secrets (NOT in this folder — set in Cloudflare → flux-sparta-3 → Settings → Variables)
@@ -37,8 +38,11 @@ Never put these in GitHub.
 5. If anything is wrong: Deployments → the version from step 1 → ⋯ → Rollback.
 
 ## Running the tests (on a computer with Node 20+ and Python 3)
-`node run-all-tests.mjs` — must print **RELEASE GATE PASSED: all 31 suites passed**.
-`test-d35-browser.mjs` is extra (needs a Chromium browser via Playwright) and is not in the gate.
+`node run-all-tests.mjs` — must print **RELEASE GATE PASSED: all 32 suites passed**.
+`test-d35-browser.mjs` and `test-rc287-browser.mjs` are extra (they need a Chromium browser via Playwright) and are not in the gate.
+
+In the GitHub repo these files live in `tests/`, and `tests/FLUX-Sparta` is a symlink to the repo root (`ln -s .. tests/FLUX-Sparta`).
+Run from the repo root: `node tests/run-all-tests.mjs`.
 
 ## Key facts to remember
 - A pilot lives in the storage of the place it was created. Safari, each Home Screen icon,

@@ -40,13 +40,15 @@ async function suite({ gameHtml, gwHtml, workerMod, quiet = false }) {
     ck('A1 the old attack (5,000,000 at level 999) is refused', r.status === 400, r.status);
     r = await submit(w, env, { playerId: 'cheat-0000-4000-8000-000000000002', name: 'HAX', score: 400000, level: 10, difficulty: 'hard', country: 'US' });
     ck('A2 any level above 9 is refused', r.status === 400, r.status);
-    r = await submit(w, env, { playerId: 'cheat-0000-4000-8000-000000000003', name: 'HAX', score: 455001, level: 9, difficulty: 'hard', country: 'US' });
-    ck('A3 more than 455,000 is impossible even at level 9', r.status === 422, r.status);
+    // RC2.8.7 D-51 replaced the per-level ceiling (level*50,000+5,000) with
+    // "the level must be the one the score reaches" -- A3..A6 follow that rule.
+    r = await submit(w, env, { playerId: 'cheat-0000-4000-8000-000000000003', name: 'HAX', score: 455001, level: 2, difficulty: 'hard', country: 'US' });
+    ck('A3 a level the score does not reach is refused (D-51)', r.status === 422, r.status);
     r = await submit(w, env, { playerId: 'legit-0000-4000-8000-000000000004', name: 'PRO', score: 455000, level: 9, difficulty: 'hard', country: 'US' });
-    ck('A4 the per-level ceiling itself is still accepted', r.status === 200, r.status);
-    r = await submit(w, env, { playerId: 'legit-0000-4000-8000-000000000005', name: 'TITAN', score: 26423, level: 2, difficulty: 'medium', country: 'US' });
-    ck('A5 a real record-level run (26,423 at level 2) is accepted', r.status === 200 && r.data.ok === true, r.status);
-    ck('A6 the game really stops at level 9 (the cap matches the game)', /if\(level<9 && levelPoints>=levelThreshold\(\)\)/.test(gameHtml));
+    ck('A4 a score sent with its own level is accepted', r.status === 200, r.status);
+    r = await submit(w, env, { playerId: 'legit-0000-4000-8000-000000000005', name: 'TITAN', score: 26423, level: 6, difficulty: 'medium', country: 'US' });
+    ck('A5 a real record run (26,423 = level 6 on Medium) is accepted', r.status === 200 && r.data.ok === true, r.status);
+    ck('A6 the game really stops at level 9 (the cap matches the game)', /if\(pendingLevel \|\| level>=9\) return;/.test(gameHtml) && /while\(lv<9 && /.test(gameHtml));
   } catch (e) { ck('D-41 section ran', false, String(e.stack || e).slice(0, 200)); }
 
   /* ---------------- D-39 / D-43 / D-44 / D-40 in the real page ---------------- */

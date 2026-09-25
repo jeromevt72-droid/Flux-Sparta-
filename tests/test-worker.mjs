@@ -1,4 +1,5 @@
 import worker, { LeaderboardDO } from "./FLUX-Sparta/worker.js";
+import { levelFor } from './level-rule.mjs';   // RC2.8.7: D-51 fixture levels
 
 /* ---------------- fake Durable Object runtime ---------------- */
 
@@ -102,7 +103,7 @@ async function run() {
     const env = makeEnv();
     const r1 = await asJson(await call(env, "/api/submit-score", {
       method: "POST", cf: { country: "US" },
-      body: { playerId: "p1", name: "jerome", score: 40000, level: 3, difficulty: "medium" },
+      body: { playerId: "p1", name: "jerome", score: 40000, level: levelFor(40000, "medium"), difficulty: "medium" },
     }));
     check("submit accepted", r1.status === 200, JSON.stringify(r1.body));
     check("marked as new best", r1.body.isNewBest === true);
@@ -122,7 +123,7 @@ async function run() {
     await Promise.all(Array.from({ length: N }, (_, i) =>
       call(env, "/api/submit-score", {
         method: "POST", cf: { country: "US" },
-        body: { playerId: `p${i}`, name: `P${i}`, score: 1000 + i, level: 2, difficulty: "medium" },
+        body: { playerId: `p${i}`, name: `P${i}`, score: 1000 + i, level: levelFor(1000 + i, "medium"), difficulty: "medium" },
       })
     ));
     const lb = await asJson(await call(env, "/api/leaderboard", {}));
@@ -141,28 +142,28 @@ async function run() {
     const env = makeEnv();
     const r = await asJson(await call(env, "/api/submit-score", {
       method: "POST", cf: { country: "US" },
-      body: { playerId: "ph1", name: "MARIA", score: 9000, level: 2, difficulty: "medium", country: "PH" },
+      body: { playerId: "ph1", name: "MARIA", score: 9000, level: levelFor(9000, "medium"), difficulty: "medium", country: "PH" },
     }));
     check("filed under chosen country", r.body.country === "PH", JSON.stringify(r.body));
 
     const env2 = makeEnv();
     const r2 = await asJson(await call(env2, "/api/submit-score", {
       method: "POST", cf: { country: "CA" },
-      body: { playerId: "x1", name: "X", score: 9000, level: 2, difficulty: "medium" },
+      body: { playerId: "x1", name: "X", score: 9000, level: levelFor(9000, "medium"), difficulty: "medium" },
     }));
     check("falls back to IP country when unset", r2.body.country === "CA");
 
     const env3 = makeEnv();
     const r3 = await asJson(await call(env3, "/api/submit-score", {
       method: "POST", cf: { country: "CA" },
-      body: { playerId: "x2", name: "X", score: 9000, level: 2, difficulty: "medium", country: "NOTACOUNTRY" },
+      body: { playerId: "x2", name: "X", score: 9000, level: levelFor(9000, "medium"), difficulty: "medium", country: "NOTACOUNTRY" },
     }));
     check("garbage country rejected, IP used", r3.body.country === "CA");
 
     const env4 = makeEnv();
     const r4 = await asJson(await call(env4, "/api/submit-score", {
       method: "POST",
-      body: { playerId: "x3", name: "X", score: 9000, level: 2, difficulty: "medium" },
+      body: { playerId: "x3", name: "X", score: 9000, level: levelFor(9000, "medium"), difficulty: "medium" },
     }));
     check("no cf at all -> XX", r4.body.country === "XX");
   }
@@ -173,7 +174,7 @@ async function run() {
     const env = makeEnv();
     await call(env, "/api/submit-score", {
       method: "POST", cf: { country: "US" },
-      body: { playerId: "sw", name: "SW", score: 20000, level: 2, difficulty: "medium", country: "US" },
+      body: { playerId: "sw", name: "SW", score: 20000, level: levelFor(20000, "medium"), difficulty: "medium", country: "US" },
     });
     await new Promise(r => setTimeout(r, 15)); // clear cooldown below
     const env2 = env;
@@ -195,7 +196,7 @@ async function run() {
 
     const over = await asJson(await call(env, "/api/submit-score", {
       method: "POST", cf: { country: "US" },
-      body: { playerId: "hax2", name: "HAX", score: 99999999, level: 900, difficulty: "hard" },
+      body: { playerId: "hax2", name: "HAX", score: 99999999, level: levelFor(99999999, "hard"), difficulty: "hard" },
     }));
     check("score above MAX_SCORE rejected (400)", over.status === 400);
 
@@ -221,9 +222,9 @@ async function run() {
 
     const legit = await asJson(await call(env, "/api/submit-score", {
       method: "POST", cf: { country: "US" },
-      body: { playerId: "ok", name: "OK", score: 150000, level: 3, difficulty: "hard" },
+      body: { playerId: "ok", name: "OK", score: 150000, level: levelFor(150000, "hard"), difficulty: "hard" },
     }));
-    check("legit score at level 3 accepted", legit.status === 200, JSON.stringify(legit.body));
+    check("legit score at its own level accepted", legit.status === 200, JSON.stringify(legit.body));
   }
 
   /* ---- 6. cooldown ---- */
@@ -232,11 +233,11 @@ async function run() {
     const env = makeEnv();
     const a = await asJson(await call(env, "/api/submit-score", {
       method: "POST", cf: { country: "US" },
-      body: { playerId: "spam", name: "S", score: 1000, level: 2, difficulty: "medium" },
+      body: { playerId: "spam", name: "S", score: 1000, level: levelFor(1000, "medium"), difficulty: "medium" },
     }));
     const b = await asJson(await call(env, "/api/submit-score", {
       method: "POST", cf: { country: "US" },
-      body: { playerId: "spam", name: "S", score: 2000, level: 2, difficulty: "medium" },
+      body: { playerId: "spam", name: "S", score: 2000, level: levelFor(2000, "medium"), difficulty: "medium" },
     }));
     check("first accepted", a.status === 200);
     check("immediate second rejected (429)", b.status === 429, `got ${b.status}`);
@@ -249,14 +250,14 @@ async function run() {
     const ns = env.LEADERBOARD_DO;
     await call(env, "/api/submit-score", {
       method: "POST", cf: { country: "US" },
-      body: { playerId: "pb", name: "PB", score: 80000, level: 3, difficulty: "medium" },
+      body: { playerId: "pb", name: "PB", score: 80000, level: levelFor(80000, "medium"), difficulty: "medium" },
     });
     // bypass cooldown by reaching into the DO's clock record
     const inst = ns._instances.get("global");
     inst.lastSubmit["pb"] = 0;
     const lower = await asJson(await call(env, "/api/submit-score", {
       method: "POST", cf: { country: "US" },
-      body: { playerId: "pb", name: "NEWNAME", score: 10000, level: 1, difficulty: "medium" },
+      body: { playerId: "pb", name: "NEWNAME", score: 10000, level: levelFor(10000, "medium"), difficulty: "medium" },
     }));
     check("lower score not a new best", lower.body.isNewBest === false);
     check("best score retained", lower.body.best === 80000, `got ${lower.body.best}`);
@@ -274,12 +275,12 @@ async function run() {
     const ns = env.LEADERBOARD_DO;
     await call(env, "/api/submit-score", {
       method: "POST", cf: { country: "US" },
-      body: { playerId: "mv", name: "MV", score: 50000, level: 2, difficulty: "medium", country: "US" },
+      body: { playerId: "mv", name: "MV", score: 50000, level: levelFor(50000, "medium"), difficulty: "medium", country: "US" },
     });
     ns._instances.get("global").lastSubmit["mv"] = 0;
     await call(env, "/api/submit-score", {
       method: "POST", cf: { country: "US" },
-      body: { playerId: "mv", name: "MV", score: 60000, level: 3, difficulty: "medium", country: "PH" },
+      body: { playerId: "mv", name: "MV", score: 60000, level: levelFor(60000, "medium"), difficulty: "medium", country: "PH" },
     });
     const lb = await asJson(await call(env, "/api/leaderboard"));
     const us = lb.body.countries.find(c => c.country === "US");
@@ -294,9 +295,9 @@ async function run() {
   {
     const env = makeEnv();
     await call(env, "/api/submit-score", { method: "POST", cf: { country: "US" },
-      body: { playerId: "e1", name: "E", score: 90000, level: 3, difficulty: "easy" } });
+      body: { playerId: "e1", name: "E", score: 90000, level: levelFor(90000, "easy"), difficulty: "easy" } });
     await call(env, "/api/submit-score", { method: "POST", cf: { country: "US" },
-      body: { playerId: "h1", name: "H", score: 70000, level: 3, difficulty: "hard" } });
+      body: { playerId: "h1", name: "H", score: 70000, level: levelFor(70000, "hard"), difficulty: "hard" } });
     const all = await asJson(await call(env, "/api/leaderboard"));
     const hard = await asJson(await call(env, "/api/leaderboard?difficulty=hard"));
     check("all board has both", all.body.top.length === 2);

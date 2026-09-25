@@ -3,6 +3,7 @@
 // page, real admin page script. Written against RC2.8.2 first: must FAIL there.
 // Ends with negative controls that re-insert each defect and require a catch.
 import fs from 'fs'; import path from 'path'; import vm from 'vm';
+import { levelFor } from './level-rule.mjs';   // RC2.8.7: D-51 fixture levels
 import { fileURLToPath, pathToFileURL } from 'url';
 import { boot, makeStore } from './harness.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -82,7 +83,7 @@ async function suite({ gameHtml, adminHtml, workerMod, quiet=false }){
   try {
     const env=makeEnv(DO); const stub=env.LEADERBOARD_DO.get('global');
     const ID='a1a1a1a1-0000-4000-8000-000000000001';
-    skew+=20000; await call(worker,env,'/api/submit-score',{ body:{ playerId:ID, name:'Titan', score:21742, level:2, difficulty:'hard', country:'US' } });
+    skew+=20000; await call(worker,env,'/api/submit-score',{ body:{ playerId:ID, name:'Titan', score:21742, level:levelFor(21742,'hard'), difficulty:'hard', country:'US' } });
     const pid=await pidHash(ID);
     const P='/api/admin/issue-restore-code';
     let r=await call(worker,env,P,{ body:{ pid, reason:'receipt matched' } });
