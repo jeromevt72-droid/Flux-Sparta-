@@ -31,6 +31,10 @@ const VALID_SKUS = new Set(["toxic", "cosmic", "solar"]);
 const LEVEL_SCORE_THRESHOLDS = [2500, 6000, 10000, 15000, 21000, 28000, 36000, 45000];   // Medium, levels 2..9
 const LEVEL_SCORE_MULT = { easy: 0.75, medium: 1, hard: 1.35 };
 const LEVEL_TOLERANCE = 1;
+// RC2.8.7: a hard ceiling kept IN ADDITION to D-51. The level rule alone lets
+// any score through once level 9 is claimed; nothing above the RC2.8.5
+// maximum (9 * 50,000 + 5,000) is accepted.
+const SCORE_CEILING = 455_000;
 function levelForScore(score, difficulty) {
   const m = LEVEL_SCORE_MULT[difficulty] || 1;
   let lv = 1;
@@ -169,6 +173,9 @@ async function submitScore(request, env) {
   }
   if (Math.abs(level - levelForScore(score, difficulty)) > LEVEL_TOLERANCE) {   // D-51
     return json({ error: "Score is not plausible for that level" }, 422);
+  }
+  if (score > SCORE_CEILING) {
+    return json({ error: "Score is above the maximum" }, 422);
   }
 
   // Player's pick wins; cf.country is the fallback for "OTHER"/unset.

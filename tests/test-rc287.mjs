@@ -151,6 +151,11 @@ async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = fals
     ck('S5 other checks kept: level 10 -> 400, score above MAX -> 400, bad id -> 400',
       (await submit(w, env, { score: 60000, level: 10, difficulty: 'medium' })) === 400 && (await submit(w, env, { score: 5000001, level: 9, difficulty: 'medium' })) === 400 &&
       (await submit(w, env, { playerId: '__proto__', score: 100, level: 1 })) === 400);
+    ck('S7 hard ceiling kept: 455,000 accepted, 455,001 refused even at level 9 (all difficulties)',
+      (await submit(w, env, { score: 455000, level: 9, difficulty: 'hard' })) === 200 &&
+      (await submit(w, env, { score: 455001, level: 9, difficulty: 'hard' })) === 422 &&
+      (await submit(w, env, { score: 455001, level: 9, difficulty: 'easy' })) === 422 &&
+      (await submit(w, env, { score: 4999999, level: 9, difficulty: 'medium' })) === 422);
     const pid = 'rc287-cool'; await submit(w, env, { playerId: pid, score: 100, level: 1 }); skew -= 19000;
     ck('S5 ...and the submit cooldown', (await submit(w, env, { playerId: pid, score: 200, level: 1 })) === 429);
     const wt = (workerSrc.match(/const LEVEL_SCORE_THRESHOLDS = (\[[^\]]*\])/) || [])[1];
@@ -222,13 +227,13 @@ async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = fals
     const b = bootGame({ fluxPlayerId: 'pal-1', fluxCallsign: 'T', fluxProfileComplete: '1' });
     const SK = JSON.parse(b.run('JSON.stringify(SKINS)'));
     const bgs = JSON.parse(b.run('JSON.stringify(CELESTIAL_THEMES)')).map((g) => (g.match(/#[0-9a-f]{6}/gi) || [])[1]).concat(['#050719']);
-    ck('K1 default palette starts #ffd23f #35e6ff #ff4f98 #b48cff', SK.aurora.colors.slice(0, 4).join(' ') === '#ffd23f #35e6ff #ff4f98 #b48cff', SK.aurora.colors.slice(0, 4).join(' '));
+    ck('K1 default palette starts #ffd23f #1fb8e0 #ff4f98 #b48cff', SK.aurora.colors.slice(0, 4).join(' ') === '#ffd23f #1fb8e0 #ff4f98 #b48cff', SK.aurora.colors.slice(0, 4).join(' '));
     for (const [k, s] of Object.entries(SK)) {
       const c = s.colors; const f4 = c.slice(0, 4);
       const minC = Math.min(...c.flatMap((x) => bgs.map((bg) => contrast(x, bg))));
       ck('K2 ' + k + ': every colour bright on the field (contrast >= 4.5:1 on every level background)', minC >= 4.5, minC.toFixed(2));
       let minH = 999, minL = 999; for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) { minH = Math.min(minH, hueGap(f4[i], f4[j])); minL = Math.min(minL, Math.abs(Lstar(f4[i]) - Lstar(f4[j]))); }
-      ck('K3 ' + k + ': first four differ in hue (>= 35 deg) AND lightness (no two alike)', minH >= 35 && minL >= 1.5, 'hue ' + minH.toFixed(0) + ' L* ' + minL.toFixed(1));
+      ck('K3 ' + k + ': first four differ in hue (>= 35 deg) AND lightness (L* >= 3 apart)', minH >= 35 && minL >= 3, 'hue ' + minH.toFixed(0) + ' L* ' + minL.toFixed(1));
       ck('K4 ' + k + ': no red-vs-green pair', !(c.some(isRed) && c.some(isGreen)), c.filter((x) => isRed(x) || isGreen(x)).join(' '));
       ck('K5 ' + k + ': nine colours, all valid', c.length === 9 && c.every((x) => /^#[0-9a-f]{6}$/i.test(x)));
     }
@@ -368,6 +373,7 @@ await control('D-50 old saved levels left as they were', { expect: 'L9', game: r
 await control('D-51 old per-level ceiling back on the server', { expect: 'S', workerSrc: rep('if (Math.abs(level - levelForScore(score, difficulty)) > LEVEL_TOLERANCE) {', 'if (score > level * 50000 + 5000) {') });
 await control('D-51 no +/-1 tolerance', { expect: 'S1', workerSrc: rep('const LEVEL_TOLERANCE = 1;', 'const LEVEL_TOLERANCE = 0;') });
 await control('D-51 difficulty ignored by the server', { expect: 'S3', workerSrc: rep('const m = LEVEL_SCORE_MULT[difficulty] || 1;', 'const m = 1;') });
+await control('RC2.8.7 score ceiling dropped', { expect: 'S7', workerSrc: rep('  if (score > SCORE_CEILING) {', '  if (false) {') });
 await control('D-51 cooldown dropped along the way', { expect: 'S5', workerSrc: rep('if (now - last < SUBMIT_COOLDOWN_MS) {', 'if (false) {') });
 await control('D-51 server table drifts from the game', { expect: 'S6', workerSrc: rep('const LEVEL_SCORE_THRESHOLDS = [2500, 6000, 10000, 15000, 21000, 28000, 36000, 45000];', 'const LEVEL_SCORE_THRESHOLDS = [2500, 6000, 10000, 15000, 21000, 28000, 36000, 46000];') });
 // D-52
@@ -391,7 +397,8 @@ await control('D-55 unclamped orb symbol size', { expect: 'T2', game: rep("ctx.f
 await control('D-55 buttons may be short again', { expect: 'T3', game: rep('font-size:14px;min-height:44px}', 'font-size:14px}') });
 await control('D-55 EDIT shrinks under its own padding', { expect: 'T4', game: rep('font-size:11px!important;letter-spacing:.1em!important;min-height:44px}', 'font-size:11px!important;letter-spacing:.1em!important}') });
 // D-56
-await control('D-56 old default palette', { expect: 'K1', game: rep("aurora:{name:'AURORA',price:null,colors:['#ffd23f','#35e6ff','#ff4f98','#b48cff',", "aurora:{name:'AURORA',price:null,colors:['#35e6ff','#5c9cff','#8c5cff','#c64dff',") });
+await control('D-56 old default palette', { expect: 'K1', game: rep("aurora:{name:'AURORA',price:null,colors:['#ffd23f','#1fb8e0','#ff4f98','#b48cff',", "aurora:{name:'AURORA',price:null,colors:['#35e6ff','#5c9cff','#8c5cff','#c64dff',") });
+await control('D-56 default cyan as light as the yellow again', { expect: 'K3 aurora', game: rep("colors:['#ffd23f','#1fb8e0',", "colors:['#ffd23f','#35e6ff',") });
 await control('D-56 old TOXIC palette (four greens)', { expect: 'K3 toxic', game: rep("colors:['#d6ff3d','#2ee6b8','#5cb8ff','#b06bff',", "colors:['#9dff2e','#c8ff45','#5cff9c','#2effd6',") });
 await control('D-56 red-vs-green pair', { expect: 'K4 aurora', game: rep("'#f0f4ff','#e05cff','#7dffea']},\n  toxic", "'#f0f4ff','#ff2a1a','#3dff5a']},\n  toxic") });
 await control('D-56 a dim colour', { expect: 'K2 cosmic', game: rep("'#f0f4ff','#c46bff','#8cfff0']", "'#f0f4ff','#5a2a8a','#8cfff0']") });
