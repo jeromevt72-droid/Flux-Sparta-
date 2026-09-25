@@ -36,6 +36,14 @@ canvas{position:absolute;inset:0;width:100%;height:100%}
    to delete this rule + the #skinBgLayer div + applySkinBackground() without
    affecting scoring, skins ownership, or the leaderboard. */
 #skinBgLayer{position:absolute;inset:0;z-index:0;background-size:cover;background-position:center;background-repeat:no-repeat;opacity:0;transition:opacity .6s ease;transform-origin:50% 50%;animation:bgLife 66s ease-in-out infinite;will-change:transform,filter}
+/* SKIN BACKDROP BLEED (black-band fix). In the iPhone Home Screen app the
+   page's usable area can end above the physical bottom of the screen (by the
+   status-bar / home-indicator inset); iOS paints the rest with the page
+   background, which showed as a black band under the bright Solar Inferno
+   image. The backdrop now runs past the bottom edge by both insets plus a
+   margin, and applySkinBackground() matches the page background to the
+   backdrop's bottom colour so any sliver left over blends in. */
+#skinBgLayer{bottom:calc(-1 * (env(safe-area-inset-top,0px) + env(safe-area-inset-bottom,0px)) - 64px)}
 @keyframes bgLife{0%{transform:scale(1.06) translate(0,0);filter:brightness(1) saturate(1)}50%{transform:scale(1.06) translate(-2.2%,0);filter:brightness(1.1) saturate(1.06)}100%{transform:scale(1.06) translate(0,0);filter:brightness(1) saturate(1)}}
 /* MOVING CELESTIAL BACKDROP — purely decorative layers that sit behind the
    (transparent) game canvas, so #app's own gradient + the level-tier color
@@ -556,7 +564,7 @@ const SKINS={
   aurora:{name:'AURORA',price:null,colors:['#ffd23f','#1fb8e0','#ff4f98','#b48cff','#ff9a3d','#5c8cff','#f0f4ff','#e05cff','#7dffea']},
   toxic:{name:'TOXIC',price:'$1.99',colors:['#d6ff3d','#2ee6b8','#5cb8ff','#b06bff','#fff36b','#7dff8a','#f0f4ff','#2ecfff','#e8a6ff']},
   cosmic:{name:'COSMIC',price:'$1.99',colors:['#ffe066','#5ce1ff','#ff7ae0','#9d7bff','#7a9dff','#ff9ec8','#f0f4ff','#c46bff','#8cfff0']},
-  solar:{name:'SOLAR INFERNO',price:'$2.99',bg:'/solar-inferno.webp',colors:['#ffcf33','#7cc0ff','#c48cff','#ff3a24','#ffe8a3','#ff9e5c','#f0f4ff','#ff7ac0','#ffb830']}
+  solar:{name:'SOLAR INFERNO',price:'$2.99',bg:'/solar-inferno.webp',bgBase:'#1c0c0b',colors:['#ffcf33','#7cc0ff','#c48cff','#ff3a24','#ffe8a3','#ff9e5c','#f0f4ff','#ff7ac0','#ffb830']}
 };
 // CELESTIAL LEVEL-UP BACKGROUND — self-contained and safe to remove.
 // To turn this off entirely: set CELESTIAL_BG_ENABLED=false (one line),
@@ -595,11 +603,16 @@ function applySkinBackground(){
   const layer=document.getElementById('skinBgLayer');
   if(!layer)return;
   const s=SKINS[activeBackground];
-  if(activeBackground!=='none' && s && s.bg && ownsSkin(activeBackground)){
+  const on=activeBackground!=='none' && s && s.bg && ownsSkin(activeBackground);
+  if(on){
     layer.style.backgroundImage=`url('${s.bg}')`;layer.style.opacity='0.5';
   } else {
     layer.style.opacity='0';
   }
+  // Black-band fix: behind the backdrop, the page background matches the
+  // backdrop's bottom edge (bgBase: image bottom at 50% over the dark field).
+  const base=on && s.bgBase ? s.bgBase : '';
+  try{ document.documentElement.style.backgroundColor=base; document.body.style.backgroundColor=base; }catch(e){}
 }
 function setBackground(bg){
   activeBackground=bg;
