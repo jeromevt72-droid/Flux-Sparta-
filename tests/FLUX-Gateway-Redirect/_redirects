@@ -1,0 +1,3 @@
+# ROOT MOVE: the Gateway now lives at the ROOT of the game's origin, so the
+# installed app covers the whole site. This old address forwards there.
+/*  https://flux-sparta-3.jeromevt72.workers.dev/  301
