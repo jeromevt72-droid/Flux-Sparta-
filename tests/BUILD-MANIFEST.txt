@@ -1,6 +1,8 @@
-FLUX RC2.8.7 — BUILD MANIFEST
-Contains: RC2.8.6 build 2 + D-50..D-61 (levels by score, HUD/game-over clarity, palettes, sound) + 455,000 score ceiling.
-Changed vs RC2.8.6 build 2: worker.js, public/play/index.html
+FLUX RC2.8.7 final — BUILD MANIFEST
+Source: GitHub jeromevt72-droid/Flux-Sparta- main @ a1a586b (PRs #1-#4 merged)
+Contains: RC2.8.6 build 2 + RC2.8.7 (D-50..D-61, 455,000 score ceiling, cyan #1fb8e0)
+          + level-up banner fix (PR #2) + level-up continuity fix (PR #4) + SW test fix (PR #3, tests only)
+Player-facing files changed vs RC2.8.6 build 2: FLUX-Sparta/worker.js, FLUX-Sparta/public/play/index.html
 Retained: public/google5415e96c084db88e.html (Google verification — never delete)
 
 sha256 (first 16 hex) of every deployable file:
@@ -33,7 +35,7 @@ c61696c2d5b5f72f  FLUX-Sparta/public/hero-demo.html
 3cb4cebe08f393bc  FLUX-Sparta/public/manifest.webmanifest
 1701533414903c5c  FLUX-Sparta/public/neon-tokyo.webp
 c52bb9f8660a2d1d  FLUX-Sparta/public/og-image.jpg
-f752990de95af7e5  FLUX-Sparta/public/play/index.html
+41a4fdac953162fd  FLUX-Sparta/public/play/index.html
 22ff9396327f92d1  FLUX-Sparta/public/privacy.html
 700e3ce925b33da3  FLUX-Sparta/public/robots.txt
 4efebf522008b19a  FLUX-Sparta/public/sitemap.xml
