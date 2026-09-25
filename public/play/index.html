@@ -1455,17 +1455,47 @@ function draw(){
  if(fluxMode>0){
    ctx.save();ctx.globalAlpha=.75;ctx.textAlign='center';ctx.font='900 11px -apple-system,sans-serif';ctx.fillStyle='#62eaff';ctx.shadowBlur=18;ctx.shadowColor='#62eaff';ctx.fillText('FLUX MODE  '+Math.ceil(fluxMode)+'s',W/2,maxHudBottom()+22);ctx.restore();
  }
- if(levelBanner>0){
-   ctx.save();ctx.globalAlpha=Math.min(1,levelBanner<.7?levelBanner/.7:1);ctx.textAlign='center';ctx.font='900 26px -apple-system,sans-serif';ctx.fillStyle='#ffffff';ctx.shadowBlur=28;ctx.shadowColor='#62eaff';ctx.fillText('LEVEL '+level,W/2,H*.22);
-   ctx.font='900 12px -apple-system,sans-serif';ctx.fillStyle='#62eaff';
-   ctx.fillText('LEVEL SECURED • FIELD '+(level>=7?'CRITICAL':level>=4?'UNSTABLE':'STABLE'),W/2,H*.22+24);
-   if(pendingLevel){ ctx.font='900 18px -apple-system,sans-serif';ctx.fillStyle='#ffc447';ctx.shadowColor='#ffb020';ctx.fillText('NEXT LEVEL: '+pendingLevel,W/2,H*.22+52); }   // D-50
-   ctx.restore();
- }
  if(perfectFlash>0){
    ctx.save();ctx.globalAlpha=perfectFlash/.18;ctx.strokeStyle='#ffffff';ctx.lineWidth=3;ctx.shadowBlur=25;ctx.shadowColor='#ffffff';ctx.beginPath();ctx.arc(ball.x,ball.y,ball.r+12+(1-perfectFlash/.18)*22,0,Math.PI*2);ctx.stroke();ctx.restore();
  }
  ctx.restore();
+ // Level-up banner: drawn after the shake transform is undone, so it never moves.
+ if(levelBanner>0){
+   const L=levelBannerLayout();
+   ctx.save();ctx.globalAlpha=Math.min(1,levelBanner<.7?levelBanner/.7:1);ctx.textAlign='center';ctx.textBaseline='top';ctx.shadowBlur=10;
+   ctx.font='900 '+Math.max(11,L.f1)+'px -apple-system,sans-serif';ctx.fillStyle='#ffffff';ctx.shadowColor='#62eaff';ctx.fillText(L.t1,L.cx,L.y1);
+   if(L.t2){ ctx.font='900 '+Math.max(11,L.f2)+'px -apple-system,sans-serif';ctx.fillStyle='#ffc447';ctx.shadowColor='#ffb020';ctx.fillText(L.t2,L.cx,L.y2); }   // D-50
+   ctx.restore();
+ }
+}
+/* LEVEL-UP BANNER SLOT (RC2.8.7 fix). The banner used to sit at 22% of the
+   screen height, which put it on the ceiling ("danger") line on iPad
+   landscape and on the FLUX/pause row under an iPhone notch. The field
+   between the ceiling line and the launcher is where the player aims, so the
+   banner now lives in the empty strip of the HUD band: right of the FLUX
+   meter row, below the score boxes, above the ceiling line. The size shrinks
+   to fit that strip (never below 11px). Positions come from the real HUD
+   layout, so they follow the safe-area inset and every screen size.
+   Canvas-drawn: it can never take a touch. */
+function levelBannerLayout(){
+  const st=document.querySelector('.stats').getBoundingClientRect(), fb=document.querySelector('.fluxbar').getBoundingClientRect();
+  const left=fb.right+12, right=W-12, top=st.bottom+6, bottom=maxHudBottom()-8;
+  const w=Math.max(0,right-left), h=Math.max(0,bottom-top);
+  const t1='LEVEL '+level, t2=pendingLevel?'NEXT LEVEL: '+pendingLevel:'', gap=t2?3:0;
+  let f1=Math.min(22,Math.floor(t2?h*.55:h*.8)), f2=11, tw=0, th=0;
+  for(;;){
+    f1=Math.max(11,f1); f2=Math.max(11,Math.round(f1*.72));
+    ctx.save();
+    ctx.font='900 '+Math.max(11,f1)+'px -apple-system,sans-serif'; const w1=+ctx.measureText(t1).width||0;
+    ctx.font='900 '+Math.max(11,f2)+'px -apple-system,sans-serif'; const w2=t2?(+ctx.measureText(t2).width||0):0;
+    ctx.restore();
+    tw=Math.max(w1,w2); th=f1+(t2?gap+f2:0);
+    if((tw<=w && th<=h) || f1<=11) break;
+    f1--;
+  }
+  const cx=left+w/2, y1=top+Math.max(0,(h-th)/2);
+  return { t1:t1, t2:t2, f1:f1, f2:f2, cx:cx, y1:y1, y2:y1+f1+gap,
+    rect:{ left:cx-tw/2, right:cx+tw/2, top:y1, bottom:y1+th }, slot:{ left:left, right:right, top:top, bottom:bottom } };
 }
 function setPaused(next){
  if(!playing && !paused) return;
