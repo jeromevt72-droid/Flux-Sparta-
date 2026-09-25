@@ -360,7 +360,7 @@ const reps = (...pairs) => (s) => pairs.reduce((acc, [a, b]) => rep(a, b)(acc), 
 await control('D-50 old thresholds put back', { expect: 'L1', game: rep('const LEVEL_SCORE_THRESHOLDS=[2500,6000,10000,15000,21000,28000,36000,45000];', 'const LEVEL_SCORE_THRESHOLDS=[140,210,300,410,540,690,860,1050];') });
 await control('D-50 perfect catches drive the level again', { expect: 'L2', game: rep("     orbValue=Math.min(42,orbValue + 1);", "     window.levelPoints=(window.levelPoints||0)+1; if(level<9 && window.levelPoints>=10){ level++; window.levelPoints=0; }\n     orbValue=Math.min(42,orbValue + 1);") });
 await control('D-50 level jumps at once (no countdown)', { expect: 'L3', game: rep('if(levelForScore(score,difficulty)>level) startLevelUp(level+1);', 'if(levelForScore(score,difficulty)>level){ pendingLevel=level+1; finishLevelUp(); }') });
-await control('D-50 banner without NEXT LEVEL', { expect: 'L3', game: rep("ctx.fillText('NEXT LEVEL: '+pendingLevel,W/2,H*.22+52);", '') });
+await control('D-50 banner without NEXT LEVEL', { expect: 'L3', game: rep("const t1='LEVEL '+level, t2=pendingLevel?'NEXT LEVEL: '+pendingLevel:'', gap=t2?3:0;", "const t1='LEVEL '+level, t2='', gap=0;") });
 await control('D-50 LEVEL box not amber / no SPEED UP', { expect: 'L4', game: rep("lvLabel.textContent='SPEED UP'; lvBox.classList.add('speedUp');", "lvLabel.textContent='LEVEL';") });
 await control('D-50 countdown silent', { expect: 'L4', game: rep('if(shown>=1 && shown<levelTickAt){ levelTickAt=shown; playTick(); updateHud(); }', 'if(shown>=1 && shown<levelTickAt){ levelTickAt=shown; updateHud(); }') });
 await control('D-50 speed jumps instead of rising', { expect: 'L5', game: rep(' speedLevel=from;   // ramps up to the new level over LEVEL_RAMP_S', ' speedLevel=level;') });
@@ -392,7 +392,7 @@ await control('D-54 SOUND / FIELD badges back', { expect: 'C2', game: rep('<b id
 // D-55
 await control('D-55 a 7px label back', { expect: 'T1', game: rep('.linkBtn{flex:1;padding:9px 8px;font-size:11px;', '.linkBtn{flex:1;padding:9px 8px;font-size:7px;') });
 await control('D-55 a shrinking em size back', { expect: 'T1', game: rep('.lbTag{opacity:.5;font-weight:600;font-size:11px;', '.lbTag{opacity:.5;font-weight:600;font-size:.8em;') });
-await control('D-55 tiny canvas text back', { expect: 'T2', game: rep("ctx.font='900 12px -apple-system,sans-serif';ctx.fillStyle='#62eaff';", "ctx.font='900 10px -apple-system,sans-serif';ctx.fillStyle='#62eaff';") });
+await control('D-55 tiny canvas text back', { expect: 'T2', game: rep("ctx.font='900 11px -apple-system,sans-serif';ctx.fillStyle='#62eaff';", "ctx.font='900 10px -apple-system,sans-serif';ctx.fillStyle='#62eaff';") });
 await control('D-55 unclamped orb symbol size', { expect: 'T2', game: rep("ctx.font=Math.max(11,t.r*.55)+'px -apple-system,sans-serif';", "ctx.font=(t.r*.55)+'px -apple-system,sans-serif';") });
 await control('D-55 buttons may be short again', { expect: 'T3', game: rep('font-size:14px;min-height:44px}', 'font-size:14px}') });
 await control('D-55 EDIT shrinks under its own padding', { expect: 'T4', game: rep('font-size:11px!important;letter-spacing:.1em!important;min-height:44px}', 'font-size:11px!important;letter-spacing:.1em!important}') });
