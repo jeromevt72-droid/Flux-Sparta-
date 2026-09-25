@@ -780,6 +780,7 @@ function newGame(){
    const z=zones[i%zones.length];
    addTarget(color,z[0],z[1]);
  }
+ ball.color=pickBallColour();   // the first ball matches an orb on the field
  updateHud(); playing=true; runActive=true;
 }
 function addTarget(color,x,y,r=18+Math.random()*6){
@@ -900,7 +901,32 @@ function resetFieldAfterMiss(){
    const color=i%Math.min(5,3+level);
    addTarget(color,x,y,isPhone()?16+Math.random()*5:18+Math.random()*6);
  }
+ if(ball) ball.color=pickBallColour();   // the new ball (after a miss or a revive) matches an orb on the new field
  updateHud();
+}
+/* BALL COLOUR RULE. Every ball must match the colour of at least one orb on
+   the field; otherwise the player has nothing to score on. The palette
+   unlocks more colours as levels rise (6 at level 4), but a fresh field after
+   a miss or revive only uses the first few, so the ball kept an unlocked
+   colour (e.g. orange, the 5th) that no orb had -- with the field full, no
+   new orb could spawn to fix it. Now a new ball takes its colour only from
+   colours on the field, and a per-frame safety check adds an orb of the
+   ball's colour if that colour ever runs out (e.g. the last one burst as a
+   growing orb). Bonus orbs and matured growing orbs pop on any contact, so
+   they do not count as a colour match. There are no special balls. */
+function isColourTarget(t){ return !t.bonus && !(t.growing && t.matured); }
+function ballHasColourTarget(){ return !!ball && targets.some(function(t){ return isColourTarget(t) && t.color===ball.color; }); }
+function pickBallColour(){
+  const present=[];
+  targets.forEach(function(t){ if(isColourTarget(t) && present.indexOf(t.color)<0) present.push(t.color); });
+  const cur=ball?ball.color:0;
+  if(!present.length || present.indexOf(cur)>=0) return cur;   // keep the colour when it is already on the field
+  return present[Math.floor(Math.random()*present.length)];
+}
+function ensureBallColourTarget(){
+  if(!ball || ballHasColourTarget()) return;
+  const [x,y]=safeSpawnPoint(20);
+  addTarget(ball.color,x,y,isPhone()?16+Math.random()*5:18+Math.random()*6);
 }
 function burst(x,y,col,n=14){
  for(let i=0;i<n;i++)particles.push({x,y,vx:rand(-5,5),vy:rand(-5,5),life:1,col});
@@ -1294,6 +1320,7 @@ function update(dt){
  texts.forEach(t=>{t.y-=.6*dt*60;t.life-=dt});texts=texts.filter(t=>t.life>0);
  if(paddle.hitFlash>0) paddle.hitFlash=Math.max(0,paddle.hitFlash-dt*4.2);
  shake*=.9;
+ ensureBallColourTarget();   // ball colour rule: never leave the ball with nothing to hit
  updatePressureBadge();
 }
 function glowCircle(x,y,r,col,alpha=1){
