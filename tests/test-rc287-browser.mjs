@@ -46,7 +46,7 @@ const rect = (p, sel) => p.evaluate((s) => { const r = document.querySelector(s)
 const hit = (a, b) => a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b;
 
 async function phone(width, height, inset) {
-  const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, serviceWorkers: 'block' });   // the SW reload would bypass the inset rewrite
   if (inset) {   // stand-in for the iPhone Home Screen notch: env(safe-area-inset-top) = inset
     await ctx.route('**/play/', async (route) => {
       const r = await route.fetch(); let b = await r.text();
