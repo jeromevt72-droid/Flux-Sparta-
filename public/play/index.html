@@ -447,7 +447,7 @@ const countryFlags={AF:'🇦🇫',AL:'🇦🇱',DZ:'🇩🇿',AD:'🇦🇩',AO:'
    LEVEL_SCORE_THRESHOLDS / LEVEL_SCORE_MULT in worker.js (D-51 checks it). */
 const LEVEL_SCORE_THRESHOLDS=[2500,6000,10000,15000,21000,28000,36000,45000];
 const LEVEL_SCORE_MULT={easy:.75,medium:1,hard:1.35};
-const LEVEL_COUNTDOWN_S=5, LEVEL_RAMP_S=2;
+const LEVEL_COUNTDOWN_S=5, LEVEL_RAMP_S=1;   // level-up: 5 s SPEED UP countdown, then ~1 s difficulty ramp
 function levelScoreAt(lv,d){   // score needed to reach level lv (lv 1 = 0)
   if(lv<=1) return 0;
   return Math.round(LEVEL_SCORE_THRESHOLDS[Math.min(8,lv-2)]*(LEVEL_SCORE_MULT[d]||1));
@@ -1087,7 +1087,10 @@ function startLevelUp(n){
  updateHud();
 }
 function tickLevelUp(dt){
- if(speedLevel<level) speedLevel=Math.min(level,speedLevel+dt/LEVEL_RAMP_S);   // ramp first: it starts the frame AFTER the level changes
+ if(speedLevel<level){   // ramp first: it starts the frame AFTER the level changes
+   speedLevel=Math.min(level,speedLevel+dt/LEVEL_RAMP_S);
+   paddle.w=paddleWidthFor(speedLevel); setPaddle(paddle.x);   // the launcher narrows with the ramp, never in one jump
+ }
  if(pendingLevel){
    levelCountdown-=dt;
    const shown=Math.ceil(levelCountdown);
@@ -1095,19 +1098,22 @@ function tickLevelUp(dt){
    if(levelCountdown<=0) finishLevelUp();
  }
 }
+/* A level-up is a continuous flow, never a restart: every orb on the field
+   stays exactly as it is (size, position, colour, special orbs), and so do
+   score, combo, lives, the FLUX meter and the orb value earned by perfect
+   catches. Only the difficulty changes: speed, orb motion and launcher width
+   ramp over LEVEL_RAMP_S (speedLevel), and new orbs spawn with the new
+   level's settings (count, colours, danger) as the field refills normally. */
 function finishLevelUp(){
  const from=level;
  level++;   // pendingLevel is always level+1: one level per level-up, never a jump
  pendingLevel=0; levelCountdown=0; levelTickAt=0;
  speedLevel=from;   // ramps up to the new level over LEVEL_RAMP_S
- orbValue=20;
  applyCelestialBackground(level);
  popup(W/2,155,'LEVEL '+level,'#62eaff');
- paddle.w=Math.max(isPhone()?96:112,(isPhone()?132:150)-(level-1)*4);
- targets=[];
- for(let i=0;i<targetCap();i++)spawnTarget(i%Math.min(5,3+level));
  updateHud();
 }
+function paddleWidthFor(lv){ return Math.max(isPhone()?96:112,(isPhone()?132:150)-(lv-1)*4); }
 function flash(v){document.getElementById('flash').style.opacity=v;setTimeout(()=>document.getElementById('flash').style.opacity=0,80)}
 function updateHud(){
  document.getElementById('score').textContent=score;
@@ -1195,8 +1201,8 @@ function update(dt){
  // Targets now move subtly, with stronger pressure from Level 5 onward.
  for(const t of targets){
    t.age += dt;
-   t.phase += dt*(.7+level*.035);
-   const drift = level>=5 ? 1 : .45;
+   t.phase += dt*(.7+speedLevel*.035);
+   const drift = .45+.55*Math.max(0,Math.min(1,speedLevel-4));   // .45 up to level 4, 1 from level 5; eased between during the ramp
    t.x += (t.vx + Math.cos(t.phase)*.08)*dt*60*drift;
    t.y += (t.vy + Math.sin(t.phase*.83)*.06)*dt*60*drift;
    const topBound=maxHudBottom()+t.r, botBound=Math.max(topBound+60,H*.79)-t.r;

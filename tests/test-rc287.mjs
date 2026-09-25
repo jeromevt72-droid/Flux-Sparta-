@@ -116,8 +116,9 @@ async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = fals
     ck('L4 counts 5-4-3-2-1 with a soft tick each second', shownN.join('') === '4321' && ticks === 5 && b.run('pendingLevel') === 2, shownN.join(',') + ' ticks=' + ticks);
     b.g.ctx.tickLevelUp(1);
     ck('L5 after the countdown the new level starts and the box is LEVEL 2 again', b.run('level') === 2 && b.run('pendingLevel') === 0 && !b.cls.levelBox.has('speedUp') && b.el('levelLabel').textContent === 'LEVEL' && String(b.el('level').textContent) === '2');
-    const sp0 = b.run('speedLevel'); b.g.ctx.tickLevelUp(1.0); const sp1 = b.run('speedLevel'); b.g.ctx.tickLevelUp(1.0); const sp2 = b.run('speedLevel');
-    ck('L5 speed rises smoothly over ~2 s (1 -> 1.5 -> 2), never in one jump', sp0 === 1 && Math.abs(sp1 - 1.5) < 1e-9 && sp2 === 2, [sp0, sp1, sp2].join(' -> '));
+    // Level-up continuity fix: the ramp is ~1 s (was 2 s).
+    const sp0 = b.run('speedLevel'); b.g.ctx.tickLevelUp(0.5); const sp1 = b.run('speedLevel'); b.g.ctx.tickLevelUp(0.5); const sp2 = b.run('speedLevel');
+    ck('L5 speed rises smoothly over ~1 s (1 -> 1.5 -> 2), never in one jump', sp0 === 1 && Math.abs(sp1 - 1.5) < 1e-9 && sp2 === 2, [sp0, sp1, sp2].join(' -> '));
     ck('L5 the speed limit follows that ramp', /Math\.min\(17\.5,\(12\+speedLevel\*\.48\)\*DIFFICULTY\[difficulty\]\.speed\)/.test(CODE));
     b.run('score=4250;'); b.g.ctx.updateHud();
     ck('L6 the LEVEL bar shows progress to the next level (4,250 of 2,500..6,000 = 50%)', String(b.el('levelProgress').style.width) === '50%', b.el('levelProgress').style.width);
