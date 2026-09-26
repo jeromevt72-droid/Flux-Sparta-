@@ -107,39 +107,52 @@ console.log("== A-1: the public leaderboard never reveals a playerId ==");
 console.log("\n== A-3: FLUX IDs are cleaned and filtered on the server ==");
 {
   const env = makeEnv();
-  // PRESET NAMES: pilots no longer type names. Whatever text a (modified)
-  // client sends, the server shows that pilot's own preset -- never the text.
+  // PILOT NAMES (owner): a typed name is one word, letters and numbers only, up to 12, and must
+  // not look like an email, phone number or web link. The rude-word filter still shows PILOT.
+  // Anything else is shown as the pilot's own preset -- never as the text that was sent.
+  const PRESET = "preset";
   const cases = [
-    ["<img src=x onerror=alert(1)>", "markup is never shown"],
-    ["ADMIN", "impersonating ADMIN is never shown"],
-    ["flux staff", "impersonating FLUX STAFF is never shown"],
-    ["f.u.c.k", "dotted profanity is never shown"],
-    ["SH1T HEAD", "look-alike digits are never shown"],
-    ["T\u200BI\u200BT\u202EAN", "invisible and direction-reversing characters are never shown"],
-    ["jos\u00e9", "a real first name is never shown"],
-    ["\u5c71\u7530", "a non-Latin name is never shown"],
-    ["   ", "an empty name still gets a preset"],
-    ["abcdefghijklmnopqrstuvwxyz", "an over-long name is never shown"],
+    ["<img src=x onerror=alert(1)>", PRESET, "markup is never shown"],
+    ["ADMIN", "PILOT", "impersonating ADMIN is blocked"],
+    ["flux staff", "PILOT", "impersonating FLUX STAFF is blocked"],
+    ["f.u.c.k", "PILOT", "dotted profanity is caught"],
+    ["SH1T HEAD", "PILOT", "look-alike digits are caught"],
+    ["T\u200BI\u200BT\u202EAN", "TITAN", "invisible and direction-reversing characters removed"],
+    ["titan", "TITAN", "a one-word name is kept, upper-cased"],
+    ["R2D2", "R2D2", "letters and numbers are kept"],
+    ["John Smith", PRESET, "a full name (two words) is never shown"],
+    ["jos\u00e9", PRESET, "letters outside A-Z are never shown"],
+    ["\u5c71\u7530", PRESET, "non-Latin letters are never shown"],
+    ["abcdefghijklm", PRESET, "a 13-character name is never shown"],
+    ["amy@mail.com", PRESET, "an email address is never shown"],
+    ["AMYGMAIL", PRESET, "an email look-alike is never shown"],
+    ["5551234567", PRESET, "a phone number is never shown"],
+    ["CALL5551234", PRESET, "a phone number inside a name is never shown"],
+    ["WWWAMYSITE", PRESET, "a web link look-alike is never shown"],
+    ["httpamy", PRESET, "a link prefix is never shown"],
+    ["   ", "PILOT", "empty name becomes PILOT"],
   ];
   let i=0;
-  for (const [input, label] of cases) {
+  for (const [input, want, label] of cases) {
     const pid = "33333333-aaaa-4bbb-8ccc-" + String(100000000000 + (i++)).slice(-12);
     await submit(env, pid, input, 1000 + i);
     const lb = await call(env, "/api/leaderboard?limit=100");
     const row = lb.data.top.find(r => r.score === 1000 + i);
-    ck(label + " (the pilot's preset instead)", row && row.name === presetNameForId(pid), row && row.name);
+    ck(label, row && row.name === (want === PRESET ? presetNameForId(pid) : want), row && row.name);
   }
-  // Free text of any kind (innocent or not) is replaced, and the score still counts.
-  const innocent = ["GRAPE","THERAPIST","PAKISTAN","SPICY","DEV PATEL","NAZIR","CUMBERLAND"];
-  const shown=[];
+  // Innocent one-word names that a careless filter would block.
+  const innocent = ["GRAPE","THERAPIST","PAKISTAN","SPICY","RACCOON","ANALYST","DOCUMENT","COCKPIT",
+                    "DICKENS","PEDOMETER","CLASS","TITAN","NAZIR","ASSASSIN","SCRAPER","CUMBERLAND"];
+  const blocked=[];
   for (const nm of innocent) {
     const pid = "44444444-aaaa-4bbb-8ccc-" + String(200000000000 + (i++)).slice(-12);
     await submit(env, pid, nm, 2000 + i);
     const lb = await call(env, "/api/leaderboard?limit=100");
     const row = lb.data.top.find(r => r.score === 2000 + i);
-    if (!row || row.name !== presetNameForId(pid)) shown.push(nm + "->" + (row && row.name));
+    if (!row || row.name !== nm) blocked.push(nm + "->" + (row && row.name));
   }
-  ck("typed names are replaced by presets, scores kept ("+innocent.length+" checked)", shown.length===0, shown.join(", "));
+  ck("innocent names are NOT blocked ("+innocent.length+" checked)", blocked.length===0, blocked.join(", "));
+  ck("a blocked name still records the score (shown as PILOT)", (await call(env,"/api/leaderboard?limit=100")).data.top.some(r=>r.name==="PILOT" && r.score>1000));
   const pre = "55555555-aaaa-4bbb-8ccc-000000000001";
   await submit(env, pre, "swift comet 42", 3001);
   ck("a valid preset sent by the player is kept as chosen (typed in lower case)", (await call(env,"/api/leaderboard?limit=100")).data.top.some(r=>r.name==="SWIFT COMET 42" && r.score===3001));
@@ -157,7 +170,28 @@ console.log("\n== A-3: entries stored BEFORE the filter are cleaned on the way o
   inst.ready = false; await inst.load();
   const lb = await call(env, "/api/leaderboard?limit=25");
   const row = lb.data.top[0];
-  ck("a legacy abusive name is not served as stored (preset instead)", row.name===presetNameForId(PID_B), row.name);
+  ck("a legacy abusive name is not served as stored", row.name==="PILOT", row.name);
+}
+
+console.log("\n== PILOT NAMES: old name text that breaks the rules is erased from storage, once ==");
+{
+  const env = makeEnv();
+  const PID_C = "cccccccc-aaaa-4bbb-8ccc-000000000003";
+  await submit(env, PID_A, "LEGIT", 500);
+  const inst = [...env.LEADERBOARD_DO._instances.values()][0];
+  ck("the clean-up has run and is recorded", (await inst.state.storage.get("nameRulesV1")) === 1);
+  // Records written before the name rules existed, then the clean-up has not run yet.
+  const stored = (await inst.state.storage.get("players")) || {};
+  stored[PID_B] = { playerId: PID_B, name: "JOHN SMITH", country:"US", score: 9999, level: 5, difficulty:"medium" };
+  stored[PID_C] = { playerId: PID_C, name: "NOVA7", country:"US", score: 8000, level: 5, difficulty:"medium" };
+  await inst.state.storage.put({ players: stored, nameRulesV1: 0,
+    flags: [{ id: "x:medium", pid: await inst.pid(PID_B), name: "JOHN SMITH", difficulty: "medium", score: 9999, prevBest: 0, boardTop: 0, reason: "t", at: Date.now() }] });
+  inst.ready = false; await inst.load();
+  const raw = JSON.stringify(await inst.state.storage.get("players")) + JSON.stringify(await inst.state.storage.get("flags"));
+  ck("a stored name that breaks the rules is erased from storage (player record and review note)", !raw.includes("JOHN SMITH") && raw.includes(presetNameForId(PID_B)), raw.slice(0, 120));
+  ck("a stored name that follows the rules is kept", raw.includes("NOVA7"));
+  const lb = await call(env, "/api/leaderboard?limit=25");
+  ck("the board shows the switched pilot's preset", lb.data.top.some(r => r.name === presetNameForId(PID_B) && r.score === 9999));
 }
 
 console.log("\n== A-2: admin actions -- locked without the password ==");

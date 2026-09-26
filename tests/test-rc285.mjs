@@ -83,7 +83,7 @@ async function suite({ gameHtml, gwHtml, workerMod, quiet = false }) {
   } catch (e) { ck('D-43 section ran', false, String(e.stack || e).slice(0, 200)); }
   try {
     const b = bootGame({ fluxPlayerId: 'old-0000-4000-8000-00000000000b', fluxCallsign: 'TITAN', fluxCountry: 'US', fluxProfileComplete: '1', fluxDifficulty: 'hard' });
-    ck('C5 existing pilot with a typed name gets its own preset name (PRESET NAMES) and keeps its difficulty', b.run('callsign') === b.run('presetNameForId(playerId)') && b.run('isPresetName(callsign)') === true && b.mem.fluxCallsign === b.run('callsign') && b.run('difficulty') === 'hard' && b.mem.fluxAutoName === undefined, b.run('callsign'));
+    ck('C5 existing named pilot keeps name and difficulty', b.run('callsign') === 'TITAN' && b.run('difficulty') === 'hard' && b.mem.fluxAutoName === undefined);
     b.el('startBtn').onclick(); await playRun(b);
     ck('C5 ...uploads immediately', uploads(b) === 1 && b.shown.goName !== true);
     const c = bootGame({ fluxPlayerId: 'old-0000-4000-8000-00000000000c', fluxCallsign: 'VEGA', fluxProfileComplete: '1' });
@@ -95,9 +95,9 @@ async function suite({ gameHtml, gwHtml, workerMod, quiet = false }) {
     b.el('startBtn').onclick(); await playRun(b);
     const n0 = uploads(b);
     b.run('profileComplete=false');                 // EDIT pressed in the menu
-    b.el('callsign').value = auto === 'SWIFT COMET 42' ? 'BRAVE OTTER 37' : 'SWIFT COMET 42'; const picked = b.el('callsign').value; b.el('startBtn').onclick(); await b.flush();   // PRESET NAMES: a new preset from the dice
-    ck('C6 renaming through EDIT saves the name and clears the auto flag', b.mem.fluxCallsign === picked && b.mem.fluxAutoName === undefined && auto !== picked);
-    ck('C6 ...re-uploads so the board shows the new name', uploads(b) === n0 + 1 && b.bodies.at(-1).name === picked);
+    b.el('callsign').value = 'Juan'; b.el('startBtn').onclick(); await b.flush();
+    ck('C6 renaming through EDIT saves the name and clears the auto flag', b.mem.fluxCallsign === 'JUAN' && b.mem.fluxAutoName === undefined && auto !== 'JUAN');
+    ck('C6 ...re-uploads so the board shows the new name', uploads(b) === n0 + 1 && b.bodies.at(-1).name === 'JUAN');
     ck('C6 ...same pilot identity', b.run('playerId') === 'edit-0000-4000-8000-00000000000d');
     const d = bootGame({ fluxPlayerId: 'edit-0000-4000-8000-00000000000e' });
     const auto2 = d.run('callsign'); d.run('profileComplete=false'); d.el('callsign').value = ''; d.el('startBtn').onclick();
