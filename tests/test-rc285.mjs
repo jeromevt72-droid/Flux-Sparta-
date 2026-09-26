@@ -118,16 +118,16 @@ async function suite({ gameHtml, gwHtml, workerMod, quiet = false }) {
 
   if (!quiet) console.log('== D-40: first-run color hint ==');
   try {
+    // First 60 seconds: the hint is canvas-drawn in the HUD strip slot (no DOM box over the field).
     const b = bootGame({ fluxPlayerId: 'hint-0000-4000-8000-00000000000e' });
-    let app1 = 0; b.el('app').appendChild = (e) => { if (e && e.className === 'colorHint') app1++; };
     b.el('startBtn').onclick();
-    ck('H1 first run: hint shown and remembered', app1 === 1 && b.mem.fluxColorHintSeen === '1', app1);
+    ck('H1 first run: hint shown and remembered', b.run('colorHintLeft') > 4 && b.mem.fluxColorHintSeen === '1', b.run('colorHintLeft'));
     const b2 = bootGame({ fluxPlayerId: 'hint-0000-4000-8000-00000000000f', fluxColorHintSeen: '1' });
-    let appended = 0; b2.el('app').appendChild = (e) => { if (e && e.className === 'colorHint') appended++; };
     b2.el('startBtn').onclick();
-    ck('H2 later runs: no hint', appended === 0);
-    ck('H4 the hint never blocks touches', /\.colorHint\{[^}]*pointer-events:none/.test(gameHtml));
-    ck('H5 the hint states the rule', gameHtml.includes("HIT ORBS THAT <b>MATCH YOUR BALL\\u2019S COLOR</b>"));
+    ck('H2 later runs: no hint', b2.run('colorHintLeft') === 0);
+    const hintFn = (gameHtml.match(/function showColorHint\(\)\{[\s\S]*?\n\}/) || [''])[0];
+    ck('H4 the hint never blocks touches (canvas-drawn: no element is created)', hintFn.length > 0 && !/createElement|appendChild/.test(hintFn) && !/class="colorHint"|className='colorHint'/.test(gameHtml));
+    ck('H5 the hint states the rule', gameHtml.includes("levelBannerLayout('HIT THE ORB THAT','MATCHES YOUR BALL')"));
   } catch (e) { ck('D-40 section ran', false, String(e.stack || e).slice(0, 200)); }
 
   if (!quiet) console.log('== D-45: older devices (Safari 15) ==');
