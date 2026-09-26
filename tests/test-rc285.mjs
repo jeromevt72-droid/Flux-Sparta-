@@ -71,7 +71,7 @@ async function suite({ gameHtml, gwHtml, workerMod, quiet = false }) {
   try {
     const b = bootGame({ fluxPlayerId: 'new-0000-4000-8000-00000000000a' });
     const name = b.run('callsign');
-    ck('C1 brand-new pilot gets a visible, unique default name', /^PILOT-[A-HJ-NP-Z2-9]{4}$/.test(name) && b.mem.fluxCallsign === name && b.mem.fluxAutoName === '1', name);
+    ck('C1 brand-new pilot gets a visible default name, built from the preset word lists (e.g. SWIFT COMET 42)', b.run('isPresetName(callsign)') === true && b.mem.fluxCallsign === name && b.mem.fluxAutoName === '1', name);
     ck('C1 ...no form to fill: the profile is complete', b.run('profileComplete') === true && b.mem.fluxProfileComplete === '1');
     ck('D44 brand-new pilot starts on EASY', b.run('difficulty') === 'easy' && b.mem.fluxDifficulty === 'easy');
     b.el('startBtn').onclick();

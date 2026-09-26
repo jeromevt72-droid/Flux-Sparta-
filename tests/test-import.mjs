@@ -1,5 +1,6 @@
 import worker, { LeaderboardDO } from "./FLUX-Sparta/worker.js";
 import { levelFor } from './level-rule.mjs';   // RC2.8.7: D-51 fixture levels
+import { presetNameForId } from './preset-names.mjs';   // PILOT NAMES
 
 // AUDIT A-1: the leaderboard now carries a one-way hash (pid), never the
 // playerId. Look rows up by the same hash. If this ever disagreed with the
@@ -205,7 +206,7 @@ section("6. Corrupt and hostile KV rows");
   const bad = board.top.find(t => t.pid === PID["badcountry"]);
   check("invalid country became XX", bad.country === "XX", JSON.stringify(bad));
   const ln = board.top.find(t => t.pid === PID["longname"]);
-  check("long name truncated", ln.name.length === 16, ln.name);
+  check("a long imported name breaks the name rules and becomes the pilot's preset (PILOT NAMES)", ln.name === presetNameForId("longname"), ln.name);
   const nn = board.top.find(t => t.pid === PID["noname"]);
   check("missing name becomes PILOT", nn.name === "PILOT");
   check("board still sane", Array.isArray(board.top) && board.top.length === 8, `got ${board.top.length}`);

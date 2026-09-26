@@ -151,7 +151,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 </div>
 <div id="pauseOverlay" class="hidden"><div class="panel"><h2>FLUX PAUSED</h2><p>Your field is frozen. Take a breath, then get back in the flow.</p><button id="resumeBtn">RESUME</button><button id="pauseMenuBtn" style="margin-top:8px;background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none">⌂ END RUN &amp; MENU</button></div></div>
 <div id="shop" class="hidden"><div class="panel menuPanel"><h2 style="color:#62eaff;letter-spacing:.14em;margin:0 0 4px">THEMES & SKINS</h2><p style="margin:0 0 14px">Cosmetic only — never changes gameplay fairness.<br><span class="shopNote">Purchases belong to your pilot. Save your restore code (EDIT → RESTORE CODE): it brings this pilot and its skins back on a new phone, in the Home Screen app, or after clearing data.</span></p><div id="shopList"></div><div class="menuLabel" style="margin-top:16px">WORLD</div><div id="backgroundList"></div><button id="shopClose" style="margin-top:14px">BACK</button></div></div>
-<div id="start"><div class="panel menuPanel"><h1>FLUX</h1><div class="acronym">FLOW • LAUNCH • UNITE • XCELERATE</div><div class="menuSection"><div class="menuLabel">SELECT YOUR FLOW</div><div class="difficulty" id="difficulty"><button data-d="easy">EASY</button><button data-d="medium">MEDIUM</button><button data-d="hard">HARD</button></div></div><div id="profileEditor" class="profileRow"><input id="callsign" maxlength="14" placeholder="FLUX ID"><select id="country"><option value="AF">🇦🇫 AFGHANISTAN</option>
+<div id="start"><div class="panel menuPanel"><h1>FLUX</h1><div class="acronym">FLOW • LAUNCH • UNITE • XCELERATE</div><div class="menuSection"><div class="menuLabel">SELECT YOUR FLOW</div><div class="difficulty" id="difficulty"><button data-d="easy">EASY</button><button data-d="medium">MEDIUM</button><button data-d="hard">HARD</button></div></div><div id="profileEditor" class="profileRow"><input id="callsign" maxlength="12" placeholder="FLUX ID"><select id="country"><option value="AF">🇦🇫 AFGHANISTAN</option>
 <option value="AL">🇦🇱 ALBANIA</option>
 <option value="DZ">🇩🇿 ALGERIA</option>
 <option value="AD">🇦🇩 ANDORRA</option>
@@ -353,7 +353,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
   <p class="goLine" id="goLine"></p>
   <p class="goMeta"><b id="finalMode">MEDIUM</b> · BEST <b id="best">0</b></p>
   <div id="goClaim" class="goClaim hidden"><div class="goClaimT">Put your name on the board?</div><div class="goClaimRow"><button id="goClaimYes" type="button">YES</button><button id="goClaimNo" type="button" class="goClaimNo">NOT NOW</button></div></div>
-  <div id="goName" class="goName hidden"><div class="goNameT">PUT YOUR SCORE ON THE WORLD GRID</div><div class="goNameRow"><input id="goCallsign" maxlength="14" placeholder="YOUR NAME" autocomplete="off" autocorrect="off" spellcheck="false"><select id="goCountry" aria-label="Country"></select></div><button id="goSave" type="button">SAVE &amp; UPLOAD</button><div class="goNameNote" id="goNameMsg">Your best score counts for your country.</div></div>
+  <div id="goName" class="goName hidden"><div class="goNameT">PUT YOUR SCORE ON THE WORLD GRID</div><div class="goNameRow"><input id="goCallsign" maxlength="12" placeholder="YOUR NAME" autocomplete="off" autocorrect="off" spellcheck="false"><select id="goCountry" aria-label="Country"></select></div><button id="goSave" type="button">SAVE &amp; UPLOAD</button><div class="goNameNote" id="goNameMsg">Your best score counts for your country.</div></div>
   <div class="gameoverModes"><div class="menuLabel">CHOOSE YOUR NEXT FLOW</div><div class="difficulty" id="gameoverDifficulty"><button data-d="easy">EASY</button><button data-d="medium">MEDIUM</button><button data-d="hard">HARD</button></div></div>
   <button id="againBtn">RUN IT BACK</button>
   <button id="shareBtn" type="button" class="hidden" style="margin-top:8px;background:transparent;color:#ffd23f;border:1px solid #6b5a1a;box-shadow:none">📤 SHARE MY SCORE</button>
@@ -424,6 +424,48 @@ let pendingLevel=0,levelCountdown=0,levelTickAt=0,speedLevel=1;   // D-50: SPEED
 let cachedHudRects=[]; // declared early -- resize() runs at script load time and references this immediately
 let difficulty=localStorage.fluxDifficulty||'medium', callsign=localStorage.fluxCallsign||'', country=localStorage.fluxCountry||'US';
 let profileComplete=localStorage.fluxProfileComplete==='1';
+/* PILOT NAMES (child privacy). A new pilot starts with a preset name built from
+   these friendly word lists, e.g. "SWIFT COMET 42", so a child can play without
+   giving any personal information. In EDIT a pilot may type a name, but only one
+   word that follows the typed-name rules below. The same lists and rules are in
+   worker.js and play/index.html (a test keeps them identical). A name that breaks
+   the rules becomes the pilot's own preset, derived from its random player
+   identifier. Numbers skip 14, 18, 69 and 88. */
+const NAME_ADJ = ['SWIFT','BRAVE','BRIGHT','CALM','CLEVER','COSMIC','EAGER','FAST','GENTLE','GOLDEN','HAPPY','JOLLY','KIND','LUCKY','MIGHTY','NOBLE','QUICK','QUIET','RAPID','SHINY','SILVER','SMART','SOLAR','SPEEDY','STARRY','SUNNY','SUPER','TURBO','VIVID','WISE','ZIPPY','BOLD'];
+const NAME_NOUN = ['COMET','ROCKET','STAR','NOVA','ORBIT','PLANET','MOON','METEOR','GALAXY','NEBULA','RANGER','FALCON','EAGLE','TIGER','PANDA','OTTER','FOX','OWL','LYNX','HAWK','DRAGON','SPARK','BOLT','FLASH','WAVE','RIVER','CLOUD','MAPLE','CEDAR','PEBBLE','BADGER','ROBIN'];
+const NAME_NUMS = []; for (let i = 10; i <= 99; i++) if (i !== 14 && i !== 18 && i !== 69 && i !== 88) NAME_NUMS.push(i);
+function isPresetName(s) {
+  const m = /^([A-Z]+) ([A-Z]+) (\d\d)$/.exec(typeof s === 'string' ? s : '');
+  return !!m && NAME_ADJ.indexOf(m[1]) >= 0 && NAME_NOUN.indexOf(m[2]) >= 0 && NAME_NUMS.indexOf(+m[3]) >= 0;
+}
+function presetNameFrom(n) {
+  n = n >>> 0;
+  const a = n % NAME_ADJ.length; n = Math.floor(n / NAME_ADJ.length);
+  const b = n % NAME_NOUN.length; n = Math.floor(n / NAME_NOUN.length);
+  return NAME_ADJ[a] + ' ' + NAME_NOUN[b] + ' ' + NAME_NUMS[n % NAME_NUMS.length];
+}
+function presetNameForId(id) {   // FNV-1a of the player identifier: the same pilot always gets the same preset
+  let h = 2166136261; const s = String(id || '');
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return presetNameFrom(h);
+}
+// Typed names (EDIT only, owner rule): one word, letters A-Z and numbers 0-9, up to 12
+// characters, and nothing that looks like an email, a phone number or a web link. On the
+// server the rude-word filter (cleanName) still applies on top of this.
+const TYPED_NAME_MAX = 12;
+const CONTACT_LIKE = /HTTP|WWW|DOTCOM|DOTNET|DOTORG|GMAIL|YAHOO|HOTMAIL|OUTLOOK|ICLOUD|PROTONMAIL/;
+function typedNameProblem(s) {
+  s = typeof s === 'string' ? s : '';
+  if (!/^[A-Z0-9]+$/.test(s) || s.length > TYPED_NAME_MAX) return 'One word, letters and numbers only, up to 12.';
+  if ((s.match(/[0-9]/g) || []).length >= 7) return 'A name can\'t look like a phone number.';
+  if (CONTACT_LIKE.test(s)) return 'A name can\'t look like an email or a web link.';
+  return '';
+}
+function isAllowedName(s) { return isPresetName(s) || typedNameProblem(s) === ''; }
+function randomPresetName() {
+  let n = 0; try { const u = new Uint32Array(1); crypto.getRandomValues(u); n = u[0]; } catch (e) { n = Math.floor(Math.random() * 4294967296); }
+  return presetNameFrom(n);
+}
 /* D-43 (RC2.8.5) AUTO NAME. Owner: a child asked "what's my FLUX ID?" before
    playing. A brand-new pilot now gets a visible, unique default name such as
    PILOT-7Q2K under their detected flag, and can rename any time (EDIT, or
@@ -436,10 +478,7 @@ let profileComplete=localStorage.fluxProfileComplete==='1';
 (function () {
   try {
     if (localStorage.fluxProfileComplete === '1' || localStorage.fluxCallsign) return;
-    var A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', b = new Uint8Array(4), t = '';
-    try { crypto.getRandomValues(b); } catch (e) { for (var i = 0; i < 4; i++) b[i] = (Math.random() * 256) | 0; }
-    for (var j = 0; j < 4; j++) t += A[b[j] % A.length];
-    callsign = 'PILOT-' + t;
+    callsign = randomPresetName();   // PRESET NAMES: e.g. SWIFT COMET 42
     localStorage.fluxCallsign = callsign;
     localStorage.fluxAutoName = '1';
     localStorage.fluxProfileComplete = '1';
@@ -449,6 +488,9 @@ let profileComplete=localStorage.fluxProfileComplete==='1';
 })();
 if(!localStorage.fluxPlayerId){localStorage.fluxPlayerId=(crypto.randomUUID?crypto.randomUUID():'p'+Date.now()+Math.random().toString(16).slice(2));}
 const playerId=localStorage.fluxPlayerId;
+// PILOT NAMES: a saved name that breaks the name rules becomes this pilot's own preset (the
+// server shows the same one), and the menu says so once (fluxNameNotice).
+if(callsign && !isAllowedName(callsign)){ callsign=presetNameForId(playerId); try{ localStorage.fluxCallsign=callsign; localStorage.fluxNameNotice='1'; }catch(e){} }
 const countryFlags={AF:'🇦🇫',AL:'🇦🇱',DZ:'🇩🇿',AD:'🇦🇩',AO:'🇦🇴',AG:'🇦🇬',AR:'🇦🇷',AM:'🇦🇲',AU:'🇦🇺',AT:'🇦🇹',AZ:'🇦🇿',BS:'🇧🇸',BH:'🇧🇭',BD:'🇧🇩',BB:'🇧🇧',BY:'🇧🇾',BE:'🇧🇪',BZ:'🇧🇿',BJ:'🇧🇯',BT:'🇧🇹',BO:'🇧🇴',BA:'🇧🇦',BW:'🇧🇼',BR:'🇧🇷',BN:'🇧🇳',BG:'🇧🇬',BF:'🇧🇫',BI:'🇧🇮',CV:'🇨🇻',KH:'🇰🇭',CM:'🇨🇲',CA:'🇨🇦',CF:'🇨🇫',TD:'🇹🇩',CL:'🇨🇱',CN:'🇨🇳',CO:'🇨🇴',KM:'🇰🇲',CG:'🇨🇬',CD:'🇨🇩',CR:'🇨🇷',CI:'🇨🇮',HR:'🇭🇷',CU:'🇨🇺',CY:'🇨🇾',CZ:'🇨🇿',DK:'🇩🇰',DJ:'🇩🇯',DM:'🇩🇲',DO:'🇩🇴',EC:'🇪🇨',EG:'🇪🇬',SV:'🇸🇻',GQ:'🇬🇶',ER:'🇪🇷',EE:'🇪🇪',SZ:'🇸🇿',ET:'🇪🇹',FJ:'🇫🇯',FI:'🇫🇮',FR:'🇫🇷',GA:'🇬🇦',GM:'🇬🇲',GE:'🇬🇪',DE:'🇩🇪',GH:'🇬🇭',GR:'🇬🇷',GD:'🇬🇩',GT:'🇬🇹',GN:'🇬🇳',GW:'🇬🇼',GY:'🇬🇾',HT:'🇭🇹',HN:'🇭🇳',HU:'🇭🇺',IS:'🇮🇸',IN:'🇮🇳',ID:'🇮🇩',IR:'🇮🇷',IQ:'🇮🇶',IE:'🇮🇪',IL:'🇮🇱',IT:'🇮🇹',JM:'🇯🇲',JP:'🇯🇵',JO:'🇯🇴',KZ:'🇰🇿',KE:'🇰🇪',KI:'🇰🇮',KW:'🇰🇼',KG:'🇰🇬',LA:'🇱🇦',LV:'🇱🇻',LB:'🇱🇧',LS:'🇱🇸',LR:'🇱🇷',LY:'🇱🇾',LI:'🇱🇮',LT:'🇱🇹',LU:'🇱🇺',MG:'🇲🇬',MW:'🇲🇼',MY:'🇲🇾',MV:'🇲🇻',ML:'🇲🇱',MT:'🇲🇹',MH:'🇲🇭',MR:'🇲🇷',MU:'🇲🇺',MX:'🇲🇽',FM:'🇫🇲',MD:'🇲🇩',MC:'🇲🇨',MN:'🇲🇳',ME:'🇲🇪',MA:'🇲🇦',MZ:'🇲🇿',MM:'🇲🇲',NA:'🇳🇦',NR:'🇳🇷',NP:'🇳🇵',NL:'🇳🇱',NZ:'🇳🇿',NI:'🇳🇮',NE:'🇳🇪',NG:'🇳🇬',KP:'🇰🇵',MK:'🇲🇰',NO:'🇳🇴',OM:'🇴🇲',PK:'🇵🇰',PW:'🇵🇼',PS:'🇵🇸',PA:'🇵🇦',PG:'🇵🇬',PY:'🇵🇾',PE:'🇵🇪',PH:'🇵🇭',PL:'🇵🇱',PT:'🇵🇹',QA:'🇶🇦',RO:'🇷🇴',RU:'🇷🇺',RW:'🇷🇼',KN:'🇰🇳',LC:'🇱🇨',VC:'🇻🇨',WS:'🇼🇸',SM:'🇸🇲',ST:'🇸🇹',SA:'🇸🇦',SN:'🇸🇳',RS:'🇷🇸',SC:'🇸🇨',SL:'🇸🇱',SG:'🇸🇬',SK:'🇸🇰',SI:'🇸🇮',SB:'🇸🇧',SO:'🇸🇴',ZA:'🇿🇦',KR:'🇰🇷',SS:'🇸🇸',ES:'🇪🇸',LK:'🇱🇰',SD:'🇸🇩',SR:'🇸🇷',SE:'🇸🇪',CH:'🇨🇭',SY:'🇸🇾',TW:'🇹🇼',TJ:'🇹🇯',TZ:'🇹🇿',TH:'🇹🇭',TL:'🇹🇱',TG:'🇹🇬',TO:'🇹🇴',TT:'🇹🇹',TN:'🇹🇳',TR:'🇹🇷',TM:'🇹🇲',TV:'🇹🇻',UG:'🇺🇬',UA:'🇺🇦',AE:'🇦🇪',GB:'🇬🇧',US:'🇺🇸',UY:'🇺🇾',UZ:'🇺🇿',VU:'🇻🇺',VA:'🇻🇦',VE:'🇻🇪',VN:'🇻🇳',YE:'🇾🇪',ZM:'🇿🇲',ZW:'🇿🇼',OTHER:'🌎'};
 /* D-50 (RC2.8.7) SCORE-BASED LEVELS. A level is reached by SCORE. Perfect
    catches still score, but no longer drive the level. Medium thresholds for
@@ -1740,7 +1782,7 @@ document.getElementById('pauseMenuBtn').onclick=()=>{
   try{ window.parent.postMessage({type:'flux-menu'}, '*'); }catch(e){}
 };
 function saveProfile(){
- callsign=(document.getElementById('callsign').value.trim()||'PLAYER').toUpperCase();
+ { const v=document.getElementById('callsign').value.trim().toUpperCase(); callsign=isAllowedName(v)?v:presetNameForId(playerId); }   // PILOT NAMES
  country=document.getElementById('country').value||'US';
  localStorage.fluxCallsign=callsign;localStorage.fluxCountry=country;localStorage.fluxProfileComplete='1';profileComplete=true;refreshMenu();
 }
@@ -2462,6 +2504,7 @@ saveProfile = function () {
     return false;
   }
   callsign = typed.toUpperCase();
+  if (!isAllowedName(callsign)) { fluxNameRule(callsign); callsign = localStorage.fluxCallsign || callsign; return false; }
   country = document.getElementById('country').value || 'US';
   localStorage.fluxCallsign = callsign;
   localStorage.fluxCountry = country;
@@ -2472,9 +2515,7 @@ saveProfile = function () {
 };
 
 document.getElementById('callsign').onchange = e => {
-  const v = e.target.value.trim().toUpperCase();
-  callsign = v;
-  e.target.value = v;
+  e.target.value = e.target.value.trim().toUpperCase();   // PILOT NAMES: the name is taken when it is saved (rules checked)
 };
 
 /* --- 6. (RC2.8.5) The start button has ONE handler: the D-39/D-43 one near the
@@ -2668,7 +2709,7 @@ function showGameOverLine(sc,prevBest,prevOverall){
    run or later is offered -- once, dismissable -- to put a name on the board. */
 function shouldOfferNameClaim(sc,prevBest,runNo){
   try{
-    return localStorage.fluxAutoName==='1' && /^PILOT-[A-Z0-9]{4}$/.test(callsign) &&
+    return localStorage.fluxAutoName==='1' && isPresetName(callsign) &&
       runNo>=2 && sc>0 && sc>prevBest && localStorage.fluxNameClaimOffered!=='1';
   }catch(e){ return false; }
 }
@@ -2705,6 +2746,7 @@ document.getElementById('startBtn').onclick = () => {
   if (!profileComplete && document.getElementById('callsign').value.trim()) {
     const was = callsign, typed = document.getElementById('callsign').value.trim().toUpperCase();
     if (saveProfile()) { if (typed !== was) { try { localStorage.removeItem('fluxAutoName'); } catch (e) {} } submitScore(); }
+    else return;   // PILOT NAMES: the name breaks the rules and the reason is showing; stay in the menu
   } else if (!profileComplete && localStorage.fluxCallsign) {
     callsign = localStorage.fluxCallsign; profileComplete = true;   // EDIT opened, then cleared: keep the current name
   }
@@ -3036,6 +3078,81 @@ document.getElementById('restoreLink').onclick=function(){ if(restoreHasPilot())
   ed.onclick=function(e){ if(typeof prev==='function') prev.call(this,e); syncRestoreLink(); };
 })();
 syncRestoreLink();
+
+/* PILOT NAMES (owner, #18): a short message over the page, for the name rules and
+   the one-time "we picked a name for you" notice. Fixed-position, so the menu
+   layout does not move. Tap it to close. */
+function fluxNameToast(msg, ms, onHide){
+  fluxNameToast.rule=0;
+  try{
+    let t=document.getElementById('fluxNameToast');
+    if(!t){ t=document.createElement('div'); t.id='fluxNameToast'; t.setAttribute('role','status'); t.setAttribute('aria-live','polite');
+      t.style.cssText='position:fixed;left:50%;bottom:max(24px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:60;width:min(360px,calc(100vw - 32px));box-sizing:border-box;padding:12px 16px;border-radius:14px;border:1px solid #ff4f98;background:#140a26;color:#fff;font:700 14px/1.4 system-ui,sans-serif;text-align:center;box-shadow:0 8px 30px #000a';
+      document.body.appendChild(t); }
+    const hide=function(){ t.style.display='none'; if(typeof onHide==='function') onHide(); };
+    t.onclick=hide; t.textContent=msg; t.style.display='block';
+    clearTimeout(fluxNameToast.timer); fluxNameToast.timer=setTimeout(hide, ms||4500);
+  }catch(e){}
+}
+function fluxNameRule(n){ fluxNameToast(typedNameProblem(n)); fluxNameToast.rule=1; }   // why a typed name was refused
+/* EDIT closes again (owner, #18). After changing the name, the country or using
+   the restore code, the panel returns to the normal view with the EDIT button --
+   on save (Enter, a new country, or tapping anywhere else) and on cancel (Esc, or
+   tapping away without a change). A name that breaks the rules keeps EDIT open
+   with the reason showing. */
+let fluxEditWas=null;
+(function(){
+  const ed=document.getElementById('editProfile'); const prev=ed.onclick;
+  ed.onclick=function(e){ fluxEditWas={ name:callsign, country:country }; if(typeof prev==='function') prev.call(this,e); };
+})();
+function closeProfileEditor(save){
+  if(profileComplete) return true;
+  let saved=false; try{ saved=localStorage.fluxProfileComplete==='1' && !!localStorage.fluxCallsign; }catch(e){}
+  if(!saved) return false;                                   // first-time setup: nothing to go back to
+  const inp=document.getElementById('callsign'), sel=document.getElementById('country');
+  const was=fluxEditWas||{ name:callsign, country:country };
+  const typed=String(inp.value||'').trim().toUpperCase(), newCountry=sel.value||was.country;
+  if(save && (typed||newCountry!==was.country)){
+    if(!typed) inp.value=was.name;                           // an empty box keeps the current name
+    if(!saveProfile()) return false;
+    if(typed && typed!==was.name){ try{ localStorage.removeItem('fluxAutoName'); }catch(e){} }
+    submitScore();
+  } else {
+    callsign=was.name; country=was.country; inp.value=was.name; sel.value=was.country;
+    profileComplete=true; refreshMenu();
+  }
+  fluxEditWas=null; syncRestoreLink();
+  try{ const t=document.getElementById('fluxNameToast'); if(t && t.style.display!=='none' && fluxNameToast.rule) t.style.display='none'; }catch(e){}   // an old rule message goes too
+  return true;
+}
+function profileEditChanged(){
+  const was=fluxEditWas||{ name:callsign, country:country };
+  const typed=String(document.getElementById('callsign').value||'').trim().toUpperCase();
+  return (!!typed && typed!==was.name) || (document.getElementById('country').value||was.country)!==was.country;
+}
+// Handler properties (not new listeners): the regression suite keeps the listener count fixed.
+document.getElementById('callsign').onkeydown=function(e){
+  if(e.key==='Enter'){ e.preventDefault(); if(closeProfileEditor(true)) try{ this.blur(); }catch(x){} }
+  else if(e.key==='Escape'){ closeProfileEditor(false); }
+};
+(function(){
+  const sel=document.getElementById('country'); const prev=sel.onchange;
+  sel.onchange=function(e){ if(typeof prev==='function') prev.call(this,e); if(!profileComplete) closeProfileEditor(true); };
+})();
+document.getElementById('start').onpointerdown=function(e){   // a tap anywhere else in the menu
+  if(profileComplete) return;
+  const t=e.target, inside=function(id){ const el=document.getElementById(id); return !!(el && el.contains && el.contains(t)); };
+  if(inside('profileEditor') || inside('restoreLink') || inside('startBtn')) return;
+  closeProfileEditor(profileEditChanged());
+};
+(function(){
+  const rl=document.getElementById('restoreLink'); const prev=rl.onclick;
+  rl.onclick=function(e){ if(!closeProfileEditor(profileEditChanged())) closeProfileEditor(false); if(typeof prev==='function') prev.call(this,e); };
+})();
+// One-time notice for a pilot whose old name was switched to a preset.
+// The flag is cleared once the notice has been on screen (timed out or tapped), so a
+// reload during the first launch (service worker update) does not lose it.
+try{ if(localStorage.fluxNameNotice==='1') fluxNameToast("Your name didn't fit the new name rules, so we picked one for you. Tap Edit to change it.", 9000, function(){ try{ localStorage.removeItem('fluxNameNotice'); }catch(e){} }); }catch(e){}
 
 /* ==================================================================
    RC2.8.6 -- D-47 INSTALL AFTER FIRST PLAY, D-48 BRING MY PILOT,

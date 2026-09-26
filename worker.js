@@ -159,7 +159,7 @@ async function submitScore(request, env) {
     return json({ error: "Missing or invalid playerId" }, 400);
   }
 
-  const name = cleanName(body.name);   // A-3
+  const name = presetOrOwn(cleanName(body.name), playerId);   // A-3 + PRESET NAMES: only allowed names are ever stored
 
   const score = Number.isFinite(body.score) ? Math.floor(body.score) : NaN;
   const level = Number.isFinite(body.level) ? Math.floor(body.level) : 1;
@@ -696,6 +696,48 @@ function isBlockedName(name) {
   if (words.length <= 2 && words.some((w) => RESERVED_WORDS.has(w))) return true;
   return false;
 }
+/* PILOT NAMES (child privacy). A new pilot starts with a preset name built from
+   these friendly word lists, e.g. "SWIFT COMET 42", so a child can play without
+   giving any personal information. In EDIT a pilot may type a name, but only one
+   word that follows the typed-name rules below. The same lists and rules are in
+   worker.js and play/index.html (a test keeps them identical). A name that breaks
+   the rules becomes the pilot's own preset, derived from its random player
+   identifier. Numbers skip 14, 18, 69 and 88. */
+const NAME_ADJ = ['SWIFT','BRAVE','BRIGHT','CALM','CLEVER','COSMIC','EAGER','FAST','GENTLE','GOLDEN','HAPPY','JOLLY','KIND','LUCKY','MIGHTY','NOBLE','QUICK','QUIET','RAPID','SHINY','SILVER','SMART','SOLAR','SPEEDY','STARRY','SUNNY','SUPER','TURBO','VIVID','WISE','ZIPPY','BOLD'];
+const NAME_NOUN = ['COMET','ROCKET','STAR','NOVA','ORBIT','PLANET','MOON','METEOR','GALAXY','NEBULA','RANGER','FALCON','EAGLE','TIGER','PANDA','OTTER','FOX','OWL','LYNX','HAWK','DRAGON','SPARK','BOLT','FLASH','WAVE','RIVER','CLOUD','MAPLE','CEDAR','PEBBLE','BADGER','ROBIN'];
+const NAME_NUMS = []; for (let i = 10; i <= 99; i++) if (i !== 14 && i !== 18 && i !== 69 && i !== 88) NAME_NUMS.push(i);
+function isPresetName(s) {
+  const m = /^([A-Z]+) ([A-Z]+) (\d\d)$/.exec(typeof s === 'string' ? s : '');
+  return !!m && NAME_ADJ.indexOf(m[1]) >= 0 && NAME_NOUN.indexOf(m[2]) >= 0 && NAME_NUMS.indexOf(+m[3]) >= 0;
+}
+function presetNameFrom(n) {
+  n = n >>> 0;
+  const a = n % NAME_ADJ.length; n = Math.floor(n / NAME_ADJ.length);
+  const b = n % NAME_NOUN.length; n = Math.floor(n / NAME_NOUN.length);
+  return NAME_ADJ[a] + ' ' + NAME_NOUN[b] + ' ' + NAME_NUMS[n % NAME_NUMS.length];
+}
+function presetNameForId(id) {   // FNV-1a of the player identifier: the same pilot always gets the same preset
+  let h = 2166136261; const s = String(id || '');
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return presetNameFrom(h);
+}
+// Typed names (EDIT only, owner rule): one word, letters A-Z and numbers 0-9, up to 12
+// characters, and nothing that looks like an email, a phone number or a web link. On the
+// server the rude-word filter (cleanName) still applies on top of this.
+const TYPED_NAME_MAX = 12;
+const CONTACT_LIKE = /HTTP|WWW|DOTCOM|DOTNET|DOTORG|GMAIL|YAHOO|HOTMAIL|OUTLOOK|ICLOUD|PROTONMAIL/;
+function typedNameProblem(s) {
+  s = typeof s === 'string' ? s : '';
+  if (!/^[A-Z0-9]+$/.test(s) || s.length > TYPED_NAME_MAX) return 'One word, letters and numbers only, up to 12.';
+  if ((s.match(/[0-9]/g) || []).length >= 7) return 'A name can\'t look like a phone number.';
+  if (CONTACT_LIKE.test(s)) return 'A name can\'t look like an email or a web link.';
+  return '';
+}
+function isAllowedName(s) { return isPresetName(s) || typedNameProblem(s) === ''; }
+// A public name is a preset or a typed name that follows the rules; anything else (typed
+// before the rules, or sent by a modified client) becomes the pilot's own preset.
+function presetOrOwn(name, playerId) { return isAllowedName(name) ? name : presetNameForId(playerId); }
+
 function cleanName(raw) {
   let s = typeof raw === "string" ? raw : "";
   try { s = s.normalize("NFKC"); } catch (e) {}
@@ -1005,8 +1047,22 @@ export class LeaderboardDO {
       this.flags = (await this.state.storage.get("flags")) || [];
       const rl = await this.state.storage.get("restoreLog");
       this.restoreLog = Array.isArray(rl) ? rl : [];
+      if (!(await this.state.storage.get("nameRulesV1"))) await this.migrateNames();   // PILOT NAMES, once
       this.ready = true;
     });
+  }
+
+  /* PILOT NAMES (owner, before launch): once, erase the old text of every stored name
+     that breaks the name rules. It becomes the pilot's own preset -- in the player
+     record and in any review note -- so the old text is gone from storage. */
+  async migrateNames() {
+    const switched = Object.create(null);
+    for (const id of Object.keys(this.players)) {
+      const r = this.players[id]; const n = presetOrOwn(cleanName(r.name), id);
+      if (n !== r.name) { r.name = n; switched[await pidHash(id)] = n; }
+    }
+    this.flags = this.flags.map((f) => (f && ownGet(switched, f.pid) ? { ...f, name: switched[f.pid] } : f));
+    await this.state.storage.put({ players: this.players, flags: this.flags, nameRulesV1: 1 });
   }
 
   async pid(playerId) {
@@ -1015,8 +1071,8 @@ export class LeaderboardDO {
   }
   async isRestricted(playerId) { return !!ownGet(this.restricted, await this.pid(playerId)); }
   displayName(r) {
-    const n = cleanName(r.name);
-    return ownGet(this.nameBans, normaliseForBan(r.name)) ? "PILOT" : n;
+    const n = presetOrOwn(cleanName(r.name), r.playerId);   // PRESET NAMES: a name that breaks the rules is shown as the pilot's preset
+    return ownGet(this.nameBans, normaliseForBan(r.name)) || ownGet(this.nameBans, normaliseForBan(n)) ? "PILOT" : n;
   }
   async findPlayerIdByPid(pid) {
     for (const id of new Set([...Object.keys(this.players), ...Object.keys(this.entitlements)])) {
@@ -1236,7 +1292,7 @@ export class LeaderboardDO {
     }
     return json({
       found: true,
-      name: rec ? cleanName(rec.name) : "",
+      name: rec ? presetOrOwn(cleanName(rec.name), playerId) : "",   // PRESET NAMES
       tag: await this.tagFor(playerId),
       country: rec && ISO2.test(String(rec.country || "")) ? rec.country : "",
       bests,
@@ -1286,6 +1342,7 @@ export class LeaderboardDO {
     for (const rec of Array.isArray(records) ? records : []) {
       if (!rec || typeof rec.playerId !== "string" || !validPlayerId(rec.playerId)) continue;
       const incoming = normaliseRecord(rec, rec.playerId);
+      incoming.name = presetOrOwn(cleanName(incoming.name), rec.playerId);   // PILOT NAMES
       const existing = ownGet(next, rec.playerId);
       if (!existing) { next[rec.playerId] = incoming; imported++; continue; }
       // Keep whichever run was better, per difficulty.
