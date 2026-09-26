@@ -1,6 +1,5 @@
 import worker, { LeaderboardDO } from "./FLUX-Sparta/worker.js";
-import { levelFor } from './level-rule.mjs';
-import { P, presetNameForId } from './preset-names.mjs';   // PRESET NAMES   // RC2.8.7: D-51 fixture levels
+import { levelFor } from './level-rule.mjs';   // RC2.8.7: D-51 fixture levels
 
 /* ---------------- fake Durable Object runtime ---------------- */
 
@@ -108,7 +107,7 @@ async function run() {
     }));
     check("submit accepted", r1.status === 200, JSON.stringify(r1.body));
     check("marked as new best", r1.body.isNewBest === true);
-    check("a typed name is shown as the pilot's own preset (PRESET NAMES)", (await asJson(await call(env, "/api/leaderboard"))).body.top[0].name === presetNameForId("p1"));
+    check("name uppercased", (await asJson(await call(env, "/api/leaderboard"))).body.top[0].name === "JEROME");
 
     const lb = await asJson(await call(env, "/api/leaderboard"));
     check("appears on leaderboard", lb.body.top.length === 1 && lb.body.top[0].score === 40000);
@@ -258,13 +257,13 @@ async function run() {
     inst.lastSubmit["pb"] = 0;
     const lower = await asJson(await call(env, "/api/submit-score", {
       method: "POST", cf: { country: "US" },
-      body: { playerId: "pb", name: P("NEWNAME"), score: 10000, level: levelFor(10000, "medium"), difficulty: "medium" },
+      body: { playerId: "pb", name: "NEWNAME", score: 10000, level: levelFor(10000, "medium"), difficulty: "medium" },
     }));
     check("lower score not a new best", lower.body.isNewBest === false);
     check("best score retained", lower.body.best === 80000, `got ${lower.body.best}`);
 
     const lb = await asJson(await call(env, "/api/leaderboard"));
-    check("name updated to latest", lb.body.top[0].name === P("NEWNAME"));
+    check("name updated to latest", lb.body.top[0].name === "NEWNAME");
     check("country total not inflated", lb.body.countries[0].totalScore === 80000, `got ${lb.body.countries[0].totalScore}`);
     check("player counted once", lb.body.countries[0].playerCount === 1, `got ${lb.body.countries[0].playerCount}`);
   }
@@ -298,11 +297,11 @@ async function run() {
     await call(env, "/api/submit-score", { method: "POST", cf: { country: "US" },
       body: { playerId: "e1", name: "E", score: 90000, level: levelFor(90000, "easy"), difficulty: "easy" } });
     await call(env, "/api/submit-score", { method: "POST", cf: { country: "US" },
-      body: { playerId: "h1", name: P("H"), score: 70000, level: levelFor(70000, "hard"), difficulty: "hard" } });
+      body: { playerId: "h1", name: "H", score: 70000, level: levelFor(70000, "hard"), difficulty: "hard" } });
     const all = await asJson(await call(env, "/api/leaderboard"));
     const hard = await asJson(await call(env, "/api/leaderboard?difficulty=hard"));
     check("all board has both", all.body.top.length === 2);
-    check("hard board has one", hard.body.top.length === 1 && hard.body.top[0].name === P("H"));
+    check("hard board has one", hard.body.top.length === 1 && hard.body.top[0].name === "H");
   }
 
   /* ---- 10. entitlements ---- */
