@@ -16,7 +16,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const GAME_HTML = fs.readFileSync(path.join(__dirname, 'FLUX-Sparta', 'public', 'play', 'index.html'), 'utf8');
 const scriptsOf = (h) => [...h.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
 function seeded(seed) { let s = seed >>> 0; return () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
-const WITHOUT_EASE = (h) => h.replace(/\n\/\* COMEBACK EASE\.[\s\S]*?\n\}\)\(\);\n/, '\nfunction easeFactor(){ return 1; }\n').replace('normalMaxSpeed()*easeFactor();   // x1 unless the comeback ease is on', 'normalMaxSpeed();');
+const WITHOUT_EASE = (h) => h.replace(/\n\/\* COMEBACK EASE\.[\s\S]*?\n\}\)\(\);\n/, '\n');   // no ease registered: the speed-help factor stays exactly 1
 
 function suite(gameHtml, quiet = false) {
   let F = 0; const failed = [];
@@ -79,11 +79,11 @@ const rep = (a, b) => (s) => (s.includes(a) ? s.replace(a, b) : s);
 control('eases after any single miss', 'E1', rep('if(easeClock-easeLastMiss<=EASE_WINDOW_S) easeLeft=EASE_TIME_S;', 'easeLeft=EASE_TIME_S;'));
 control('no time window (misses minutes apart count)', 'E1', rep('const EASE_WINDOW_S=20,', 'const EASE_WINDOW_S=1e9,'));
 control('slows 40% instead of 15%', 'E2', rep('EASE_SLOW=.15;', 'EASE_SLOW=.4;'));
-control('ease never ends', 'E2', rep('    easeLeft=Math.max(0,easeLeft-dt);\n', ''));
-control('fast ball not slowed down to the eased limit', 'E3', rep('      if(sp>lim){ const nsp=Math.max(lim,sp-normalMaxSpeed()*2.2*dt); ball.vx*=nsp/sp; ball.vy*=nsp/sp; }\n', ''));
-control('relaunch slowed by the ease', 'E4', rep('    easeLeft=Math.max(0,easeLeft-dt);\n    return r;', '    if(ball && easeLeft===EASE_TIME_S){ ball.vx*=.85; ball.vy*=.85; }\n    easeLeft=Math.max(0,easeLeft-dt);\n    return r;'));
+control('ease never ends', 'E2', rep('    if(easeLeft>0) easeLeft=Math.max(0,easeLeft-dt);\n', ''));
+control('fast ball not slowed down to the eased limit', 'E3', rep('if(sp>lim && sp<=n+1e-9){ const nsp=Math.max(lim,sp-n*2.2*dt); ball.vx*=nsp/sp; ball.vy*=nsp/sp; }', ''));
+control('relaunch slowed by the ease', 'E4', rep('    if(easeLeft>0) easeLeft=Math.max(0,easeLeft-dt);\n    return r;', '    if(ball && easeLeft===EASE_TIME_S){ ball.vx*=.85; ball.vy*=.85; }\n    if(easeLeft>0) easeLeft=Math.max(0,easeLeft-dt);\n    return r;'));
 control('always a little slower (changes the game)', 'E5', rep('function easeFactor(){ return easeLeft<=0 ? 1 :', 'function easeFactor(){ return easeLeft<=0 ? .999 :'));
-control('ease adds points', 'E6', rep('    easeLeft=Math.max(0,easeLeft-dt);\n', '    easeLeft=Math.max(0,easeLeft-dt); score+=0;\n'));
+control('ease adds points', 'E6', rep('    if(easeLeft>0) easeLeft=Math.max(0,easeLeft-dt);\n', '    if(easeLeft>0) easeLeft=Math.max(0,easeLeft-dt); score+=0;\n'));
 const total = main.F + NC;
 console.log('\n' + (total ? 'COMEBACK EASE FAILED: ' + main.F + ' check(s), ' + NC + ' uncaught control(s)' : 'COMEBACK EASE PASSED: all checks and all negative controls'));
 process.exit(total ? 1 : 0);
