@@ -28,6 +28,7 @@ function suite(gameHtml, quiet = false) {
     // Play in open field: no orbs, the launcher follows the ball (so no accidental misses).
     const step = (run, g, secs, each) => { for (let i = 0; i < Math.round(secs * 60); i++) { run('if(!playing){playing=true;paused=false;} targets=[]; paddle.x=Math.max(paddle.w/2+8,Math.min(W-paddle.w/2-8,ball.x));'); g.ctx.update(1 / 60); if (each) each(i); } };
     const miss = (run, g) => { run('ball.y=H+200;'); g.ctx.update(1 / 60); };
+    Math.random = seeded(11);   // deterministic play for E1-E4
     { const { g, run } = bootGame(gameHtml); g.ctx.newGame(); run('playing=true;');
       step(run, g, 3); miss(run, g); const one = run('easeLeft');
       step(run, g, 5); const before = run('Math.hypot(ball.vx,ball.vy)'), normalLim = run('normalMaxSpeed()');
@@ -41,12 +42,15 @@ function suite(gameHtml, quiet = false) {
       ck('E2 during the ease the ball runs at 85% of its top speed; afterwards it is back to full speed', Math.abs(sumDuring / nDuring / normalLim - .85) < .01 && Math.abs(after / normalLim - 1) < .01 && run('easeLeft') === 0,
         'during ' + (sumDuring / nDuring / normalLim).toFixed(3) + ', after ' + (after / normalLim).toFixed(3) + ' (full speed before: ' + (before / normalLim).toFixed(3) + ')');
       // A ball already at full speed when the ease starts is brought down to the eased limit within a second.
-      step(run, g, 2); const full = run('Math.hypot(ball.vx,ball.vy)'); run('easeLeft=6;'); step(run, g, 1); const settled = run('Math.hypot(ball.vx,ball.vy)');
+      // (moving sideways at full speed, so no launcher hit can slow it by itself)
+      run('easeLeft=0; ball.x=W/2; ball.y=H*.4; ball.vx=normalMaxSpeed(); ball.vy=0; ball.trail=[];'); const full = run('Math.hypot(ball.vx,ball.vy)');
+      run('easeLeft=6;'); for (let i = 0; i < 60; i++) { run('targets=[]; ball.vy=0; ball.y=H*.4;'); g.ctx.update(1 / 60); } const settled = run('Math.hypot(ball.vx,ball.vy)');
       ck('E3 the ease only slows: during it the ball never goes above the eased limit (a full-speed ball is brought down within 1 s)', maxDuring <= normalLim * .85 + 1e-9 && full > normalLim * .99 && settled <= normalLim * .85 + 1e-9, (maxDuring / normalLim).toFixed(4) + ', ' + (full / normalLim).toFixed(3) + ' -> ' + (settled / normalLim).toFixed(3));
       // E4: relaunch after a miss during the ease keeps its normal speed.
       run('easeLeft=6; level=3; speedLevel=3;'); miss(run, g);
       const vy = run('ball.vy'), want = run('-Math.max(6.2,6.0+level*.15)*DIFFICULTY[difficulty].speed');
       ck('E4 the relaunch after a miss keeps its normal speed', Math.abs(vy - want) < 1e-9, vy.toFixed(3) + ' vs ' + want.toFixed(3)); }
+    Math.random = realRandom;
     // E5: misses 25 s apart -> identical to a build without the ease.
     const trace = (html) => { Math.random = seeded(3); const { g, run } = bootGame(html); g.ctx.newGame(); const out = [];
       for (let f = 0; f < 9000; f++) { if (f % 1500 === 1499) run('ball.y=H+200; misses=0;'); else run('paddle.x=Math.max(paddle.w/2+8,Math.min(W-paddle.w/2-8,ball.x));'); run('if(!playing){playing=true;paused=false;}'); g.ctx.update(1 / 60);
