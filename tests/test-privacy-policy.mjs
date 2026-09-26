@@ -3,10 +3,14 @@
 //      still reachable) are finished: no "not ready" note, no placeholder, identical;
 //   P2 what the policy promises is true in the code: no analytics, advertising,
 //      tracking pixels or cookies anywhere the site serves, and ads are switched off;
-//   P3 what the policy says about names and children matches the game: automatic
-//      FLUX ID (PILOT-XXXX), the name rule, a children section for a general
-//      audience with a parents' contact;
-//   P4 the fields a score upload sends are the ones the policy lists.
+//   P3 what the policy says about names and children matches the game: preset
+//      names from a word list (no typing), enforced by the server; a children
+//      section for a general audience, marked for lawyer review, with a parents' contact;
+//   P4 the fields a score upload sends are the ones the policy lists;
+//   P5 country only: nothing in the site or worker reads a precise location, as the policy says;
+//   P6 the player identifier is described as internal-only, and future stats as anonymous and in-house;
+//   T1 the Terms match: kids may play, no "13 and older", children section marked
+//      for lawyer review, both published copies identical and finished.
 // Ends with negative controls: adding a tracker or ads, or leaving a placeholder, MUST fail.
 import fs from 'fs'; import path from 'path'; import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -20,18 +24,36 @@ function suite(files, quiet = false) {
   let F = 0; const failed = [];
   const ck = (l, c, x = '') => { if (!quiet) console.log((c ? '  PASS  ' : '  FAIL  ') + l + (x !== '' ? '  [' + x + ']' : '')); if (!c) { F++; failed.push(l); } };
   const pv = files['public/privacy.html'], wv = files['public/welcome/privacy.html'], game = files['public/play/index.html'];
+  const tm = files['public/terms.html'], wt = files['public/welcome/terms.html'];
   ck('P1 the policy is finished: no "not ready" note, no placeholder, an effective date', !/Not yet ready|OWNER INPUT|class="todo"|\[[A-Z ]+:/.test(pv) && /Effective date: <strong>[A-Z][a-z]+ \d{1,2}, 20\d\d<\/strong>/.test(pv));
   ck('P1 the retired /welcome/ copy (still reachable) is the same finished policy', wv === pv);
   const hits = Object.entries(files).filter(([f, s]) => !/privacy\.html$/.test(f) && TRACKERS.test(s)).map(([f, s]) => f + ': ' + s.match(TRACKERS)[0]);
   ck('P2 no analytics, advertising, tracking pixels or cookies anywhere the site serves (as the policy says)', hits.length === 0 && /no analytics, no advertising, no tracking pixels, and no\s*cookies/.test(pv), hits.slice(0, 3).join(' | '));
   ck('P2 ads are switched off in the game (the revive is free)', /const ADS_ENABLED = false;/.test(game));
-  ck('P3 the policy describes the automatic FLUX ID the game really gives (PILOT-XXXX, 4 letters/digits)', /callsign = 'PILOT-' \+ t;/.test(game) && /for \(var j = 0; j < 4; j\+\+\)/.test(game) && /PILOT-7K2Q/.test(pv));
-  ck('P3 the policy states the real name rule (letters, numbers, spaces, dots, dashes, underscores; blocked names shown as PILOT)',
-    /s\.replace\(\/\[\^\\p\{L\}\\p\{N\} \._-\]\/gu, ""\)/.test(files['worker.js']) && /letters, numbers,\s*spaces, dots, dashes and underscores/.test(pv) && /blocked list are shown as\s*<code>PILOT<\/code>/.test(pv));
-  ck('P3 children: general audience, nickname advice, parents can have an entry removed', /general audience, and children may play/.test(pv) && /children should use a nickname/.test(pv) && /Parents and guardians/.test(pv) && /mailto:playfluxofficial@gmail\.com/.test(pv) && !/intended for players aged 13 and older/.test(pv));
+  ck('P3 the policy describes preset names the way the game gives them (word list, dice button, no typing)',
+    /callsign = randomPresetName\(\);/.test(game) && /<input id="callsign"[^>]*\breadonly\b/.test(game) && /<input id="goCallsign"[^>]*\breadonly\b/.test(game)
+    && /SWIFT COMET 42/.test(pv) && /Names cannot be typed/.test(pv) && !/PILOT-7K2Q/.test(pv) && !/choose a nickname/i.test(pv));
+  ck('P3 the policy says the server only accepts names from the list, and the worker enforces it',
+    /const name = presetOrOwn\(cleanName\(body\.name\), playerId\);/.test(files['worker.js']) && /only accepts names from that list/.test(pv));
+  ck('P3 children: general audience, no personal information needed, marked for lawyer review, parents can have an entry removed',
+    /general audience, and children may play/.test(pv) && /nobody, of any age, has to give personal information to\s*play/.test(pv)
+    && /<h2>14\. Children<\/h2>\s*<div class="review"><strong>For lawyer review before launch\.<\/strong>/.test(pv)
+    && /Parents and guardians/.test(pv) && /mailto:playfluxofficial@gmail\.com/.test(pv) && !/intended for players aged 13 and older/.test(pv));
   const w = files['worker.js'];
   ck('P4 a score upload carries exactly what the policy lists (player identifier, FLUX ID, score, level, difficulty, country) plus the Cloudflare country',
     /body: JSON\.stringify\(\{ playerId, name, score, level, difficulty, country, detected \}\)/.test(w) && /your player identifier/.test(pv) && /your FLUX ID/.test(pv) && /your score, level, and difficulty/.test(pv) && /your chosen country/.test(pv) && /country code that Cloudflare/.test(pv));
+  const site = Object.entries(files).filter(([f]) => !/\.html$/.test(f) || /play\/index\.html$|^public\/index\.html$/.test(f));
+  const LOCATION = /navigator\.geolocation|\bcf\.(city|region|regionCode|postalCode|latitude|longitude|metroCode|timezone)\b|request\.cf\.(city|region|regionCode|postalCode|latitude|longitude|metroCode|timezone)\b/;
+  const loc = site.filter(([, t]) => LOCATION.test(t)).map(([f, t]) => f + ': ' + t.match(LOCATION)[0]);
+  ck('P5 country only: nothing reads a precise location (no geolocation, no Cloudflare city/region/coordinates), as the policy says',
+    loc.length === 0 && /only ever uses a country,\s*never a precise location/.test(pv), loc.join(' | '));
+  ck('P6 the player identifier is described as used only to run the game, never for ads or tracking',
+    /<strong>The player identifier is used only to run the game:<\/strong>/.test(pv) && /<strong>never<\/strong> used for advertising/.test(pv));
+  ck('P6 future stats are promised to be anonymous, in-house, with no third-party trackers', /Future gameplay statistics/.test(pv) && /anonymous and kept on our own servers/.test(pv) && /no third-party analytics or tracking service/.test(pv));
+  ck('T1 Terms: kids may play, no "13 and older", children section marked for lawyer review',
+    /Anyone may play FLUX, including children/.test(tm) && !/at least 13/.test(tm) && /<div class="review"><strong>For lawyer review before launch\.<\/strong>/.test(tm));
+  ck('T1 Terms describe preset names, not typed ones', /Names cannot be typed/.test(tm) && !/You choose a FLUX ID of up to 14 characters/.test(tm));
+  ck('T1 both published Terms copies are identical and finished', wt === tm && !/Not yet ready|OWNER INPUT|class="todo"/.test(tm));
   return { F, failed };
 }
 
@@ -49,7 +71,15 @@ control('ads switched on', 'P2', edit('public/play/index.html', 'const ADS_ENABL
 control('a cookie set by the Gateway', 'P2', edit('public/index.html', '</body>', '<script>document.cookie="v=1"</script></body>'));
 control('placeholder left in the retired copy', 'P1', edit('public/welcome/privacy.html', 'Effective date:', 'Effective date: [OWNER INPUT REQUIRED: date]'));
 control('"not ready" note back', 'P1', edit('public/privacy.html', '<h1>Privacy Policy</h1>', '<h1>Privacy Policy</h1><div class="todo">Not yet ready for publication.</div>'));
-control('auto names change format without the policy', 'P3', edit('public/play/index.html', "callsign = 'PILOT-' + t;", "callsign = 'PLAYER-' + t;"));
+control('auto names go back to PILOT-XXXX without the policy', 'P3', edit('public/play/index.html', "callsign = randomPresetName();", "callsign = 'PILOT-' + t;"));
+control('name box can be typed into again', 'P3', edit('public/play/index.html', 'placeholder="FLUX ID" readonly', 'placeholder="FLUX ID"'));
+control('server shows free text again', 'P3', edit('worker.js', 'const name = presetOrOwn(cleanName(body.name), playerId);', 'const name = cleanName(body.name);'));
+control('lawyer-review mark dropped from the children section', 'P3', edit('public/privacy.html', '<h2>14. Children</h2>\n<div class="review">', '<h2>14. Children</h2>\n<div>'));
+control('the game asks for GPS', 'P5', edit('public/play/index.html', '</body>', '<script>navigator.geolocation.getCurrentPosition(function(){})</script></body>'));
+control('the worker reads the Cloudflare city', 'P5', edit('worker.js', 'const cc = (request.cf && request.cf.country) || "";', 'const cc = (request.cf && request.cf.country) || ""; const city = request.cf.city;'));
+control('policy stops limiting the player identifier', 'P6', edit('public/privacy.html', '<strong>The player identifier is used only to run the game:</strong>', '<strong>The player identifier is used to run the game:</strong>'));
+control('Terms back to 13 and older', 'T1', edit('public/terms.html', 'Anyone may play FLUX, including children.', 'You must be at least 13 years old to play FLUX.'));
+control('retired Terms copy left behind', 'T1', edit('public/welcome/terms.html', 'Effective date:', 'Effective date: [OWNER INPUT REQUIRED: date]'));
 control('children section back to "13 and older"', 'P3', edit('public/privacy.html', 'FLUX is a game for a general audience, and children may play it.', 'FLUX is intended for players aged 13 and older.'));
 control('upload sends a new field', 'P4', edit('worker.js', 'body: JSON.stringify({ playerId, name, score, level, difficulty, country, detected })', 'body: JSON.stringify({ playerId, name, score, level, difficulty, country, detected, ua: request.headers.get("user-agent") })'));
 const total = main.F + NC;
