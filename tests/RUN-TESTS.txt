@@ -39,6 +39,8 @@ node test-one-app-runtime.mjs      # 40: RUNS the real Gateway+game: 10 relaunch
 node test-negative-controls.mjs    # 10: re-inserts each defect and REQUIRES a failure
 node test-merge-one-identity.mjs   # 40: MERGE — one origin, one identity, demo isolated
 node test-single-identity.mjs      # 27: top-level Play, one identity, purchase lock
+node test-share-card.mjs           # share card: "I added N for <flag> <country>!" + link to /play/, image when the phone can share it, text/copy fallbacks, straight from the tap + negative controls
+node test-share-card-browser.mjs # extra, not in the gate: real Chromium, iPhone/iPad/iPad mini, button, JPEG card, what the share sheet receives
   node test-offline-queue.mjs        # 19: offline queue, retry, permanent vs temporary
   node test-d09-bestrun.mjs          # 20: best-run record + legacy migration
   node test-d01-d08-lifecycle.mjs    # 19: demo suspend/resume, pill, hostile origin

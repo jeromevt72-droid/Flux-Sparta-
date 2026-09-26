@@ -356,6 +356,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
   <div id="goName" class="goName hidden"><div class="goNameT">PUT YOUR SCORE ON THE WORLD GRID</div><div class="goNameRow"><input id="goCallsign" maxlength="14" placeholder="YOUR NAME" autocomplete="off" autocorrect="off" spellcheck="false"><select id="goCountry" aria-label="Country"></select></div><button id="goSave" type="button">SAVE &amp; UPLOAD</button><div class="goNameNote" id="goNameMsg">Your best score counts for your country.</div></div>
   <div class="gameoverModes"><div class="menuLabel">CHOOSE YOUR NEXT FLOW</div><div class="difficulty" id="gameoverDifficulty"><button data-d="easy">EASY</button><button data-d="medium">MEDIUM</button><button data-d="hard">HARD</button></div></div>
   <button id="againBtn">RUN IT BACK</button>
+  <button id="shareBtn" type="button" class="hidden" style="margin-top:8px;background:transparent;color:#ffd23f;border:1px solid #6b5a1a;box-shadow:none">📤 SHARE MY SCORE</button>
   <button id="gameoverLeaderBtn" style="margin-top:8px;background:transparent;color:#7fdfff;border:1px solid #234174;box-shadow:none">🌎 GLOBAL LEADERBOARD</button>
   <button id="gameoverMenuBtn" style="margin-top:8px;background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none">⌂ MENU</button>
   <button id="gameoverInstallBtn" type="button" class="installBtn hidden" style="margin-top:8px;background:transparent;color:#5ff3ff;border:1px solid #2c6bff;box-shadow:none">📲 ADD TO HOME SCREEN</button>
@@ -3006,6 +3007,74 @@ function fluxDoInstall(){
   }
   if (mode === 'ios') fluxShowIosGuide();
 }
+/* SHARE CARD. After each run, SHARE MY SCORE opens the phone's own share
+   sheet (iPhone: Messages, WhatsApp, Instagram...; Android: the system
+   chooser) with a score card image, one line of text and a link that opens
+   the web game directly. Wording: "I added <points> for <flag> <country>!"
+   when the run added to the country's total (the same number the game-over
+   line shows), otherwise "I scored <points> for <flag> <country>!". No name,
+   no player ID, nothing personal. The card is drawn when the game-over screen
+   appears, so the tap can call the share sheet straight away (iPhone Safari
+   only allows sharing directly from a tap). Fallbacks: text + link only on
+   browsers that can't share images; copy to clipboard where there is no share
+   sheet. Nothing is uploaded by the game; offline it still works. */
+let shareInfo=null, shareFile=null, shareCanvas=null;
+function shareUrl(){ return location.origin+'/play/'; }
+function shareText(info){
+  const c=countryLabel(info.country);
+  return (info.added>0 ? 'I added '+info.added.toLocaleString('en-US')+' for '+c.flag+' '+c.name+'!' : 'I scored '+info.score.toLocaleString('en-US')+' for '+c.flag+' '+c.name+'!')+' Beat me in FLUX:';
+}
+function drawShareCard(info){
+  const cv=document.createElement('canvas'); cv.width=720; cv.height=900;   // 4:5, sharp in chat apps, quick to encode
+  const x=cv.getContext('2d'); if(!x) return cv;
+  x.scale(720/1080,720/1080);   // drawn in 1080x1350 units
+  const g=x.createLinearGradient(0,0,0,1350); g.addColorStop(0,'#111b43'); g.addColorStop(.55,'#07091d'); g.addColorStop(1,'#03040d');
+  x.fillStyle=g; x.fillRect(0,0,1080,1350);
+  const pal=(SKINS[activeSkin]||SKINS.aurora).colors;
+  for(let i=0;i<5;i++){ x.globalAlpha=.9; x.fillStyle=pal[i%pal.length]; x.beginPath(); x.arc(170+i*185,1150,34,0,Math.PI*2); x.fill(); }
+  x.globalAlpha=1; x.textAlign='center';
+  x.fillStyle='#5ff3ff'; x.font='900 120px -apple-system,system-ui,sans-serif'; x.fillText('F L U X',540,210);
+  const c=countryLabel(info.country);
+  x.font='220px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; x.fillText(c.flag,540,520);
+  x.fillStyle='#ffffff'; x.font='900 150px -apple-system,system-ui,sans-serif';
+  x.fillText((info.added>0?'+':'')+(info.added>0?info.added:info.score).toLocaleString('en-US'),540,760);
+  x.fillStyle='#ffd23f'; x.font='800 60px -apple-system,system-ui,sans-serif';
+  x.fillText((info.added>0?'added for ':'scored for ')+c.name,540,860);
+  x.fillStyle='#9fb3e6'; x.font='700 44px -apple-system,system-ui,sans-serif'; x.fillText('Can you beat it? Play free:',540,1000);
+  x.fillStyle='#eaf7ff'; x.font='800 40px -apple-system,system-ui,sans-serif'; x.fillText(shareUrl().replace(/^https?:\/\//,''),540,1060);
+  return cv;
+}
+function prepareShare(sc,prevOverall){
+  shareFile=null;
+  shareInfo={ score:sc, added:(profileComplete && sc>0 && sc>prevOverall) ? sc-prevOverall : 0, country:country };
+  const btn=document.getElementById('shareBtn'); if(btn){ btn.textContent='📤 SHARE MY SCORE'; btn.classList.toggle('hidden', !(sc>0)); }
+  try{ const cv=drawShareCard(shareInfo); shareCanvas=cv;   // kept until encoded, so it cannot be garbage-collected mid-encode
+    if(cv.toBlob) cv.toBlob(function(b){ shareCanvas=null; try{ if(b) shareFile=new File([b],'flux-score.jpg',{type:'image/jpeg'}); }catch(e){} },'image/jpeg',.9); }catch(e){}   // JPEG: several times faster to encode than PNG
+}
+function shareScore(){
+  if(!shareInfo) return;
+  const text=shareText(shareInfo), url=shareUrl(), btn=document.getElementById('shareBtn');
+  const done=function(){}, failed=function(e){ if(e && e.name==='AbortError') return; copyShare(text+' '+url,btn); };
+  try{
+    if(shareFile && navigator.canShare && navigator.canShare({files:[shareFile]})){ navigator.share({files:[shareFile],text:text+' '+url}).then(done,failed); return; }   // image + text (the link is in the text: some apps drop a separate url)
+    if(navigator.share){ navigator.share({text:text,url:url}).then(done,failed); return; }
+  }catch(e){}
+  copyShare(text+' '+url,btn);
+}
+function copyShare(t,btn){
+  const ok=function(){ if(btn) btn.textContent='✓ COPIED — PASTE IT ANYWHERE'; };
+  try{ navigator.clipboard.writeText(t).then(ok,function(){}); }catch(e){}
+}
+(function(){
+  const btn=document.getElementById('shareBtn'); if(btn) btn.onclick=shareScore;
+  // Start the card the moment the run ends (0.42 s before the game-over screen shows)...
+  const endGame0=endGame;
+  endGame=function(){ try{ prepareShare(score,overallBestScore()); }catch(e){} return endGame0.apply(this,arguments); };
+  // ...and make sure it matches the numbers the game-over line uses.
+  const show0=showGameOverLine;
+  showGameOverLine=function(sc,prevBest,prevOverall){ const r=show0.apply(this,arguments); if(!shareInfo || shareInfo.score!==sc || shareInfo.country!==country || shareInfo.added!==((profileComplete && sc>0 && sc>prevOverall) ? sc-prevOverall : 0)) prepareShare(sc,prevOverall); return r; };
+})();
+
 /* D-49: iPhone keeps Safari and the Home Screen app in separate storage, so a
    new icon would start as a NEW pilot (the owner's TITAN split). The guide
    copies the pilot's restore code first; the installed app then offers
