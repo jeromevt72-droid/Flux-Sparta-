@@ -5,14 +5,19 @@ import { spawnSync } from 'child_process';
 import fs from 'fs'; import path from 'path'; import { fileURLToPath } from 'url';
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 fs.copyFileSync(path.join(ROOT,'FLUX-Sparta','worker.js'), path.join(ROOT,'worker.mjs'));   // fuzz imports it
-const SUITES = [
-  ['python3','regression-suite.py'],
-  ...['test-backdrop-bleed.mjs','test-ball-colour.mjs','test-levelup-continuity.mjs','test-intensity.mjs','test-level-banner.mjs','test-miss-notice.mjs','test-rc287.mjs','test-rc286.mjs','test-rc285.mjs','test-d38.mjs','test-d36-d37.mjs','test-d35-restore.mjs','test-rc281.mjs','test-rc28-worker.mjs','test-rc28-client.mjs','test-audit-fixes.mjs','test-one-app-runtime.mjs',
+// Suites listed by name (kept so older checks can find them), then any other
+// test-*.mjs in this folder is picked up automatically -- every test-*.mjs
+// except the *-browser.mjs ones, which need Chromium and are not in the gate.
+const LISTED = ['test-backdrop-bleed.mjs','test-ball-colour.mjs','test-levelup-continuity.mjs','test-level-banner.mjs','test-miss-notice.mjs','test-rc287.mjs','test-rc286.mjs','test-rc285.mjs','test-d38.mjs','test-d36-d37.mjs','test-d35-restore.mjs','test-rc281.mjs','test-rc28-worker.mjs','test-rc28-client.mjs','test-audit-fixes.mjs','test-one-app-runtime.mjs',
       'test-negative-controls.mjs','test-merge-one-identity.mjs','test-single-identity.mjs','test-checkout-navigation.mjs',
       'test-t9-entitlements.mjs','test-runtime-integration.mjs','test-country-parity.mjs','test-offline-runtime.mjs',
       'test-d19-orientation.mjs','test-d19-d20.mjs','test-d17-d03.mjs','test-d16-fluxid.mjs','test-sw.mjs',
       'test-audio-lifecycle.mjs','test-offline-queue.mjs','test-d09-bestrun.mjs','test-d01-d08-lifecycle.mjs',
-      'test-worker.mjs','test-import.mjs','fuzz.mjs'].map(f=>['node',f]),
+      'test-worker.mjs','test-import.mjs','fuzz.mjs'];
+const FOUND = fs.readdirSync(ROOT).filter(f=>/^test-.*\.mjs$/.test(f) && !/-browser\.mjs$/.test(f) && !LISTED.includes(f)).sort();
+const SUITES = [
+  ['python3','regression-suite.py'],
+  ...LISTED.concat(FOUND).map(f=>['node',f]),
 ];
 const only = process.argv.includes('--skip-negative-controls');   // used BY the negative controls themselves
 const failed = [];

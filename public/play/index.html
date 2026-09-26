@@ -3051,30 +3051,6 @@ document.getElementById('bringPilotBtn').onclick = fluxBringPilot;
 })();
 refreshInstallButtons();
 
-/* D-46 LITE GRAPHICS (runtime). The first seconds of play are timed; if most
-   frames take longer than 25 ms (under 40 fps) the device switches to lite
-   graphics and remembers it: normal (not Retina) sharpness, no glow, half the
-   particles. Gameplay, speed and scoring are unchanged. Fast devices never
-   switch. */
-let fluxPerfN = 0, fluxPerfSlow = 0, fluxPerfSkip = 20;
-const FLUX_PERF_FRAMES = 60, FLUX_PERF_SLOW_MS = 25, FLUX_PERF_SLOW_SHARE = 0.6;
-function fluxPerfSample(ms){
-  if (window.__fluxLite || fluxPerfN >= FLUX_PERF_FRAMES) return;
-  if (fluxPerfSkip > 0){ fluxPerfSkip--; return; }
-  if (!(ms > 0 && ms < 1000)) return;           // ignore paused / backgrounded gaps
-  fluxPerfN++; if (ms > FLUX_PERF_SLOW_MS) fluxPerfSlow++;
-  if (fluxPerfN === FLUX_PERF_FRAMES && fluxPerfSlow >= FLUX_PERF_FRAMES * FLUX_PERF_SLOW_SHARE) fluxEnableLite();
-}
-const fluxBurst0 = burst;
-function fluxApplyLiteParticles(){ burst = function(x, y, col, n){ return fluxBurst0(x, y, col, Math.max(3, Math.ceil((n == null ? 14 : n) / 2))); }; }
-function fluxEnableLite(){
-  window.__fluxLite = true;
-  try{ localStorage.setItem('fluxLite', '1'); }catch(e){}
-  fluxApplyLite(); fluxApplyLiteParticles();
-  try{ resize(); }catch(e){}
-}
-if (window.__fluxLite) fluxApplyLiteParticles();
-
 /* INTENSITY ("juice"). One value, 0..1, from combo, level and FLUX mode. It
    scales only effects: burst size, a soft glow under the ball's trail and a
    light around the screen edges. It drops fast after a miss and settles.
@@ -3144,6 +3120,30 @@ function drawJuiceUnderOrbs(){
   const playFusion0=playFusion;
   playFusion=function(c){ return playFusion0(c>=12 ? Math.min(24,Math.max(c,streak)) : c); };
 })();
+
+/* D-46 LITE GRAPHICS (runtime). The first seconds of play are timed; if most
+   frames take longer than 25 ms (under 40 fps) the device switches to lite
+   graphics and remembers it: normal (not Retina) sharpness, no glow, half the
+   particles. Gameplay, speed and scoring are unchanged. Fast devices never
+   switch. */
+let fluxPerfN = 0, fluxPerfSlow = 0, fluxPerfSkip = 20;
+const FLUX_PERF_FRAMES = 60, FLUX_PERF_SLOW_MS = 25, FLUX_PERF_SLOW_SHARE = 0.6;
+function fluxPerfSample(ms){
+  if (window.__fluxLite || fluxPerfN >= FLUX_PERF_FRAMES) return;
+  if (fluxPerfSkip > 0){ fluxPerfSkip--; return; }
+  if (!(ms > 0 && ms < 1000)) return;           // ignore paused / backgrounded gaps
+  fluxPerfN++; if (ms > FLUX_PERF_SLOW_MS) fluxPerfSlow++;
+  if (fluxPerfN === FLUX_PERF_FRAMES && fluxPerfSlow >= FLUX_PERF_FRAMES * FLUX_PERF_SLOW_SHARE) fluxEnableLite();
+}
+const fluxBurst0 = burst;
+function fluxApplyLiteParticles(){ burst = function(x, y, col, n){ return fluxBurst0(x, y, col, Math.max(3, Math.ceil((n == null ? 14 : n) / 2))); }; }
+function fluxEnableLite(){
+  window.__fluxLite = true;
+  try{ localStorage.setItem('fluxLite', '1'); }catch(e){}
+  fluxApplyLite(); fluxApplyLiteParticles();
+  try{ resize(); }catch(e){}
+}
+if (window.__fluxLite) fluxApplyLiteParticles();
 </script>
 <!-- D-38 (RC2.8.4): IN-APP BROWSER BANNER. A link tapped inside TikTok,
      Instagram, Facebook, Messenger, Snapchat or LINE opens in that app's own

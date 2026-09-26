@@ -22,7 +22,7 @@ pages for the Gateway, the game and the admin panel.
 | `FLUX-Sparta/public/google5415e96c084db88e.html` | **Google Search Console ownership file. Never delete it** or Google verification is lost. |
 | `FLUX-Sparta/public/privacy.html`, `terms.html` | Legal pages |
 | `FLUX-Gateway-Redirect/` | The old `flux-gateway` address — only redirects to the live site |
-| `test-*.mjs`, `regression-suite.py`, `fuzz.mjs`, `run-all-tests.mjs` | The release gate (38 suites) |
+| `test-*.mjs`, `regression-suite.py`, `fuzz.mjs`, `run-all-tests.mjs` | The release gate: every `test-*.mjs` except the `*-browser.mjs` ones, plus `regression-suite.py` and `fuzz.mjs` |
 | `level-rule.mjs` | RC2.8.7: the score-to-level rule, shared by the server test fixtures |
 | `RC2.8.x-RELEASE-NOTES.md` | What changed in each release |
 
@@ -38,8 +38,8 @@ Never put these in GitHub.
 5. If anything is wrong: Deployments → the version from step 1 → ⋯ → Rollback.
 
 ## Running the tests (on a computer with Node 20+ and Python 3)
-`node run-all-tests.mjs` — must print **RELEASE GATE PASSED: all 38 suites passed**.
-`test-d35-browser.mjs`, `test-rc287-browser.mjs`, `test-level-banner-browser.mjs` and `test-backdrop-bleed-browser.mjs` and `test-intensity-browser.mjs` are extra (they need a Chromium browser via Playwright) and are not in the gate.
+`node run-all-tests.mjs` — must print **RELEASE GATE PASSED: all N suites passed** (N = every suite in the folder; a new `test-*.mjs` joins the gate automatically).
+Every `*-browser.mjs` file is extra (it needs a Chromium browser via Playwright) and is not in the gate.
 
 In the GitHub repo these files live in `tests/`, and `tests/FLUX-Sparta` is a symlink to the repo root (`ln -s .. tests/FLUX-Sparta`).
 Run from the repo root: `node tests/run-all-tests.mjs`.
