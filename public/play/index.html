@@ -1258,6 +1258,8 @@ function endGame(){
    try{ window.parent.postMessage({type:'flux-gameover'}, '*'); }catch(e){}
  },420);
 }
+// The ball's normal top speed (the ramp raises it with speedLevel; FLUX mode lifts it).
+function normalMaxSpeed(){ return fluxMode>0?18.5:Math.min(17.5,(12+speedLevel*.48)*DIFFICULTY[difficulty].speed); }
 function update(dt){
  if(levelBanner>0) levelBanner=Math.max(0,levelBanner-dt);
  if(missNotice>0) missNotice=Math.max(0,missNotice-dt);
@@ -1266,7 +1268,7 @@ function update(dt){
  if(comboTimer>0) comboTimer-=dt;
  else if(combo>1){combo=1;streak=0;popup(W/2,150,'COMBO LOST','#8da0c8');updateHud();}
  if(perfectFlash>0)perfectFlash-=dt;
- const maxSpeed=fluxMode>0?18.5:Math.min(17.5,(12+speedLevel*.48)*DIFFICULTY[difficulty].speed);
+ const maxSpeed=normalMaxSpeed()*easeFactor();   // x1 unless the comeback ease is on
  if(fluxMode>0){fluxMode-=dt;document.getElementById('app').style.filter='brightness(1.18) saturate(1.35)';document.getElementById('fluxGlow').classList.add('on');}else{document.getElementById('app').style.filter='none';document.getElementById('fluxGlow').classList.remove('on');}
  let sp=Math.hypot(ball.vx,ball.vy);
  if(sp<maxSpeed) {
@@ -3071,6 +3073,38 @@ function fluxEnableLite(){
   try{ resize(); }catch(e){}
 }
 if (window.__fluxLite) fluxApplyLiteParticles();
+
+/* COMEBACK EASE. After two misses within 20 seconds of play, the ball's top
+   speed is 15% lower for 6 seconds (the last second eases back). It only
+   slows the ball: no points, no extra lives, no change to orbs, timers or
+   scoring. The limit in update() is multiplied by easeFactor(), which is
+   exactly 1 when the ease is off, so the game is then exactly the same. The
+   ball's speed is never raised by it. */
+const EASE_WINDOW_S=20, EASE_TIME_S=6, EASE_SLOW=.15;
+let easeClock=0, easeLastMiss=-1e9, easeLeft=0;
+function easeFactor(){ return easeLeft<=0 ? 1 : 1-EASE_SLOW*Math.min(1,easeLeft); }   // 0.85, back to 1 over the final second
+(function(){
+  const update0=update;
+  update=function(dt){
+    easeClock+=dt;
+    if(easeLeft<=0) return update0.apply(this,arguments);
+    const r=update0.apply(this,arguments);
+    if(ball){   // slow a ball that is above the eased limit (e.g. right after the 2nd miss's relaunch speeds up, or after a fusion kick)
+      const lim=normalMaxSpeed()*easeFactor(), sp=Math.hypot(ball.vx,ball.vy);
+      if(sp>lim){ const nsp=Math.max(lim,sp-normalMaxSpeed()*2.2*dt); ball.vx*=nsp/sp; ball.vy*=nsp/sp; }
+    }
+    easeLeft=Math.max(0,easeLeft-dt);
+    return r;
+  };
+  const registerMiss0=registerMiss;
+  registerMiss=function(){
+    if(easeClock-easeLastMiss<=EASE_WINDOW_S) easeLeft=EASE_TIME_S;
+    easeLastMiss=easeClock;
+    return registerMiss0.apply(this,arguments);
+  };
+  const newGame0=newGame;
+  newGame=function(){ easeClock=0; easeLastMiss=-1e9; easeLeft=0; return newGame0.apply(this,arguments); };
+})();
 </script>
 <!-- D-38 (RC2.8.4): IN-APP BROWSER BANNER. A link tapped inside TikTok,
      Instagram, Facebook, Messenger, Snapchat or LINE opens in that app's own

@@ -25,6 +25,7 @@ node test-checkout-navigation.mjs  # 60: installed-PWA checkout navigation
 node test-backdrop-bleed.mjs      # Solar backdrop image covers the full physical screen (root background, CSS-cover sizing) + negative controls
 node test-backdrop-bleed-browser.mjs # extra, not in the gate: simulated short viewport + clipped container on iPhone/iPad sizes in real Chromium
 node test-ball-colour.mjs         # every ball matches an orb on the field: all new balls + 90,000 frames of simulated play + negative controls
+node test-comeback-ease.mjs       # comeback ease: two misses within 20 s -> top speed 85% for 6 s; never faster, never adds points, identical game when off + negative controls
 node test-levelup-continuity.mjs  # level-up keeps every orb, score, combo, lives, FLUX; only difficulty ramps (~1 s) + negative controls
 node test-level-banner.mjs        # level-up banner never overlaps launcher, danger line, HUD or play area (measured device layouts) + negative controls
 node test-level-banner-browser.mjs # extra, not in the gate: same checks on real Chromium rendering, 10 iPhone/iPad sizes
