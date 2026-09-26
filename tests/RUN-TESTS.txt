@@ -29,6 +29,7 @@ node test-levelup-continuity.mjs  # level-up keeps every orb, score, combo, live
 node test-level-banner.mjs        # level-up banner never overlaps launcher, danger line, HUD or play area (measured device layouts) + negative controls
 node test-level-banner-browser.mjs # extra, not in the gate: same checks on real Chromium rendering, 10 iPhone/iPad sizes
 node test-miss-notice.mjs         # miss notice ("BALL LOST • n LIVES LEFT") in the HUD strip, never on the launcher or play area (measured device layouts) + negative controls
+node test-orb-colours-v2.mjs      # orb colours v2: approved 5-colour palettes, cap, Toxic apart from Aurora, block style at the exact hit radius, ball ring + symbol, hit areas unchanged + negative controls
 node test-rc287.mjs              # RC2.8.7: D-50..D-61 (levels, HUD, palettes, game over, sound) + negative controls
 node test-rc287-browser.mjs      # RC2.8.7 extra, not in the gate: real Chromium, 360px fit, 11px text, 44px buttons, notch inset
 node test-rc281.mjs              # RC2.8.1: D-29 D-31 D-33 D-34 + pending-delivery message

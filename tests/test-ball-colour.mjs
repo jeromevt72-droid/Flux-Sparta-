@@ -46,7 +46,7 @@ function suite(gameHtml, quiet = false) {
     let starts = 0, misses = 0, revives = 0; const bad = [];
     for (const d of ['easy', 'medium', 'hard']) {
       for (let lv = 1; lv <= 9; lv++) {
-        const nColours = Math.min(9, 4 + Math.floor(lv / 2));
+        const nColours = Math.min(5, 4 + Math.floor(lv / 2));   // orb colours v2: 5 colours per skin
         for (let c = 0; c < nColours; c++) {
           const { g, run } = bootGame(d, 1000 + lv * 10 + c);
           g.ctx.newGame(); starts++;
