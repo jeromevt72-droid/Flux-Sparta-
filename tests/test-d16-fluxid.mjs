@@ -20,8 +20,9 @@ console.log('\n-- nothing behind the label moved --');
 ck('element id still "callsign"', src.includes('<input id="callsign"'));
 // RC2.8.5 (D-39, D-43) adds three reads of the same element (play-first start,
 // the game-over name prompt, rename detection), 6 -> 9. PILOT NAMES (EDIT closes
-// again on save/cancel) adds three, 9 -> 12. The id itself is unchanged.
-ck('getElementById(\'callsign\') intact', (src.match(/getElementById\('callsign'\)/g)||[]).length===12,
+// again on save/cancel) adds three, 9 -> 12; the refused-name hint (red outline,
+// clear on typing) adds two, 12 -> 14. The id itself is unchanged.
+ck('getElementById(\'callsign\') intact', (src.match(/getElementById\('callsign'\)/g)||[]).length===14,
    String((src.match(/getElementById\('callsign'\)/g)||[]).length));
 ck('JS variable still `callsign`', /let difficulty=localStorage\.fluxDifficulty\|\|'medium', callsign=/.test(src));
 ck('localStorage key still fluxCallsign', src.includes('localStorage.fluxCallsign'));

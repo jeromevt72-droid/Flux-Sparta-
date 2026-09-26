@@ -62,7 +62,7 @@ async function suite({ gameHtml, adminHtml, workerMod, quiet=false }){
     ck('M4 EDIT still opens the editor (original handler kept)', typeof named.g.els.editProfile.onclick==='function');
     let threw=false; try{ named.g.els.editProfile.onclick({}); }catch(e){ threw=true; }
     ck('M4 EDIT runs without errors and keeps the restore link', !threw && /RESTORE CODE/.test(named.g.els.restoreLink.textContent));
-    ck('M5 link still sits directly after the name editor', /<\/select><\/div><button type="button" class="linkBtn restoreLink" id="restoreLink">/.test(gameHtml) && gameHtml.includes('#profileEditor.hidden+.restoreLink{display:none}'));
+    ck('M5 link still sits directly after the name editor', /<\/select>(<div id="nameHint"[^>]*>[^<]*<\/div>)?<\/div><button type="button" class="linkBtn restoreLink" id="restoreLink">/.test(gameHtml) && gameHtml.includes('#profileEditor.hidden+.restoreLink{display:none}'));
     ck('M6 wording points at EDIT', gameHtml.includes('Save your restore code (EDIT'));
     ck('M7 no load errors', named.g.errors.length===0 && fresh.g.errors.length===0, named.g.errors.join('|'));
   } catch(e){ ck('D-36 menu section ran', false, String(e.stack||e).slice(0,200)); }

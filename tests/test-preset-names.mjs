@@ -84,7 +84,11 @@ async function suite(html, quiet = false) {
     b.el('callsign').value = 'juan'; b.key('Enter');
     ck('N9 a valid name + Enter saves it and returns to the normal view', b.run('profileComplete') === true && b.mem.fluxCallsign === 'JUAN' && b.run('callsign') === 'JUAN');
     const c = named('TITAN'); c.edit(); c.el('callsign').value = 'John Smith'; c.key('Enter');
-    ck('N10 a name that breaks the rules is not saved: EDIT stays open with the reason', c.run('profileComplete') === false && c.mem.fluxCallsign === 'TITAN' && c.run('callsign') === 'TITAN' && /one word/i.test(c.toast()), c.toast());
+    ck('N10 a refused name is not saved and never stays in the box: back to the current name, hint under the box, no bottom message',
+      c.run('profileComplete') === false && c.mem.fluxCallsign === 'TITAN' && c.run('callsign') === 'TITAN' && c.el('callsign').value === 'TITAN' && c.run('fluxNameHint.on') === true && c.toast() === '', c.el('callsign').value + ' / ' + c.toast());
+    c.el('callsign').oninput();
+    ck('N10 ...typing again clears the hint', c.run('fluxNameHint.on') === false);
+    c.el('callsign').value = 'John Smith'; c.key('Enter');
     c.key('Escape');
     ck('N11 Esc cancels: the old name stays and the normal view returns', c.run('profileComplete') === true && c.mem.fluxCallsign === 'TITAN' && c.el('callsign').value === 'TITAN');
     const d = named('TITAN'); d.edit(); d.el('country').value = 'PH'; d.el('country').onchange({ target: d.el('country') });
@@ -99,7 +103,16 @@ async function suite(html, quiet = false) {
     ck('N13 the restore code opens from EDIT and the panel is back in the normal view behind it', opened === 1 && r.run('profileComplete') === true);
     const s = named('TITAN'); let started = 0; s.g.ctx.newGame = () => { started++; };
     s.edit(); s.el('callsign').value = 'John Smith'; s.el('startBtn').onclick();
-    ck('N14 ENTER THE FLUX with a name that breaks the rules does not start or save; the reason shows', started === 0 && s.mem.fluxCallsign === 'TITAN' && /one word/i.test(s.toast()));
+    ck('N14 existing player: ENTER THE FLUX with a refused name still starts the game, keeping the current name (never shown in the box)',
+      started === 1 && s.mem.fluxCallsign === 'TITAN' && s.run('callsign') === 'TITAN' && s.el('callsign').value === 'TITAN' && s.toast() === '', 'started ' + started + ', ' + s.el('callsign').value);
+    const n = bootGame({ fluxPlayerId: 'fresh-0001' }); const pre = n.mem.fluxCallsign; let nStarted = 0; n.g.ctx.newGame = () => { nStarted++; };
+    n.edit(); n.el('callsign').value = 'John Smith'; n.key('Enter');
+    ck('N16 brand-new player: a refused name goes back to the preset, with the hint', n.el('callsign').value === pre && n.run('fluxNameHint.on') === true && n.mem.fluxCallsign === pre, n.el('callsign').value);
+    n.el('callsign').value = 'John Smith'; n.el('startBtn').onclick();
+    ck('N16 brand-new player: ENTER THE FLUX still starts the game with the preset name', nStarted === 1 && n.mem.fluxCallsign === pre && n.run('callsign') === pre && n.el('callsign').value === pre && W.isPresetName(pre), 'started ' + nStarted + ', ' + n.mem.fluxCallsign);
+    const q = bootGame({ fluxPlayerId: 'fresh-0002' }); let qStarted = 0; q.g.ctx.newGame = () => { qStarted++; };
+    q.edit(); q.el('callsign').value = 'amy@mail.com'; q.el('start').onpointerdown({ target: {} }); q.el('startBtn').onclick();
+    ck('N16 brand-new player: refused name, tap away, then ENTER THE FLUX: the game starts', qStarted === 1 && W.isPresetName(q.mem.fluxCallsign));
   } catch (e) { ck('N9-N14 ran', false, String(e.stack || e).slice(0, 200)); }
 
   try {
@@ -130,11 +143,13 @@ await control('a new pilot starts with PILOT-XXXX', 'N4', rep('callsign = random
 await control('old names that break the rules are kept', 'N8', rep("if(callsign && !isAllowedName(callsign)){", 'if(false){'));
 await control('no notice for a switched name', 'N8 ...with the one-time notice', rep("fluxNameToast(\"Your name didn't fit the new name rules, so we picked one for you. Tap Edit to change it.\", 9000,", "(function(){})(\"\", 9000,"));
 await control('notice cleared before it is seen', 'N8 ...still shown', rep("try{ if(localStorage.fluxNameNotice==='1') fluxNameToast(", "try{ if(localStorage.fluxNameNotice==='1') localStorage.removeItem('fluxNameNotice'), fluxNameToast("));
-await control('the game saves a name that breaks the rules', 'N10', rep('if (!isAllowedName(callsign)) {', 'if (false) {'));
+await control('the game saves a refused name', 'N14', rep('if (!isAllowedName(callsign)) { callsign = isAllowedName(localStorage.fluxCallsign)', 'if (false) { callsign = isAllowedName(localStorage.fluxCallsign)'));
+await control('a refused name stays in the box in EDIT', 'N10', rep('else if(!isAllowedName(typed)){ inp.value=was.name; fluxNameRule(); return false; }', 'else if(!isAllowedName(typed)){ fluxNameRule(); return false; }'));
+await control('ENTER THE FLUX blocked by a refused name', 'N14', rep("typed = isAllowedName(raw) ? raw : was;   // a refused name never blocks play", "typed = raw; if (!isAllowedName(raw)) return;"));
+await control('bottom-of-screen message back instead of the hint', 'N10', rep('function fluxNameRule(){ fluxNameHint(true); }', "function fluxNameRule(){ fluxNameToast('One word only'); }"));
 await control('Enter leaves EDIT open', 'N9', rep("if(e.key==='Enter'){ e.preventDefault(); if(closeProfileEditor(true)) try{ this.blur(); }catch(x){} }", "if(e.key==='Enter'){ e.preventDefault(); }"));
 await control('cancel leaves EDIT open', 'N11', rep("else if(e.key==='Escape'){ closeProfileEditor(false); }", "else if(e.key==='Escape'){ }"));
 await control('restore code leaves EDIT open', 'N13', rep('rl.onclick=function(e){ if(!closeProfileEditor(profileEditChanged())) closeProfileEditor(false); if', 'rl.onclick=function(e){ if'));
-await control('ENTER THE FLUX starts anyway with a bad name', 'N14', rep('    else return;   // PILOT NAMES', '    else {}   // PILOT NAMES'));
 console.log('==================================================');
 if (main.F || NC) { console.log('  ' + main.F + ' FAILED, ' + NC + ' CONTROL(S) NOT CAUGHT'); process.exit(1); }
 console.log('  ALL PILOT-NAME TESTS PASSED, ALL CONTROLS CAUGHT');

@@ -124,6 +124,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 .shopRow button{padding:8px 12px;font-size:11px;white-space:nowrap}
 .shopRow button:disabled{opacity:.55;box-shadow:none}
 .profileTag{opacity:.55;font-weight:600;letter-spacing:.06em;margin-left:2px;font-size:11px}.lbTag{opacity:.5;font-weight:600;font-size:11px;letter-spacing:.04em}.shopNote{display:inline-block;margin-top:6px;font-size:12px;opacity:.7;line-height:1.4}.uploadStatus{min-height:14px;margin:6px 0 0;font-size:11px;letter-spacing:.12em;color:#8fa3d8;text-align:center}
+#profileEditor{flex-wrap:wrap}.nameHint{flex:1 1 100%;margin:0 2px;font-size:12px;font-weight:700;letter-spacing:.02em;color:#ff8fb8;text-align:left}#callsign.nameBad,#callsign.nameBad:focus{border-color:#ff4f98!important;outline:2px solid #ff4f98!important;outline-offset:0;box-shadow:none}
 .restoreLink{display:block;width:100%;margin:-4px 0 12px;flex:none}#profileEditor.hidden+.restoreLink{display:none}.restoreOverlay .panel{max-height:88vh;overflow:auto}.restoreWho{font-size:12px;letter-spacing:.12em;color:#eaf7ff;margin:6px 0 10px}.restoreText{font-size:12px;line-height:1.55;color:#b9c6e6;margin:0 0 10px}.restoreWarn{font-size:11px;line-height:1.5;color:#ffd08a;margin:0 0 10px}.restoreMsg{font-size:12px;line-height:1.5;color:#ff9fc6;min-height:1.5em;margin:4px 0 8px}.restoreCode{font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.5;word-break:break-all;user-select:all;-webkit-user-select:all;background:#050a22;border:1px solid #2c4b87;border-radius:12px;padding:10px;margin:0 0 10px;color:#9ff3ff}.restoreInput{width:100%;box-sizing:border-box;font-family:ui-monospace,Menlo,monospace;font-size:16px;background:#050a22;color:#eaf7ff;border:1px solid #2c4b87;border-radius:12px;padding:10px;margin:0 0 6px;resize:none}.restoreRow{display:flex;gap:8px}.restoreRow button{flex:1}.restoreOverlay button{margin-top:8px}.restoreOther{display:block;width:100%}
 .goName{margin:6px 0 10px;padding:12px;border:1px solid #2c6bff;border-radius:16px;background:rgba(18,32,77,.55)}.goNameT{font-size:11px;letter-spacing:.16em;color:#5ff3ff;font-weight:800;margin-bottom:8px}.goNameRow{display:flex;gap:8px;margin-bottom:8px}.goNameRow input,.goNameRow select{min-width:0;background:#050a22;color:#eaf7ff;border:1px solid #2c4b87;border-radius:12px;padding:10px 12px;font:700 16px system-ui,sans-serif;text-transform:uppercase}.goNameRow input{flex:1}.goNameRow select{flex:0 0 42%;font-size:14px}.goNameRow input::placeholder{color:#6d7fa8}.goNameNote{font-size:11px;color:#9fb3d9;margin-top:6px}
 .installBtn{display:block;width:100%;margin-top:8px}
@@ -346,7 +347,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 <option value="VN">🇻🇳 VIETNAM</option>
 <option value="YE">🇾🇪 YEMEN</option>
 <option value="ZM">🇿🇲 ZAMBIA</option>
-<option value="ZW">🇿🇼 ZIMBABWE</option><option value="OTHER">🌎 OTHER</option></select></div><button type="button" class="linkBtn restoreLink" id="restoreLink">HAVE A RESTORE CODE?</button><div id="profileSaved" class="profileSaved hidden"><span>PILOT <b id="profileName">PLAYER</b><small id="profileTag" class="profileTag"></small> • <b id="profileCountry">🇺🇸</b></span><button class="editProfile" id="editProfile">EDIT</button></div><button id="startBtn">ENTER THE FLUX</button><button type="button" id="playingFor" class="playingFor hidden">Playing for <span id="playingForWho">🇺🇸 United States</span> · <u>change</u></button><div class="menuTiles"><div><span>PERSONAL BEST</span><b id="menuBest">0</b></div><div><span>BEST LEVEL</span><b id="menuLevel">1</b></div></div><div id="uploadStatus" class="uploadStatus" aria-live="polite"></div><div class="menuLinks"><button class="linkBtn" id="leaderBtn">🌎 GLOBAL LEADERBOARD</button><button class="linkBtn" id="skinsBtn">✦ THEMES & SKINS</button></div><button type="button" class="linkBtn installBtn hidden" id="bringPilotBtn">📋 BRING MY PILOT FROM SAFARI</button><p class="offline" id="offlineClaim">● PERSONAL BEST SAVES ON THIS DEVICE</p></div></div>
+<option value="ZW">🇿🇼 ZIMBABWE</option><option value="OTHER">🌎 OTHER</option></select><div id="nameHint" class="nameHint hidden" role="alert">One word only, e.g. TITAN</div></div><button type="button" class="linkBtn restoreLink" id="restoreLink">HAVE A RESTORE CODE?</button><div id="profileSaved" class="profileSaved hidden"><span>PILOT <b id="profileName">PLAYER</b><small id="profileTag" class="profileTag"></small> • <b id="profileCountry">🇺🇸</b></span><button class="editProfile" id="editProfile">EDIT</button></div><button id="startBtn">ENTER THE FLUX</button><button type="button" id="playingFor" class="playingFor hidden">Playing for <span id="playingForWho">🇺🇸 United States</span> · <u>change</u></button><div class="menuTiles"><div><span>PERSONAL BEST</span><b id="menuBest">0</b></div><div><span>BEST LEVEL</span><b id="menuLevel">1</b></div></div><div id="uploadStatus" class="uploadStatus" aria-live="polite"></div><div class="menuLinks"><button class="linkBtn" id="leaderBtn">🌎 GLOBAL LEADERBOARD</button><button class="linkBtn" id="skinsBtn">✦ THEMES & SKINS</button></div><button type="button" class="linkBtn installBtn hidden" id="bringPilotBtn">📋 BRING MY PILOT FROM SAFARI</button><p class="offline" id="offlineClaim">● PERSONAL BEST SAVES ON THIS DEVICE</p></div></div>
 <div id="gameover" class="hidden">
  <div class="panel">
   <div class="goScore" id="finalScore">0</div>
@@ -2504,7 +2505,7 @@ saveProfile = function () {
     return false;
   }
   callsign = typed.toUpperCase();
-  if (!isAllowedName(callsign)) { fluxNameRule(callsign); callsign = localStorage.fluxCallsign || callsign; return false; }
+  if (!isAllowedName(callsign)) { callsign = isAllowedName(localStorage.fluxCallsign) ? localStorage.fluxCallsign : presetNameForId(playerId); fluxNameRule(); }
   country = document.getElementById('country').value || 'US';
   localStorage.fluxCallsign = callsign;
   localStorage.fluxCountry = country;
@@ -2653,6 +2654,7 @@ document.getElementById('goSave').onclick=function(){
   document.getElementById('callsign').value=typed;
   document.getElementById('country').value=document.getElementById('goCountry').value;
   if(!saveProfile()) return;
+  inp.value=callsign;   // a refused name was replaced by the last good one
   try{ localStorage.removeItem('fluxAutoName'); }catch(e){}
   document.getElementById('goName').classList.add('hidden');
   submitScore();   // the server refreshes the name on every upload
@@ -2744,9 +2746,8 @@ refreshPlayingFor();
 document.getElementById('startBtn').onclick = () => {
   initAudio();
   if (!profileComplete && document.getElementById('callsign').value.trim()) {
-    const was = callsign, typed = document.getElementById('callsign').value.trim().toUpperCase();
+    const was = callsign, raw = document.getElementById('callsign').value.trim().toUpperCase(), typed = isAllowedName(raw) ? raw : was;   // a refused name never blocks play
     if (saveProfile()) { if (typed !== was) { try { localStorage.removeItem('fluxAutoName'); } catch (e) {} } submitScore(); }
-    else return;   // PILOT NAMES: the name breaks the rules and the reason is showing; stay in the menu
   } else if (!profileComplete && localStorage.fluxCallsign) {
     callsign = localStorage.fluxCallsign; profileComplete = true;   // EDIT opened, then cleared: keep the current name
   }
@@ -3079,11 +3080,10 @@ document.getElementById('restoreLink').onclick=function(){ if(restoreHasPilot())
 })();
 syncRestoreLink();
 
-/* PILOT NAMES (owner, #18): a short message over the page, for the name rules and
-   the one-time "we picked a name for you" notice. Fixed-position, so the menu
+/* PILOT NAMES (owner, #18): a short message over the page, for the one-time
+   "we picked a name for you" notice (name-rule hints go under the name box). Fixed-position, so the menu
    layout does not move. Tap it to close. */
 function fluxNameToast(msg, ms, onHide){
-  fluxNameToast.rule=0;
   try{
     let t=document.getElementById('fluxNameToast');
     if(!t){ t=document.createElement('div'); t.id='fluxNameToast'; t.setAttribute('role','status'); t.setAttribute('aria-live','polite');
@@ -3094,16 +3094,24 @@ function fluxNameToast(msg, ms, onHide){
     clearTimeout(fluxNameToast.timer); fluxNameToast.timer=setTimeout(hide, ms||4500);
   }catch(e){}
 }
-function fluxNameRule(n){ fluxNameToast(typedNameProblem(n)); fluxNameToast.rule=1; }   // why a typed name was refused
+/* A refused name (owner, after launch): the box goes back to the last good name,
+   and a short hint + red outline appear right under it. Never a bottom message,
+   and it never blocks ENTER THE FLUX. Typing again clears the hint. */
+function fluxNameHint(on){
+  fluxNameHint.on=!!on;
+  try{ document.getElementById('nameHint').classList.toggle('hidden',!on); document.getElementById('callsign').classList.toggle('nameBad',!!on); }catch(e){}
+}
+function fluxNameRule(){ fluxNameHint(true); }
+document.getElementById('callsign').oninput=function(){ if(fluxNameHint.on) fluxNameHint(false); };
 /* EDIT closes again (owner, #18). After changing the name, the country or using
    the restore code, the panel returns to the normal view with the EDIT button --
    on save (Enter, a new country, or tapping anywhere else) and on cancel (Esc, or
-   tapping away without a change). A name that breaks the rules keeps EDIT open
-   with the reason showing. */
+   tapping away without a change). A name that breaks the rules is put back to
+   the current name and EDIT stays open with the hint under the box. */
 let fluxEditWas=null;
 (function(){
   const ed=document.getElementById('editProfile'); const prev=ed.onclick;
-  ed.onclick=function(e){ fluxEditWas={ name:callsign, country:country }; if(typeof prev==='function') prev.call(this,e); };
+  ed.onclick=function(e){ fluxEditWas={ name:callsign, country:country }; fluxNameHint(false); if(typeof prev==='function') prev.call(this,e); };
 })();
 function closeProfileEditor(save){
   if(profileComplete) return true;
@@ -3114,6 +3122,7 @@ function closeProfileEditor(save){
   const typed=String(inp.value||'').trim().toUpperCase(), newCountry=sel.value||was.country;
   if(save && (typed||newCountry!==was.country)){
     if(!typed) inp.value=was.name;                           // an empty box keeps the current name
+    else if(!isAllowedName(typed)){ inp.value=was.name; fluxNameRule(); return false; }   // refused: back to the current name, hint shows
     if(!saveProfile()) return false;
     if(typed && typed!==was.name){ try{ localStorage.removeItem('fluxAutoName'); }catch(e){} }
     submitScore();
@@ -3122,7 +3131,7 @@ function closeProfileEditor(save){
     profileComplete=true; refreshMenu();
   }
   fluxEditWas=null; syncRestoreLink();
-  try{ const t=document.getElementById('fluxNameToast'); if(t && t.style.display!=='none' && fluxNameToast.rule) t.style.display='none'; }catch(e){}   // an old rule message goes too
+  fluxNameHint(false);
   return true;
 }
 function profileEditChanged(){
