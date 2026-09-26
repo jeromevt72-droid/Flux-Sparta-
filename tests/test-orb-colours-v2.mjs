@@ -104,7 +104,7 @@ control('no dark outline', 'V4', rep("ctx.lineWidth=Math.max(1.5,r*.08);ctx.stro
 control('glow blur back on orbs', 'V4', rep('function blockOrb(x,y,r,col){\n  ctx.save();ctx.shadowBlur=0;', 'function blockOrb(x,y,r,col){\n  ctx.save();ctx.shadowBlur=22;'));
 control('ball loses its white ring', 'V5', rep("ctx.save();ctx.lineWidth=2;ctx.strokeStyle='#ffffff';ctx.globalAlpha=.95;ctx.beginPath();ctx.arc(ball.x,ball.y,ball.r+3.5,0,Math.PI*2);ctx.stroke();ctx.restore();", ''));
 control('orb hit area enlarged', 'V6', rep('if(dist(ball,t)<ball.r+t.r){', 'if(dist(ball,t)<ball.r+t.r+6){'));
-control('launcher catch area widened', 'V6', rep('ball.x>paddle.x-paddle.w/2-ball.r && ball.x<paddle.x+paddle.w/2+ball.r){', 'ball.x>paddle.x-paddle.w/2-ball.r-8 && ball.x<paddle.x+paddle.w/2+ball.r+8){'));
+control('launcher catch area widened', 'V6', rep('ball.x>paddle.x-paddle.w/2-ball.r', 'ball.x>paddle.x-paddle.w/2-ball.r-8'));   // works with or without the generous-catch helper
 const total = main.F + NC;
 console.log('\n' + (total ? 'ORB COLOURS V2 FAILED: ' + main.F + ' check(s), ' + NC + ' uncaught control(s)' : 'ORB COLOURS V2 PASSED: all checks and all negative controls'));
 process.exit(total ? 1 : 0);
