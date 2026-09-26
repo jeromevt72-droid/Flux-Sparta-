@@ -125,7 +125,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 .shopRow button:disabled{opacity:.55;box-shadow:none}
 .profileTag{opacity:.55;font-weight:600;letter-spacing:.06em;margin-left:2px;font-size:11px}.lbTag{opacity:.5;font-weight:600;font-size:11px;letter-spacing:.04em}.shopNote{display:inline-block;margin-top:6px;font-size:12px;opacity:.7;line-height:1.4}.uploadStatus{min-height:14px;margin:6px 0 0;font-size:11px;letter-spacing:.12em;color:#8fa3d8;text-align:center}
 .restoreLink{display:block;width:100%;margin:-4px 0 12px;flex:none}#profileEditor.hidden+.restoreLink{display:none}.restoreOverlay .panel{max-height:88vh;overflow:auto}.restoreWho{font-size:12px;letter-spacing:.12em;color:#eaf7ff;margin:6px 0 10px}.restoreText{font-size:12px;line-height:1.55;color:#b9c6e6;margin:0 0 10px}.restoreWarn{font-size:11px;line-height:1.5;color:#ffd08a;margin:0 0 10px}.restoreMsg{font-size:12px;line-height:1.5;color:#ff9fc6;min-height:1.5em;margin:4px 0 8px}.restoreCode{font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.5;word-break:break-all;user-select:all;-webkit-user-select:all;background:#050a22;border:1px solid #2c4b87;border-radius:12px;padding:10px;margin:0 0 10px;color:#9ff3ff}.restoreInput{width:100%;box-sizing:border-box;font-family:ui-monospace,Menlo,monospace;font-size:16px;background:#050a22;color:#eaf7ff;border:1px solid #2c4b87;border-radius:12px;padding:10px;margin:0 0 6px;resize:none}.restoreRow{display:flex;gap:8px}.restoreRow button{flex:1}.restoreOverlay button{margin-top:8px}.restoreOther{display:block;width:100%}
-.goName{margin:6px 0 10px;padding:12px;border:1px solid #2c6bff;border-radius:16px;background:rgba(18,32,77,.55)}.goNameT{font-size:11px;letter-spacing:.16em;color:#5ff3ff;font-weight:800;margin-bottom:8px}.goNameRow{display:flex;gap:8px;margin-bottom:8px}.goNameRow input,.goNameRow select{min-width:0;background:#050a22;color:#eaf7ff;border:1px solid #2c4b87;border-radius:12px;padding:10px 12px;font:700 16px system-ui,sans-serif;text-transform:uppercase}.goNameRow input{flex:1}.goNameRow select{flex:0 0 42%;font-size:14px}.goNameRow input::placeholder{color:#6d7fa8}.goNameNote{font-size:11px;color:#9fb3d9;margin-top:6px}.colorHint{position:fixed;left:50%;top:24%;transform:translateX(-50%);z-index:50;pointer-events:none;background:rgba(6,12,34,.86);border:1px solid #2c6bff;border-radius:16px;padding:12px 18px;color:#eaf7ff;font:800 14px/1.35 system-ui,sans-serif;letter-spacing:.08em;text-align:center;max-width:86vw;box-shadow:0 10px 30px rgba(0,0,0,.5);transition:opacity .5s}.colorHint b{color:#5ff3ff}.colorHint.out{opacity:0}
+.goName{margin:6px 0 10px;padding:12px;border:1px solid #2c6bff;border-radius:16px;background:rgba(18,32,77,.55)}.goNameT{font-size:11px;letter-spacing:.16em;color:#5ff3ff;font-weight:800;margin-bottom:8px}.goNameRow{display:flex;gap:8px;margin-bottom:8px}.goNameRow input,.goNameRow select{min-width:0;background:#050a22;color:#eaf7ff;border:1px solid #2c4b87;border-radius:12px;padding:10px 12px;font:700 16px system-ui,sans-serif;text-transform:uppercase}.goNameRow input{flex:1}.goNameRow select{flex:0 0 42%;font-size:14px}.goNameRow input::placeholder{color:#6d7fa8}.goNameNote{font-size:11px;color:#9fb3d9;margin-top:6px}
 .installBtn{display:block;width:100%;margin-top:8px}
 /* RC2.8.7: D-57 game over = the score + one line; D-60 name offer; D-58 "Playing for". */.goScore{font-size:56px;font-weight:900;line-height:1.05;color:#5deaff;letter-spacing:.04em;text-shadow:0 0 24px #27d9ff66;margin:0}.goLine{margin:8px 0 4px!important;color:#eaf7ff!important;font-size:15px!important;font-weight:800;line-height:1.4!important}.goLine .goNew{color:#ffd23f}.goMeta{margin:0 0 4px!important;color:#8fa5d1!important;font-size:12px!important;letter-spacing:.08em}.goClaim{margin:8px 0 10px;padding:12px;border:1px solid #2c6bff;border-radius:16px;background:rgba(18,32,77,.55)}.goClaimT{font-size:14px;font-weight:800;color:#eaf7ff;margin-bottom:8px}.goClaimRow{display:flex;gap:8px}.goClaimRow button{flex:1;padding:10px 8px;font-size:12px;letter-spacing:.08em}.goClaimRow button.goClaimNo{background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none}.playingFor{display:block;width:100%;margin:8px 0 0;padding:8px 10px;background:transparent;color:#b9c6e5;border:0;box-shadow:none;font-size:13px;font-weight:700;letter-spacing:.02em;text-transform:none}.playingFor u{color:#62eaff;text-underline-offset:3px}
 /* D-46 lite graphics: the moving star fields, the live-blurred nebula and the FLUX Mode full-screen filter are redrawn every frame; on old devices they cost more than the game itself. */.fluxLite #starsFar,.fluxLite #starsNear{animation:none!important}.fluxLite #nebulaDrift{display:none!important}.fluxLite #app{filter:none!important}
@@ -813,7 +813,7 @@ var runActive=false;
 function newGame(){
  try{ window.parent.postMessage({type:'flux-playing'}, '*'); }catch(e){}
  pendingLevel=0;levelCountdown=0;levelTickAt=0;speedLevel=1;
- score=0;combo=1;level=1;streak=0;flux=0;fluxMode=0;misses=0;revivesUsedThisRun=0;missFragments=[];particles=[];texts=[];shake=0;targets=[];comboTimer=0;levelBanner=0;missNotice=0;perfectFlash=0;bonusTimer=rand(5,9);growTimer=rand(9,14);
+ score=0;combo=1;level=1;streak=0;flux=0;fluxMode=0;misses=0;revivesUsedThisRun=0;missFragments=[];particles=[];texts=[];shake=0;targets=[];comboTimer=0;levelBanner=0;missNotice=0;colorHintLeft=0;perfectFlash=0;bonusTimer=rand(5,9);growTimer=rand(9,14);
  refreshHudRects(); // pauseBtn just became visible -- make sure the exclusion zone reflects that now, not the pre-game state
  applyCelestialBackground(level);
  setPaddle(W/2);
@@ -1260,6 +1260,7 @@ function endGame(){
 }
 function update(dt){
  if(levelBanner>0) levelBanner=Math.max(0,levelBanner-dt);
+ if(colorHintLeft>0) colorHintLeft=Math.max(0,colorHintLeft-dt);
  if(missNotice>0) missNotice=Math.max(0,missNotice-dt);
  checkScoreLevel(); tickLevelUp(dt);   // D-50
  // Combo is a real pressure mechanic: keep chaining fusions before the timer expires.
@@ -1338,14 +1339,14 @@ function update(dt){
    }
  }
  // At higher levels, the nearest matching target gets a subtle pulse: it is a hint, not an auto-aim.
- if(level>=5 && ball){
+ if((level>=5 || colorHintLeft>0) && ball){   // also during the first-run colour hint: shows which orb matches
    let bestT=null,bestD=Infinity;
    for(const t of targets) if(t.color===ball.color){
      const d=dist(ball,t); if(d<bestD){bestD=d;bestT=t;}
    }
-   targets.forEach(t=>t.hint=(t===bestT && bestD<Math.min(W,H)*.52));
-   if(bestT && bestD<Math.min(W,H)*.28 && Math.random()<dt*.75) playThreat();
- }
+   targets.forEach(t=>t.hint=(t===bestT && (colorHintLeft>0 || bestD<Math.min(W,H)*.52)));
+   if(level>=5 && bestT && bestD<Math.min(W,H)*.28 && Math.random()<dt*.75) playThreat();
+ } else if(targets.some(t=>t.hint)) targets.forEach(t=>t.hint=false);   // the first-run hint ended below level 5
  // paddle collision: angle determined by hit position
  if(ball.vy>0 && ball.y+ball.r>=paddle.y-paddle.h/2 && ball.y<paddle.y+18 &&
     ball.x>paddle.x-paddle.w/2-ball.r && ball.x<paddle.x+paddle.w/2+ball.r){
@@ -1558,6 +1559,14 @@ function draw(){
    ctx.save();ctx.globalAlpha=Math.min(1,missNotice<.5?missNotice/.5:1);ctx.textAlign='center';ctx.textBaseline='top';ctx.shadowBlur=10;
    ctx.font='900 '+Math.max(11,L.f1)+'px -apple-system,sans-serif';ctx.fillStyle='#ffffff';ctx.shadowColor='#ff3b5c';ctx.fillText(L.t1,L.cx,L.y1);
    ctx.font='900 '+Math.max(11,L.f2)+'px -apple-system,sans-serif';ctx.fillStyle='#ff8fa3';ctx.shadowColor='#ff3b5c';ctx.fillText(L.t2,L.cx,L.y2);
+   ctx.restore();
+ }
+ // First-run colour hint: same slot, lowest priority.
+ else if(colorHintLeft>0 && !levelBanner){
+   const L=levelBannerLayout('HIT THE ORB THAT','MATCHES YOUR BALL');
+   ctx.save();ctx.globalAlpha=Math.min(1,colorHintLeft<.6?colorHintLeft/.6:1);ctx.textAlign='center';ctx.textBaseline='top';ctx.shadowBlur=10;
+   ctx.font='900 '+Math.max(11,L.f1)+'px -apple-system,sans-serif';ctx.fillStyle='#ffffff';ctx.shadowColor='#62eaff';ctx.fillText(L.t1,L.cx,L.y1);
+   ctx.font='900 '+Math.max(11,L.f2)+'px -apple-system,sans-serif';ctx.fillStyle=(ball&&colors[ball.color])||'#5ff3ff';ctx.shadowColor='#000000';ctx.fillText(L.t2,L.cx,L.y2);
    ctx.restore();
  }
  // Level-up banner: drawn after the shake transform is undone, so it never moves.
@@ -2571,14 +2580,18 @@ document.getElementById('goSave').onclick=function(){
   submitScore();   // the server refreshes the name on every upload
 };
 /* D-40 (RC2.8.5) The color rule was never explained in the game. A short
-   hint on the very first run only; it never blocks play or touches input. */
+   hint on the very first run only; it never blocks play or touches input.
+   FIRST 60 SECONDS: it used to be a box over the play field, covering orbs
+   (often the very orb that matched the ball) while a new player looked for
+   one. It is now drawn in the HUD strip slot (like the level banner and the
+   miss notice), canvas-drawn so it can never take a touch, and for the same
+   few seconds the nearest orb of the ball's colour gets the pulsing hint ring,
+   so the player sees which orb is meant. */
+const COLOR_HINT_S=5;
+let colorHintLeft=0;
 function showColorHint(){
   try{ if(localStorage.getItem('fluxColorHintSeen')==='1') return; localStorage.setItem('fluxColorHintSeen','1'); }catch(e){}
-  const h=document.createElement('div'); h.className='colorHint'; h.id='colorHint';
-  h.innerHTML='HIT ORBS THAT <b>MATCH YOUR BALL\u2019S COLOR</b>';
-  document.getElementById('app').appendChild(h);
-  setTimeout(function(){ h.classList.add('out'); },3200);
-  setTimeout(function(){ h.remove(); },3800);
+  colorHintLeft=COLOR_HINT_S;
 }
 /* ==================================================================
    RC2.8.7 -- D-57 GAME-OVER LINE, D-60 NAME OFFER, D-58 PLAYING FOR
