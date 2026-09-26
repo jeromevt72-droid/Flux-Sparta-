@@ -557,14 +557,20 @@ let ball,targets=[],particles=[],texts=[],shake=0;
    =========================================================================== */
 const STORE_OPEN = false;
 
+/* ORB COLOURS v2: every skin has exactly 5 colours, 4 core + 1 unlock colour
+   (level 2, symbol ★). Chosen for fast motion and side vision (clear brightness
+   steps), red-green colour blindness and harmony (Ou & Luo 2006); Toxic's are
+   kept clearly apart from the free Aurora skin. The number of colours in play
+   is min(colors.length, 4+floor(level/2)), so the cap means 4 at level 1 and 5
+   from level 2 on. Only drawing colours: hit areas and scoring are unchanged. */
 const SKINS={
   /* D-56 (RC2.8.7) PALETTES. Every colour is bright on the dark field; the
      first four (the ones in play until level 2) differ in hue AND lightness;
      no palette pairs a red with a green (the common colour-blind confusion). */
-  aurora:{name:'AURORA',price:null,colors:['#ffd23f','#1fb8e0','#ff4f98','#b48cff','#ff9a3d','#5c8cff','#f0f4ff','#e05cff','#7dffea']},
-  toxic:{name:'TOXIC',price:'$1.99',colors:['#d6ff3d','#2ee6b8','#5cb8ff','#b06bff','#fff36b','#7dff8a','#f0f4ff','#2ecfff','#e8a6ff']},
-  cosmic:{name:'COSMIC',price:'$1.99',colors:['#ffe066','#5ce1ff','#ff7ae0','#9d7bff','#7a9dff','#ff9ec8','#f0f4ff','#c46bff','#8cfff0']},
-  solar:{name:'SOLAR INFERNO',price:'$2.99',bg:'/solar-inferno.webp',bgW:900,bgH:1599,bgBase:'#1c0c0b',colors:['#ffcf33','#7cc0ff','#c48cff','#ff3a24','#ffe8a3','#ff9e5c','#f0f4ff','#ff7ac0','#ffb830']}
+  aurora:{name:'AURORA',price:null,colors:['#ffe768','#62bdfa','#f16e52','#5be8c8','#7473fb']},
+  toxic:{name:'TOXIC',price:'$1.99',colors:['#d7fe71','#f773ac','#9eedfc','#bd4ff1','#fd2c29']},
+  cosmic:{name:'COSMIC',price:'$1.99',colors:['#ebf2ff','#e971ef','#57dcab','#ecc238','#eb5454']},
+  solar:{name:'SOLAR INFERNO',price:'$2.99',bg:'/solar-inferno.webp',bgW:900,bgH:1599,bgBase:'#1c0c0b',colors:['#fcf6e9','#46daf0','#6d7ae5','#54df6d','#ef7ba6']}
 };
 // CELESTIAL LEVEL-UP BACKGROUND — self-contained and safe to remove.
 // To turn this off entirely: set CELESTIAL_BG_ENABLED=false (one line),
@@ -620,10 +626,11 @@ function backdropCoverArea(){
   }catch(e){}
   return { w:w, h:h+Math.min(240,Math.max(0,sh-h)) };
 }
-// The level gradient at 50%, laid over the image: the same look as the image
-// at 50% opacity over #app's gradient before.
+// The level gradient laid over the image (BACKDROP_DARK), so the image shows
+// at 25% and every orb colour stands out from it.
+const BACKDROP_DARK=.75;   // share of the dark field laid over a skin backdrop: the image shows at 25%, so orbs stand out
 function halfTheme(css){
-  return css.replace(/#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/gi,(m,r,g,b)=>'rgba('+parseInt(r,16)+','+parseInt(g,16)+','+parseInt(b,16)+',.5)');
+  return css.replace(/#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/gi,(m,r,g,b)=>'rgba('+parseInt(r,16)+','+parseInt(g,16)+','+parseInt(b,16)+','+BACKDROP_DARK+')');
 }
 function applySkinBackground(){
   const layer=document.getElementById('skinBgLayer');
@@ -1385,7 +1392,25 @@ function glowCircle(x,y,r,col,alpha=1){
  ctx.save();ctx.globalAlpha=alpha;ctx.shadowBlur=r*1.8;ctx.shadowColor=col;ctx.fillStyle=col;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();ctx.restore();
 }
 const glyphs=['●','▲','■','◆','★','✚','▼','◉','⬢'];
-const ORB_GLYPH_ALPHA=.3;   // D-56: subtle
+/* BLOCK STYLE (orb colours v2): solid saturated fill, a light highlight on top,
+   a darker lower edge and a thin dark outline, so every orb pops off any
+   background (the outline keeps the edge visible even on Solar's flares). The
+   ball uses the same style plus its thin white ring and its colour's symbol.
+   Symbols are bold: dark on light fills, white on dark fills. No glow blur on
+   orbs (cheaper on old iPads). Drawing only: radii and hit tests unchanged. */
+function shadeHex(h,k){const n=parseInt(h.slice(1),16),r=n>>16,g=n>>8&255,b=n&255,f=function(c){return Math.round(k>0?c+(255-c)*k:c*(1+k));};return 'rgb('+f(r)+','+f(g)+','+f(b)+')';}
+function hexLum(h){const n=parseInt(h.slice(1),16),l=function(c){c/=255;return c<=.04045?c/12.92:Math.pow((c+.055)/1.055,2.4);};return .2126*l(n>>16)+.7152*l(n>>8&255)+.0722*l(n&255);}
+const ORB_OUTLINE='rgba(8,10,24,.9)';
+function blockOrb(x,y,r,col){
+  ctx.save();ctx.shadowBlur=0;
+  ctx.globalAlpha=.35;ctx.fillStyle='#000';ctx.beginPath();ctx.arc(x,y+2,r+1,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;   // soft drop under the orb
+  const g=ctx.createLinearGradient(0,y-r,0,y+r);g.addColorStop(0,shadeHex(col,.18));g.addColorStop(.5,col);g.addColorStop(1,shadeHex(col,-.30));   // darker lower edge
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.42)';ctx.beginPath();ctx.ellipse(x,y-r*.48,r*.62,r*.26,0,0,Math.PI*2);ctx.fill();   // light highlight on top
+  ctx.lineWidth=Math.max(1.5,r*.08);ctx.strokeStyle=ORB_OUTLINE;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();   // thin dark outline
+  ctx.restore();
+}
+function orbSymbol(x,y,r,col,sym){ctx.save();ctx.globalAlpha=1;ctx.fillStyle=hexLum(col)>.28?'#10132a':'#ffffff';ctx.font='900 '+Math.max(11,r*.8)+'px -apple-system,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(sym,x,y+1);ctx.restore();}
 function draw(){
  ctx.clearRect(0,0,W,H);
  // celestial background — drifting nebula glow + slow-scrolling, twinkling starfield
@@ -1444,31 +1469,26 @@ function draw(){
      ctx.save();
      const growPct=t.matured?1:t.r/t.maxR;
      const glow=t.matured?(.6+.4*Math.sin(performance.now()*.01+t.phase)):.3+.25*growPct;
-     ctx.shadowBlur=t.matured?32:18;ctx.shadowColor=colors[t.color];ctx.fillStyle=colors[t.color]+'30';ctx.strokeStyle=colors[t.color];ctx.lineWidth=t.matured?3:2;
-     ctx.globalAlpha=1;
-     ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.fill();ctx.stroke();
+     blockOrb(t.x,t.y,t.r,colors[t.color]);
+     ctx.strokeStyle=colors[t.color];
      if(t.matured){
        ctx.globalAlpha=glow;ctx.lineWidth=2;ctx.setLineDash([3,5]);
        ctx.beginPath();ctx.arc(t.x,t.y,t.r+8,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
      }
-     ctx.globalAlpha=t.matured?.85:ORB_GLYPH_ALPHA;ctx.fillStyle=t.matured?'#ffffff':'#04101a';ctx.font='900 '+Math.max(11,t.r*(t.matured?.7:.55))+'px -apple-system,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-     ctx.fillText(t.matured?'⚡':glyphs[t.color%glyphs.length],t.x,t.y+1);
+     orbSymbol(t.x,t.y,t.r,colors[t.color],t.matured?'⚡':glyphs[t.color%glyphs.length]);
      ctx.restore();
      continue;
    }
-   ctx.save();ctx.shadowBlur=22;ctx.shadowColor=colors[t.color];ctx.fillStyle=colors[t.color]+'28';ctx.strokeStyle=colors[t.color];ctx.lineWidth=2;
+   ctx.save();
    const pulseScale=t.hitPulse>0?1+(t.hitPulse/0.28)*.35:1;
    if(t.hitPulse>0){
-     ctx.shadowBlur=40;ctx.globalAlpha=t.hitPulse/0.28;
+     ctx.shadowBlur=40;ctx.shadowColor=colors[t.color];ctx.globalAlpha=t.hitPulse/0.28;
      ctx.beginPath();ctx.arc(t.x,t.y,t.r*pulseScale,0,Math.PI*2);ctx.fillStyle='#ffffff55';ctx.fill();
-     ctx.globalAlpha=1;
+     ctx.globalAlpha=1;ctx.shadowBlur=0;
    }
-   ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.fill();ctx.stroke();
-   ctx.globalAlpha=.7;ctx.beginPath();ctx.arc(t.x- t.r*.25,t.y-t.r*.28,t.r*.2,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();
-   // Colorblind-friendly cue: each color also gets a fixed glyph, drawn regardless of hue.
-   // D-56: the symbol stays (colour-blind cue) but is subtle.
-   ctx.globalAlpha=ORB_GLYPH_ALPHA;ctx.fillStyle='#04101a';ctx.font=Math.max(11,t.r*.55)+'px -apple-system,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-   ctx.fillText(glyphs[t.color%glyphs.length],t.x,t.y+1);
+   blockOrb(t.x,t.y,t.r,colors[t.color]);
+   // Colour-blind cue: each colour has a fixed, bold symbol (the 5th colour is ★).
+   orbSymbol(t.x,t.y,t.r,colors[t.color],glyphs[t.color%glyphs.length]);
    if(t.hint){
      ctx.globalAlpha=.48+.18*Math.sin(t.phase*3);
      ctx.strokeStyle=colors[t.color];ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(t.x,t.y,t.r+7,0,Math.PI*2);ctx.stroke();
@@ -1483,9 +1503,9 @@ function draw(){
    ctx.restore();
  }
  // trail
- ball?.trail.forEach((p,i)=>{if(i%2===0)glowCircle(p.x,p.y,Math.max(2,ball.r*(1-i/12)*.45),colors[ball.color],(1-i/12)*.25)});
- // D-56: the ball is the brightest thing on the field -- a solid disc with a white-hot core; orbs are translucent.
- if(ball){glowCircle(ball.x,ball.y,ball.r,colors[ball.color]);glowCircle(ball.x,ball.y,ball.r*.55,'#ffffff',.5);glowCircle(ball.x-ball.r*.28,ball.y-ball.r*.3,ball.r*.22,'#fff',.9)}
+ ball?.trail.forEach((p,i)=>{if(i%2===0)glowCircle(p.x,p.y,Math.max(2,ball.r*(1-i/12)*.5),colors[ball.color],(1-i/12)*.4)});
+ // The ball: block style like the orbs, plus a thin white ring and its colour's symbol, so it is never mistaken for an orb.
+ if(ball){blockOrb(ball.x,ball.y,ball.r,colors[ball.color]);ctx.save();ctx.lineWidth=2;ctx.strokeStyle='#ffffff';ctx.globalAlpha=.95;ctx.beginPath();ctx.arc(ball.x,ball.y,ball.r+3.5,0,Math.PI*2);ctx.stroke();ctx.restore();orbSymbol(ball.x,ball.y,ball.r*1.2,colors[ball.color],glyphs[ball.color%glyphs.length]);}
  // trajectory guide: a faint projected path from the FLUX orb toward the lower field.
  if(ball && level>=4){
    ctx.save();
