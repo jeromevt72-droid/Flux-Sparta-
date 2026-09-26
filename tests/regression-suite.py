@@ -152,9 +152,14 @@ ck('D-03 no owner placeholder left in privacy', 'OWNER INPUT' not in _pv)
 ck('D-03 no owner placeholder left in terms', 'OWNER INPUT' not in _tm)
 ck('D-03 operator named', 'Jerome Tadaya' in _pv and 'Jerome Tadaya' in _tm)
 ck('D-03 contact email present', 'playfluxofficial@gmail.com' in _pv and 'playfluxofficial@gmail.com' in _tm)
-ck('D-03 effective date set', 'Effective date: <strong>September 21, 2026</strong>' in _pv and 'Effective date: <strong>September 21, 2026</strong>' in _tm)
+# Launch (Sep 26, 2026): the privacy policy was finished for publication (children section rewritten), so its date moved.
+# Sep 26, 2026: the Terms were updated too (children may play, preset names), so both dates may move.
+ck('D-03 effective date set', all(re.search(r'Effective date: <strong>[A-Z][a-z]+ \d{1,2}, 20\d\d</strong>', d) is not None for d in (_pv, _tm)))
 ck('D-03 refund policy stated', 'within 14 days of your purchase' in _tm)
-ck('D-03 age 13+, not directed to under-13', 'aged 13 and older' in _pv and 'at least 13 years old' in _tm)
+# Owner decision (Sep 26, 2026): children may play. The privacy policy covers a general audience with a parents' contact;
+# the Terms still say 13+ (open question to the owner), so that half of the old check stays.
+# COPPA 2025 (owner, Sep 26, 2026): kids may play with no personal information collected; both pages say so, marked for lawyer review.
+ck('D-03 children: policy and terms both let kids play, marked for lawyer review', 'children may play' in _pv and 'Parents and guardians' in _pv and 'Anyone may play FLUX, including children' in _tm and 'at least 13' not in _tm and _pv.count('For lawyer review before launch') == 2 and _tm.count('For lawyer review before launch') == 2)   # children + in-house statistics
 ck('D-03 governing law set', 'State of California' in _tm and 'Alameda County' in _tm)
 
 print('\n--- D-19 / D-20 ---')
