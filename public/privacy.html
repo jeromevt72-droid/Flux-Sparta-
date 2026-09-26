@@ -27,6 +27,8 @@
   code{background:#ffffff12;padding:2px 6px;border-radius:5px;font-size:13px;color:#eaf7ff}
   .todo{background:#ff4f9818;border:1px solid #ff4f9855;border-radius:10px;
         padding:12px 14px;margin:14px 0;color:#ffc2da;font-size:14px}
+  .review{background:#ffd24a18;border:1px solid #ffd24a55;border-radius:10px;
+          padding:12px 14px;margin:14px 0;color:#ffe9a8;font-size:14px}
   table{width:100%;border-collapse:collapse;margin:14px 0;font-size:14px}
   th,td{text-align:left;padding:9px 10px;border-bottom:1px solid #ffffff1a;vertical-align:top}
   th{color:#fff;font-size:12px;letter-spacing:.1em;text-transform:uppercase}
@@ -38,40 +40,55 @@
 <a class="back" href="./index.html">← BACK TO FLUX</a>
 
 <h1>Privacy Policy</h1>
-<p class="eff">Effective date: <strong>September 21, 2026</strong></p>
-
-<div class="todo">
-<strong>Not yet ready for publication.</strong> This page describes what FLUX
-actually does with information, verified against the source code. The bracketed
-items below still need real values from the operator before public release.
-</div>
+<p class="eff">Effective date: <strong>September 26, 2026</strong></p>
 
 <p>This policy explains what information FLUX collects, what stays on your
 device, what is sent to our server, and what is visible to other players. It
 describes the game as it is actually built.</p>
+<p><strong>In short:</strong> anyone can play FLUX, including children, without
+giving any personal information. Every pilot starts with a name picked from a
+word list; a typed name can only be one word, never a full name, email, phone
+number or link. We keep only what the game needs to run: a random player identifier,
+your scores, your pilot name and the country you pick. We never know your
+precise location, and FLUX has no ads, no analytics and no trackers.</p>
 
 <h2>1. Who operates FLUX</h2>
 <p>FLUX is operated by <strong>Jerome Tadaya</strong>, a sole proprietorship based in
 Union City, California. Contact: <a href="mailto:playfluxofficial@gmail.com">playfluxofficial@gmail.com</a>.</p>
 
 <h2>2. Information you provide</h2>
-<h3>FLUX ID</h3>
-<p>When you first play, you choose a <strong>FLUX ID</strong> — a display name of
-up to 14 characters. You choose it yourself. We do not ask for your real name,
-and nothing in FLUX requires it to be your real name.</p>
+<h3>Pilot name (FLUX ID)</h3>
+<p>Your pilot name, also called your <strong>FLUX ID</strong>, starts as a name
+made from a fixed list of safe words and a number, for example
+<code>SWIFT COMET 42</code>. FLUX gives you one when you first play, so you never
+have to type anything.</p>
+<p>You can change it with <strong>EDIT</strong>. A typed name must be <strong>one
+word</strong>, letters and numbers only, up to 12 characters, so <strong>a full
+name cannot be entered</strong>. Names that look like an email address, a phone
+number or a web link are refused, and names on our blocked list are shown as
+<code>PILOT</code>. Please use a nickname, not your real name, because your FLUX ID
+is shown publicly (see section 6).</p>
+<p>Our server only accepts names that follow these rules. If any other text
+arrives (for example from an older version of the game), the server shows that
+pilot's own name from the word list instead. Names typed in earlier versions of
+FLUX that do not follow these rules have been replaced this way, and their old
+text has been deleted from our server.</p>
 <h3>Country</h3>
-<p>You select a country from a list. This is your choice. If you do not select
-one, FLUX suggests a country based on the region Cloudflare reports for your
-connection, which you can change.</p>
-<p>FLUX does not ask for an email address, phone number, date of birth, photo,
-contacts, or precise location.</p>
+<p>You pick a country from a list. If you do not pick one, FLUX suggests one
+based on the country that Cloudflare, our hosting provider, reports for your
+connection, and you can change it. <strong>FLUX only ever uses a country,
+never a precise location.</strong> It does not use GPS or location services,
+and it does not look up your city, region, postal code or coordinates.</p>
+<p>FLUX does not ask for a name, email address, phone number, date of birth,
+photo, contacts, or precise location.</p>
 
 <h2>3. Information generated as you play</h2>
 <ul>
   <li>Your score, level reached, and chosen difficulty</li>
   <li>A randomly generated player identifier (<code>playerId</code>) created on
       your device the first time you play. It is not derived from your device,
-      your account, or anything identifying you.</li>
+      your account, or anything identifying you. It is used only to run the
+      game (see section 10).</li>
   <li>Which skins you own</li>
 </ul>
 
@@ -80,7 +97,7 @@ contacts, or precise location.</p>
 transmitted anywhere unless listed in section 5:</p>
 <table>
   <tr><th>Stored</th><th>What it is</th></tr>
-  <tr><td>FLUX ID, country, difficulty</td><td>Your settings</td></tr>
+  <tr><td>Pilot name, country, difficulty</td><td>Your settings</td></tr>
   <tr><td>Personal best score and level</td><td>Per difficulty</td></tr>
   <tr><td>Player identifier</td><td>Random value described above</td></tr>
   <tr><td>Restore in progress</td><td>Present for a moment while a restore code is being applied, then deleted</td></tr>
@@ -97,7 +114,7 @@ restore code, entering it in FLUX brings your pilot back.</p>
 <p>When you finish a run and a score is submitted, FLUX sends:</p>
 <ul>
   <li>your player identifier</li>
-  <li>your FLUX ID</li>
+  <li>your FLUX ID (your pilot name)</li>
   <li>your score, level, and difficulty</li>
   <li>your chosen country</li>
 </ul>
@@ -112,9 +129,9 @@ when you reconnect.</p>
 <p>The global leaderboard and the World Grid are public. Anyone can see your
 <strong>FLUX ID</strong>, <strong>score</strong>, <strong>level</strong>,
 <strong>difficulty</strong>, and <strong>country</strong>, along with a short
-<strong>public tag</strong> (for example <em>TITAN #K7Q2MX8</em>) that tells apart
-players who chose the same FLUX ID. Choose a FLUX ID you are comfortable showing
-publicly. Your player identifier is not displayed. The tag is derived from it by
+<strong>public tag</strong> (for example <em>SWIFT COMET 42 #K7Q2MX8</em>) that tells
+apart players who have the same pilot name. Choose a pilot name you are
+comfortable showing publicly. Your player identifier is not displayed. The tag is derived from it by
 a one-way calculation, so the identifier cannot be worked out from the tag, and
 the tag is never used to prove who you are. If you clear your browser data you
 get a new player identifier, and with it a new tag.</p>
@@ -149,6 +166,11 @@ that lookup only.</p>
 cookies</strong>. This was verified against the source: there is no Google
 Analytics, no tag manager, no social pixel, and no <code>document.cookie</code>
 usage anywhere in the game or the Gateway.</p>
+<p><strong>Future gameplay statistics.</strong> If we later count things like
+how many runs are played or how far players get, those counts will be
+anonymous and kept on our own servers. They will not be linked to your pilot
+name, and no third-party analytics or tracking service will be used. We will
+update this policy before any such counting starts.</p>
 
 <h2>10. Why we process this information</h2>
 <ul>
@@ -156,6 +178,13 @@ usage anywhere in the game or the Gateway.</p>
   <li>To keep your purchases working for the player identifier on the device where you made them</li>
   <li>To reject implausible scores and keep standings meaningful</li>
 </ul>
+<p><strong>The player identifier is used only to run the game:</strong> keeping
+one leaderboard entry per pilot, remembering your best scores, applying the
+short cooldown between submissions, handling restore codes and purchases,
+keeping the leaderboard fair, and answering deletion requests. It is
+<strong>never</strong> used for advertising, to build a profile of you, or to
+track you across other websites or apps, and it is never sold or shared for
+those purposes.</p>
 
 <h2>11. Retention</h2>
 <p>Leaderboard entries and purchase records are kept for as long as FLUX
@@ -170,7 +199,7 @@ leaderboard, we keep their public tag's underlying one-way code, the date, and a
 short reason, for as long as the restriction is in force. It is removed when the
 restriction is lifted. A restricted player can still play; their scores are not
 shown publicly.</li>
-<li><strong>Banned names</strong> — a list of exact FLUX IDs that are not shown
+<li><strong>Banned names</strong> — a list of exact pilot names that are not shown
 publicly, kept until the ban is lifted. A banned name is shown as PILOT; the
 player's scores are kept.</li>
 <li><strong>Unusual-score notes</strong> — when a score is far outside the normal
@@ -204,18 +233,39 @@ currently trusts the score reported by your device, subject to those plausibilit
 checks; it is a game leaderboard, not a system of record.</p>
 
 <h2>14. Children</h2>
-<p>FLUX is intended for players aged 13 and older. It is not directed to
-children under 13.</p>
-<p>FLUX does not knowingly collect personal information from children. Because
-we do not collect an email address or date of birth, we cannot determine a
-player's age. If you believe a child has submitted a FLUX ID you would like
-removed, contact us at the address above.</p>
+<div class="review"><strong>For lawyer review before launch.</strong> This
+section describes how FLUX is built. It has not yet been reviewed by a lawyer.</div>
+<p>FLUX is a game for a general audience, and children may play it. FLUX is
+built so that <strong>nobody, of any age, has to give personal information to
+play</strong>. We collect no personal information beyond what is needed to run
+the game:</p>
+<ul>
+  <li>FLUX does not ask for a name, email address, phone number, date of
+  birth, photo, contacts, precise location, or an account.</li>
+  <li>Every pilot starts with a name from a fixed word list (for example
+  <code>SWIFT COMET 42</code>). A child can keep it and never type anything. A
+  typed name can only be one word of letters and numbers, up to 12 characters,
+  so a full name cannot be entered, and names that look like an email address,
+  phone number or web link are refused.</li>
+  <li>The random player identifier is used only to run the game (section 10),
+  never for advertising or tracking.</li>
+  <li>FLUX uses only a country, never a precise location (section 2).</li>
+  <li>FLUX contains no advertising, no analytics, no tracking and no cookies
+  (section 9), and we do not sell or share information with anyone for
+  marketing.</li>
+  <li>The store is closed. This policy will be updated before it opens.</li>
+</ul>
+<p>Parents and guardians can ask us to remove a child's leaderboard entry by
+emailing <a href="mailto:playfluxofficial@gmail.com">playfluxofficial@gmail.com</a>
+with the pilot name and, if you can, its public tag (for example
+<code>#K7Q2MX8</code>). We will remove it within 30 days, and sooner where we
+can.</p>
 
 <h2>15. International players</h2>
 <p>FLUX is available worldwide and is hosted on Cloudflare's global network, so
 information may be processed in countries other than your own.</p>
 <p>Wherever you live, you may ask to see the information FLUX holds about you,
-or ask us to delete it, by emailing <a href="mailto:playfluxofficial@gmail.com">playfluxofficial@gmail.com</a> with your FLUX ID. We will respond within
+or ask us to delete it, by emailing <a href="mailto:playfluxofficial@gmail.com">playfluxofficial@gmail.com</a> with your pilot name. We will respond within
 30 days. We do not sell your information. We keep only what the game needs to
 run its leaderboard and to honour your purchases.</p>
 
