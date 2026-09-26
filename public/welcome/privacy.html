@@ -38,28 +38,26 @@
 <a class="back" href="./index.html">← BACK TO FLUX</a>
 
 <h1>Privacy Policy</h1>
-<p class="eff">Effective date: <strong>[OWNER INPUT REQUIRED: effective date]</strong></p>
-
-<div class="todo">
-<strong>Not yet ready for publication.</strong> This page describes what FLUX
-actually does with information, verified against the source code. The bracketed
-items below still need real values from the operator before public release.
-</div>
+<p class="eff">Effective date: <strong>September 26, 2026</strong></p>
 
 <p>This policy explains what information FLUX collects, what stays on your
 device, what is sent to our server, and what is visible to other players. It
 describes the game as it is actually built.</p>
 
 <h2>1. Who operates FLUX</h2>
-<p>FLUX is operated by <strong>[OWNER INPUT REQUIRED: legal or business name]</strong>
-<strong>[OWNER INPUT REQUIRED: business entity type and registration, if any]</strong>.
-Contact: <strong>[OWNER INPUT REQUIRED: privacy contact email]</strong>.</p>
+<p>FLUX is operated by <strong>Jerome Tadaya</strong>, a sole proprietorship based in
+Union City, California. Contact: <a href="mailto:playfluxofficial@gmail.com">playfluxofficial@gmail.com</a>.</p>
 
 <h2>2. Information you provide</h2>
 <h3>FLUX ID</h3>
-<p>When you first play, you choose a <strong>FLUX ID</strong> — a display name of
-up to 14 characters. You choose it yourself. We do not ask for your real name,
-and nothing in FLUX requires it to be your real name.</p>
+<p>When you first play, FLUX gives you an automatic <strong>FLUX ID</strong> — a
+display name such as <code>PILOT-7K2Q</code> — so you can play without typing
+anything. You can change it to a name of your own, up to 14 characters, at any
+time. We do not ask for your real name, and nothing in FLUX requires it to be
+your real name. Please choose a nickname rather than your real name, because your
+FLUX ID is shown publicly (see section 6). Names may contain letters, numbers,
+spaces, dots, dashes and underscores; names on our blocked list are shown as
+<code>PILOT</code>.</p>
 <h3>Country</h3>
 <p>You select a country from a list. This is your choice. If you do not select
 one, FLUX suggests a country based on the region Cloudflare reports for your
@@ -84,13 +82,15 @@ transmitted anywhere unless listed in section 5:</p>
   <tr><td>FLUX ID, country, difficulty</td><td>Your settings</td></tr>
   <tr><td>Personal best score and level</td><td>Per difficulty</td></tr>
   <tr><td>Player identifier</td><td>Random value described above</td></tr>
+  <tr><td>Restore in progress</td><td>Present for a moment while a restore code is being applied, then deleted</td></tr>
   <tr><td>Owned skins</td><td>Local cache of purchases</td></tr>
   <tr><td>Pending score submissions</td><td>Runs finished while offline, queued for later</td></tr>
   <tr><td>Chosen background and selected skin</td><td>Appearance settings</td></tr>
   <tr><td>Last submission error</td><td>A short diagnostic code, no personal content</td></tr>
 </table>
 <p>Clearing your browser data or deleting the app from your Home Screen removes
-all of it. We cannot recover it, and we cannot see it.</p>
+all of it. We cannot recover it, and we cannot see it. If you saved your
+restore code, entering it in FLUX brings your pilot back.</p>
 
 <h2>5. Information sent to our server</h2>
 <p>When you finish a run and a score is submitted, FLUX sends:</p>
@@ -110,8 +110,13 @@ when you reconnect.</p>
 <h2>6. Information visible to other players</h2>
 <p>The global leaderboard and the World Grid are public. Anyone can see your
 <strong>FLUX ID</strong>, <strong>score</strong>, <strong>level</strong>,
-<strong>difficulty</strong>, and <strong>country</strong>. Choose a FLUX ID you
-are comfortable showing publicly. Your player identifier is not displayed.</p>
+<strong>difficulty</strong>, and <strong>country</strong>, along with a short
+<strong>public tag</strong> (for example <em>TITAN #K7Q2MX8</em>) that tells apart
+players who chose the same FLUX ID. Choose a FLUX ID you are comfortable showing
+publicly. Your player identifier is not displayed. The tag is derived from it by
+a one-way calculation, so the identifier cannot be worked out from the tag, and
+the tag is never used to prove who you are. If you clear your browser data you
+get a new player identifier, and with it a new tag.</p>
 
 <h2>7. Offline storage and caching</h2>
 <p>FLUX installs a service worker that caches the game files on your device so
@@ -127,6 +132,11 @@ code.</strong> We receive from Stripe only a confirmation that a specific
 checkout session was paid, which we use to unlock the skin for your player
 identifier. Stripe's handling of your payment information is governed by
 Stripe's own privacy policy at <a href="https://stripe.com/privacy">stripe.com/privacy</a>.</p>
+<p><strong>Purchase recovery.</strong> Purchases are linked to the player identifier stored on the device. FLUX does not provide accounts. The game menu shows a restore code for your pilot; entering that code in FLUX restores the pilot and the purchases linked to it, including on a new device. Anyone who has the code can use the pilot, so keep it private. If you lose both the restore code and your device data, we may not be able to restore your pilot or your purchases. The store will remain closed until this recovery process has been tested on real devices.</p>
+<p>Stripe asks for your email address at checkout and sends you a receipt. FLUX
+does not store that email address. If you contact us about a purchase, we can use
+the email address you give us to look the purchase up in Stripe; it is used for
+that lookup only.</p>
 
 <h2>9. Third parties</h2>
 <p>FLUX uses:</p>
@@ -142,23 +152,47 @@ usage anywhere in the game or the Gateway.</p>
 <h2>10. Why we process this information</h2>
 <ul>
   <li>To run the global leaderboard and World Grid, which is the point of the game</li>
-  <li>To keep your purchases working across devices and after clearing data</li>
+  <li>To keep your purchases working for the player identifier on the device where you made them</li>
   <li>To reject implausible scores and keep standings meaningful</li>
 </ul>
 
 <h2>11. Retention</h2>
 <p>Leaderboard entries and purchase records are kept for as long as FLUX
 operates the leaderboard, so that standings remain accurate and purchases
-continue to work. <strong>[OWNER INPUT REQUIRED: whether a fixed retention
-period or deletion schedule applies]</strong></p>
+continue to work. If you ask us to remove an entry, we will remove it within
+30 days of your request.</p>
+<p><strong>Moderation records.</strong> To keep the leaderboard fair and free of
+abuse, we may keep:</p>
+<ul>
+<li><strong>Restrictions</strong> — if a player is restricted from the public
+leaderboard, we keep their public tag's underlying one-way code, the date, and a
+short reason, for as long as the restriction is in force. It is removed when the
+restriction is lifted. A restricted player can still play; their scores are not
+shown publicly.</li>
+<li><strong>Banned names</strong> — a list of exact FLUX IDs that are not shown
+publicly, kept until the ban is lifted. A banned name is shown as PILOT; the
+player's scores are kept.</li>
+<li><strong>Unusual-score notes</strong> — when a score is far outside the normal
+range, an informational note (FLUX ID, score, difficulty, date) is kept for up to
+90 days so it can be checked. These notes never hide or penalise anyone on their
+own.</li>
+<li><strong>Payment delivery records</strong> — if a paid skin could not be
+delivered automatically, a record of that purchase (reference, skin, amount,
+date) is kept until the problem is resolved.</li>
+</ul>
 
 <h2>12. Deletion and requests</h2>
 <p>You can remove everything stored on your device at any time by clearing your
 browser data or deleting FLUX from your Home Screen.</p>
 <p>To request removal of a leaderboard entry or a purchase record, contact
-<strong>[OWNER INPUT REQUIRED: privacy contact email]</strong> and include your
-FLUX ID and approximate score so the entry can be located. We may be unable to
-identify your record without it, since we hold no email address or account.</p>
+<a href="mailto:playfluxofficial@gmail.com">playfluxofficial@gmail.com</a> and include your FLUX ID, its public tag if you know it (shown next to your
+name, for example #K7Q2MX8), and your approximate score. For a purchase, include
+the email address you used at Stripe checkout. We may be unable to identify your
+record without these, since FLUX itself holds no email address or account.</p>
+<p>When we act on a deletion request, we erase your leaderboard entry and, if you
+ask, your purchase records. If your player is restricted, the restriction record
+described in section 11 is kept while the restriction is in force, because it
+could not otherwise be enforced.</p>
 
 <h2>13. Security</h2>
 <p>Data is transmitted over HTTPS. Payment credentials go directly to Stripe and
@@ -169,29 +203,42 @@ currently trusts the score reported by your device, subject to those plausibilit
 checks; it is a game leaderboard, not a system of record.</p>
 
 <h2>14. Children</h2>
-<p><strong>[OWNER INPUT REQUIRED: minimum age for using FLUX, and whether FLUX
-is directed to children]</strong></p>
-<p>FLUX does not knowingly collect personal information from children. Because
-we do not collect an email address or date of birth, we cannot determine a
-player's age. If you believe a child has submitted a FLUX ID you would like
-removed, contact us at the address above.</p>
+<p>FLUX is a game for a general audience, and children may play it. FLUX is
+built to work without collecting personal information from anyone, of any age:</p>
+<ul>
+  <li>FLUX does not ask for a real name, email address, phone number, date of
+  birth, photo, contacts, precise location, or an account.</li>
+  <li>New players get an automatic FLUX ID (for example <code>PILOT-7K2Q</code>), so
+  nobody has to type anything to play or to appear on the leaderboard.</li>
+  <li>FLUX contains no advertising, no analytics, no tracking, and no cookies
+  (see section 9), and we do not sell or share information with anyone for
+  marketing.</li>
+  <li>The store is closed. When it opens, purchases go through Stripe's checkout,
+  and children should ask a parent or guardian first.</li>
+</ul>
+<p>Because FLUX IDs are public, children should use a nickname and never their
+real name. Parents and guardians: if your child chose a FLUX ID that identifies
+them, or you would like your child's leaderboard entry removed, email
+<a href="mailto:playfluxofficial@gmail.com">playfluxofficial@gmail.com</a> with the FLUX ID
+and, if you can, its public tag (for example <code>#K7Q2MX8</code>). We will remove
+it within 30 days, and sooner where we can. If we learn that a FLUX ID contains a
+child's personal information, we will remove or replace it.</p>
 
 <h2>15. International players</h2>
 <p>FLUX is available worldwide and is hosted on Cloudflare's global network, so
 information may be processed in countries other than your own.</p>
-<p><strong>[OWNER INPUT REQUIRED: whether GDPR, UK GDPR, CCPA or other regimes
-are being formally complied with, and the legal basis relied upon]</strong> — we
-do not claim compliance with any specific regime until that has actually been
-assessed.</p>
+<p>Wherever you live, you may ask to see the information FLUX holds about you,
+or ask us to delete it, by emailing <a href="mailto:playfluxofficial@gmail.com">playfluxofficial@gmail.com</a> with your FLUX ID. We will respond within
+30 days. We do not sell your information. We keep only what the game needs to
+run its leaderboard and to honour your purchases.</p>
 
 <h2>16. Changes</h2>
 <p>If this policy changes, the effective date above will change. Material
 changes will be noted on the FLUX Gateway.</p>
 
 <h2>17. Contact</h2>
-<p><strong>[OWNER INPUT REQUIRED: contact email]</strong><br>
-<strong>[OWNER INPUT REQUIRED: mailing address, if one is required for your
-jurisdiction or for app store submission]</strong></p>
+<p>Jerome Tadaya<br>
+<a href="mailto:playfluxofficial@gmail.com">playfluxofficial@gmail.com</a></p>
 
 <footer>
 FLUX — <a href="./index.html">Return to the Gateway</a> · <a href="./terms.html">Terms of Use</a>
