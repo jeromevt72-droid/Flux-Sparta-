@@ -1258,6 +1258,19 @@ function endGame(){
    try{ window.parent.postMessage({type:'flux-gameover'}, '*'); }catch(e){}
  },420);
 }
+/* SPEED HELP. Help rules that only ever LOWER the ball's top speed register a
+   factor here (the comeback ease, the first-run help). The limit in update()
+   is normalMaxSpeed()*speedHelp(); with no help active the factor is exactly
+   1, so the game is exactly the same. A ball cruising between the lowered
+   limit and the normal one is slowed to it within about a second (the same
+   rate the game uses to speed it up); short speed kicks above the normal limit
+   (after a fusion) are left exactly as the normal game leaves them. Help never
+   adds points, lives or orbs. */
+const SPEED_HELPS=[];
+function speedHelp(){ let k=1; for(let i=0;i<SPEED_HELPS.length;i++) k*=SPEED_HELPS[i](); return k; }
+// The ball's normal top speed (the ramp raises it with speedLevel; FLUX mode lifts it).
+function normalMaxSpeed(){ return fluxMode>0?18.5:Math.min(17.5,(12+speedLevel*.48)*DIFFICULTY[difficulty].speed); }
+function slowToSpeedHelp(dt){ const k=speedHelp(); if(k===1 || !ball) return; const n=normalMaxSpeed(), lim=n*k, sp=Math.hypot(ball.vx,ball.vy); if(sp>lim && sp<=n+1e-9){ const nsp=Math.max(lim,sp-n*2.2*dt); ball.vx*=nsp/sp; ball.vy*=nsp/sp; } }
 function update(dt){
  if(levelBanner>0) levelBanner=Math.max(0,levelBanner-dt);
  if(missNotice>0) missNotice=Math.max(0,missNotice-dt);
@@ -1266,7 +1279,7 @@ function update(dt){
  if(comboTimer>0) comboTimer-=dt;
  else if(combo>1){combo=1;streak=0;popup(W/2,150,'COMBO LOST','#8da0c8');updateHud();}
  if(perfectFlash>0)perfectFlash-=dt;
- const maxSpeed=fluxMode>0?18.5:Math.min(17.5,(12+speedLevel*.48)*DIFFICULTY[difficulty].speed);
+ const maxSpeed=normalMaxSpeed()*speedHelp(); slowToSpeedHelp(dt);   // x1 unless a speed help is on (see SPEED HELP)
  if(fluxMode>0){fluxMode-=dt;document.getElementById('app').style.filter='brightness(1.18) saturate(1.35)';document.getElementById('fluxGlow').classList.add('on');}else{document.getElementById('app').style.filter='none';document.getElementById('fluxGlow').classList.remove('on');}
  let sp=Math.hypot(ball.vx,ball.vy);
  if(sp<maxSpeed) {
@@ -2947,14 +2960,21 @@ async function openRestoreConfirm(id,info){
    speed, orbs, levels. */
 const CATCH_MARGIN_PX=8, CATCH_FIRST_RUNS=3;
 let generousCatchOn=false;
+// FIRST-RUN HELP: in a player's very first run only, the ball's top speed is a
+// little lower (through the shared SPEED HELP hook: it never adds points).
+const FIRST_RUN_SLOW=.08;
+let firstRunSlowOn=false;
+function firstRunSpeedFactor(){ return firstRunSlowOn ? 1-FIRST_RUN_SLOW : 1; }
+SPEED_HELPS.push(firstRunSpeedFactor);
 function catchMargin(){ return generousCatchOn ? CATCH_MARGIN_PX : 0; }
 function clampCatchHit(h){ if(!generousCatchOn) return h; const m=1+ball.r/(paddle.w/2); return Math.max(-m,Math.min(m,h)); }   // margin catches bounce like the launcher's end
-function generousCatchFor(runsDone,diff){ return runsDone<CATCH_FIRST_RUNS && diff!=='easy'; }
+function generousCatchFor(runsDone,diff){ return runsDone<CATCH_FIRST_RUNS; }   // every difficulty, including Easy (owner decision)
 (function(){
   const newGame0=newGame;
   newGame=function(){
     let runsDone=0; try{ runsDone=+localStorage.getItem('fluxRunsPlayed')||0; }catch(e){}
     generousCatchOn=generousCatchFor(runsDone,difficulty);
+    firstRunSlowOn=runsDone===0;
     return newGame0.apply(this,arguments);
   };
 })();
