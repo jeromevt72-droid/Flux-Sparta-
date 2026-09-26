@@ -36,14 +36,13 @@ canvas{position:absolute;inset:0;width:100%;height:100%}
    to delete this rule + the #skinBgLayer div + applySkinBackground() without
    affecting scoring, skins ownership, or the leaderboard. */
 #skinBgLayer{position:absolute;inset:0;z-index:0;background-size:cover;background-position:center;background-repeat:no-repeat;opacity:0;transition:opacity .6s ease;transform-origin:50% 50%;animation:bgLife 66s ease-in-out infinite;will-change:transform,filter}
-/* SKIN BACKDROP BLEED (black-band fix). In the iPhone Home Screen app the
-   page's usable area can end above the physical bottom of the screen (by the
-   status-bar / home-indicator inset); iOS paints the rest with the page
-   background, which showed as a black band under the bright Solar Inferno
-   image. The backdrop now runs past the bottom edge by both insets plus a
-   margin, and applySkinBackground() matches the page background to the
-   backdrop's bottom colour so any sliver left over blends in. */
-#skinBgLayer{bottom:calc(-1 * (env(safe-area-inset-top,0px) + env(safe-area-inset-bottom,0px)) - 64px)}
+/* SKIN BACKDROP FULL-SCREEN (black-band fix). In the iPhone/iPad Home Screen
+   app the page's usable area ends above the physical bottom of the screen, and
+   iOS clips #app (and everything inside it, including #skinBgLayer) to that
+   shorter area. Only the page's root background paints the strip below it.
+   So while a backdrop is on, applySkinBackground() paints the image on the
+   root (<html>) background instead, sized in px to cover the whole physical
+   screen, and #app / <body> / #skinBgLayer are made see-through. */
 @keyframes bgLife{0%{transform:scale(1.06) translate(0,0);filter:brightness(1) saturate(1)}50%{transform:scale(1.06) translate(-2.2%,0);filter:brightness(1.1) saturate(1.06)}100%{transform:scale(1.06) translate(0,0);filter:brightness(1) saturate(1)}}
 /* MOVING CELESTIAL BACKDROP — purely decorative layers that sit behind the
    (transparent) game canvas, so #app's own gradient + the level-tier color
@@ -564,7 +563,7 @@ const SKINS={
   aurora:{name:'AURORA',price:null,colors:['#ffd23f','#1fb8e0','#ff4f98','#b48cff','#ff9a3d','#5c8cff','#f0f4ff','#e05cff','#7dffea']},
   toxic:{name:'TOXIC',price:'$1.99',colors:['#d6ff3d','#2ee6b8','#5cb8ff','#b06bff','#fff36b','#7dff8a','#f0f4ff','#2ecfff','#e8a6ff']},
   cosmic:{name:'COSMIC',price:'$1.99',colors:['#ffe066','#5ce1ff','#ff7ae0','#9d7bff','#7a9dff','#ff9ec8','#f0f4ff','#c46bff','#8cfff0']},
-  solar:{name:'SOLAR INFERNO',price:'$2.99',bg:'/solar-inferno.webp',bgBase:'#1c0c0b',colors:['#ffcf33','#7cc0ff','#c48cff','#ff3a24','#ffe8a3','#ff9e5c','#f0f4ff','#ff7ac0','#ffb830']}
+  solar:{name:'SOLAR INFERNO',price:'$2.99',bg:'/solar-inferno.webp',bgW:900,bgH:1599,bgBase:'#1c0c0b',colors:['#ffcf33','#7cc0ff','#c48cff','#ff3a24','#ffe8a3','#ff9e5c','#f0f4ff','#ff7ac0','#ffb830']}
 };
 // CELESTIAL LEVEL-UP BACKGROUND — self-contained and safe to remove.
 // To turn this off entirely: set CELESTIAL_BG_ENABLED=false (one line),
@@ -584,11 +583,14 @@ const CELESTIAL_THEMES=[
   'radial-gradient(circle at 50% 12%,#6e2740 0,#28101f 48%,#06030d 100%)', // L8 stellar flare
   'radial-gradient(circle at 50% 10%,#7e3a2e 0,#2c1210 48%,#07030a 100%)'  // L9 solar core
 ];
+let celestialIndex=0;
 function applyCelestialBackground(lvl){
   if(!CELESTIAL_BG_ENABLED) return;
+  celestialIndex=Math.max(0,Math.min(CELESTIAL_THEMES.length-1,lvl-1));
+  if(skinBackdropOn()){ applySkinBackground(); return; }   // the level tint is painted under the backdrop instead
   const el=document.getElementById('app');
   if(!el) return;
-  el.style.background=CELESTIAL_THEMES[Math.max(0,Math.min(CELESTIAL_THEMES.length-1,lvl-1))];
+  el.style.background=CELESTIAL_THEMES[celestialIndex];
 }
 let activeSkin=localStorage.fluxSkin||'aurora';
 function currentPalette(){return (SKINS[activeSkin]||SKINS.aurora).colors}
@@ -599,20 +601,58 @@ function ownsSkin(sku){return sku==='aurora'}/* T-9: this early declaration is s
 // and keep the plain level-gradient background. "none" is always available
 // for free; any other value requires owning that skin's backdrop asset.
 let activeBackground=localStorage.fluxBackground||'none';
+function skinBackdropOn(){
+  const s=SKINS[activeBackground];
+  return !!(activeBackground!=='none' && s && s.bg && ownsSkin(activeBackground));
+}
+// Area the backdrop must cover: the window width, and the height down to the
+// PHYSICAL bottom of the screen (iOS Home Screen app / Safari toolbars can make
+// innerHeight shorter). iOS keeps screen.width/height in portrait, so the
+// orientation picks the side. Capped so a small desktop window is not zoomed.
+function backdropCoverArea(){
+  const w=innerWidth, h=innerHeight;
+  let sh=0;
+  try{
+    const a=screen.width||0, b=screen.height||0;
+    const land=typeof window.orientation==='number' ? Math.abs(window.orientation)===90 : w>h;
+    sh=land ? Math.min(a,b) : Math.max(a,b);
+  }catch(e){}
+  return { w:w, h:h+Math.min(240,Math.max(0,sh-h)) };
+}
+// The level gradient at 50%, laid over the image: the same look as the image
+// at 50% opacity over #app's gradient before.
+function halfTheme(css){
+  return css.replace(/#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/gi,(m,r,g,b)=>'rgba('+parseInt(r,16)+','+parseInt(g,16)+','+parseInt(b,16)+',.5)');
+}
 function applySkinBackground(){
   const layer=document.getElementById('skinBgLayer');
-  if(!layer)return;
+  const app=document.getElementById('app');
+  const root=document.documentElement, body=document.body;
   const s=SKINS[activeBackground];
-  const on=activeBackground!=='none' && s && s.bg && ownsSkin(activeBackground);
-  if(on){
-    layer.style.backgroundImage=`url('${s.bg}')`;layer.style.opacity='0.5';
-  } else {
-    layer.style.opacity='0';
-  }
-  // Black-band fix: behind the backdrop, the page background matches the
-  // backdrop's bottom edge (bgBase: image bottom at 50% over the dark field).
-  const base=on && s.bgBase ? s.bgBase : '';
-  try{ document.documentElement.style.backgroundColor=base; document.body.style.backgroundColor=base; }catch(e){}
+  const on=skinBackdropOn();
+  if(layer) layer.style.opacity='0';   // the backdrop is painted on the root background now
+  try{
+    if(on){
+      // CSS "cover" over the full physical screen, centred.
+      const A=backdropCoverArea(), iw=s.bgW||900, ih=s.bgH||1600;
+      const k=Math.max(A.w/iw,A.h/ih), w=Math.ceil(iw*k), h=Math.ceil(ih*k);
+      const x=Math.round((A.w-w)/2), y=Math.round((A.h-h)/2);
+      const size=w+'px '+h+'px', pos=x+'px '+y+'px';
+      const theme=CELESTIAL_BG_ENABLED ? CELESTIAL_THEMES[celestialIndex] : CELESTIAL_THEMES[0];
+      root.style.backgroundColor=s.bgBase||'#050719';
+      root.style.backgroundImage=halfTheme(theme)+", url('"+s.bg+"')";
+      root.style.backgroundSize=size+', '+size;
+      root.style.backgroundPosition=pos+', '+pos;
+      root.style.backgroundRepeat='no-repeat, no-repeat';
+      body.style.backgroundColor='transparent';
+      if(app) app.style.background='transparent';
+    } else {
+      root.style.backgroundColor=''; root.style.backgroundImage=''; root.style.backgroundSize='';
+      root.style.backgroundPosition=''; root.style.backgroundRepeat='';
+      body.style.backgroundColor='';
+      if(app) app.style.background=CELESTIAL_BG_ENABLED ? CELESTIAL_THEMES[celestialIndex] : '';
+    }
+  }catch(e){}
 }
 function setBackground(bg){
   activeBackground=bg;
@@ -635,7 +675,7 @@ function makeStars(){
   });
   nebulae=Array.from({length:4},()=>({x:rand(0,W),y:rand(0,H),r:rand(120,260),hue:['#2a2f6b','#3a1f5e','#1f3a5e','#2f1f4a'][Math.floor(rand(0,4))],vx:rand(-10,10),vy:rand(6,16),phase:rand(0,Math.PI*2)}));
 }
-function resize(){dpr=window.__fluxLite?1:Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;c.width=W*dpr;c.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);paddle.y=H-Math.max(42,Math.min(90,H*.095));makeStars();refreshHudRects();}
+function resize(){dpr=window.__fluxLite?1:Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;c.width=W*dpr;c.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);paddle.y=H-Math.max(42,Math.min(90,H*.095));makeStars();refreshHudRects();if(skinBackdropOn())applySkinBackground();/* backdrop re-fits on rotation / window changes */}
 addEventListener('resize',resize);resize();
 function rand(a,b){return a+Math.random()*(b-a)}
 function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
