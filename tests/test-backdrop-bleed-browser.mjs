@@ -20,6 +20,7 @@ const PORT = 8799, BASE = 'http://localhost:' + PORT;
 const SHOTS = process.env.SHOTS || '/tmp/shots-backdrop'; fs.mkdirSync(SHOTS, { recursive: true });
 // name, physical screen w x h (CSS px), shortfall at the bottom, iOS screen.* (always portrait), orientation
 const DEVICES = [
+  ['iPhone (owner readout, Home Screen: page 894 of 956)', 440, 956, 62, [440, 956], 0],
   ['iPhone 15 Pro (Home Screen)', 393, 852, 59, [393, 852], 0], ['iPhone 14 (Home Screen)', 390, 844, 47, [390, 844], 0],
   ['iPhone SE (Home Screen)', 375, 667, 20, [375, 667], 0], ['iPhone 15 Pro (Safari, toolbars)', 393, 852, 120, [393, 852], 0],
   ['iPad (Home Screen)', 820, 1180, 24, [820, 1180], 0], ['iPad landscape (Home Screen)', 1180, 820, 24, [820, 1180], 90],
@@ -74,6 +75,19 @@ for (const [name, w, h, gap, scr, orient] of DEVICES) {
   await p.evaluate(() => { document.getElementById('skinBgLayer').style.opacity = '0'; setBackground('none'); }); await p.waitForTimeout(100);
   const back = await p.evaluate(() => ({ img: document.documentElement.style.backgroundImage, html: getComputedStyle(document.documentElement).backgroundColor }));
   ck(name + ': backdrop off -> page background back to the default', !back.img && back.html === 'rgb(5, 7, 25)', back.html);
+  await ctx.close();
+}
+// SOLAR BAND: the Home Screen app marks the page and makes it 100vh tall; a Safari tab does not.
+// Chromium cannot make 100vh differ from the page area, so this checks it is harmless: same game area, no scrolling.
+for (const [name, w, h, standalone] of [['iPhone Home Screen app', 440, 956, true], ['iPhone Safari tab', 440, 956, false], ['iPad Home Screen app', 820, 1180, true], ['iPad mini Safari tab', 768, 1024, false]]) {
+  const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
+  if (standalone) await ctx.addInitScript(() => { Object.defineProperty(navigator, 'standalone', { get: () => true }); });
+  const p = await ctx.newPage(); p.on('pageerror', (e) => errors.push(name + ': ' + e));
+  await p.goto(BASE + '/play/'); await p.waitForTimeout(300);
+  const r = await p.evaluate(() => { scrollTo(0, 200); const a = document.getElementById('app').getBoundingClientRect(), c = document.getElementById('game').getBoundingClientRect();
+    return { cls: document.documentElement.classList.contains('fluxStandalone'), htmlH: document.documentElement.getBoundingClientRect().height, vh: innerHeight, app: [a.top, a.bottom], game: [c.top, c.bottom], sy: scrollY }; });
+  ck(name + ': ' + (standalone ? 'page is 100vh tall' : 'page left as before (no Home Screen marker)'), r.cls === standalone && Math.round(r.htmlH) === r.vh, JSON.stringify(r));
+  ck(name + ': game area unchanged (fills the page area) and the page does not scroll', r.app[0] === 0 && r.app[1] === r.vh && r.game[0] === 0 && r.game[1] === r.vh && r.sy === 0, JSON.stringify(r));
   await ctx.close();
 }
 ck('no page errors', errors.length === 0, errors.join(' | ').slice(0, 300));

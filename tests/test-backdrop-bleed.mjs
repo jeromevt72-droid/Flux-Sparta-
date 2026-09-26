@@ -11,6 +11,9 @@
 //   - the level tint still sits over it at 50% (same look as before);
 //   - rotating / resizing re-fits it;
 //   - off, or not owned: everything back to the default.
+//   - SOLAR BAND (owner's iPhone readout: page 440x894 on a 440x956 screen): the image
+//     covers the full 956; the page colour behind it is the backdrop's visible bottom
+//     edge; in the Home Screen app only, the page is made 100vh (956) tall.
 // Ends with negative controls. Rendering (with a simulated short viewport and
 // clipped container) is checked in test-backdrop-bleed-browser.mjs (Chromium).
 import fs from 'fs'; import path from 'path'; import vm from 'vm';
@@ -55,8 +58,11 @@ function suite(gameHtml, quiet = false) {
     ck('K2 iPhone Home Screen app: the image covers the full physical screen, 393x852, down to the bottom (like CSS cover: aspect kept, centred)', covers(393, 852) && centred(393, 852) && aspectOk(), cover('iPhone'));
     ck('K3 nothing covers it: game container, page body and the old layer are see-through',
       app.style.background === 'transparent' && body.style.backgroundColor === 'transparent' && layer.style.opacity === '0', app.style.background + ' / ' + body.style.backgroundColor + ' / ' + layer.style.opacity);
-    ck('K4 the dark field sits over the image at 75% (orb colours v2: image at 25%, so orbs stand out) and a matching base colour is behind it',
-      /^radial-gradient\(circle at 50% 15%,rgba\(17,27,67,0\.75\) 0,rgba\(7,9,29,0\.75\) 48%,rgba\(3,4,13,0\.75\) 100%\), url/.test(html.style.backgroundImage || '') && html.style.backgroundColor === '#1c0c0b', String(html.style.backgroundImage).slice(0, 110));
+    ck('K4 the dark field sits over the image at 75% (orb colours v2: image at 25%, so orbs stand out); the page colour behind it is the visible bottom edge (75% tint #03040d + 25% image edge #381307 = rgb(16,8,12))',
+      /^radial-gradient\(circle at 50% 15%,rgba\(17,27,67,0\.75\) 0,rgba\(7,9,29,0\.75\) 48%,rgba\(3,4,13,0\.75\) 100%\), url/.test(html.style.backgroundImage || '') && html.style.backgroundColor === 'rgb(16,8,12)', String(html.style.backgroundImage).slice(0, 110) + ' | ' + html.style.backgroundColor);
+    // The real readout (owner's iPhone, Home Screen app): page area 440x894 on a 440x956 screen (62px short).
+    setWin(440, 894, 440, 956, 0); g.fire('resize');
+    ck('K9 real iPhone readout (Home Screen app, page 440x894, screen 440x956): the image covers the full 956, centred', covers(440, 956) && centred(440, 956) && aspectOk(), cover('readout'));
     // iPad (portrait) Home Screen app, then landscape: iOS keeps screen.* in portrait.
     setWin(820, 1156, 820, 1180, 0); g.fire('resize');
     ck('K5 iPad portrait: covers the full physical screen 820x1180 after a resize', covers(820, 1180) && centred(820, 1180) && aspectOk(), cover('iPad portrait'));
@@ -69,6 +75,8 @@ function suite(gameHtml, quiet = false) {
     g.ctx.applyCelestialBackground(9);
     ck('K6 a level-up keeps the backdrop: the container stays see-through and the level-9 tint is laid over the image',
       app.style.background === 'transparent' && /rgba\(126,58,46,0\.75\)/.test(html.style.backgroundImage || '') && /solar-inferno/.test(html.style.backgroundImage || ''), app.style.background.slice(0, 40));
+    const L9 = String(run('CELESTIAL_THEMES[8]')).match(/#[0-9a-f]{6}/gi).pop(), c9 = [0, 1, 2].map((i) => Math.round(parseInt(L9.substr(1 + 2 * i, 2), 16) * 0.75 + [0x38, 0x13, 0x07][i] * 0.25));
+    ck('K6 ...and the page colour behind it follows the level tint', html.style.backgroundColor === 'rgb(' + c9.join(',') + ')', html.style.backgroundColor + ' vs rgb(' + c9.join(',') + ')');
     g.ctx.setBackground('none');
     ck('K7 backdrop off: root background cleared, page body default, the game container gets its level gradient back',
       !html.style.backgroundImage && html.style.backgroundColor === '' && body.style.backgroundColor === '' && /^radial-gradient\(circle at 50% 10%,#7e3a2e/.test(app.style.background || ''), String(app.style.background).slice(0, 50));
@@ -76,6 +84,17 @@ function suite(gameHtml, quiet = false) {
     run("activeBackground = 'solar';"); g.ctx.applySkinBackground();
     ck('K8 a backdrop the pilot does not own is never shown, and the page stays default', !html.style.backgroundImage && html.style.backgroundColor === '' && layer.style.opacity === '0');
   } catch (e) { ck('backdrop section ran', false, String(e.stack || e).slice(0, 300)); }
+  try {
+    // The Home Screen app marker, run from the real page source with a stand-in browser.
+    const src = gameHtml.slice(gameHtml.indexOf('(function(){   // SOLAR BAND'), gameHtml.indexOf('})();', gameHtml.indexOf('(function(){   // SOLAR BAND')) + 5);
+    const mark = (standalone, displayMode) => { const cls = new Set();
+      vm.runInNewContext(src, { navigator: { standalone }, matchMedia: () => ({ matches: displayMode }), document: { documentElement: { classList: { add: (c) => cls.add(c) } } } });
+      return cls.has('fluxStandalone'); };
+    ck('K10 the page is made 100vh tall (the readout\'s full 956) in the Home Screen app only, never in a Safari tab',
+      /html\.fluxStandalone\{height:100vh;min-height:100%\}/.test(gameHtml) && src.length > 20
+      && mark(true, false) === true && mark(false, true) === true && mark(false, false) === false && mark(undefined, false) === false);
+    ck('K10 ...and the game area is untouched: #app still fills the page area (fixed, inset 0)', /#app\{position:fixed;inset:0;/.test(gameHtml));
+  } catch (e) { ck('K10 ran', false, String(e.stack || e).slice(0, 300)); }
   return { F, failed };
 }
 
@@ -98,6 +117,9 @@ control('backdrop back at 50% (orbs harder to see on Solar)', 'K4', rep('const B
 control('dark field not laid over the image (too bright, unreadable orbs)', 'K4', rep("root.style.backgroundImage=halfTheme(theme)+\", url('\"+s.bg+\"')\";", "root.style.backgroundImage=\"url('\"+s.bg+\"')\";"));
 control('a level-up paints the level gradient over the backdrop', 'K6', rep('  if(skinBackdropOn()){ applySkinBackground(); return; }   // the level tint is painted under the backdrop instead\n', ''));
 control('root background never cleared when the backdrop is turned off', 'K7', rep("root.style.backgroundColor=''; root.style.backgroundImage='';", "root.style.backgroundColor='';"));
+control('page colour left at the flat base colour (a visible band if iOS shows only a colour)', 'K4', rep("root.style.backgroundColor=backdropEdgeColour(theme,s.bgEdge)||s.bgBase||'#050719';", "root.style.backgroundColor=s.bgBase||'#050719';"));
+control('page not made full height in the Home Screen app', 'K10', rep('html.fluxStandalone{height:100vh;min-height:100%}', ''));
+control('page made 100vh in Safari tabs too (could scroll there)', 'K10', rep("  if(sa) document.documentElement.classList.add('fluxStandalone');", "  document.documentElement.classList.add('fluxStandalone');"));
 const total = main.F + NC;
 console.log('\n' + (total ? 'BACKDROP BLEED FAILED: ' + main.F + ' check(s), ' + NC + ' uncaught control(s)' : 'BACKDROP BLEED PASSED: all checks and all negative controls'));
 process.exit(total ? 1 : 0);
