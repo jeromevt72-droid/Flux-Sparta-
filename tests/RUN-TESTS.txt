@@ -31,6 +31,7 @@ node test-level-banner-browser.mjs # extra, not in the gate: same checks on real
 node test-miss-notice.mjs         # miss notice ("BALL LOST • n LIVES LEFT") in the HUD strip, never on the launcher or play area (measured device layouts) + negative controls
 node test-rc287.mjs              # RC2.8.7: D-50..D-61 (levels, HUD, palettes, game over, sound) + negative controls
 node test-rc287-browser.mjs      # RC2.8.7 extra, not in the gate: real Chromium, 360px fit, 11px text, 44px buttons, notch inset
+node test-comeback-ease.mjs       # comeback ease: two misses within 20 s -> top speed 85% for 6 s; never faster, never adds points, identical game when off + negative controls
 node test-rc281.mjs              # RC2.8.1: D-29 D-31 D-33 D-34 + pending-delivery message
 node test-rc28-worker.mjs          # RC2.8 server: D-22 D-25 D-26 D-27, moderation, tags, reconciliation (REAL worker)
 node test-rc28-client.mjs          # RC2.8 game: D-23 D-24, honest status, tags (REAL game page)
