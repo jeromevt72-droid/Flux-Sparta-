@@ -9,7 +9,8 @@
   FLUX ADMIN (RC2.8) — built for exceptions, not daily supervision.
   Everyday: find a player, remove a score, restrict / unrestrict, and the short
   list of exceptions that need attention. Advanced: privacy deletion, purchase
-  records, name bans.
+  records, name bans. PLAYER STATS: the in-house anonymous statistics
+  (same password). GUIDE: plain-words how-to for the owner.
 
   Safety: every action needs the ADMIN_TOKEN secret, checked on the server.
   The password lives only in this page's memory -- never saved, never sent
@@ -51,6 +52,18 @@
   .check{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--dim);margin:0 0 10px}.check input{width:19px;height:19px}
   .empty{color:var(--dim);font-size:13px;padding:6px 0}
   .rcode{font-family:ui-monospace,Menlo,monospace;font-size:13px;word-break:break-all;user-select:all;-webkit-user-select:all;background:#050a22;border:1px solid var(--line);border-radius:10px;padding:10px;margin:8px 0;color:var(--cyan)}
+  table.st{width:100%;border-collapse:collapse;font-size:12px;margin:8px 0 4px}
+  table.st th,table.st td{padding:6px 5px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+  table.st th:first-child,table.st td:first-child{text-align:left}
+  table.st th{color:var(--dim);font-weight:700;font-size:10px;letter-spacing:.1em}
+  .stwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin:10px 0}
+  .tile{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px}
+  .tile b{display:block;font-size:20px;color:var(--cyan)}.tile span{font-size:11px;color:var(--dim)}
+  select{background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:11px;padding:11px;font-size:14px;flex:1;min-width:0}
+  .guide h3{font-size:13px;letter-spacing:.08em;margin:18px 0 6px;color:var(--cyan)}
+  .guide p,.guide li{font-size:13px;line-height:1.6;color:var(--text)}
+  .guide ol,.guide ul{padding-left:20px}
   .logrow{color:var(--dim);font-size:12px;line-height:1.5;padding:6px 0;border-top:1px solid var(--line);white-space:pre-line}
 </style>
 </head>
@@ -76,6 +89,61 @@
   purchases — and they can post new scores. For repeated abuse, use <b>Restrict</b>: they keep playing,
   but nothing they submit appears publicly. Restrictions follow a player's device identity; if they clear
   their browser data, they return with a new tag.</p>
+
+  <h2>PLAYER STATS</h2>
+  <p class="note">Anonymous, counted on our own server. See the guide below for what each number means.</p>
+  <div class="row">
+    <select id="stRange" aria-label="Period"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option><option value="365">Last 12 months</option></select>
+    <select id="stBy" aria-label="Group"><option value="all">Everyone</option><option value="src">By source (src)</option><option value="country">By country</option></select>
+    <button id="stLoad" class="go">SHOW</button>
+  </div>
+  <div id="stats"></div>
+
+  <details id="guide" class="guide">
+    <summary>GUIDE</summary>
+
+    <h3>A player lost their pilot</h3>
+    <ol>
+      <li>Ask for their <b>pilot name</b> and, if they can see it, the <b>#TAG</b> next to it on the leaderboard
+      (for example SWIFT COMET 42 #K7Q2MX8). Also ask their country and roughly their best score.</li>
+      <li>Type the name in <b>FIND A PLAYER</b> (upper or lower case both work; "SWIFT COMET 42 #K7Q2" finds that exact pilot).
+      Check the country and scores match what they told you. For a pilot with purchases, their Stripe receipt
+      email must match (look it up under ADVANCED, in the purchase records section).</li>
+      <li>Press <b>ISSUE RESTORE CODE</b> and write how you checked them. Copy the code and send it to them privately.
+      It is shown once and not stored.</li>
+      <li>They open FLUX → <b>EDIT</b> → <b>HAVE A RESTORE CODE?</b> (if that button says <b>RESTORE CODE</b>, tap it, then
+      <b>RESTORE A DIFFERENT PILOT</b>) and paste the code. Their pilot, scores and skins come back.</li>
+    </ol>
+
+    <h3>Pilot names</h3>
+    <ul>
+      <li>Every new pilot starts with a <b>preset name</b> from a safe word list, like SWIFT COMET 42.</li>
+      <li>In EDIT a player may type their own name: <b>one word</b>, letters and numbers only, up to 12 characters.
+      Full names, spaces, and anything that looks like an email, phone number or web link are refused; the box goes back
+      to their current name and play is never blocked.</li>
+      <li>A rude or impersonating name, or one you banned under NAME BANS, shows as <b>PILOT</b> on the board. The card here
+      shows its real name with a pink "SHOWN AS PILOT" label. Searching "PILOT" finds them too.</li>
+      <li><b>Old-name clean-up:</b> names typed before these rules that break them were switched to the pilot's preset, and
+      their old text was deleted from the server once. You cannot find a pilot by an old deleted name; ask for the
+      name they see now.</li>
+    </ul>
+
+    <h3>Reading PLAYER STATS</h3>
+    <ul>
+      <li><b>Active players</b>: pilots who opened FLUX that day (each counted once). <b>Monthly active</b>: each counted once per calendar month.</li>
+      <li><b>New players</b>: pilots seen for the first time that day.</li>
+      <li><b>Runs / player</b>: finished runs ÷ active players, per day. <b>Avg run</b>: average length of a finished run.
+      <b>Avg level</b>: average level reached at the end of a run.</li>
+      <li><b>Share rate</b>: share-button taps ÷ finished runs. <b>Home Screen</b>: opens from the installed app.</li>
+      <li><b>Day 1 / Day 7 / Day 30</b>: of the players who started on a date, the share who came back 1, 7 or 30 days later.
+      "—" means that day has not come yet.</li>
+      <li><b>Which platform brings players who come back:</b> choose <b>By source (src)</b>. Each row is where players first came
+      from (the ?src= tag in your link: tiktok, facebook, instagram, youtube, share for links players shared, direct for none).
+      Compare their <b>Day 7</b> and <b>Day 30</b> columns — higher means that platform brings players who stay. Always post
+      links with a tag, e.g. <code>…/play/?src=tiktok</code>.</li>
+      <li>Individual events are kept 90 days, then only totals. Nothing here identifies a person.</li>
+    </ul>
+  </details>
 
   <details id="advanced">
     <summary>ADVANCED</summary>
@@ -290,7 +358,89 @@
     await call('name-ban', { name: n }); $('banName').value = ''; say('Name banned.', 'ok'); loadExceptions();
   }
 
+  /* ---------------- player stats ---------------- */
+  var ST_FIELDS = ['active', 'new', 'runs', 'sec', 'lvl', 'shares', 'opens', 'home', 'first', 'levelups'];
+  function pct(a, b) { return b ? Math.round(100 * a / b) + '%' : '—'; }
+  function ratio(a, b, dp) { return b ? (a / b).toFixed(dp == null ? 1 : dp) : '—'; }
+  function num(x, dp) { return isFinite(x) ? Number(x).toFixed(dp == null ? 1 : dp) : '—'; }
+  function mins(sec) { if (!isFinite(sec)) return '—'; sec = Math.round(sec); return (sec >= 60 ? Math.floor(sec / 60) + 'm ' : '') + (sec % 60) + 's'; }
+  function groupsOf(rep, by) {
+    var keys = {};
+    (rep.days || []).concat(rep.cohorts || []).forEach(function (d) { Object.keys(d.groups || {}).forEach(function (k) { keys[k] = 1; }); });
+    if (by === 'all') return ['all'];
+    var pre = by === 'src' ? 's:' : 'c:';
+    return Object.keys(keys).filter(function (k) { return k.indexOf(pre) === 0; }).sort();
+  }
+  // Pure: turns the server's totals into the numbers the dashboard shows (also used by the tests).
+  function summarize(rep, by) {
+    var out = { groups: [] };
+    groupsOf(rep, by).forEach(function (g) {
+      var t = {}, daily = [];
+      ST_FIELDS.forEach(function (f) { t[f] = 0; });
+      (rep.days || []).forEach(function (d) {
+        var v = (d.groups || {})[g] || {}; var row = { date: d.date };
+        ST_FIELDS.forEach(function (f) { row[f] = v[f] || 0; t[f] += row[f]; });
+        daily.push(row);
+      });
+      var ret = { n1: 0, d1: 0, n7: 0, d7: 0, n30: 0, d30: 0 }, cohorts = [];
+      (rep.cohorts || []).forEach(function (c) {
+        var v = (c.groups || {})[g]; if (!v || !v.n) return;
+        cohorts.push({ date: c.date, n: v.n, d1: c.age >= 1 ? pct(v.d1 || 0, v.n) : '—', d7: c.age >= 7 ? pct(v.d7 || 0, v.n) : '—', d30: c.age >= 30 ? pct(v.d30 || 0, v.n) : '—' });
+        if (c.age >= 1) { ret.n1 += v.n; ret.d1 += v.d1 || 0; }
+        if (c.age >= 7) { ret.n7 += v.n; ret.d7 += v.d7 || 0; }
+        if (c.age >= 30) { ret.n30 += v.n; ret.d30 += v.d30 || 0; }
+      });
+      var months = (rep.months || []).map(function (m) { return { month: m.month, active: ((m.groups || {})[g] || {}).active || 0 }; });
+      var days = daily.length || 1;
+      out.groups.push({ key: g, label: g === 'all' ? 'Everyone' : g.slice(2).toUpperCase(), totals: t, daily: daily, months: months, cohorts: cohorts,
+        avgDaily: t.active / days, newPlayers: t['new'], runsPerPlayer: t.active ? t.runs / t.active : 0,
+        avgRunSec: t.runs ? t.sec / t.runs : NaN, avgLevel: t.runs ? t.lvl / t.runs : NaN, shareRate: t.runs ? t.shares / t.runs : NaN,
+        day1: ret.n1 ? ret.d1 / ret.n1 : NaN, day7: ret.n7 ? ret.d7 / ret.n7 : NaN, day30: ret.n30 ? ret.d30 / ret.n30 : NaN });
+    });
+    return out;
+  }
+  window.FLUX_ADMIN_STATS = { summarize: summarize };
+  function table(head, rows) {
+    var w = el('div', 'stwrap'), t = el('table', 'st'), tr = el('tr');
+    head.forEach(function (h) { tr.appendChild(el('th', null, h)); }); t.appendChild(tr);
+    rows.forEach(function (r) { var x = el('tr'); r.forEach(function (c) { x.appendChild(el('td', null, String(c))); }); t.appendChild(x); });
+    w.appendChild(t); return w;
+  }
+  function rate(x) { return isFinite(x) ? Math.round(x * 100) + '%' : '—'; }
+  async function loadStats() {
+    var box = $('stats'); box.textContent = '';
+    var span = +$('stRange').value, by = $('stBy').value;
+    var to = new Date(), from = new Date(to.getTime() - (span - 1) * 86400000);
+    say('Loading stats…');
+    var rep = await call('analytics', { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) });
+    var s = summarize(rep, by);
+    if (!s.groups.length || !(rep.days || []).length) { box.appendChild(el('div', 'empty', 'No stats yet for this period.')); say(''); return; }
+    if (by === 'all') {
+      var g = s.groups[0], last = g.daily[g.daily.length - 1] || {}, mon = g.months[g.months.length - 1] || { active: 0 };
+      var tiles = el('div', 'tiles');
+      [[fmt(last.active), 'active today'], [fmt(mon.active), 'active this month'], [fmt(g.newPlayers), 'new players (period)'],
+       [num(g.runsPerPlayer), 'runs / player / day'], [mins(g.avgRunSec), 'avg run'], [num(g.avgLevel), 'avg level reached'],
+       [rate(g.shareRate), 'share rate'], [rate(g.day1) + ' · ' + rate(g.day7) + ' · ' + rate(g.day30), 'back day 1 · 7 · 30']].forEach(function (x) {
+        var t = el('div', 'tile'); t.appendChild(el('b', null, x[0])); t.appendChild(el('span', null, x[1])); tiles.appendChild(t); });
+      box.appendChild(tiles);
+      box.appendChild(el('h2', null, 'BY DAY'));
+      box.appendChild(table(['Date', 'Active', 'New', 'Runs/player', 'Avg run', 'Avg level', 'Share rate', 'Home Screen'],
+        g.daily.slice().reverse().map(function (d) { return [d.date, fmt(d.active), fmt(d['new']), ratio(d.runs, d.active), mins(d.runs ? d.sec / d.runs : NaN), ratio(d.lvl, d.runs), pct(d.shares, d.runs), fmt(d.home)]; })));
+      box.appendChild(el('h2', null, 'BY MONTH'));
+      box.appendChild(table(['Month', 'Active players'], g.months.slice().reverse().map(function (m) { return [m.month, fmt(m.active)]; })));
+      box.appendChild(el('h2', null, 'RETENTION BY START DATE'));
+      box.appendChild(table(['Started', 'Players', 'Day 1', 'Day 7', 'Day 30'], g.cohorts.slice().reverse().map(function (c) { return [c.date, fmt(c.n), c.d1, c.d7, c.d30]; })));
+    } else {
+      s.groups.sort(function (a, b) { return b.newPlayers - a.newPlayers; });
+      box.appendChild(table([by === 'src' ? 'Source' : 'Country', 'New', 'Active/day', 'Runs/player', 'Avg run', 'Avg level', 'Share', 'Day 1', 'Day 7', 'Day 30'],
+        s.groups.map(function (g) { return [g.label, fmt(g.newPlayers), num(g.avgDaily), num(g.runsPerPlayer), mins(g.avgRunSec), num(g.avgLevel), rate(g.shareRate), rate(g.day1), rate(g.day7), rate(g.day30)]; })));
+    }
+    box.appendChild(el('p', 'note', 'From ' + rep.from + ' to ' + rep.to + ' (UTC). Individual events are kept ' + rep.keepDays + ' days, then only totals.'));
+    say('');
+  }
+
   function guard(fn) { return function () { fn().catch(function (e) { say(e.message, 'err'); }); }; }
+  $('stLoad').onclick = guard(loadStats);
   $('loadEx').onclick = guard(loadExceptions);
   $('find').onclick = guard(find);
   $('q').addEventListener('keydown', function (e) { if (e.key === 'Enter') guard(find)(); });

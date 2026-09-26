@@ -149,7 +149,7 @@ await control('banner shown in normal Safari', { expect: 'B2', edit: { game: rep
 await control('dismiss ignored', { expect: 'B3', edit: { gw: rep("if (sessionStorage.getItem('fluxIabDismissed') === '1') return;", '') } });
 await control('banner stays over the game', { expect: 'B4', edit: { game: rep("if (s) s.addEventListener('click', function(){ d.remove(); }, { once: true });", '') } });
 await control('NAME #TAG search broken', { expect: 'A2', workerSrc: rep('const both = /^(.+?)\\s*#\\s*([0-9A-Z]+)$/.exec(raw);', 'const both = null;') });
-await control('tag ignored in NAME #TAG', { expect: 'A3', workerSrc: rep('(v.name.includes(both[1].trim()) && (v.tag.startsWith(both[2]) || tagFromPid(v.pid, 12).startsWith(both[2])))', '(v.name.includes(both[1].trim()))') });
+await control('tag ignored in NAME #TAG', { expect: 'A3', workerSrc: rep('(named(both[1].trim()) && (v.tag.startsWith(both[2]) || tagFromPid(v.pid, 12).startsWith(both[2])))', '(named(both[1].trim()))') });
 
 const total = main.F + NC;
 console.log('\n' + (total ? ('D-38 FAILED: ' + main.F + ' check(s), ' + NC + ' uncaught control(s)') : 'D-38 PASSED: all checks and all negative controls'));
