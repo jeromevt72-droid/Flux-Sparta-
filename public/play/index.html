@@ -621,8 +621,8 @@ const SKINS={
      no palette pairs a red with a green (the common colour-blind confusion). */
   aurora:{name:'AURORA',price:null,colors:['#ffe768','#62bdfa','#f16e52','#5be8c8','#7473fb']},
   toxic:{name:'TOXIC',price:'$1.99',colors:['#d7fe71','#f773ac','#9eedfc','#bd4ff1','#fd2c29']},
-  cosmic:{name:'COSMIC',price:'$1.99',colors:['#ebf2ff','#e971ef','#57dcab','#ecc238','#eb5454']},
-  solar:{name:'SOLAR INFERNO',price:'$2.99',bg:'/solar-inferno.webp',bgW:900,bgH:1599,bgBase:'#1c0c0b',bgEdge:'#381307',colors:['#fcf6e9','#46daf0','#6d7ae5','#54df6d','#ef7ba6']}
+  cosmic:{name:'COSMIC',price:'$1.99',launcher:'#3f8cff',colors:['#ebf2ff','#e971ef','#57dcab','#ecc238','#eb5454']},
+  solar:{name:'SOLAR INFERNO',price:'$2.99',launcher:'#ff7a18',bg:'/solar-inferno.webp',bgW:900,bgH:1599,bgBase:'#1c0c0b',bgEdge:'#381307',colors:['#fcf6e9','#46daf0','#6d7ae5','#54df6d','#ef7ba6']}
 };
 // CELESTIAL LEVEL-UP BACKGROUND — self-contained and safe to remove.
 // To turn this off entirely: set CELESTIAL_BG_ENABLED=false (one line),
@@ -653,6 +653,16 @@ function applyCelestialBackground(lvl){
 }
 let activeSkin=localStorage.fluxSkin||'aurora';
 function currentPalette(){return (SKINS[activeSkin]||SKINS.aurora).colors}
+/* LAUNCHER COLOUR (owner): the launcher used the skin's first orb colour, so on
+   Solar (cream) and Cosmic (near-white) it looked like an orb and the ball.
+   Those skins set their own launcher colour, far from every orb colour
+   (CIEDE2000 >= 30, checked in test-orb-gap-launcher.mjs). Drawing only. */
+function launcherColour(){ const s=SKINS[activeSkin]; return (s && s.launcher && s.colors===colors) ? s.launcher : (colors[0]||'#62eaff'); }
+function launcherHighlight(c){   // the bright middle of the bar: white, or a light tint of a skin's own launcher colour
+  if(!(SKINS[activeSkin]||{}).launcher || c===colors[0]) return '#fff';
+  const m=[1,3,5].map(i=>Math.round(parseInt(c.substr(i,2),16)*.55+255*.45));
+  return 'rgb('+m.join(',')+')';
+}
 function ownsSkin(sku){return sku==='aurora'}/* T-9: this early declaration is superseded by the server-authoritative ownsSkin later in this file. It used to read the legacy fluxOwned_ key; if the override were ever removed, that would silently grant paid skins again. It now grants only the free skin, so the failure mode is a locked skin rather than a free one. */
 // Backdrop image is now its OWN choice, independent of which color palette
 // (skin) is equipped -- e.g. you can keep the Solar Inferno backdrop while
@@ -984,13 +994,18 @@ function safeSpawnPoint(r=20){
    const minGap=(isPhone()?58:72);
    if(!targets.some(t=>Math.hypot(t.x-x,t.y-y)<minGap+t.r+r*.45)) return [x,y];
  }
- // Fallback: still avoid the HUD even if every gap-spaced candidate failed --
- // better to risk a slightly cramped orb than one spawned on top of the score.
- for(let tries=0;tries<20;tries++){
+ // Fallback: still avoid the HUD even if every gap-spaced candidate failed.
+ // ORB GAP: of the candidates, take the one with the most room from the other
+ // orbs (it used to take the first, which could sit on top of another orb);
+ // the drift step below then opens the gap to ORB_GAP.
+ let best=null, bestRoom=-Infinity;
+ for(let tries=0;tries<30;tries++){
    const x=rand(pad,W-pad), y=rand(top,bottom);
-   if(!pointHitsHud(x,y,r,hudRects)) return [x,y];
+   if(pointHitsHud(x,y,r,hudRects)) continue;
+   const room=targets.reduce((m,t)=>Math.min(m,Math.hypot(t.x-x,t.y-y)-t.r-r),Infinity);
+   if(room>bestRoom){ best=[x,y]; bestRoom=room; }
  }
- return [rand(pad,W-pad),Math.max(top,bottom-40)];
+ return best || [rand(pad,W-pad),Math.max(top,bottom-40)];
 }
 function spawnTarget(forceColor=null){
  if(targets.length>=targetCap()) return;
@@ -1017,6 +1032,34 @@ function spawnGrowingOrb(){
  const color=Math.floor(Math.random()*Math.min(colors.length,4+Math.floor(level/2)));
  const maxR=isPhone()?34:40;
  targets.push({x,y,r:12,maxR,color,spin:rand(0,6),vx:rand(-.22,.22),vy:rand(-.18,.18),phase:rand(0,Math.PI*2),age:0,growing:true,matured:false,danger:false});
+}
+/* ORB GAP (owner): orbs must never overlap and hide each other's colour and
+   symbol. After each drift step, any two orbs closer than ORB_GAP (edge to
+   edge) are pushed apart along the line between them, half each, and stop
+   moving towards each other. Positions only: sizes, hit areas and scoring are
+   unchanged. Deterministic, so seeded games stay repeatable. Runs at the end
+   of each frame, so an orb spawned after a hit is spaced before it is drawn. */
+const ORB_GAP=10;
+function keepOrbGap(){
+  const n=targets.length; if(n<2) return;
+  for(let pass=0;pass<8;pass++){   // repeat until nothing is too close (walls and chains of orbs need a few passes)
+    let moved=false;
+    for(let i=0;i<n;i++) for(let j=i+1;j<n;j++){
+      const a=targets[i], b=targets[j];
+      let dx=b.x-a.x, dy=b.y-a.y, d=Math.hypot(dx,dy);
+      const need=a.r+b.r+ORB_GAP; if(d>=need) continue;
+      if(d<1e-6){ dx=(i%2?-1:1); dy=0; d=1; }
+      const ux=dx/d, uy=dy/d, push=(need-d)/2; moved=true;
+      a.x-=ux*push; a.y-=uy*push; b.x+=ux*push; b.y+=uy*push;
+      const closing=(b.vx-a.vx)*ux+(b.vy-a.vy)*uy;
+      if(closing<0){ a.vx+=ux*closing/2; a.vy+=uy*closing/2; b.vx-=ux*closing/2; b.vy-=uy*closing/2; }
+    }
+    for(const t of targets){   // stay inside the orb field
+      const topBound=maxHudBottom()+t.r, botBound=Math.max(topBound+60,H*.79)-t.r;
+      t.x=Math.max(t.r+16,Math.min(W-t.r-16,t.x)); t.y=Math.max(topBound,Math.min(botBound,t.y));
+    }
+    if(!moved) break;
+  }
 }
 function resetFieldAfterMiss(){
  // A miss starts a clean practice attempt at the SAME level.
@@ -1468,6 +1511,7 @@ function update(dt){
  if(paddle.hitFlash>0) paddle.hitFlash=Math.max(0,paddle.hitFlash-dt*4.2);
  shake*=.9;
  ensureBallColourTarget();   // ball colour rule: never leave the ball with nothing to hit
+ if(playing) keepOrbGap();   // ORB GAP, last, after this frame's drift and any new orb (not during the game-over collapse, which pulls the field together on purpose)
  updatePressureBadge();
 }
 function glowCircle(x,y,r,col,alpha=1){
@@ -1612,13 +1656,13 @@ function draw(){
  // Paddle color now follows the active skin's palette (colors[0]) instead of
  // a fixed cyan, so it matches the ball/orbs -- e.g. gold on Solar
  // Inferno, lime on Toxic, yellow on Cosmic, yellow on Aurora (default, D-56).
- const paddleCol = colors[0]||'#62eaff';
+ const paddleCol = launcherColour();   // own colour on Solar / Cosmic, else the first orb colour
  const hf = paddle.hitFlash||0;
  const ease = hf*hf*(3-2*hf); // smoothstep, so it punches in fast and eases out
  const visualW = paddle.w*(1+ease*0.10);
  const visualH = paddle.h*(1+ease*0.55);
  const grad=ctx.createLinearGradient(paddle.x-visualW/2,0,paddle.x+visualW/2,0);
- grad.addColorStop(0,paddleCol);grad.addColorStop(.5,'#fff');grad.addColorStop(1,paddleCol);
+ grad.addColorStop(0,paddleCol);grad.addColorStop(.5,launcherHighlight(paddleCol));grad.addColorStop(1,paddleCol);
  ctx.save();
  // Extra soft underglow so the whole bar pops clearly against a dark field.
  ctx.shadowBlur=44+ease*30;ctx.strokeStyle=paddleCol;ctx.globalAlpha=.5+ease*.3;ctx.lineWidth=visualH+10;ctx.lineCap='round';
