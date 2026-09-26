@@ -22,8 +22,8 @@ node test-country-parity.mjs       # 28: all 196 countries render flag + name
 node test-offline-runtime.mjs      # 18: offline queue via the RUNTIME binding
 node test-t9-entitlements.mjs      # 34: paid-skin ownership authority (T-9)
 node test-checkout-navigation.mjs  # 60: installed-PWA checkout navigation
-node test-backdrop-bleed.mjs      # Solar backdrop reaches the screen bottom in the Home Screen app (no black band) + negative controls
-node test-backdrop-bleed-browser.mjs # extra, not in the gate: simulated Home Screen shortfall on iPhone/iPad sizes in real Chromium
+node test-backdrop-bleed.mjs      # Solar backdrop image covers the full physical screen (root background, CSS-cover sizing) + negative controls
+node test-backdrop-bleed-browser.mjs # extra, not in the gate: simulated short viewport + clipped container on iPhone/iPad sizes in real Chromium
 node test-ball-colour.mjs         # every ball matches an orb on the field: all new balls + 90,000 frames of simulated play + negative controls
 node test-levelup-continuity.mjs  # level-up keeps every orb, score, combo, lives, FLUX; only difficulty ramps (~1 s) + negative controls
 node test-level-banner.mjs        # level-up banner never overlaps launcher, danger line, HUD or play area (measured device layouts) + negative controls
