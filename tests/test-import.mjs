@@ -1,5 +1,6 @@
 import worker, { LeaderboardDO } from "./FLUX-Sparta/worker.js";
-import { levelFor } from './level-rule.mjs';   // RC2.8.7: D-51 fixture levels
+import { levelFor } from './level-rule.mjs';
+import { presetNameForId } from './preset-names.mjs';   // PRESET NAMES   // RC2.8.7: D-51 fixture levels
 
 // AUDIT A-1: the leaderboard now carries a one-way hash (pid), never the
 // playerId. Look rows up by the same hash. If this ever disagreed with the
@@ -130,7 +131,7 @@ section("3. Real import");
   const board = await lb(env);
   check("top capped at limit", board.top.length === 100);
   check("highest score first", board.top[0].score === 25000, JSON.stringify(board.top[0]));
-  check("names preserved", board.top[0].name === "OLD249");
+  check("imported typed names are shown as each pilot's own preset (PRESET NAMES)", board.top[0].name === presetNameForId("old249"), board.top[0].name);
 
   const total = board.countries.reduce((a, c) => a + c.totalScore, 0);
   const expected = Array.from({ length: 250 }, (_, i) => (i + 1) * 100).reduce((a, b) => a + b, 0);
@@ -205,9 +206,9 @@ section("6. Corrupt and hostile KV rows");
   const bad = board.top.find(t => t.pid === PID["badcountry"]);
   check("invalid country became XX", bad.country === "XX", JSON.stringify(bad));
   const ln = board.top.find(t => t.pid === PID["longname"]);
-  check("long name truncated", ln.name.length === 16, ln.name);
+  check("a long imported name is shown as the pilot's preset", ln.name === presetNameForId("longname"), ln.name);
   const nn = board.top.find(t => t.pid === PID["noname"]);
-  check("missing name becomes PILOT", nn.name === "PILOT");
+  check("a missing imported name becomes the pilot's preset", nn.name === presetNameForId("noname"), nn.name);
   check("board still sane", Array.isArray(board.top) && board.top.length === 8, `got ${board.top.length}`);
 }
 

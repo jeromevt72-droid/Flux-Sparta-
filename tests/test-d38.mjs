@@ -101,22 +101,22 @@ async function suite({ gw, game, admin, robots, sitemap, workerMod, quiet = fals
   if (!quiet) console.log('== admin search: NAME #TAG ==');
   try {
     const w = workerMod.default, env = makeEnv(workerMod.LeaderboardDO);
-    for (const [id, n] of [['aaaa1111-0000-4000-8000-000000000001', 'FLUX'], ['aaaa1111-0000-4000-8000-000000000002', 'TITAN'], ['aaaa1111-0000-4000-8000-000000000003', 'FLUXER']]) {
+    for (const [id, n] of [['aaaa1111-0000-4000-8000-000000000001', 'SOLAR FOX 21'], ['aaaa1111-0000-4000-8000-000000000002', 'BRAVE OTTER 37'], ['aaaa1111-0000-4000-8000-000000000003', 'SOLAR FOX 22']]) {   // PRESET NAMES
       skew += 20000; await post(w, env, '/api/submit-score', { playerId: id, name: n, score: 1000, level: 1, difficulty: 'easy', country: 'US' });
     }
-    const all = await post(w, env, '/api/admin/find-player', { query: 'FLUX' }, 'tok');
-    const flux = all.data.matches.find((m) => m.name === 'FLUX');
-    ck('A1 plain name still works (FLUX finds FLUX and FLUXER)', all.data.matches.length === 2 && !!flux);
+    const all = await post(w, env, '/api/admin/find-player', { query: 'SOLAR FOX' }, 'tok');
+    const flux = all.data.matches.find((m) => m.name === 'SOLAR FOX 21');
+    ck('A1 plain name still works (SOLAR FOX finds SOLAR FOX 21 and SOLAR FOX 22)', all.data.matches.length === 2 && !!flux);
     const tag = flux.tag;
-    let r = await post(w, env, '/api/admin/find-player', { query: 'FLUX #' + tag }, 'tok');
-    ck('A2 "FLUX #' + tag + '" finds exactly that pilot', r.data.matches.length === 1 && r.data.matches[0].tag === tag, JSON.stringify(r.data.matches.map((m) => m.name)));
-    r = await post(w, env, '/api/admin/find-player', { query: 'flux  #  ' + tag.toLowerCase() }, 'tok');
+    let r = await post(w, env, '/api/admin/find-player', { query: 'SOLAR FOX 21 #' + tag }, 'tok');
+    ck('A2 "SOLAR FOX 21 #' + tag + '" finds exactly that pilot', r.data.matches.length === 1 && r.data.matches[0].tag === tag, JSON.stringify(r.data.matches.map((m) => m.name)));
+    r = await post(w, env, '/api/admin/find-player', { query: 'solar fox 21  #  ' + tag.toLowerCase() }, 'tok');
     ck('A2 lower case and extra spaces', r.data.matches.length === 1 && r.data.matches[0].tag === tag);
-    r = await post(w, env, '/api/admin/find-player', { query: 'TITAN #' + tag }, 'tok');
+    r = await post(w, env, '/api/admin/find-player', { query: 'BRAVE OTTER 37 #' + tag }, 'tok');
     ck('A3 right tag, wrong name -> no match', r.data.matches.length === 0);
     r = await post(w, env, '/api/admin/find-player', { query: '#' + tag }, 'tok');
     ck('A4 "#TAG" and "TAG" still work', r.data.matches.length === 1 && (await post(w, env, '/api/admin/find-player', { query: tag }, 'tok')).data.matches.length === 1);
-    r = await post(w, env, '/api/admin/find-player', { query: 'FLUX #' + tag }, undefined);
+    r = await post(w, env, '/api/admin/find-player', { query: 'SOLAR FOX 21 #' + tag }, undefined);
     ck('A5 still needs the admin password', r.status === 401);
   } catch (e) { ck('admin search section ran', false, String(e.stack || e).slice(0, 200)); }
   return { F, failed };

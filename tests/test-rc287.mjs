@@ -418,7 +418,7 @@ await control('D-59 old revive wording', { expect: 'R1', game: rep(": 'FREE extr
 // D-60
 await control('D-60 offered on the first run', { expect: 'N5', game: rep('runNo>=2 && sc>0', 'runNo>=1 && sc>0') });
 await control('D-60 offered every time', { expect: 'N4', game: rep(" && localStorage.fluxNameClaimOffered!=='1';", ';') });
-await control('D-60 offered to named pilots', { expect: 'N7', game: rep("return localStorage.fluxAutoName==='1' && /^PILOT-[A-Z0-9]{4}$/.test(callsign) &&", 'return true &&') });
+await control('D-60 offered to named pilots', { expect: 'N7', game: rep("return localStorage.fluxAutoName==='1' && isPresetName(callsign) &&", 'return true &&') });
 await control('D-60 NOT NOW does nothing', { expect: 'N3', game: rep("document.getElementById('goClaimNo').onclick=function(){ document.getElementById('goClaim').classList.add('hidden'); };", '') });
 // D-61
 await control('D-61 loud start, no fade', { expect: 'A1', game: rep('      masterGain.gain.value=0;\n', '      masterGain.gain.value=.52;\n') });

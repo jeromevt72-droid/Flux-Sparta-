@@ -6,6 +6,8 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { boot, makeStore } from "./harness.mjs";
+import { P as PN, presetNameForId } from "./preset-names.mjs";   // PRESET NAMES
+const TN = PN('TITAN'), NV = PN('NOVA');
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 let F=0; const ck=(l,c,x='')=>{console.log((c?'  PASS  ':'  FAIL  ')+l+(x?'  ['+x+']':''));if(!c)F++;};
 
@@ -81,10 +83,11 @@ async function submit(env, playerId, name, score, country="US") {
 console.log("== A-1: the public leaderboard never reveals a playerId ==");
 {
   const env = makeEnv();
-  await submit(env, PID_A, "TITAN", 4000, "PH");
-  await submit(env, PID_B, "NOVA", 3000, "US");
+  await submit(env, PID_A, TN, 4000, "PH");
+  await submit(env, PID_B, NV, 3000, "US");
   const lb = await call(env, "/api/leaderboard?limit=25");
   ck("leaderboard answers", lb.status===200 && lb.data.top.length===2);
+  ck("a valid preset sent by the player is kept as chosen (fixture names)", lb.data.top.some(r=>r.name===TN) && lb.data.top.some(r=>r.name===NV));
   ck("no playerId field on any row", lb.data.top.every(r=>!("playerId" in r)));
   ck("no playerId appears ANYWHERE in the response", !lb.raw.includes(PID_A) && !lb.raw.includes(PID_B));
   ck("every row carries a 16-hex hash instead", lb.data.top.every(r=>/^[0-9a-f]{16}$/.test(r.pid)));
@@ -92,51 +95,54 @@ console.log("== A-1: the public leaderboard never reveals a playerId ==");
 
   // The REAL game computes its own hash; it must equal the worker's.
   const GAME=[...fs.readFileSync(path.join(__dirname,"FLUX-Sparta","public","play","index.html"),"utf8").matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map(m=>m[1]);
-  const { store, mem } = makeStore({ fluxPlayerId: PID_A, fluxCallsign:"TITAN", fluxProfileComplete:"1" });
+  const { store, mem } = makeStore({ fluxPlayerId: PID_A, fluxCallsign:TN, fluxProfileComplete:"1" });
   const g = boot(GAME, { origin: ORIGIN, path:"/play/", store });
   const mine = await g.ctx.myPidHash();
-  const titanRow = lb.data.top.find(r=>r.name==="TITAN");
+  const titanRow = lb.data.top.find(r=>r.name===TN) || {};
   ck("game's own hash == worker's hash for the same player (real code, both sides)", mine && mine===titanRow.pid, mine+" vs "+titanRow.pid);
-  ck("game's hash does NOT match another player's row", mine !== lb.data.top.find(r=>r.name==="NOVA").pid);
+  ck("game's hash does NOT match another player's row", mine !== (lb.data.top.find(r=>r.name===NV) || {}).pid);
   ck("game still uses its real playerId", mem.fluxPlayerId===PID_A);
 }
 
 console.log("\n== A-3: FLUX IDs are cleaned and filtered on the server ==");
 {
   const env = makeEnv();
+  // PRESET NAMES: pilots no longer type names. Whatever text a (modified)
+  // client sends, the server shows that pilot's own preset -- never the text.
   const cases = [
-    ["<img src=x onerror=alert(1)>", n => !/[<>=()]/.test(n), "markup characters stripped"],
-    ["ADMIN", n => n==="PILOT", "impersonating ADMIN is blocked"],
-    ["flux staff", n => n==="PILOT", "impersonating FLUX STAFF is blocked"],
-    ["f.u.c.k", n => n==="PILOT", "dotted profanity is caught"],
-    ["SH1T HEAD", n => n==="PILOT", "look-alike digits are caught"],
-    ["T\u200BI\u200BT\u202EAN", n => n==="TITAN", "invisible and direction-reversing characters removed"],
-    ["jos\u00e9", n => n==="JOS\u00c9", "accented letters kept"],
-    ["\u5c71\u7530", n => n==="\u5c71\u7530", "non-Latin names kept (global game)"],
-    ["   ", n => n==="PILOT", "empty name becomes PILOT"],
-    ["abcdefghijklmnopqrstuvwxyz", n => n.length===16, "length capped at 16"],
+    ["<img src=x onerror=alert(1)>", "markup is never shown"],
+    ["ADMIN", "impersonating ADMIN is never shown"],
+    ["flux staff", "impersonating FLUX STAFF is never shown"],
+    ["f.u.c.k", "dotted profanity is never shown"],
+    ["SH1T HEAD", "look-alike digits are never shown"],
+    ["T\u200BI\u200BT\u202EAN", "invisible and direction-reversing characters are never shown"],
+    ["jos\u00e9", "a real first name is never shown"],
+    ["\u5c71\u7530", "a non-Latin name is never shown"],
+    ["   ", "an empty name still gets a preset"],
+    ["abcdefghijklmnopqrstuvwxyz", "an over-long name is never shown"],
   ];
   let i=0;
-  for (const [input, okFn, label] of cases) {
+  for (const [input, label] of cases) {
     const pid = "33333333-aaaa-4bbb-8ccc-" + String(100000000000 + (i++)).slice(-12);
     await submit(env, pid, input, 1000 + i);
     const lb = await call(env, "/api/leaderboard?limit=100");
     const row = lb.data.top.find(r => r.score === 1000 + i);
-    ck(label, row && okFn(row.name), row && row.name);
+    ck(label + " (the pilot's preset instead)", row && row.name === presetNameForId(pid), row && row.name);
   }
-  // Innocent names that a careless filter would block.
-  const innocent = ["GRAPE","THERAPIST","PAKISTAN","SPICY","RACCOON","ANALYST","DOCUMENT","COCKPIT",
-                    "DICKENS","PEDOMETER","CLASS","TITAN","DEV PATEL","NAZIR","ASSASSIN","SCRAPER","CUMBERLAND"];
-  const blocked=[];
+  // Free text of any kind (innocent or not) is replaced, and the score still counts.
+  const innocent = ["GRAPE","THERAPIST","PAKISTAN","SPICY","DEV PATEL","NAZIR","CUMBERLAND"];
+  const shown=[];
   for (const nm of innocent) {
     const pid = "44444444-aaaa-4bbb-8ccc-" + String(200000000000 + (i++)).slice(-12);
     await submit(env, pid, nm, 2000 + i);
     const lb = await call(env, "/api/leaderboard?limit=100");
     const row = lb.data.top.find(r => r.score === 2000 + i);
-    if (!row || row.name !== nm) blocked.push(nm + "->" + (row && row.name));
+    if (!row || row.name !== presetNameForId(pid)) shown.push(nm + "->" + (row && row.name));
   }
-  ck("innocent names are NOT blocked ("+innocent.length+" checked)", blocked.length===0, blocked.join(", "));
-  ck("a blocked name still records the score (shown as PILOT)", (await call(env,"/api/leaderboard?limit=100")).data.top.some(r=>r.name==="PILOT" && r.score>1000));
+  ck("typed names are replaced by presets, scores kept ("+innocent.length+" checked)", shown.length===0, shown.join(", "));
+  const pre = "55555555-aaaa-4bbb-8ccc-000000000001";
+  await submit(env, pre, "swift comet 42", 3001);
+  ck("a valid preset sent by the player is kept as chosen (typed in lower case)", (await call(env,"/api/leaderboard?limit=100")).data.top.some(r=>r.name==="SWIFT COMET 42" && r.score===3001));
 }
 
 console.log("\n== A-3: entries stored BEFORE the filter are cleaned on the way out ==");
@@ -151,16 +157,16 @@ console.log("\n== A-3: entries stored BEFORE the filter are cleaned on the way o
   inst.ready = false; await inst.load();
   const lb = await call(env, "/api/leaderboard?limit=25");
   const row = lb.data.top[0];
-  ck("a legacy abusive name is not served as stored", row.name==="PILOT", row.name);
+  ck("a legacy abusive name is not served as stored (preset instead)", row.name===presetNameForId(PID_B), row.name);
 }
 
 console.log("\n== A-2: admin actions -- locked without the password ==");
 {
   const env = makeEnv({ ADMIN_TOKEN: "correct-horse-battery" });
-  await submit(env, PID_A, "TITAN", 4000, "PH");
-  const none = await call(env, "/api/admin/find-player", { method:"POST", body:{ name:"TITAN" } });
+  await submit(env, PID_A, TN, 4000, "PH");
+  const none = await call(env, "/api/admin/find-player", { method:"POST", body:{ name:TN } });
   ck("no password -> 401", none.status===401);
-  const wrong = await call(env, "/api/admin/find-player", { method:"POST", body:{ name:"TITAN" }, headers:{ "x-admin-token":"nope" } });
+  const wrong = await call(env, "/api/admin/find-player", { method:"POST", body:{ name:TN }, headers:{ "x-admin-token":"nope" } });
   ck("wrong password -> 401", wrong.status===401);
   const rm = await call(env, "/api/admin/remove-score", { method:"POST", body:{ pid:"0123456789abcdef" }, headers:{ "x-admin-token":"nope" } });
   ck("remove with wrong password -> 401", rm.status===401);
@@ -174,13 +180,13 @@ console.log("\n== A-2: admin actions -- find and remove, keeping the privacy pro
 {
   const env = makeEnv({ ADMIN_TOKEN: "correct-horse-battery" });
   const H = { "x-admin-token":"correct-horse-battery" };
-  await submit(env, PID_A, "TITAN", 4000, "PH");
-  await submit(env, PID_B, "NOVA", 3000, "PH");
+  await submit(env, PID_A, TN, 4000, "PH");
+  await submit(env, PID_B, NV, 3000, "PH");
   // Give TITAN a purchase record.
   const inst = [...env.LEADERBOARD_DO._instances.values()][0];
   await inst.load(); inst.entitlements[PID_A] = ["solar"];
-  const found = await call(env, "/api/admin/find-player", { method:"POST", body:{ name:"tit" }, headers:H });
-  ck("find by partial FLUX ID works", found.status===200 && found.data.matches.length===1 && found.data.matches[0].name==="TITAN");
+  const found = await call(env, "/api/admin/find-player", { method:"POST", body:{ name:TN.slice(0,7).toLowerCase() }, headers:H });
+  ck("find by partial FLUX ID works", found.status===200 && found.data.matches.length===1 && found.data.matches[0].name===TN);
   ck("find never returns a playerId", !found.raw.includes(PID_A) && !("playerId" in found.data.matches[0]));
   const before = (await call(env, "/api/leaderboard")).data.countries.find(c=>c.country==="PH");
   ck("before: PH has 2 players, 7000 points", before.playerCount===2 && before.totalScore===7000);
@@ -191,10 +197,10 @@ console.log("\n== A-2: admin actions -- find and remove, keeping the privacy pro
   ck("unknown entry -> 404", ghost.status===404);
 
   const out = await call(env, "/api/admin/remove-score", { method:"POST", body:{ pid: found.data.matches[0].pid }, headers:H });
-  ck("remove succeeds", out.status===200 && out.data.removed.name==="TITAN");
+  ck("remove succeeds", out.status===200 && out.data.removed.name===TN);
   const after = await call(env, "/api/leaderboard");
-  ck("TITAN is gone from the leaderboard", !after.data.top.some(r=>r.name==="TITAN"));
-  ck("NOVA is untouched", after.data.top.some(r=>r.name==="NOVA" && r.score===3000));
+  ck("the removed pilot is gone from the leaderboard", !after.data.top.some(r=>r.name===TN));
+  ck("the other pilot is untouched", after.data.top.some(r=>r.name===NV && r.score===3000));
   const ph = after.data.countries.find(c=>c.country==="PH");
   ck("country totals rebuilt: PH now 1 player, 3000 points", ph.playerCount===1 && ph.totalScore===3000, JSON.stringify(ph));
   const ent = await call(env, "/api/entitlements?playerId="+PID_A);
@@ -204,8 +210,8 @@ console.log("\n== A-2: admin actions -- find and remove, keeping the privacy pro
   // RC2.8 keeps the submit cooldown after Remove score (RC2.7 reset it, so a
   // removed score could be re-posted instantly). Let the cooldown pass first.
   inst.lastSubmit = {};
-  await submit(env, PID_A, "TITAN", 4100, "PH");
-  const f2 = await call(env, "/api/admin/find-player", { method:"POST", body:{ name:"TITAN" }, headers:H });
+  await submit(env, PID_A, TN, 4100, "PH");
+  const f2 = await call(env, "/api/admin/find-player", { method:"POST", body:{ name:TN }, headers:H });
   const o2 = await call(env, "/api/admin/privacy-delete", { method:"POST", body:{ pid: f2.data.matches[0].pid, removePurchases:true }, headers:H });
   ck("remove with purchases reports them", o2.data.purchasesRemoved===1);
   const ent2 = await call(env, "/api/entitlements?playerId="+PID_A);

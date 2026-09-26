@@ -2,7 +2,9 @@
 // and purchase tools. Written FIRST and run against RC2.7, where each defect
 // test must FAIL. Runs the REAL worker.js; Stripe and KV are local stand-ins.
 import worker, { LeaderboardDO } from "./FLUX-Sparta/worker.js";
-import { levelFor } from './level-rule.mjs';   // RC2.8.7: D-51 fixture levels
+import { levelFor } from './level-rule.mjs';
+import { P as PN } from './preset-names.mjs';   // PRESET NAMES: pilots can only carry preset names
+const N = Object.fromEntries(["TITAN", "CHEATER", "BIGSHOT", "ROCKET", "NOVA", "HONEST", "ALPHA", "LEAVER", "FAKER", "SMUGGLER", "STEADY", "BRAVO"].map(k=>[k, PN(k)]));   // RC2.8.7: D-51 fixture levels
 let F=0; const ck=(l,c,x='')=>{console.log((c?'  PASS  ':'  FAIL  ')+l+(x?'  ['+x+']':''));if(!c)F++;};
 /* ---------------- fake Durable Object runtime ---------------- */
 
@@ -94,68 +96,68 @@ async function tick(){ await new Promise(r=>setTimeout(r,5)); }
 console.log("== D-22: each difficulty keeps its own best ==");
 await (async () => { try {
   const env = env2();
-  await submit(env, P(1), "TITAN", 3000, "easy");
+  await submit(env, P(1), N.TITAN, 3000, "easy");
   inst(env).lastSubmit = {};                              // skip the 10s cooldown between runs
-  await submit(env, P(1), "TITAN", 2000, "hard");
+  await submit(env, P(1), N.TITAN, 2000, "hard");
   const hard = await call(env, "/api/leaderboard?difficulty=hard");
   const easy = await call(env, "/api/leaderboard?difficulty=easy");
-  ck("Hard board keeps the player's Hard 2,000", hard.data.top.some(r=>r.name==="TITAN" && r.score===2000), hard.raw.slice(0,120));
-  ck("Easy board keeps the player's Easy 3,000", easy.data.top.some(r=>r.name==="TITAN" && r.score===3000));
+  ck("Hard board keeps the player's Hard 2,000", hard.data.top.some(r=>r.name===N.TITAN && r.score===2000), hard.raw.slice(0,120));
+  ck("Easy board keeps the player's Easy 3,000", easy.data.top.some(r=>r.name===N.TITAN && r.score===3000));
   const all = await call(env, "/api/leaderboard");
-  ck("overall board lists the player ONCE, at their single best", all.data.top.filter(r=>r.name==="TITAN").length===1 && all.data.top.find(r=>r.name==="TITAN")?.score===3000);
+  ck("overall board lists the player ONCE, at their single best", all.data.top.filter(r=>r.name===N.TITAN).length===1 && all.data.top.find(r=>r.name===N.TITAN)?.score===3000);
   const us = all.data.countries.find(c=>c.country==="US");
   ck("country counts the single best (3,000), not the sum (5,000)", us && us.totalScore===3000 && us.playerCount===1, JSON.stringify(us));
   inst(env).lastSubmit = {};
-  await submit(env, P(1), "TITAN", 1500, "hard");       // lower -> must not overwrite
+  await submit(env, P(1), N.TITAN, 1500, "hard");       // lower -> must not overwrite
   const hard2 = await call(env, "/api/leaderboard?difficulty=hard");
-  ck("a lower run never overwrites a difficulty best", hard2.data.top.find(r=>r.name==="TITAN")?.score===2000);
+  ck("a lower run never overwrites a difficulty best", hard2.data.top.find(r=>r.name===N.TITAN)?.score===2000);
 } catch (e) { ck("section completed without crashing", false, String(e).slice(0,90)); } })();
 
 console.log("\n== D-25: country leaders stay correct when a leader moves ==");
 await (async () => { try {
   const env = env2();
-  await submit(env, P(1), "BIGSHOT", 455000, "medium", "US", 9);
-  await submit(env, P(2), "ALPHA", 2000, "medium", "US");
-  await submit(env, P(3), "BRAVO", 1500, "medium", "US");
+  await submit(env, P(1), N.BIGSHOT, 455000, "medium", "US", 9);
+  await submit(env, P(2), N.ALPHA, 2000, "medium", "US");
+  await submit(env, P(3), N.BRAVO, 1500, "medium", "US");
   inst(env).lastSubmit = {};
-  await submit(env, P(1), "BIGSHOT", 10, "medium", "PH"); // moves country (best stays 455,000)
+  await submit(env, P(1), N.BIGSHOT, 10, "medium", "PH"); // moves country (best stays 455,000)
   const lb = await call(env, "/api/leaderboard");
   const us = lb.data.countries.find(c=>c.country==="US"), ph = lb.data.countries.find(c=>c.country==="PH");
   ck("former country total = remaining players (3,500 from 2)", us?.totalScore===3500 && us.playerCount===2, JSON.stringify(us));
-  ck("former country's leader is no longer the departed player", us?.topName==="ALPHA" && us.topScore===2000, us?.topName+" "+us?.topScore);
-  ck("new country carries the mover", ph && ph.topName==="BIGSHOT" && ph.playerCount===1);
+  ck("former country's leader is no longer the departed player", us?.topName===N.ALPHA && us.topScore===2000, us?.topName+" "+us?.topScore);
+  ck("new country carries the mover", ph && ph.topName===N.BIGSHOT && ph.playerCount===1);
 } catch (e) { ck("section completed without crashing", false, String(e).slice(0,90)); } })();
 
 console.log("\n== D-28 / moderation: restriction excludes a player everywhere ==");
 await (async () => { try {
   const env = env2();
-  await submit(env, P(1), "CHEATER", 455000, "medium", "US", 9);
-  await submit(env, P(2), "HONEST", 2000, "medium", "US");
-  const f = await call(env, "/api/admin/find-player", { method:"POST", body:{ query:"CHEATER" }, headers:ADMIN });
+  await submit(env, P(1), N.CHEATER, 455000, "medium", "US", 9);
+  await submit(env, P(2), N.HONEST, 2000, "medium", "US");
+  const f = await call(env, "/api/admin/find-player", { method:"POST", body:{ query:N.CHEATER }, headers:ADMIN });
   const pid = f.data && f.data.matches && f.data.matches[0] && f.data.matches[0].pid;
   const r = await call(env, "/api/admin/restrict", { method:"POST", body:{ pid, reason:"fake score" }, headers:ADMIN });
   ck("restrict succeeds", r.status===200, r.raw);
   const lb = await call(env, "/api/leaderboard");
-  ck("restricted player gone from the leaderboard", !lb.data.top.some(x=>x.name==="CHEATER"));
+  ck("restricted player gone from the leaderboard", !lb.data.top.some(x=>x.name===N.CHEATER));
   const us = lb.data.countries.find(c=>c.country==="US");
-  ck("restricted player excluded from country totals and leader", us?.totalScore===2000 && us?.topName==="HONEST", JSON.stringify(us));
+  ck("restricted player excluded from country totals and leader", us?.totalScore===2000 && us?.topName===N.HONEST, JSON.stringify(us));
   inst(env).lastSubmit = {};
-  const again = await submit(env, P(1), "CHEATER", 455000, "medium", "US", 9);
+  const again = await submit(env, P(1), N.CHEATER, 455000, "medium", "US", 9);
   ck("a restricted player can still submit (plays locally, no error)", again.status===200);
   ck("...but is given NO public rank (none fabricated)", again.data && again.data.rank===null && again.data.public===false, again.raw);
   const lb2 = await call(env, "/api/leaderboard");
-  ck("...and still does not appear publicly", !lb2.data.top.some(x=>x.name==="CHEATER"));
+  ck("...and still does not appear publicly", !lb2.data.top.some(x=>x.name===N.CHEATER));
   await call(env, "/api/admin/unrestrict", { method:"POST", body:{ pid }, headers:ADMIN });
   const lb3 = await call(env, "/api/leaderboard");
-  ck("unrestrict restores the player's standing", lb3.data.top[0]?.name==="CHEATER");
+  ck("unrestrict restores the player's standing", lb3.data.top[0]?.name===N.CHEATER);
 } catch (e) { ck("section completed without crashing", false, String(e).slice(0,90)); } })();
 
 console.log("\n== Remove score: keeps identity and purchases; restriction stops returns ==");
 await (async () => { try {
   const env = env2();
-  await submit(env, P(1), "FAKER", 400000, "medium", "US", 9);
+  await submit(env, P(1), N.FAKER, 400000, "medium", "US", 9);
   inst(env).entitlements[P(1)] = ["solar"];
-  const f = await call(env, "/api/admin/find-player", { method:"POST", body:{ query:"FAKER" }, headers:ADMIN });
+  const f = await call(env, "/api/admin/find-player", { method:"POST", body:{ query:N.FAKER }, headers:ADMIN });
   const pid = f.data?.matches?.[0]?.pid;
   const rm = await call(env, "/api/admin/remove-score", { method:"POST", body:{ pid }, headers:ADMIN });
   ck("remove-score succeeds", rm.status===200, rm.raw);
@@ -167,7 +169,7 @@ await (async () => { try {
 console.log("\n== Public tags: longer than 4 hex, stable, collision-checked ==");
 await (async () => { try {
   const env = env2();
-  await submit(env, P(1), "TITAN", 3000); await submit(env, P(2), "TITAN", 2000);
+  await submit(env, P(1), N.TITAN, 3000); await submit(env, P(2), N.TITAN, 2000);
   const lb = await call(env, "/api/leaderboard");
   const tags = lb.data.top.map(r=>r.tag);
   ck("every row has a tag of 6+ characters", tags.every(t=>typeof t==="string" && /^[0-9A-Z]{6,}$/.test(t)), tags.join(","));
@@ -175,33 +177,33 @@ await (async () => { try {
   const lb2 = await call(env, "/api/leaderboard");
   ck("tags are stable between reads", lb2.data.top.map(r=>r.tag).join()===tags.join());
   ck("no tag or row reveals a playerId", !lb.raw.includes(P(1)) && !lb.raw.includes(P(2)));
-  const me = await submit(env, P(3), "NOVA", 9);
+  const me = await submit(env, P(3), N.NOVA, 9);
   ck("submit response tells the player their own tag", me.data && /^[0-9A-Z]{6,}$/.test(me.data.tag||""), me.raw);
 } catch (e) { ck("section completed without crashing", false, String(e).slice(0,90)); } })();
 
 console.log("\n== Name bans: display replaced, personal best preserved ==");
 await (async () => { try {
   const env = env2();
-  await submit(env, P(1), "SMUGGLER", 3000);
-  const b = await call(env, "/api/admin/name-ban", { method:"POST", body:{ name:"smuggler" }, headers:ADMIN });
+  await submit(env, P(1), N.SMUGGLER, 3000);
+  const b = await call(env, "/api/admin/name-ban", { method:"POST", body:{ name:N.SMUGGLER.toLowerCase() }, headers:ADMIN });
   ck("name-ban succeeds", b.status===200, b.raw);
   const lb = await call(env, "/api/leaderboard");
   const row = lb.data.top[0] || {};
   ck("banned name is shown as PILOT", row.name==="PILOT" && row.score===3000, JSON.stringify(row));
   ck("the stored best is not destroyed", inst(env).players[P(1)] && JSON.stringify(inst(env).players[P(1)]).includes("3000"));
-  await call(env, "/api/admin/name-unban", { method:"POST", body:{ name:"SMUGGLER" }, headers:ADMIN });
-  ck("unban restores the name", (await call(env, "/api/leaderboard")).data.top[0]?.name==="SMUGGLER");
+  await call(env, "/api/admin/name-unban", { method:"POST", body:{ name:N.SMUGGLER }, headers:ADMIN });
+  ck("unban restores the name", (await call(env, "/api/leaderboard")).data.top[0]?.name===N.SMUGGLER);
 } catch (e) { ck("section completed without crashing", false, String(e).slice(0,90)); } })();
 
 console.log("\n== Unusual submissions are flagged -- never auto-punished ==");
 await (async () => { try {
   const env = env2();
-  await submit(env, P(1), "STEADY", 3000);
-  await submit(env, P(2), "ROCKET", 450000, "medium", "US", 9);
+  await submit(env, P(1), N.STEADY, 3000);
+  await submit(env, P(2), N.ROCKET, 450000, "medium", "US", 9);
   const ex = await call(env, "/api/admin/exceptions", { method:"POST", body:{}, headers:ADMIN });
-  ck("the outlier is flagged for optional review", ex.status===200 && (ex.data.flags||[]).some(f=>f.name==="ROCKET"), ex.raw.slice(0,160));
+  ck("the outlier is flagged for optional review", ex.status===200 && (ex.data.flags||[]).some(f=>f.name===N.ROCKET), ex.raw.slice(0,160));
   const lb = await call(env, "/api/leaderboard");
-  ck("...but NOT hidden or punished automatically", lb.data.top[0]?.name==="ROCKET");
+  ck("...but NOT hidden or punished automatically", lb.data.top[0]?.name===N.ROCKET);
 } catch (e) { ck("section completed without crashing", false, String(e).slice(0,90)); } })();
 
 console.log("\n== D-26: a paid event that cannot be fulfilled is NOT acknowledged ==");
@@ -288,12 +290,12 @@ await (async () => { try {
 console.log("\n== Privacy deletion is separate, and works without a leaderboard entry ==");
 await (async () => { try {
   const env = env2();
-  await submit(env, P(1), "LEAVER", 3000);
-  const f = await call(env, "/api/admin/find-player", { method:"POST", body:{ query:"LEAVER" }, headers:ADMIN });
+  await submit(env, P(1), N.LEAVER, 3000);
+  const f = await call(env, "/api/admin/find-player", { method:"POST", body:{ query:N.LEAVER }, headers:ADMIN });
   const pid = f.data?.matches?.[0]?.pid;
   inst(env).entitlements[P(1)] = ["toxic"];
   const pd = await call(env, "/api/admin/privacy-delete", { method:"POST", body:{ pid, removePurchases:false }, headers:ADMIN });
-  ck("privacy deletion removes the entry", pd.status===200 && !(await call(env,"/api/leaderboard")).data.top.some(r=>r.name==="LEAVER"));
+  ck("privacy deletion removes the entry", pd.status===200 && !(await call(env,"/api/leaderboard")).data.top.some(r=>r.name===N.LEAVER));
   ck("privacy deletion keeps purchases unless asked", (await call(env,"/api/entitlements?playerId="+P(1))).data.skus.includes("toxic"));
 } catch (e) { ck("section completed without crashing", false, String(e).slice(0,90)); } })();
 
@@ -346,7 +348,7 @@ await (async () => { try {
 console.log("\n== Tag collisions: same name + same short tag -> both lengthened ==");
 await (async () => { try {
   const env = env2();
-  await submit(env, P(1), "TITAN", 3000); await submit(env, P(2), "TITAN", 2000); await submit(env, P(3), "NOVA", 1000);
+  await submit(env, P(1), N.TITAN, 3000); await submit(env, P(2), N.TITAN, 2000); await submit(env, P(3), N.NOVA, 1000);
   const d = inst(env);
   // Force a collision: two hashes identical for the first 35 bits (7 tag chars).
   const forced = { [P(1)]: "abcdef0123456789", [P(2)]: "abcdef0120000000", [P(3)]: "ffffffffffffffff" };
@@ -356,10 +358,10 @@ await (async () => { try {
   // must clear those caches, exactly as a genuinely new identity would start.
   d.pidCache = new Map(); d.tagCache = null;
   const lb = await call(env, "/api/leaderboard");
-  const t = lb.data.top.filter(r=>r.name==="TITAN").map(r=>r.tag);
+  const t = lb.data.top.filter(r=>r.name===N.TITAN).map(r=>r.tag);
   ck("colliding short tags are detected and lengthened", t.length===2 && t.every(x=>x.length===12), t.join(","));
   ck("lengthened tags differ", t[0]!==t[1]);
-  ck("non-colliding players keep the short tag", lb.data.top.find(r=>r.name==="NOVA").tag.length===7);
+  ck("non-colliding players keep the short tag", lb.data.top.find(r=>r.name===N.NOVA).tag.length===7);
 } catch (e) { ck("section completed without crashing", false, String(e).slice(0,90)); } })();
 
 console.log("\n"+"=".repeat(56));

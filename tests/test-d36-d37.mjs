@@ -3,7 +3,8 @@
 // page, real admin page script. Written against RC2.8.2 first: must FAIL there.
 // Ends with negative controls that re-insert each defect and require a catch.
 import fs from 'fs'; import path from 'path'; import vm from 'vm';
-import { levelFor } from './level-rule.mjs';   // RC2.8.7: D-51 fixture levels
+import { levelFor } from './level-rule.mjs';
+import { P as PN } from './preset-names.mjs';   // PRESET NAMES   // RC2.8.7: D-51 fixture levels
 import { fileURLToPath, pathToFileURL } from 'url';
 import { boot, makeStore } from './harness.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -83,7 +84,7 @@ async function suite({ gameHtml, adminHtml, workerMod, quiet=false }){
   try {
     const env=makeEnv(DO); const stub=env.LEADERBOARD_DO.get('global');
     const ID='a1a1a1a1-0000-4000-8000-000000000001';
-    skew+=20000; await call(worker,env,'/api/submit-score',{ body:{ playerId:ID, name:'Titan', score:21742, level:levelFor(21742,'hard'), difficulty:'hard', country:'US' } });
+    skew+=20000; await call(worker,env,'/api/submit-score',{ body:{ playerId:ID, name:PN('TITAN'), score:21742, level:levelFor(21742,'hard'), difficulty:'hard', country:'US' } });
     const pid=await pidHash(ID);
     const P='/api/admin/issue-restore-code';
     let r=await call(worker,env,P,{ body:{ pid, reason:'receipt matched' } });
@@ -105,7 +106,7 @@ async function suite({ gameHtml, adminHtml, workerMod, quiet=false }){
       ck('A3 malformed body -> 400, no crash: '+body, r.status===400);
     }
     r=await call(worker,env,P,{ token:TOKEN, body:{ pid, reason:'  Stripe receipt\n matched  ' } });
-    ck('A4 issued', r.status===200 && typeof r.data.code==='string' && r.data.tag && r.data.name==='TITAN', r.text.slice(0,80));
+    ck('A4 issued', r.status===200 && typeof r.data.code==='string' && r.data.tag && r.data.name===PN('TITAN'), r.text.slice(0,80));
     ck('A4 never cached', (r.headers.get('cache-control')||'').includes('no-store'));
     const code=r.data.code;
     const { g }=bootGame({ fluxPlayerId:'someone-else' });
@@ -116,7 +117,7 @@ async function suite({ gameHtml, adminHtml, workerMod, quiet=false }){
     ck('A5 restore-check finds it (full restore works)', rc.data && rc.data.found===true && rc.data.tag===r.data.tag);
     const ov=await call(worker,env,'/api/admin/exceptions',{ token:TOKEN, body:{} });
     const log=ov.data.restoreLog||[];
-    ck('A6 issue is logged: time, tag, name, reason', log.length===1 && log[0].tag===r.data.tag && log[0].name==='TITAN' && log[0].reason==='Stripe receipt matched' && log[0].at>0, JSON.stringify(log).slice(0,120));
+    ck('A6 issue is logged: time, tag, name, reason', log.length===1 && log[0].tag===r.data.tag && log[0].name===PN('TITAN') && log[0].reason==='Stripe receipt matched' && log[0].at>0, JSON.stringify(log).slice(0,120));
     ck('A6 the log never contains the code or the playerId', !ov.text.includes(ID) && !ov.text.includes('FX1-'));
     const unauth=await call(worker,env,'/api/admin/exceptions',{ body:{} });
     ck('A6 the log itself needs the admin password', unauth.status===401 && !unauth.text.includes('TITAN'));

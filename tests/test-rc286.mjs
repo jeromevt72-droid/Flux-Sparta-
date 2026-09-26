@@ -68,7 +68,7 @@ async function suite({ gameHtml, gwHtml, quiet = false }) {
   if (!quiet) console.log('== D-49: bring my pilot into the installed app ==');
   try {
     const a = bootGame({}, { ios: true, standalone: true }); a.g.ctx.refreshInstallButtons();
-    ck('B1 installed app with a brand-new auto pilot: BRING MY PILOT shown', a.vis.bringPilotBtn === true && /^PILOT-/.test(a.run('callsign')));
+    ck('B1 installed app with a brand-new auto pilot: BRING MY PILOT shown', a.vis.bringPilotBtn === true && a.run('isPresetName(callsign)') === true && a.mem.fluxAutoName === '1');
     const t = bootGame({ fluxPublicTag: 'ABCDEFG' }, { ios: true, standalone: true }); t.g.ctx.refreshInstallButtons();
     ck('B1 ...not shown once this pilot has scores', t.vis.bringPilotBtn === false);
     const w = bootGame({}, { ios: true, standalone: false }); w.g.ctx.refreshInstallButtons();
