@@ -27,7 +27,7 @@ async function suite({ gameHtml, gwHtml, quiet = false }) {
       vis[id] = false; el.classList = { add: (c) => { if (c === 'hidden') vis[id] = false; }, remove: (c) => { if (c === 'hidden') vis[id] = true; }, contains: () => false, toggle() {} }; }
     const run = (c) => vm.runInContext(c, g.ctx);
     const el = (id) => g.win.document.getElementById(id);
-    const endRun = () => { run('score=700; level=1;'); g.ctx.endGame(); };
+    const endRun = () => { run('score=7000; level=2;'); g.ctx.endGame(); };   // a good run (level 2+): the one install offer (test-share-install.mjs)
     return { g, mem, run, el, vis, endRun };
   };
 
@@ -59,9 +59,9 @@ async function suite({ gameHtml, gwHtml, quiet = false }) {
     ck('I3 once installed, no button', b.vis.gameoverInstallBtn === false);
   } catch (e) { ck('Android section ran', false, String(e.stack || e).slice(0, 200)); }
   try {
-    const s = bootGame({ fluxRunsPlayed: '3' }, { ios: true, standalone: true }); s.g.ctx.refreshInstallButtons();
+    const s = bootGame({ fluxRunsPlayed: '3' }, { ios: true, standalone: true }); s.endRun();
     ck('I4 already running as the installed app: no install button', s.vis.gameoverInstallBtn === false);
-    const d = bootGame({ fluxRunsPlayed: '3' }, { ios: false }); d.g.ctx.refreshInstallButtons();
+    const d = bootGame({ fluxRunsPlayed: '3' }, { ios: false }); d.endRun();
     ck('I5 a browser with no install option: no button (no instructions shown)', d.vis.gameoverInstallBtn === false);
   } catch (e) { ck('I4/I5 ran', false, String(e.stack || e).slice(0, 200)); }
 
@@ -155,7 +155,7 @@ async function control(label, { expect, game = (s) => s, gw = (s) => s }) {
   if (!ok) NC++;
 }
 const rep = (a, b) => (s) => (s.includes(a) ? s.replace(a, b) : s);
-await control('install offered before the first game', { expect: 'I1', game: rep("if (fluxIsStandalone() || !fluxHasPlayed()) return null;", "if (fluxIsStandalone()) return null;") });
+await control('install offered before the first game', { expect: 'I1', game: (h) => rep("const mode = fluxInstallOfferNow ? fluxInstallMode() : null;", "const mode = fluxInstallMode();")(rep("if (fluxIsStandalone() || !fluxHasPlayed()) return null;", "if (fluxIsStandalone()) return null;")(h)) });
 await control('Android shown the iPhone instructions', { expect: 'I3', game: rep("if (mode === 'android' && fluxDeferredInstall){", "if (false){") });
 await control('install button shown inside the installed app', { expect: 'I4', game: rep("if (fluxIsStandalone() || !fluxHasPlayed()) return null;", "if (!fluxHasPlayed()) return null;") });
 await control('bring-my-pilot shown in the browser', { expect: 'B1', game: rep("try{ return fluxIsStandalone() && localStorage.getItem('fluxAutoName') === '1'", "try{ return localStorage.getItem('fluxAutoName') === '1'") });

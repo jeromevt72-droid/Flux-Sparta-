@@ -1,7 +1,7 @@
 // Share card after each run, in the release gate. Real game page in the harness vm.
 //   S1 wording: "I added <points> for <flag> <country>!" when the run added to the
 //      country's total (same number as the game-over line), else "I scored ...";
-//      the link opens the web game (/play/ on this site); no name or player ID;
+//      the link opens the web game (/play/?src=share on this site); no name or player ID;
 //   S2 the phone's share sheet gets the card image + text when it can share images;
 //      text + link when it can't; clipboard copy when there is no share sheet;
 //      cancelling the share sheet is silent;
@@ -28,7 +28,7 @@ async function suite(gameHtml, quiet = false) {
       g.ctx.showGameOverLine(2500, 3000, 3000); const t2 = run('shareText(shareInfo)');
       ck('S1 a run that added to the country: "I added 1,200 for 🇵🇭 Philippines!"', t1.startsWith('I added 1,200 for 🇵🇭 Philippines!'), t1);
       ck('S1 a run that did not: "I scored 2,500 for 🇵🇭 Philippines!" (never a false "added")', t2.startsWith('I scored 2,500 for 🇵🇭 Philippines!'), t2);
-      ck('S1 the link opens the web game on this site, and nothing personal is shared', u === 'https://flux.example/play/' && !/MARIA|SECRET/.test(t1 + t2 + u), u); }
+      ck('S1 the link opens the web game on this site (tagged ?src=share), and nothing personal is shared', u === 'https://flux.example/play/?src=share' &&!/MARIA|SECRET/.test(t1 + t2 + u), u); }
     // S2/S3: share paths.
     const tapShare = (setup) => { const { g, run } = bootGame(); const calls = []; let inTap = false;
       run('var File=function(parts,name,o){ this.name=name; this.type=o&&o.type; };');
@@ -36,12 +36,12 @@ async function suite(gameHtml, quiet = false) {
       g.ctx.showGameOverLine(4200, 3000, 3000); run("shareFile=new File(['x'],'flux-score.jpg',{type:'image/jpeg'});");
       const btn = g.win.document.getElementById('shareBtn'); inTap = true; btn.onclick(); inTap = false; return { calls, run, btn }; };
     const full = tapShare((n, calls, tap) => { n.canShare = (d) => !!d.files; n.share = (d) => { calls.push({ d, sync: tap() }); return Promise.resolve(); }; });
-    ck('S2 phones that can share images get the card + text with the link', full.calls.length === 1 && full.calls[0].d.files && full.calls[0].d.files[0].name === 'flux-score.jpg' && /I added 1,200 for .* https:\/\/flux\.example\/play\/$/.test(full.calls[0].d.text), JSON.stringify(full.calls[0] && full.calls[0].d.text));
+    ck('S2 phones that can share images get the card + text with the link', full.calls.length === 1 && full.calls[0].d.files && full.calls[0].d.files[0].name === 'flux-score.jpg' && /I added 1,200 for .* https:\/\/flux\.example\/play\/\?src=share$/.test(full.calls[0].d.text), JSON.stringify(full.calls[0] && full.calls[0].d.text));
     ck('S3 the share sheet opens directly in the tap (nothing awaited first)', full.calls.length === 1 && full.calls[0].sync === true);
     const textOnly = tapShare((n, calls, tap) => { n.canShare = () => false; n.share = (d) => { calls.push({ d, sync: tap() }); return Promise.resolve(); }; });
-    ck('S2 browsers that cannot share images get text + link', textOnly.calls.length === 1 && !textOnly.calls[0].d.files && textOnly.calls[0].d.url === 'https://flux.example/play/' && textOnly.calls[0].sync === true);
+    ck('S2 browsers that cannot share images get text + link', textOnly.calls.length === 1 && !textOnly.calls[0].d.files && textOnly.calls[0].d.url === 'https://flux.example/play/?src=share' && textOnly.calls[0].sync === true);
     const copy = tapShare((n, calls) => { delete n.share; delete n.canShare; n.clipboard = { writeText: (t) => { calls.push(t); return Promise.resolve(); } }; });
-    ck('S2 no share sheet: the text and link are copied', copy.calls.length === 1 && /https:\/\/flux\.example\/play\/$/.test(copy.calls[0]));
+    ck('S2 no share sheet: the text and link are copied', copy.calls.length === 1 && /https:\/\/flux\.example\/play\/\?src=share$/.test(copy.calls[0]));
     let copied = 0; const cancel = tapShare((n, calls) => { n.canShare = () => false; n.share = () => Promise.reject(Object.assign(new Error('x'), { name: 'AbortError' })); n.clipboard = { writeText: () => { copied++; return Promise.resolve(); } }; });
     await new Promise((r) => setTimeout(r, 20));   // let the rejected share settle
     ck('S2 cancelling the share sheet is silent (no copy, no message)', copied === 0);

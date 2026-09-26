@@ -3267,13 +3267,23 @@ SPEED_HELPS.push(easeFactor);
      Android (browser offers install)  -> "INSTALL NOW" = the phone's own prompt
      iPhone / iPad                     -> "ADD TO HOME SCREEN" = 3-step picture
      already installed / other browser -> no button
-   No pop-ups. */
-let fluxDeferredInstall = null;
+   No pop-ups.
+   SHARE & INSTALL: the button is offered ONCE, after a GOOD run (points, and
+   level 2+ or a new personal best over an earlier one), on that run's
+   game-over screen only; the next run takes it away (fluxInstallOffered).
+     inside TikTok / Instagram / Facebook / Messenger... -> "open in Safari /
+       your browser first" steps (Home Screen steps can't work there) */
+let fluxDeferredInstall = null, fluxInstallOfferNow = false;
 function fluxIsStandalone(){ try{ return window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches; }catch(e){ return false; } }
 function fluxIsIOS(){ try{ return /iP(hone|od|ad)/.test(navigator.platform) || (navigator.userAgent.indexOf('Mac') !== -1 && 'ontouchend' in document); }catch(e){ return false; } }
+function fluxIsIPad(){ try{ return /iPad/.test(navigator.platform) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); }catch(e){ return false; } }   // iPadOS reports itself as a Mac with touch
+function fluxInApp(){ return window.FLUX_IN_APP || null; }   // set by the D-38 in-app browser check at the end of this page
 function fluxHasPlayed(){ try{ return (+localStorage.getItem('fluxRunsPlayed') || 0) >= 1; }catch(e){ return false; } }
+function fluxInstallOffered(){ try{ return localStorage.getItem('fluxInstallOffered') === '1'; }catch(e){ return true; } }
+function fluxGoodRun(sc, prevBest, lv){ return sc > 0 && (lv >= 2 || (prevBest > 0 && sc > prevBest)); }
 function fluxInstallMode(){
   if (fluxIsStandalone() || !fluxHasPlayed()) return null;
+  if (fluxInApp()) return 'inapp';
   if (fluxDeferredInstall) return 'android';
   if (fluxIsIOS()) return 'ios';
   return null;
@@ -3282,7 +3292,7 @@ function fluxNeedsPilotBring(){
   try{ return fluxIsStandalone() && localStorage.getItem('fluxAutoName') === '1' && !localStorage.getItem('fluxPublicTag'); }catch(e){ return false; }
 }
 function refreshInstallButtons(){
-  const mode = fluxInstallMode();
+  const mode = fluxInstallOfferNow ? fluxInstallMode() : null;
   const label = mode === 'android' ? '\u{1F4F2} INSTALL NOW' : '\u{1F4F2} ADD TO HOME SCREEN';
   ['gameoverInstallBtn'].forEach(function(id){   // owner decision: after a run only, never in the menu
     const b = document.getElementById(id); if (!b) return;
@@ -3303,7 +3313,7 @@ function fluxDoInstall(){
     refreshInstallButtons();
     return;
   }
-  if (mode === 'ios') fluxShowIosGuide();
+  if (mode === 'ios' || mode === 'inapp') fluxShowIosGuide();
 }
 /* SHARE CARD. After each run, SHARE MY SCORE opens the phone's own share
    sheet (iPhone: Messages, WhatsApp, Instagram...; Android: the system
@@ -3317,10 +3327,25 @@ function fluxDoInstall(){
    browsers that can't share images; copy to clipboard where there is no share
    sheet. Nothing is uploaded by the game; offline it still works. */
 let shareInfo=null, shareFile=null, shareCanvas=null;
-function shareUrl(){ return location.origin+'/play/'; }
+function shareUrl(){ return location.origin+'/play/?src=share'; }   // tagged so visits from shared links can be counted; the card prints the clean address
 function shareText(info){
   const c=countryLabel(info.country);
   return (info.added>0 ? 'I added '+info.added.toLocaleString('en-US')+' for '+c.flag+' '+c.name+'!' : 'I scored '+info.score.toLocaleString('en-US')+' for '+c.flag+' '+c.name+'!')+' Beat me in FLUX:';
+}
+/* The card shows the game's name and its web address in large type, since
+   Instagram and TikTok captions don't make links clickable: people type what
+   they see. The address is the site's canonical one (<link rel="canonical">
+   in this page), or this page's own host if there is none. */
+const SHARE_CARD_TITLE='FLUX Sparta', SHARE_CARD_ADDRESS_PX=72;
+function shareSiteAddress(){
+  try{ const l=document.querySelector('link[rel="canonical"]'), h=l && l.getAttribute('href'); if(typeof h==='string' && /^https?:\/\/[^\/]+/.test(h)) return h.replace(/^https?:\/\//,'').split('/')[0]; }catch(e){}
+  return location.host;
+}
+function fitShareFont(x,text,weight,size,maxW){   // the largest size up to `size` at which `text` fits in maxW
+  x.font=weight+' '+size+'px -apple-system,system-ui,sans-serif';
+  const w=x.measureText(text).width;
+  if(w>maxW){ size=Math.floor(size*maxW/w); x.font=weight+' '+size+'px -apple-system,system-ui,sans-serif'; }
+  return size;
 }
 function drawShareCard(info){
   const cv=document.createElement('canvas'); cv.width=720; cv.height=900;   // 4:5, sharp in chat apps, quick to encode
@@ -3329,17 +3354,21 @@ function drawShareCard(info){
   const g=x.createLinearGradient(0,0,0,1350); g.addColorStop(0,'#111b43'); g.addColorStop(.55,'#07091d'); g.addColorStop(1,'#03040d');
   x.fillStyle=g; x.fillRect(0,0,1080,1350);
   const pal=(SKINS[activeSkin]||SKINS.aurora).colors;
-  for(let i=0;i<5;i++){ x.globalAlpha=.9; x.fillStyle=pal[i%pal.length]; x.beginPath(); x.arc(170+i*185,1150,34,0,Math.PI*2); x.fill(); }
+  for(let i=0;i<5;i++){ x.globalAlpha=.9; x.fillStyle=pal[i%pal.length]; x.beginPath(); x.arc(220+i*160,890,26,0,Math.PI*2); x.fill(); }
   x.globalAlpha=1; x.textAlign='center';
-  x.fillStyle='#5ff3ff'; x.font='900 120px -apple-system,system-ui,sans-serif'; x.fillText('F L U X',540,210);
+  x.fillStyle='#5ff3ff'; fitShareFont(x,SHARE_CARD_TITLE,'900',124,960); x.fillText(SHARE_CARD_TITLE,540,170);
   const c=countryLabel(info.country);
-  x.font='220px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; x.fillText(c.flag,540,520);
+  x.font='200px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; x.fillText(c.flag,540,430);
   x.fillStyle='#ffffff'; x.font='900 150px -apple-system,system-ui,sans-serif';
-  x.fillText((info.added>0?'+':'')+(info.added>0?info.added:info.score).toLocaleString('en-US'),540,760);
-  x.fillStyle='#ffd23f'; x.font='800 60px -apple-system,system-ui,sans-serif';
-  x.fillText((info.added>0?'added for ':'scored for ')+c.name,540,860);
-  x.fillStyle='#9fb3e6'; x.font='700 44px -apple-system,system-ui,sans-serif'; x.fillText('Can you beat it? Play free:',540,1000);
-  x.fillStyle='#eaf7ff'; x.font='800 40px -apple-system,system-ui,sans-serif'; x.fillText(shareUrl().replace(/^https?:\/\//,''),540,1060);
+  x.fillText((info.added>0?'+':'')+(info.added>0?info.added:info.score).toLocaleString('en-US'),540,640);
+  const line=(info.added>0?'added for ':'scored for ')+c.name;
+  x.fillStyle='#ffd23f'; fitShareFont(x,line,'800',60,960); x.fillText(line,540,745);
+  x.fillStyle='#9fb3e6'; x.font='700 50px -apple-system,system-ui,sans-serif'; x.fillText('Can you beat it? Play free at',540,1030);
+  // The web address: large, white, one line, on a bright panel (Instagram/TikTok captions are not clickable, so people type it).
+  const site=shareSiteAddress(), X0=24, Y0=1075, BW=1032, BH=150, R=34;
+  x.fillStyle='#12204d'; x.strokeStyle='#5ff3ff'; x.lineWidth=5;
+  x.beginPath(); x.moveTo(X0+R,Y0); x.arcTo(X0+BW,Y0,X0+BW,Y0+BH,R); x.arcTo(X0+BW,Y0+BH,X0,Y0+BH,R); x.arcTo(X0,Y0+BH,X0,Y0,R); x.arcTo(X0,Y0,X0+BW,Y0,R); x.closePath(); x.fill(); x.stroke();
+  x.fillStyle='#ffffff'; const px=fitShareFont(x,site,'800',SHARE_CARD_ADDRESS_PX,990); x.fillText(site,540,Y0+BH/2+px*.36);
   return cv;
 }
 function prepareShare(sc,prevOverall){
@@ -3382,13 +3411,28 @@ async function fluxShowIosGuide(){
   let hasScores = false;
   try{ hasScores = !!localStorage.getItem('fluxPublicTag') || RESTORE_DIFFS.some(function(d){ return (+localStorage.getItem('fluxBest_' + d) || 0) > 0; }); }catch(e){}
   const code = hasScores ? await makeRestoreCode(playerId) : null;
-  const d = restoreOverlay(
-    '<h2 style="color:#62eaff;letter-spacing:.12em">ADD FLUX TO YOUR HOME SCREEN</h2>' +
-    (code ? '<p class="restoreText"><b>1.</b> Copy your pilot so the app starts as you:</p><button id="guideCopyPilot">COPY MY PILOT</button>' : '') +
-    '<p class="restoreText" style="margin-top:12px"><b>' + (code ? '2' : '1') + '.</b> Tap <b>Share</b> (the square with an arrow) in Safari</p>' +
-    '<p class="restoreText"><b>' + (code ? '3' : '2') + '.</b> Choose <b>Add to Home Screen</b> \u2192 <b>Add</b></p>' +
-    (code ? '<p class="restoreText"><b>4.</b> Open FLUX from the new icon and tap <b>BRING MY PILOT FROM SAFARI</b></p>' : '') +
-    '<button id="guideDone">DONE</button>');
+  const app = fluxInApp(), browser = fluxIsIOS() ? 'Safari' : 'your browser';
+  let n = 0; const step = function(html, top){ n++; return '<p class="restoreText"' + (top ? ' style="margin-top:12px"' : '') + '><b>' + n + '.</b> ' + html + '</p>'; };
+  let body;
+  if (app){
+    // Inside TikTok / Instagram / Facebook / Messenger...: Home Screen steps can't work here; open the real browser first.
+    const how = app === 'TikTok' ? 'Tap <b>\u22ef</b> or the share arrow \u2192 <b>Open in browser</b>'
+      : 'Tap <b>\u22ef</b> (top right) \u2192 <b>Open in browser</b>' + (app === 'Instagram' || app === 'Facebook' || app === 'Messenger' ? ' (or <b>Open in external browser</b>)' : '');
+    body = '<h2 style="color:#62eaff;letter-spacing:.12em">OPEN IN ' + browser.toUpperCase() + ' FIRST</h2>' +
+      '<p class="restoreText">You\u2019re inside ' + app + ', which can\u2019t add FLUX to your Home Screen.</p>' +
+      (code ? step('Copy your pilot so ' + browser + ' starts as you:', true) + '<button id="guideCopyPilot">COPY MY PILOT</button>' : '') +
+      step(how + '.', true) +
+      (code ? step('In ' + browser + ', tap <b>HAVE A RESTORE CODE?</b> and paste it.') : '') +
+      step('Then add FLUX to your Home Screen from ' + browser + '.');
+  } else {
+    body = '<h2 style="color:#62eaff;letter-spacing:.12em">ADD FLUX TO YOUR HOME SCREEN</h2>' +
+      (code ? step('Copy your pilot so the app starts as you:') + '<button id="guideCopyPilot">COPY MY PILOT</button>' : '') +
+      step(fluxIsIPad() ? 'Tap <b>Share</b> (top right) \u2014 or <b>\u22ef</b> \u2192 <b>Share</b>.' : 'Tap <b>\u22ef</b> (bottom right) \u2192 <b>Share</b>.', true) +
+      step('Scroll down \u2192 <b>Add to Home Screen</b> (not there? tap <b>Edit Actions</b> and add it).') +
+      step('Tap <b>Add</b>.') +
+      (code ? step('Open FLUX from the new icon and tap <b>BRING MY PILOT FROM SAFARI</b>.') : '');
+  }
+  const d = restoreOverlay(body + '<button id="guideDone">DONE</button>');
   const cp = d.querySelector('#guideCopyPilot');
   if (cp) cp.onclick = function(e){ copyText(code, e.target); };
   d.querySelector('#guideDone').onclick = function(){ d.remove(); };
@@ -3407,11 +3451,19 @@ document.getElementById('bringPilotBtn').onclick = fluxBringPilot;
 (function(){
   const endGame0 = endGame;
   endGame = function(){
+    let good = false;
+    try{ good = fluxGoodRun(score, bestRun().score, levelForScore(score, difficulty)); }catch(e){}   // before this run is recorded
     const r = endGame0.apply(this, arguments);
     try{ localStorage.setItem('fluxRunsPlayed', String((+localStorage.getItem('fluxRunsPlayed') || 0) + 1)); }catch(e){}
+    if (good && !fluxInstallOffered() && fluxInstallMode()){   // the one offer: this game-over screen only
+      fluxInstallOfferNow = true;
+      try{ localStorage.setItem('fluxInstallOffered', '1'); }catch(e){}
+    }
     refreshInstallButtons();
     return r;
   };
+  const newGame0 = newGame;
+  newGame = function(){ fluxInstallOfferNow = false; refreshInstallButtons(); return newGame0.apply(this, arguments); };
 })();
 refreshInstallButtons();
 
