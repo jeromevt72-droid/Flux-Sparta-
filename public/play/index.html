@@ -3071,6 +3071,72 @@ function fluxEnableLite(){
   try{ resize(); }catch(e){}
 }
 if (window.__fluxLite) fluxApplyLiteParticles();
+
+/* SCREEN READOUT (temporary, Solar band debugging). Shows the real screen
+   measurements iOS reports, so the Home Screen app's bottom strip can be
+   measured on a device. Opened ONLY by tapping the big FLUX title on the start
+   menu 5 times within 3 seconds (the title is not a button and is not on
+   screen during play; the HUD logo cannot be tapped). Never saved: closing it,
+   or reloading, hides it. Read-only: it changes nothing in the game. Safe to
+   delete this block when the band is confirmed fixed. */
+const FLUX_READOUT_TAPS = 5, FLUX_READOUT_WINDOW_MS = 3000;
+let fluxReadoutTaps = [], fluxReadoutTimer = 0;
+function fluxReadoutTap(now){
+  fluxReadoutTaps = fluxReadoutTaps.filter(function(t){ return now - t < FLUX_READOUT_WINDOW_MS; });
+  fluxReadoutTaps.push(now);
+  if (fluxReadoutTaps.length >= FLUX_READOUT_TAPS){ fluxReadoutTaps = []; toggleFluxReadout(); return true; }
+  return false;
+}
+function fluxReadoutProbe(css){
+  const d = document.createElement('div');
+  d.style.cssText = 'position:fixed;left:0;top:0;width:0;visibility:hidden;pointer-events:none;' + css;
+  document.body.appendChild(d);
+  const cs = getComputedStyle(d), r = { h: d.getBoundingClientRect().height, pt: cs.paddingTop, pr: cs.paddingRight, pb: cs.paddingBottom, pl: cs.paddingLeft };
+  d.remove(); return r;
+}
+function fluxReadoutText(){
+  const L = [], n = function(v){ return (Math.round(v * 10) / 10) + ''; };
+  const vv = window.visualViewport, root = document.documentElement, app = document.getElementById('app');
+  const inset = fluxReadoutProbe('padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)');
+  const vh = function(u){ try{ return CSS.supports('height','100' + u) ? n(fluxReadoutProbe('height:100' + u).h) : 'n/a'; }catch(e){ return 'n/a'; } };
+  let standalone = !!navigator.standalone; try{ standalone = standalone || matchMedia('(display-mode: standalone)').matches; }catch(e){}
+  const a = app ? app.getBoundingClientRect() : null;
+  const A = (typeof backdropCoverArea === 'function') ? backdropCoverArea() : null;
+  L.push('FLUX SCREEN READOUT (temporary)');
+  L.push('mode       ' + (standalone ? 'Home Screen app' : 'browser tab') + ', orientation ' + (typeof window.orientation === 'number' ? window.orientation : ((screen.orientation && screen.orientation.type) || '?')));
+  L.push('screen     ' + screen.width + ' x ' + screen.height + '  (avail ' + screen.availWidth + ' x ' + screen.availHeight + ')  dpr ' + (window.devicePixelRatio || 1));
+  L.push('inner      ' + innerWidth + ' x ' + innerHeight + '   html client ' + root.clientWidth + ' x ' + root.clientHeight);
+  L.push('visualVP   ' + (vv ? n(vv.width) + ' x ' + n(vv.height) + ' top ' + n(vv.offsetTop) : 'n/a'));
+  L.push('100vh ' + vh('vh') + '  dvh ' + vh('dvh') + '  lvh ' + vh('lvh') + '  svh ' + vh('svh'));
+  L.push('safe area  top ' + inset.pt + ' right ' + inset.pr + ' bottom ' + inset.pb + ' left ' + inset.pl);
+  L.push('#app       top ' + (a ? n(a.top) : '?') + ' bottom ' + (a ? n(a.bottom) : '?') + '  gap ' + (a ? n(Math.max(screen.width, screen.height) - a.bottom) : '?'));
+  L.push('backdrop   ' + activeBackground + (A ? '  cover area ' + n(A.w) + ' x ' + n(A.h) : '') );
+  L.push('root bg    size ' + (root.style.backgroundSize || '-') + '  pos ' + (root.style.backgroundPosition || '-'));
+  L.push('ua         ' + String(navigator.userAgent).replace(/^Mozilla\/5\.0 /, '').slice(0, 90));
+  return L.join('\n');
+}
+function toggleFluxReadout(){
+  const old = document.getElementById('fluxReadout');
+  if (old){ old.remove(); clearInterval(fluxReadoutTimer); fluxReadoutTimer = 0; return; }
+  const d = document.createElement('div');
+  d.id = 'fluxReadout';
+  d.style.cssText = 'position:fixed;left:8px;right:8px;top:calc(env(safe-area-inset-top,0px) + 8px);z-index:99;background:#02040cf2;border:1px solid #62eaff;border-radius:12px;padding:10px;color:#dff8ff;font:12px/1.45 ui-monospace,Menlo,monospace;pointer-events:auto';
+  d.innerHTML = '<pre id="fluxReadoutText" style="margin:0 0 8px;white-space:pre-wrap;word-break:break-all;font:inherit;user-select:text;-webkit-user-select:text"></pre>' +
+    '<button type="button" id="fluxReadoutCopy" style="min-height:44px;margin-right:8px">COPY</button><button type="button" id="fluxReadoutClose" style="min-height:44px">CLOSE</button>';
+  document.getElementById('app').appendChild(d);
+  const txt = document.getElementById('fluxReadoutText');
+  const refresh = function(){ txt.textContent = fluxReadoutText(); };
+  refresh(); fluxReadoutTimer = setInterval(refresh, 500);   // live: rotate the device and watch it change
+  document.getElementById('fluxReadoutClose').onclick = function(){ toggleFluxReadout(); };
+  document.getElementById('fluxReadoutCopy').onclick = function(){
+    const t = fluxReadoutText();
+    try{ navigator.clipboard.writeText(t).then(function(){ document.getElementById('fluxReadoutCopy').textContent = 'COPIED'; }, function(){}); }catch(e){}
+  };
+}
+(function(){
+  const title = document.querySelector('#start h1');
+  if (title) title.onclick = function(){ fluxReadoutTap(Date.now()); };
+})();
 </script>
 <!-- D-38 (RC2.8.4): IN-APP BROWSER BANNER. A link tapped inside TikTok,
      Instagram, Facebook, Messenger, Snapchat or LINE opens in that app's own
