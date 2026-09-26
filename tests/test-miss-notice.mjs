@@ -37,7 +37,7 @@ function suite(gameHtml, quiet = false) {
         const left = al === 'center' ? x - w / 2 : (al === 'right' || al === 'end') ? x - w : x;
         const top = bl === 'top' ? y : bl === 'middle' ? y - px / 2 : bl === 'bottom' ? y - px : y - px * 0.8;
         texts.push({ t: String(t), px, alpha: +cx.globalAlpha, box: { left, right: left + w, top, bottom: top + px } }); };
-      g.ctx.newGame();
+      g.ctx.newGame(); const GLYPHS = JSON.parse(run('JSON.stringify(glyphs)'));   // the ball's own symbol (orb colours v2) is not miss text
       run('W=' + d.W + ';H=' + d.H + ';paddle.y=H-Math.max(42,Math.min(90,H*.095));paddle.handleH=W<=700?22:28;paddle.x=W/2;cachedHudRects=' + JSON.stringify(d.hud) + ';');
       for (const [m, want] of [[1, 'BALL LOST|2 LIVES LEFT'], [2, 'BALL LOST|LAST LIFE']]) {
         run('misses=' + (m - 1) + ';levelBanner=0;texts=[];ball.x=W/2;ball.y=H+30;');
@@ -48,7 +48,7 @@ function suite(gameHtml, quiet = false) {
         const pad = run('({left:paddle.x-paddle.w*.55-12,right:paddle.x+paddle.w*.55+12,top:paddle.y-paddle.h-12,bottom:paddle.y+paddle.handleH+6})');
         const tag = d.name + ' miss ' + m;
         ck('M2 ' + tag + ': says "' + want.replace('|', ' / ') + '"', nt.map((x) => x.t).join('|') === want, nt.map((x) => x.t).join('|'));
-        ck('M3 ' + tag + ': nothing about the miss is drawn at the launcher', !texts.some((x) => hit(x.box, pad)) && !run('texts.some(t=>/MISS|LOST|LIFE|LIVES/.test(t.s))'));
+        ck('M3 ' + tag + ': nothing about the miss is drawn at the launcher', !texts.some((x) => hit(x.box, pad) && !GLYPHS.includes(x.t)) && !run('texts.some(t=>/MISS|LOST|LIFE|LIVES/.test(t.s))'));
         ck('M4 ' + tag + ': clear of the danger line and out of the play area', r.bottom <= ceil - 4 && r.top >= 0 && r.left >= 0 && r.right <= d.W, Math.round(r.bottom) + ' vs line ' + Math.round(ceil));
         const hudHit = [d.stats, d.fluxbar].concat(d.hud.filter((x) => x.right - x.left < d.W * 0.9)).filter((x) => hit(r, x));
         ck('M5 ' + tag + ': clear of the HUD (score boxes, FLUX row, pause)', hudHit.length === 0, JSON.stringify(hudHit[0] || ''));

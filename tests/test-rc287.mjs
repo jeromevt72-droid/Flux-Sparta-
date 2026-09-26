@@ -32,6 +32,12 @@ const hueGap = (a, b) => { const d = Math.abs(hue(a) - hue(b)) % 360; return d >
 const contrast = (a, b) => { const A = lum(a) + 0.05, B = lum(b) + 0.05; return Math.max(A, B) / Math.min(A, B); };
 const isRed = (h) => { const x = hue(h); return x >= 345 || x <= 20; };
 const isGreen = (h) => { const x = hue(h); return x >= 90 && x <= 150; };
+// Orb colours v2: CIELAB distance, with red-green colour blindness simulated (Machado 2009, full severity).
+const CVD = { deutan: [[.367322, .860646, -.227968], [.280085, .672501, .047413], [-.011820, .042940, .968881]], protan: [[.152286, 1.052583, -.204868], [.114503, .786281, .099216], [-.003882, -.048116, 1.051998]] };
+const labOf = (h, k) => { let l = rgb(h).map(lin); if (k) l = CVD[k].map((r) => Math.min(1, Math.max(0, r[0] * l[0] + r[1] * l[1] + r[2] * l[2])));
+  const X = (.4124 * l[0] + .3576 * l[1] + .1805 * l[2]) / .95047, Y = .2126 * l[0] + .7152 * l[1] + .0722 * l[2], Z = (.0193 * l[0] + .1192 * l[1] + .9505 * l[2]) / 1.08883;
+  const f = (t) => (t > .008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116); return [116 * f(Y) - 16, 500 * (f(X) - f(Y)), 200 * (f(Y) - f(Z))]; };
+const dE = (a, b, k) => { const A = labOf(a, k), B = labOf(b, k); return Math.hypot(A[0] - B[0], A[1] - B[1], A[2] - B[2]); };
 
 /* ---------- worker env (same shape as the other server suites) ---------- */
 function makeEnv(DO) {
@@ -223,20 +229,25 @@ async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = fals
   } catch (e) { ck('D-55 section ran', false, String(e.stack || e).slice(0, 300)); }
 
   /* ================= D-56 ================= */
-  sec('D-56: palettes and subtle symbols');
+  sec('D-56 + orb colours v2: palettes, bold symbols, block-style ball');
   try {
     const b = bootGame({ fluxPlayerId: 'pal-1', fluxCallsign: 'T', fluxProfileComplete: '1' });
     const SK = JSON.parse(b.run('JSON.stringify(SKINS)'));
     const bgs = JSON.parse(b.run('JSON.stringify(CELESTIAL_THEMES)')).map((g) => (g.match(/#[0-9a-f]{6}/gi) || [])[1]).concat(['#050719']);
-    ck('K1 default palette starts #ffd23f #1fb8e0 #ff4f98 #b48cff', SK.aurora.colors.slice(0, 4).join(' ') === '#ffd23f #1fb8e0 #ff4f98 #b48cff', SK.aurora.colors.slice(0, 4).join(' '));
+    ck('K1 default palette (v2) is #ffe768 #62bdfa #f16e52 #5be8c8 #7473fb', SK.aurora.colors.join(' ') === '#ffe768 #62bdfa #f16e52 #5be8c8 #7473fb', SK.aurora.colors.join(' '));
     for (const [k, s] of Object.entries(SK)) {
       const c = s.colors; const f4 = c.slice(0, 4);
       const minC = Math.min(...c.flatMap((x) => bgs.map((bg) => contrast(x, bg))));
       ck('K2 ' + k + ': every colour bright on the field (contrast >= 4.5:1 on every level background)', minC >= 4.5, minC.toFixed(2));
-      let minH = 999, minL = 999; for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) { minH = Math.min(minH, hueGap(f4[i], f4[j])); minL = Math.min(minL, Math.abs(Lstar(f4[i]) - Lstar(f4[j]))); }
-      ck('K3 ' + k + ': first four differ in hue (>= 35 deg) AND lightness (L* >= 3 apart)', minH >= 35 && minL >= 3, 'hue ' + minH.toFixed(0) + ' L* ' + minL.toFixed(1));
+      // v2 rule, every pair of the 5: clearly apart (dE >= 45); a pair close in brightness (dL* < 10) must differ strongly in colour (dE >= 70),
+      // because fast motion and side vision rely on brightness; and red-green colour-blind vision still tells them apart (dE >= 20).
+      let worst = null, worstCb = null;
+      for (let i = 0; i < c.length; i++) for (let j = i + 1; j < c.length; j++) { const n = dE(c[i], c[j]), dl = Math.abs(labOf(c[i])[0] - labOf(c[j])[0]), cb = Math.min(dE(c[i], c[j], 'deutan'), dE(c[i], c[j], 'protan'));
+        const bad = n < 45 || (dl < 10 && n < 70); if (bad && !worst) worst = c[i] + '/' + c[j] + ' dE ' + n.toFixed(0) + ' dL ' + dl.toFixed(0); if (cb < 20 && !worstCb) worstCb = c[i] + '/' + c[j] + ' ' + cb.toFixed(0); }
+      ck('K3 ' + k + ': every pair clearly apart, and pairs close in brightness differ strongly in colour', !worst, worst || '');
+      ck('K3 ' + k + ': every pair still apart for red-green colour blindness (dE >= 20)', !worstCb, worstCb || '');
       ck('K4 ' + k + ': no red-vs-green pair', !(c.some(isRed) && c.some(isGreen)), c.filter((x) => isRed(x) || isGreen(x)).join(' '));
-      ck('K5 ' + k + ': nine colours, all valid', c.length === 9 && c.every((x) => /^#[0-9a-f]{6}$/i.test(x)));
+      ck('K5 ' + k + ': five colours (4 core + 1 unlock), all valid', c.length === 5 && c.every((x) => /^#[0-9a-f]{6}$/i.test(x)));
     }
     // Rendered: orb symbols subtle, ball brightest.
     b.g.ctx.newGame(); b.run('ball.color=0;');
@@ -245,10 +256,11 @@ async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = fals
     const fills = []; cx.fill = () => { fills.push({ s: String(cx.fillStyle), a: cx.globalAlpha }); };
     b.g.ctx.draw();
     const gl = ops.filter((o) => glyphs.includes(o.t));
-    ck('K6 orb symbols are drawn, and subtle (alpha <= 0.4)', gl.length > 0 && gl.every((o) => o.a <= 0.4), gl.map((o) => o.a).join(','));
-    const orbFills = fills.filter((f) => /^#[0-9a-f]{8}$/i.test(f.s)).map((f) => parseInt(f.s.slice(7), 16) / 255);
-    const ballFill = fills.find((f) => f.s === SK.aurora.colors[0] && f.a === 1);
-    ck('K7 the ball is the brightest thing: a solid disc with a white core; orbs are translucent', !!ballFill && orbFills.length > 0 && Math.max(...orbFills) <= 0.25 && /glowCircle\(ball\.x,ball\.y,ball\.r\*\.55,'#ffffff'/.test(CODE), 'orb fill alpha max ' + Math.max(...orbFills).toFixed(2));
+    ck('K6 orb symbols are drawn bold and fully opaque (v2)', gl.length > 0 && gl.every((o) => o.a === 1), gl.map((o) => o.a).join(','));
+    ck('K6 the 5th colour has its own symbol: a star', glyphs[4] === '★' && new Set(glyphs.slice(0, 5)).size === 5);
+    const drawSrc = (CODE.match(/function draw\(\)\{[\s\S]*?\n\}\n/) || [''])[0];
+    ck('K7 the ball: block style like the orbs, plus its thin white ring and its colour symbol',
+      /if\(ball\)\{blockOrb\(ball\.x,ball\.y,ball\.r,colors\[ball\.color\]\);[^\n]*strokeStyle='#ffffff'[^\n]*orbSymbol\(ball\.x,ball\.y,[^\n]*glyphs\[ball\.color%glyphs\.length\]\)/.test(drawSrc) && gl.length > (b.run('targets.length')));
   } catch (e) { ck('D-56 section ran', false, String(e.stack || e).slice(0, 300)); }
 
   /* ================= D-57 ================= */
@@ -394,17 +406,19 @@ await control('D-54 SOUND / FIELD badges back', { expect: 'C2', game: rep('<b id
 await control('D-55 a 7px label back', { expect: 'T1', game: rep('.linkBtn{flex:1;padding:9px 8px;font-size:11px;', '.linkBtn{flex:1;padding:9px 8px;font-size:7px;') });
 await control('D-55 a shrinking em size back', { expect: 'T1', game: rep('.lbTag{opacity:.5;font-weight:600;font-size:11px;', '.lbTag{opacity:.5;font-weight:600;font-size:.8em;') });
 await control('D-55 tiny canvas text back', { expect: 'T2', game: rep("ctx.font='900 11px -apple-system,sans-serif';ctx.fillStyle='#62eaff';", "ctx.font='900 10px -apple-system,sans-serif';ctx.fillStyle='#62eaff';") });
-await control('D-55 unclamped orb symbol size', { expect: 'T2', game: rep("ctx.font=Math.max(11,t.r*.55)+'px -apple-system,sans-serif';", "ctx.font=(t.r*.55)+'px -apple-system,sans-serif';") });
+await control('D-55 unclamped orb symbol size', { expect: 'T2', game: rep("ctx.font='900 '+Math.max(11,r*.8)+'px -apple-system,sans-serif';", "ctx.font='900 '+(r*.3)+'px -apple-system,sans-serif';") });
 await control('D-55 buttons may be short again', { expect: 'T3', game: rep('font-size:14px;min-height:44px}', 'font-size:14px}') });
 await control('D-55 EDIT shrinks under its own padding', { expect: 'T4', game: rep('font-size:11px!important;letter-spacing:.1em!important;min-height:44px}', 'font-size:11px!important;letter-spacing:.1em!important}') });
 // D-56
-await control('D-56 old default palette', { expect: 'K1', game: rep("aurora:{name:'AURORA',price:null,colors:['#ffd23f','#1fb8e0','#ff4f98','#b48cff',", "aurora:{name:'AURORA',price:null,colors:['#35e6ff','#5c9cff','#8c5cff','#c64dff',") });
-await control('D-56 default cyan as light as the yellow again', { expect: 'K3 aurora', game: rep("colors:['#ffd23f','#1fb8e0',", "colors:['#ffd23f','#35e6ff',") });
-await control('D-56 old TOXIC palette (four greens)', { expect: 'K3 toxic', game: rep("colors:['#d6ff3d','#2ee6b8','#5cb8ff','#b06bff',", "colors:['#9dff2e','#c8ff45','#5cff9c','#2effd6',") });
-await control('D-56 red-vs-green pair', { expect: 'K4 aurora', game: rep("'#f0f4ff','#e05cff','#7dffea']},\n  toxic", "'#f0f4ff','#ff2a1a','#3dff5a']},\n  toxic") });
-await control('D-56 a dim colour', { expect: 'K2 cosmic', game: rep("'#f0f4ff','#c46bff','#8cfff0']", "'#f0f4ff','#5a2a8a','#8cfff0']") });
-await control('D-56 loud orb symbols', { expect: 'K6', game: rep('const ORB_GLYPH_ALPHA=.3;', 'const ORB_GLYPH_ALPHA=.85;') });
-await control('D-56 ball loses its white core', { expect: 'K7', game: rep("glowCircle(ball.x,ball.y,ball.r*.55,'#ffffff',.5);", '') });
+await control('v2 old default palette', { expect: 'K1', game: rep("colors:['#ffe768','#62bdfa','#f16e52','#5be8c8','#7473fb']", "colors:['#ffd23f','#1fb8e0','#ff4f98','#b48cff','#ff9a3d']") });
+await control('v2 Aurora blue/teal close pair back (same brightness)', { expect: 'K3 aurora', game: rep("colors:['#ffe768','#62bdfa','#f16e52','#5be8c8','#7473fb']", "colors:['#ffe768','#62bdfa','#f16e52','#45d5b6','#7473fb']") });
+await control('v2 old TOXIC palette (four greens)', { expect: 'K3 toxic', game: rep("colors:['#d7fe71','#f773ac','#9eedfc','#bd4ff1','#fd2c29']", "colors:['#9dff2e','#c8ff45','#5cff9c','#2effd6','#fd2c29']") });
+await control('v2 a pair only colour-blind players confuse', { expect: 'K3 cosmic', game: rep("colors:['#ebf2ff','#e971ef','#57dcab','#ecc238','#eb5454']", "colors:['#ebf2ff','#e971ef','#57dcab','#ecc238','#7a9dff']") });
+await control('v2 red-vs-green pair', { expect: 'K4 aurora', game: rep("colors:['#ffe768','#62bdfa','#f16e52','#5be8c8','#7473fb']", "colors:['#ffe768','#62bdfa','#ff2a1a','#3dff5a','#7473fb']") });
+await control('v2 a dim colour', { expect: 'K2 cosmic', game: rep("'#ecc238','#eb5454']", "'#ecc238','#5a2a8a']") });
+await control('v2 back to nine colours', { expect: 'K5 solar', game: rep("colors:['#fcf6e9','#46daf0','#6d7ae5','#54df6d','#ef7ba6']", "colors:['#fcf6e9','#46daf0','#6d7ae5','#54df6d','#ef7ba6','#ff9e5c','#f0f4ff','#ff7ac0','#ffb830']") });
+await control('v2 faint orb symbols again', { expect: 'K6', game: rep("function orbSymbol(x,y,r,col,sym){ctx.save();ctx.globalAlpha=1;", "function orbSymbol(x,y,r,col,sym){ctx.save();ctx.globalAlpha=.3;") });
+await control('v2 ball without its symbol', { expect: 'K7', game: rep("orbSymbol(ball.x,ball.y,ball.r*1.2,colors[ball.color],glyphs[ball.color%glyphs.length]);}", "}") });
 // D-57
 await control('D-57 old headlines back', { expect: 'G1', game: rep('  <div class="goScore" id="finalScore">0</div>', '  <h1 style="font-size:38px">FLUX<br>OVERLOAD</h1>\n  <div class="goScore" id="finalScore">0</div>') });
 await control('D-57 country gain counted against this difficulty only', { expect: 'G', game: rep('else if(sc>0 && sc>prevOverall) second=c.flag+\' +\'+(sc-prevOverall).toLocaleString()', 'else if(sc>0 && sc>prevBest) second=c.flag+\' +\'+(sc-prevBest).toLocaleString()') });

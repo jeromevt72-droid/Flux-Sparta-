@@ -55,8 +55,8 @@ function suite(gameHtml, quiet = false) {
     ck('K2 iPhone Home Screen app: the image covers the full physical screen, 393x852, down to the bottom (like CSS cover: aspect kept, centred)', covers(393, 852) && centred(393, 852) && aspectOk(), cover('iPhone'));
     ck('K3 nothing covers it: game container, page body and the old layer are see-through',
       app.style.background === 'transparent' && body.style.backgroundColor === 'transparent' && layer.style.opacity === '0', app.style.background + ' / ' + body.style.backgroundColor + ' / ' + layer.style.opacity);
-    ck('K4 the dark field sits over the image at 50% (same look as the old 50% layer) and a matching base colour is behind it',
-      /^radial-gradient\(circle at 50% 15%,rgba\(17,27,67,\.5\) 0,rgba\(7,9,29,\.5\) 48%,rgba\(3,4,13,\.5\) 100%\), url/.test(html.style.backgroundImage || '') && html.style.backgroundColor === '#1c0c0b', String(html.style.backgroundImage).slice(0, 110));
+    ck('K4 the dark field sits over the image at 75% (orb colours v2: image at 25%, so orbs stand out) and a matching base colour is behind it',
+      /^radial-gradient\(circle at 50% 15%,rgba\(17,27,67,0\.75\) 0,rgba\(7,9,29,0\.75\) 48%,rgba\(3,4,13,0\.75\) 100%\), url/.test(html.style.backgroundImage || '') && html.style.backgroundColor === '#1c0c0b', String(html.style.backgroundImage).slice(0, 110));
     // iPad (portrait) Home Screen app, then landscape: iOS keeps screen.* in portrait.
     setWin(820, 1156, 820, 1180, 0); g.fire('resize');
     ck('K5 iPad portrait: covers the full physical screen 820x1180 after a resize', covers(820, 1180) && centred(820, 1180) && aspectOk(), cover('iPad portrait'));
@@ -68,7 +68,7 @@ function suite(gameHtml, quiet = false) {
     // Level tint under the backdrop.
     g.ctx.applyCelestialBackground(9);
     ck('K6 a level-up keeps the backdrop: the container stays see-through and the level-9 tint is laid over the image',
-      app.style.background === 'transparent' && /rgba\(126,58,46,\.5\)/.test(html.style.backgroundImage || '') && /solar-inferno/.test(html.style.backgroundImage || ''), app.style.background.slice(0, 40));
+      app.style.background === 'transparent' && /rgba\(126,58,46,0\.75\)/.test(html.style.backgroundImage || '') && /solar-inferno/.test(html.style.backgroundImage || ''), app.style.background.slice(0, 40));
     g.ctx.setBackground('none');
     ck('K7 backdrop off: root background cleared, page body default, the game container gets its level gradient back',
       !html.style.backgroundImage && html.style.backgroundColor === '' && body.style.backgroundColor === '' && /^radial-gradient\(circle at 50% 10%,#7e3a2e/.test(app.style.background || ''), String(app.style.background).slice(0, 50));
@@ -94,6 +94,7 @@ control('image sized to the usable area only (the band again)', 'K2', rep('retur
 control('iPad rotation ignored (portrait screen height used in landscape)', 'K5', rep('sh=land ? Math.min(a,b) : Math.max(a,b);', 'sh=Math.max(a,b);'));
 control('no re-fit on resize/rotation', 'K5', rep('if(skinBackdropOn())applySkinBackground();/* backdrop re-fits on rotation / window changes */', ''));
 control('game container left opaque over the root backdrop', 'K3', rep("      if(app) app.style.background='transparent';\n", ''));
+control('backdrop back at 50% (orbs harder to see on Solar)', 'K4', rep('const BACKDROP_DARK=.75;', 'const BACKDROP_DARK=.5;'));
 control('dark field not laid over the image (too bright, unreadable orbs)', 'K4', rep("root.style.backgroundImage=halfTheme(theme)+\", url('\"+s.bg+\"')\";", "root.style.backgroundImage=\"url('\"+s.bg+\"')\";"));
 control('a level-up paints the level gradient over the backdrop', 'K6', rep('  if(skinBackdropOn()){ applySkinBackground(); return; }   // the level tint is painted under the backdrop instead\n', ''));
 control('root background never cleared when the backdrop is turned off', 'K7', rep("root.style.backgroundColor=''; root.style.backgroundImage='';", "root.style.backgroundColor='';"));
