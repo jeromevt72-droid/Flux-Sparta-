@@ -97,8 +97,8 @@ control('banner drawn inside the shake transform again', 'B2', (s) => {
 });
 control('font floor removed (text can shrink below 11px)', 'B9', (s) => s
   .replace("f1=Math.max(11,f1); f2=Math.max(11,Math.round(f1*.72));", "f1=Math.max(5,f1-6); f2=Math.max(5,Math.round(f1*.5));")
-  .replace("ctx.font='900 '+Math.max(11,L.f1)+'px", "ctx.font='900 '+L.f1+'px")
-  .replace("ctx.font='900 '+Math.max(11,L.f2)+'px", "ctx.font='900 '+L.f2+'px"));
+  .split("ctx.font='900 '+Math.max(11,L.f1)+'px").join("ctx.font='900 '+L.f1+'px")   // every banner draw (level banner + miss notice share the slot)
+  .split("ctx.font='900 '+Math.max(11,L.f2)+'px").join("ctx.font='900 '+L.f2+'px"));
 const total = main.F + NC;
 console.log('\n' + (total ? 'LEVEL BANNER FAILED: ' + main.F + ' check(s), ' + NC + ' uncaught control(s)' : 'LEVEL BANNER PASSED: all checks and all negative controls'));
 process.exit(total ? 1 : 0);

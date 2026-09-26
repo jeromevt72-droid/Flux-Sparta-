@@ -419,6 +419,7 @@ function fluxApplyLite(){
 }
 fluxApplyLite();
 let W,H,dpr,playing=false,paused=false,last=0,score=0,combo=1,level=1,streak=0,best=0,misses=0,revivesUsedThisRun=0,flux=0,fluxMode=0,missFragments=[],comboTimer=0,levelBanner=0,perfectFlash=0,levelHold=0,orbValue=20,bonusTimer=0,growTimer=0;
+let missNotice=0,missNoticeText=['',''];   // miss notice, shown in the HUD strip (see drawSlotNotice)
 let pendingLevel=0,levelCountdown=0,levelTickAt=0,speedLevel=1;   // D-50: SPEED UP countdown + smooth speed ramp
 let cachedHudRects=[]; // declared early -- resize() runs at script load time and references this immediately
 let difficulty=localStorage.fluxDifficulty||'medium', callsign=localStorage.fluxCallsign||'', country=localStorage.fluxCountry||'US';
@@ -772,7 +773,7 @@ var runActive=false;
 function newGame(){
  try{ window.parent.postMessage({type:'flux-playing'}, '*'); }catch(e){}
  pendingLevel=0;levelCountdown=0;levelTickAt=0;speedLevel=1;
- score=0;combo=1;level=1;streak=0;flux=0;fluxMode=0;misses=0;revivesUsedThisRun=0;missFragments=[];particles=[];texts=[];shake=0;targets=[];comboTimer=0;levelBanner=0;perfectFlash=0;bonusTimer=rand(5,9);growTimer=rand(9,14);
+ score=0;combo=1;level=1;streak=0;flux=0;fluxMode=0;misses=0;revivesUsedThisRun=0;missFragments=[];particles=[];texts=[];shake=0;targets=[];comboTimer=0;levelBanner=0;missNotice=0;perfectFlash=0;bonusTimer=rand(5,9);growTimer=rand(9,14);
  refreshHudRects(); // pauseBtn just became visible -- make sure the exclusion zone reflects that now, not the pre-game state
  applyCelestialBackground(level);
  setPaddle(W/2);
@@ -946,10 +947,13 @@ function burst(x,y,col,n=14){
 }
 function popup(x,y,s,col='#fff'){texts.push({x,y,s,life:1,col})}
 function addFlux(v){flux=Math.min(100,flux+v);if(flux>=100&&!fluxMode){flux=0;fluxMode=6;score+=250;popup(W/2,120,'FLUX MODE','#62eaff');burst(W/2,120,'#62eaff',30);haptic(50);playFlux();flash(.22);shake=Math.min(14,shake+6);updateHud();}}
+const MISS_NOTICE_S=2.2;
 function registerMiss(){
  misses++;missFragments.push({x:rand(25,W-25),y:H-24,r:rand(7,12),life:1});
  burst(ball.x,Math.min(H-25,ball.y),'#ff4f98',18);
- popup(W/2,H-65,`MISS ${misses}/3 • NEW RUN`,'#ff6b98');
+ // Miss notice: in the HUD strip (like the level banner), never over the launcher or the field.
+ // Plain words: the ball is lost and how many lives are left. Score and level are kept.
+ missNotice=MISS_NOTICE_S; missNoticeText=['BALL LOST', misses>=3?'NO LIVES LEFT':misses===2?'LAST LIFE':(3-misses)+' LIVES LEFT'];
  haptic(misses===3?90:55);playMiss();flash(misses===3?.16:.08);
  shake=Math.min(12,shake+(misses===3?7:3));
  if(misses>=3){
@@ -972,7 +976,7 @@ const ADS_ENABLED = false;
 function offerRevive(){
  paused=true;
  const grantRevive=()=>{
-   revivesUsedThisRun++;misses=2;paused=false;last=performance.now();
+   revivesUsedThisRun++;misses=2;missNotice=0;paused=false;last=performance.now();
    resetFieldAfterMiss();
    ball.x=paddle.x;ball.y=paddle.y-28;ball.vx=rand(-3.4,3.4);ball.vy=-Math.max(6.0,6.0+level*.12)*DIFFICULTY[difficulty].speed;ball.trail=[];
    updateHud();popup(W/2,H*.4,'REVIVED','#62eaff');burst(W/2,H*.4,'#62eaff',24);
@@ -1216,6 +1220,7 @@ function endGame(){
 }
 function update(dt){
  if(levelBanner>0) levelBanner=Math.max(0,levelBanner-dt);
+ if(missNotice>0) missNotice=Math.max(0,missNotice-dt);
  checkScoreLevel(); tickLevelUp(dt);   // D-50
  // Combo is a real pressure mechanic: keep chaining fusions before the timer expires.
  if(comboTimer>0) comboTimer-=dt;
@@ -1505,8 +1510,18 @@ function draw(){
    ctx.save();ctx.globalAlpha=perfectFlash/.18;ctx.strokeStyle='#ffffff';ctx.lineWidth=3;ctx.shadowBlur=25;ctx.shadowColor='#ffffff';ctx.beginPath();ctx.arc(ball.x,ball.y,ball.r+12+(1-perfectFlash/.18)*22,0,Math.PI*2);ctx.stroke();ctx.restore();
  }
  ctx.restore();
+ // Miss notice: same HUD-strip slot as the level banner, drawn after the shake
+ // transform is undone. While it shows it takes the slot; the LEVEL box still
+ // shows any SPEED UP countdown.
+ if(missNotice>0){
+   const L=levelBannerLayout(missNoticeText[0],missNoticeText[1]);
+   ctx.save();ctx.globalAlpha=Math.min(1,missNotice<.5?missNotice/.5:1);ctx.textAlign='center';ctx.textBaseline='top';ctx.shadowBlur=10;
+   ctx.font='900 '+Math.max(11,L.f1)+'px -apple-system,sans-serif';ctx.fillStyle='#ffffff';ctx.shadowColor='#ff3b5c';ctx.fillText(L.t1,L.cx,L.y1);
+   ctx.font='900 '+Math.max(11,L.f2)+'px -apple-system,sans-serif';ctx.fillStyle='#ff8fa3';ctx.shadowColor='#ff3b5c';ctx.fillText(L.t2,L.cx,L.y2);
+   ctx.restore();
+ }
  // Level-up banner: drawn after the shake transform is undone, so it never moves.
- if(levelBanner>0){
+ else if(levelBanner>0){
    const L=levelBannerLayout();
    ctx.save();ctx.globalAlpha=Math.min(1,levelBanner<.7?levelBanner/.7:1);ctx.textAlign='center';ctx.textBaseline='top';ctx.shadowBlur=10;
    ctx.font='900 '+Math.max(11,L.f1)+'px -apple-system,sans-serif';ctx.fillStyle='#ffffff';ctx.shadowColor='#62eaff';ctx.fillText(L.t1,L.cx,L.y1);
@@ -1523,11 +1538,12 @@ function draw(){
    to fit that strip (never below 11px). Positions come from the real HUD
    layout, so they follow the safe-area inset and every screen size.
    Canvas-drawn: it can never take a touch. */
-function levelBannerLayout(){
+function levelBannerLayout(text1,text2){
   const st=document.querySelector('.stats').getBoundingClientRect(), fb=document.querySelector('.fluxbar').getBoundingClientRect();
   const left=fb.right+12, right=W-12, top=st.bottom+6, bottom=maxHudBottom()-8;
   const w=Math.max(0,right-left), h=Math.max(0,bottom-top);
-  const t1='LEVEL '+level, t2=pendingLevel?'NEXT LEVEL: '+pendingLevel:'', gap=t2?3:0;
+  // Default: the level banner. The miss notice passes its own two lines.
+  const t1=text1!==undefined?text1:'LEVEL '+level, t2=text1!==undefined?(text2||''):(pendingLevel?'NEXT LEVEL: '+pendingLevel:''), gap=t2?3:0;
   let f1=Math.min(22,Math.floor(t2?h*.55:h*.8)), f2=11, tw=0, th=0;
   for(;;){
     f1=Math.max(11,f1); f2=Math.max(11,Math.round(f1*.72));
