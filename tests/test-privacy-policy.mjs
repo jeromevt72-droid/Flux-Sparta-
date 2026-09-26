@@ -3,8 +3,9 @@
 //      still reachable) are finished: no "not ready" note, no placeholder, identical;
 //   P2 what the policy promises is true in the code: no analytics, advertising,
 //      tracking pixels or cookies anywhere the site serves, and ads are switched off;
-//   P3 what the policy says about names and children matches the game: preset
-//      names from a word list (no typing), enforced by the server; a children
+//   P3 what the policy says about names and children matches the game: a preset
+//      name to start, typed names one word / A-Z 0-9 / up to 12 / no email, phone
+//      or link look-alikes, enforced by the server, old text erased; a children
 //      section for a general audience, marked for lawyer review, with a parents' contact;
 //   P4 the fields a score upload sends are the ones the policy lists;
 //   P5 country only: nothing in the site or worker reads a precise location, as the policy says;
@@ -30,11 +31,14 @@ function suite(files, quiet = false) {
   const hits = Object.entries(files).filter(([f, s]) => !/privacy\.html$/.test(f) && TRACKERS.test(s)).map(([f, s]) => f + ': ' + s.match(TRACKERS)[0]);
   ck('P2 no analytics, advertising, tracking pixels or cookies anywhere the site serves (as the policy says)', hits.length === 0 && /no analytics, no advertising, no tracking pixels, and no\s*cookies/.test(pv), hits.slice(0, 3).join(' | '));
   ck('P2 ads are switched off in the game (the revive is free)', /const ADS_ENABLED = false;/.test(game));
-  ck('P3 the policy describes preset names the way the game gives them (word list, dice button, no typing)',
-    /callsign = randomPresetName\(\);/.test(game) && /<input id="callsign"[^>]*\breadonly\b/.test(game) && /<input id="goCallsign"[^>]*\breadonly\b/.test(game)
-    && /SWIFT COMET 42/.test(pv) && /Names cannot be typed/.test(pv) && !/PILOT-7K2Q/.test(pv) && !/choose a nickname/i.test(pv));
-  ck('P3 the policy says the server only accepts names from the list, and the worker enforces it',
-    /const name = presetOrOwn\(cleanName\(body\.name\), playerId\);/.test(files['worker.js']) && /only accepts names from that list/.test(pv));
+  const rule = /if \(!\/\^\[A-Z0-9\]\+\$\/\.test\(s\) \|\| s\.length > TYPED_NAME_MAX\)/;
+  ck('P3 the policy describes the names the game really allows (preset to start; typed: one word, letters and numbers, up to 12; no email, phone or link)',
+    /callsign = randomPresetName\(\);/.test(game) && /const TYPED_NAME_MAX = 12;/.test(game) && rule.test(game) && /GMAIL/.test(game) && /\.length >= 7\) return/.test(game)
+    && /SWIFT COMET 42/.test(pv) && /<strong>one\s+word<\/strong>, letters and numbers only, up to 12 characters/.test(pv)
+    && /a full\s+name cannot be entered/.test(pv) && /look like an email address, a phone\s+number or a web link are refused/.test(pv) && !/PILOT-7K2Q|Names cannot be typed|dice/.test(pv));
+  ck('P3 the policy says the server only accepts names that follow the rules and erased old text; the worker does both',
+    /const name = presetOrOwn\(cleanName\(body\.name\), playerId\);/.test(files['worker.js']) && /function presetOrOwn\(name, playerId\) \{ return isAllowedName\(name\)/.test(files['worker.js'])
+    && /await this\.migrateNames\(\);/.test(files['worker.js']) && /only accepts names that follow these rules/.test(pv) && /old\s+text has been deleted from our server/.test(pv));
   ck('P3 children: general audience, no personal information needed, marked for lawyer review, parents can have an entry removed',
     /general audience, and children may play/.test(pv) && /nobody, of any age, has to give personal information to\s*play/.test(pv)
     && /<h2>14\. Children<\/h2>\s*<div class="review"><strong>For lawyer review before launch\.<\/strong>/.test(pv)
@@ -52,7 +56,7 @@ function suite(files, quiet = false) {
   ck('P6 future stats are promised to be anonymous, in-house, with no third-party trackers', /Future gameplay statistics/.test(pv) && /anonymous and kept on our own servers/.test(pv) && /no third-party analytics or tracking service/.test(pv));
   ck('T1 Terms: kids may play, no "13 and older", children section marked for lawyer review',
     /Anyone may play FLUX, including children/.test(tm) && !/at least 13/.test(tm) && /<div class="review"><strong>For lawyer review before launch\.<\/strong>/.test(tm));
-  ck('T1 Terms describe preset names, not typed ones', /Names cannot be typed/.test(tm) && !/You choose a FLUX ID of up to 14 characters/.test(tm));
+  ck('T1 Terms describe the name rules (one word, letters and numbers, up to 12, no full names)', /a typed name must be one word, letters and numbers\s+only, up to 12 characters/.test(tm) && /Full names/.test(tm) && !/up to 14 characters|dice|Names cannot be typed/.test(tm));
   ck('T1 both published Terms copies are identical and finished', wt === tm && !/Not yet ready|OWNER INPUT|class="todo"/.test(tm));
   return { F, failed };
 }
@@ -72,8 +76,10 @@ control('a cookie set by the Gateway', 'P2', edit('public/index.html', '</body>'
 control('placeholder left in the retired copy', 'P1', edit('public/welcome/privacy.html', 'Effective date:', 'Effective date: [OWNER INPUT REQUIRED: date]'));
 control('"not ready" note back', 'P1', edit('public/privacy.html', '<h1>Privacy Policy</h1>', '<h1>Privacy Policy</h1><div class="todo">Not yet ready for publication.</div>'));
 control('auto names go back to PILOT-XXXX without the policy', 'P3', edit('public/play/index.html', "callsign = randomPresetName();", "callsign = 'PILOT-' + t;"));
-control('name box can be typed into again', 'P3', edit('public/play/index.html', 'placeholder="FLUX ID" readonly', 'placeholder="FLUX ID"'));
-control('server shows free text again', 'P3', edit('worker.js', 'const name = presetOrOwn(cleanName(body.name), playerId);', 'const name = cleanName(body.name);'));
+control('game allows longer typed names than the policy says', 'P3', edit('public/play/index.html', 'const TYPED_NAME_MAX = 12;', 'const TYPED_NAME_MAX = 20;'));
+control('server stops erasing old name text', 'P3', edit('worker.js', 'await this.migrateNames();', ';'));
+control('Terms go back to 14-character names', 'T1', edit('public/terms.html', 'up to 12 characters', 'up to 14 characters'));
+control('server shows free text again', 'P3', edit('worker.js', 'function presetOrOwn(name, playerId) { return isAllowedName(name)', 'function presetOrOwn(name, playerId) { return true'));
 control('lawyer-review mark dropped from the children section', 'P3', edit('public/privacy.html', '<h2>14. Children</h2>\n<div class="review">', '<h2>14. Children</h2>\n<div>'));
 control('the game asks for GPS', 'P5', edit('public/play/index.html', '</body>', '<script>navigator.geolocation.getCurrentPosition(function(){})</script></body>'));
 control('the worker reads the Cloudflare city', 'P5', edit('worker.js', 'const cc = (request.cf && request.cf.country) || "";', 'const cc = (request.cf && request.cf.country) || ""; const city = request.cf.city;'));
