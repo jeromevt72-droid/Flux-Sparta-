@@ -152,9 +152,12 @@ ck('D-03 no owner placeholder left in privacy', 'OWNER INPUT' not in _pv)
 ck('D-03 no owner placeholder left in terms', 'OWNER INPUT' not in _tm)
 ck('D-03 operator named', 'Jerome Tadaya' in _pv and 'Jerome Tadaya' in _tm)
 ck('D-03 contact email present', 'playfluxofficial@gmail.com' in _pv and 'playfluxofficial@gmail.com' in _tm)
-ck('D-03 effective date set', 'Effective date: <strong>September 21, 2026</strong>' in _pv and 'Effective date: <strong>September 21, 2026</strong>' in _tm)
+# Launch (Sep 26, 2026): the privacy policy was finished for publication (children section rewritten), so its date moved.
+ck('D-03 effective date set', re.search(r'Effective date: <strong>[A-Z][a-z]+ \d{1,2}, 20\d\d</strong>', _pv) is not None and 'Effective date: <strong>September 21, 2026</strong>' in _tm)
 ck('D-03 refund policy stated', 'within 14 days of your purchase' in _tm)
-ck('D-03 age 13+, not directed to under-13', 'aged 13 and older' in _pv and 'at least 13 years old' in _tm)
+# Owner decision (Sep 26, 2026): children may play. The privacy policy covers a general audience with a parents' contact;
+# the Terms still say 13+ (open question to the owner), so that half of the old check stays.
+ck('D-03 children: policy covers a general audience with a parents contact; terms unchanged', 'children may play' in _pv and 'Parents and guardians' in _pv and 'at least 13 years old' in _tm)
 ck('D-03 governing law set', 'State of California' in _tm and 'Alameda County' in _tm)
 
 print('\n--- D-19 / D-20 ---')

@@ -37,6 +37,7 @@ node test-rc28-client.mjs          # RC2.8 game: D-23 D-24, honest status, tags 
 node test-audit-fixes.mjs         # 60+: AUDIT A-1..A-4 on the REAL worker + game hash agreement
 node test-one-app-runtime.mjs      # 40: RUNS the real Gateway+game: 10 relaunches, demo, Stripe return
 node test-negative-controls.mjs    # 10: re-inserts each defect and REQUIRES a failure
+node test-privacy-policy.mjs        # launch: the privacy policy is finished (both copies) and matches the code: no analytics/ads/cookies, auto names, name rule, children, upload fields + negative controls
 node test-merge-one-identity.mjs   # 40: MERGE — one origin, one identity, demo isolated
 node test-single-identity.mjs      # 27: top-level Play, one identity, purchase lock
   node test-offline-queue.mjs        # 19: offline queue, retry, permanent vs temporary
