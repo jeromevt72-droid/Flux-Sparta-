@@ -22,7 +22,7 @@ function suite(gameHtml, quiet = false) {
   let F = 0; const failed = [];
   const ck = (l, c, x = '') => { if (!quiet) console.log((c ? '  PASS  ' : '  FAIL  ') + l + (x !== '' ? '  [' + x + ']' : '')); if (!c) { F++; failed.push(l); } };
   const realRandom = Math.random;
-  const bootGame = (html) => { const { store } = makeStore({ fluxPlayerId: 'ce-1', fluxCallsign: 'T', fluxProfileComplete: '1', fluxColorHintSeen: '1' });
+  const bootGame = (html) => { const { store } = makeStore({ fluxPlayerId: 'ce-1', fluxCallsign: 'T', fluxProfileComplete: '1', fluxColorHintSeen: '1', fluxRunsPlayed: '5' })   /* an experienced player: no first-run help */;
     const g = boot(scriptsOf(html), { origin: 'https://x.test', path: '/play/', store }); return { g, run: (c) => vm.runInContext(c, g.ctx) }; };
   try {
     // Play in open field: no orbs, the launcher follows the ball (so no accidental misses).
