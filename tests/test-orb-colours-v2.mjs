@@ -33,7 +33,7 @@ function suite(gameHtml, quiet = false) {
   const ck = (l, c, x = '') => { if (!quiet) console.log((c ? '  PASS  ' : '  FAIL  ') + l + (x !== '' ? '  [' + x + ']' : '')); if (!c) { F++; failed.push(l); } };
   const realRandom = Math.random;
   try {
-    const { store } = makeStore({ fluxPlayerId: 'oc-1', fluxCallsign: 'T', fluxProfileComplete: '1', fluxColorHintSeen: '1' });
+    const { store } = makeStore({ fluxPlayerId: 'oc-1', fluxCallsign: 'T', fluxProfileComplete: '1', fluxColorHintSeen: '1', fluxRunsPlayed: '5' })   /* an experienced player: no first-run help */;
     const g = boot(scriptsOf(gameHtml), { origin: 'https://x.test', path: '/play/', store });
     const run = (c) => vm.runInContext(c, g.ctx);
     const SK = JSON.parse(run('JSON.stringify(SKINS)'));
