@@ -295,7 +295,7 @@ async function suite({ gameHtml, workerMod, quiet=false }){
     // RC2.8.3 (D-36): the menu button was removed on purpose; the code now lives
     // behind EDIT through the same link. test-d36-d37.mjs covers that change.
     ck('W1 name-screen link wired', typeof g.els.restoreLink.onclick==='function');
-    ck('W2 link sits directly after the name editor (CSS hides it with the editor)', /<\/select><\/div><button type="button" class="linkBtn restoreLink" id="restoreLink">/.test(gameHtml) && gameHtml.includes('#profileEditor.hidden+.restoreLink{display:none}'));
+    ck('W2 link sits directly after the name editor (CSS hides it with the editor)', /<\/select>(<div id="nameHint"[^>]*>[^<]*<\/div>)?<\/div><button type="button" class="linkBtn restoreLink" id="restoreLink">/.test(gameHtml) && gameHtml.includes('#profileEditor.hidden+.restoreLink{display:none}'));
     const jPos=gameHtml.indexOf("localStorage.getItem('fluxRestoreJournal')"), idPos=gameHtml.indexOf('const playerId=localStorage.fluxPlayerId');
     ck('W3 journal replay runs before the game reads its identity', jPos>0 && idPos>0 && jPos<idPos);
     ck('W4 store still closed', gameHtml.includes('const STORE_OPEN = false;'));
