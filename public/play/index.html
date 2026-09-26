@@ -3509,6 +3509,62 @@ function fluxEnableLite(){
 }
 if (window.__fluxLite) fluxApplyLiteParticles();
 
+
+/* STATS (in-house, anonymous; children may play). A few events -- app opened
+   (and whether it is the Home Screen app), first run started, run finished
+   (length, level reached, difficulty), level-up, share tapped -- are counted
+   on our own server with the pilot ID, the chosen country and the link's
+   "src" tag (?src=tiktok, ?src=share...). No third party, no advertising ID,
+   no personal information. They wait in memory and go in one small
+   background request at game over or when the app is hidden; nothing ever
+   waits for it, and if it fails the events are simply dropped. */
+const FLUX_STATS_URL='/api/events';
+let fluxStatsQueue=[], fluxRunStartedAt=0;
+function fluxStatsSrc(){
+  let s=''; try{ s=localStorage.getItem('fluxSrc')||''; }catch(e){}
+  if(!s){
+    try{ const q=String(new URLSearchParams(location.search).get('src')||'').trim().toLowerCase(); s=/^[a-z0-9_-]{1,24}$/.test(q)?q:'direct'; localStorage.setItem('fluxSrc',s); }catch(e){ s='direct'; }
+  }
+  return s;   // where this pilot first came from; kept, never overwritten
+}
+function fluxTrack(e,extra){
+  try{ if(fluxStatsQueue.length<60) fluxStatsQueue.push(Object.assign({e:e},extra||{})); }catch(x){}
+}
+function fluxStatsFlush(){
+  try{
+    if(!fluxStatsQueue.length || !navigator.sendBeacon) { fluxStatsQueue=[]; return; }
+    const body=JSON.stringify({pid:playerId,country:country,src:fluxStatsSrc(),events:fluxStatsQueue.slice(0,40)});
+    fluxStatsQueue=[];
+    navigator.sendBeacon(FLUX_STATS_URL,new Blob([body],{type:'text/plain'}));   // fire and forget
+  }catch(x){ fluxStatsQueue=[]; }
+}
+(function(){
+  try{
+    fluxStatsSrc();
+    fluxTrack('open',{home:!!(typeof fluxIsStandalone==='function' && fluxIsStandalone())});
+    const newGame0=newGame;
+    newGame=function(){
+      try{
+        fluxRunStartedAt=Date.now();
+        if(!(+localStorage.fluxRunsPlayed>0) && localStorage.fluxStatFirstRun!=='1'){ localStorage.fluxStatFirstRun='1'; fluxTrack('first_run'); }
+      }catch(x){}
+      return newGame0.apply(this,arguments);
+    };
+    const endGame0=endGame;
+    endGame=function(){
+      try{ fluxTrack('run_end',{sec:fluxRunStartedAt?Math.round((Date.now()-fluxRunStartedAt)/1000):0,lvl:level,diff:difficulty}); fluxRunStartedAt=0; }catch(x){}
+      const r=endGame0.apply(this,arguments);
+      fluxStatsFlush();
+      return r;
+    };
+    const finishLevelUp0=finishLevelUp;
+    finishLevelUp=function(){ const r=finishLevelUp0.apply(this,arguments); fluxTrack('level_up',{lvl:level,diff:difficulty}); return r; };
+    const sb=document.getElementById('shareBtn'); const share0=sb && sb.onclick;
+    if(sb) sb.onclick=function(){ fluxTrack('share'); fluxStatsFlush(); return typeof share0==='function' ? share0.apply(this,arguments) : undefined; };
+    document.onvisibilitychange=function(){ if(document.hidden) fluxStatsFlush(); };
+    setTimeout(fluxStatsFlush,8000);   // the app-open event, even if no run is played
+  }catch(x){}
+})();
 </script>
 <!-- D-38 (RC2.8.4): IN-APP BROWSER BANNER. A link tapped inside TikTok,
      Instagram, Facebook, Messenger, Snapchat or LINE opens in that app's own

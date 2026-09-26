@@ -58,6 +58,7 @@ const validPlayerId = (v) => PLAYER_ID.test(String(v || "")) && !UNSAFE_KEYS.has
 export default {
   async scheduled(event, env, ctx) {
     ctx.waitUntil(reconcilePayments(env).catch((e) => console.error("reconcile:", e && e.message)));
+    ctx.waitUntil(analyticsDO(env, "/an-purge", { method: "POST" }).catch(() => {}));   // STATS: raw events older than 90 days -> totals only
   },
 
   async fetch(request, env) {
@@ -73,6 +74,9 @@ export default {
         }
         if (path === "/api/submit-score" && request.method === "POST") {
           return withCors(await submitScore(request, env));
+        }
+        if (path === "/api/events" && request.method === "POST") {
+          return withCors(await ingestEvents(request, env));   // STATS (in-house, anonymous)
         }
         if (path === "/api/geo" && request.method === "GET") {
           const cc = (request.cf && request.cf.country) || "";
@@ -106,6 +110,7 @@ export default {
             "/api/admin/purchase-revoke":   () => adminPurchaseChange(request, env, false),
             "/api/admin/purchase-grant":    () => adminPurchaseChange(request, env, true),
             "/api/admin/issue-restore-code": () => adminIssueRestore(request, env),   // D-37
+            "/api/admin/analytics":          () => adminAnalytics(request, env),     // STATS dashboard data
           }[path];
           if (admin) return withCors(await admin());
         }
@@ -145,6 +150,70 @@ async function forwardToDO(request, env, path, init) {
   }
   return stub.fetch("https://do.internal" + path, init);
 }
+
+/* ------------------------------------------------------------------ */
+/* STATS: in-house, anonymous gameplay counts (children may play)       */
+/* ------------------------------------------------------------------ */
+/* No third party, no advertising ID, no personal information. The game
+   sends a few events (app opened, first run, run finished, level-up,
+   share tapped) with its random pilot ID; the server keeps only a one-way
+   code made from it (a different code from the leaderboard's, so the two
+   cannot be matched), the pilot's country (never a precise location) and
+   the "src" tag of the link they first came from. Everything is counted
+   into daily / monthly totals and retention-by-start-date totals as it
+   arrives. Raw events are kept 90 days, then only the totals remain. It
+   runs in its own Durable Object instance ("analytics"), so the
+   leaderboard is never slowed down, and the game never waits for it. */
+const AN_EVENTS = new Set(["open", "first_run", "run_end", "level_up", "share"]);
+const AN_SRC = /^[a-z0-9_-]{1,24}$/;
+const AN_KEEP_DAYS = 90;
+const AN_MAX_BATCH = 40;
+function analyticsDO(env, path, init) {
+  if (!env.LEADERBOARD_DO) return Promise.resolve(json({ error: "not configured" }, 500));
+  return env.LEADERBOARD_DO.get(env.LEADERBOARD_DO.idFromName("analytics")).fetch("https://do.internal" + path, init);
+}
+async function analyticsCode(playerId) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("flux-stats:" + String(playerId)));
+  return Array.from(new Uint8Array(buf)).slice(0, 8).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+function cleanSrc(v) { const s = String(v || "").trim().toLowerCase(); return AN_SRC.test(s) ? s : "direct"; }
+function cleanEvent(e) {
+  if (!e || typeof e !== "object" || !AN_EVENTS.has(e.e)) return null;
+  const out = { e: e.e };
+  if (e.e === "open") out.home = e.home === true;
+  if (e.e === "run_end" || e.e === "level_up") {
+    const lvl = Math.floor(Number(e.lvl)); out.lvl = lvl >= 1 && lvl <= MAX_LEVEL ? lvl : 1;
+    out.diff = VALID_DIFFICULTIES.has(e.diff) ? e.diff : "medium";
+  }
+  if (e.e === "run_end") { const sec = Math.floor(Number(e.sec)); out.sec = sec >= 0 && sec <= 7200 ? sec : 0; }
+  return out;
+}
+async function ingestEvents(request, env) {
+  try {
+    const body = await readJsonObject(request);
+    if (!body) return json({ ok: false }, 400);
+    const playerId = typeof body.pid === "string" ? body.pid.trim() : "";
+    if (!validPlayerId(playerId)) return json({ ok: false }, 400);
+    const events = (Array.isArray(body.events) ? body.events : []).slice(0, AN_MAX_BATCH).map(cleanEvent).filter(Boolean);
+    if (!events.length) return json({ ok: true, n: 0 });
+    const c = typeof body.country === "string" ? body.country.trim().toUpperCase() : "";
+    const cf = (request.cf && request.cf.country) || "";
+    const country = ISO2.test(c) ? c : (ISO2.test(cf) ? cf : "XX");   // country only, never a precise location
+    const r = await analyticsDO(env, "/an-ingest", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ h: await analyticsCode(playerId), src: cleanSrc(body.src), country, events }) });
+    return json({ ok: r.ok }, r.ok ? 200 : 500);
+  } catch (e) { return json({ ok: false }, 500); }
+}
+async function adminAnalytics(request, env) {
+  const denied = requireAdmin(request, env); if (denied) return denied;
+  const b = (await readJsonObject(request)) || {};
+  return analyticsDO(env, "/an-report?" + new URLSearchParams({ from: String(b.from || ""), to: String(b.to || "") }));
+}
+const AN_DAY_MS = 86400000;
+const anDayStr = (d) => new Date(d * AN_DAY_MS).toISOString().slice(0, 10);
+const anDayNum = (s) => (/^\d{4}-\d{2}-\d{2}$/.test(s || "") ? Math.floor(Date.parse(s + "T00:00:00Z") / AN_DAY_MS) : NaN);
+const anMonth = (d) => anDayStr(d).slice(0, 7);
+function anAdd(bucket, groups, field, n) { for (const g of groups) { const o = bucket[g] || (bucket[g] = {}); o[field] = (o[field] || 0) + n; } }
 
 /* ------------------------------------------------------------------ */
 /* Score submission                                                    */
@@ -1082,6 +1151,8 @@ export class LeaderboardDO {
   }
 
   async fetch(request) {
+    const url0 = new URL(request.url);
+    if (url0.pathname.startsWith("/an-")) return this.handleAnalytics(request, url0);   // STATS instance: never loads the leaderboard
     await this.load();
     const url = new URL(request.url);
     const route = {
@@ -1105,6 +1176,102 @@ export class LeaderboardDO {
       "/admin-issue-restore": () => this.handleAdminIssueRestore(request),
     }[url.pathname];
     return route ? route() : json({ error: "Not found" }, 404);
+  }
+
+  /* STATS (see the note at AN_EVENTS). One request at a time, in order. */
+  handleAnalytics(request, url) {
+    const run = async () => {
+      try {
+        if (url.pathname === "/an-ingest" && request.method === "POST") return await this.anIngest(await request.json());
+        if (url.pathname === "/an-report") return await this.anReport(url);
+        if (url.pathname === "/an-purge") return await this.anPurge();
+        return json({ error: "Not found" }, 404);
+      } catch (e) { return json({ error: "stats failed" }, 500); }
+    };
+    const p = (this.anChain || Promise.resolve()).then(run, run);
+    this.anChain = p.then(() => {}, () => {});
+    return p;
+  }
+  anToday() { return Math.floor((this.nowMs ? this.nowMs() : Date.now()) / AN_DAY_MS); }
+  async anIngest(b) {
+    const st = this.state.storage, today = this.anToday(), month = anMonth(today);
+    const h = String(b.h || ""); if (!/^[0-9a-f]{16}$/.test(h)) return json({ ok: false }, 400);
+    const events = (Array.isArray(b.events) ? b.events : []).slice(0, AN_MAX_BATCH);
+    const country = ISO2.test(b.country || "") ? b.country : "XX";
+    // The pilot's own record: first day, first src (where they came from), last active day/month, retention marks.
+    let p = await st.get("an:p:" + h), isNew = false;
+    if (!p) { p = { f: today, s: cleanSrc(b.src), l: -1, m: "", r: 0, k: 0, kd: today }; isNew = true; }
+    if (p.kd !== today) { p.kd = today; p.k = 0; }
+    if (p.k >= 500) return json({ ok: true, capped: true });   // a flood from one pilot is ignored for the day
+    p.k += events.length;
+    const groups = ["all", "c:" + country, "s:" + p.s];
+    const day = (await st.get("an:day:" + today)) || {};
+    const puts = {};
+    if (isNew) anAdd(day, groups, "new", 1);
+    if (p.l !== today) {
+      anAdd(day, groups, "active", 1); p.l = today;
+      const age = today - p.f, bit = { 1: 1, 7: 2, 30: 4 }[age];
+      if (bit && !(p.r & bit)) {   // came back on day 1 / 7 / 30 after their start date
+        p.r |= bit;
+        const ret = (await st.get("an:ret:" + p.f)) || {};
+        anAdd(ret, ["all", "c:" + (p.c || country), "s:" + p.s], "d" + age, 1);
+        puts["an:ret:" + p.f] = ret;
+      }
+    }
+    if (isNew) { p.c = country; const ret = puts["an:ret:" + p.f] || (await st.get("an:ret:" + p.f)) || {}; anAdd(ret, groups, "n", 1); puts["an:ret:" + p.f] = ret; }
+    if (p.m !== month) {
+      p.m = month;
+      const mon = (await st.get("an:mon:" + month)) || {};
+      anAdd(mon, groups, "active", 1); puts["an:mon:" + month] = mon;
+    }
+    for (const e of events) {
+      if (e.e === "open") { anAdd(day, groups, "opens", 1); if (e.home) anAdd(day, groups, "home", 1); }
+      else if (e.e === "first_run") anAdd(day, groups, "first", 1);
+      else if (e.e === "level_up") anAdd(day, groups, "levelups", 1);
+      else if (e.e === "share") anAdd(day, groups, "shares", 1);
+      else if (e.e === "run_end") { anAdd(day, groups, "runs", 1); anAdd(day, groups, "sec", e.sec || 0); anAdd(day, groups, "lvl", e.lvl || 1); }
+    }
+    // Raw events for 90 days, in small chunks.
+    const n = (await st.get("an:evn:" + today)) || 0, ck = "an:ev:" + today + ":" + Math.max(0, n - 1);
+    let chunk = n ? ((await st.get(ck)) || []) : [];
+    const rows = events.map((e) => Object.assign({ h, c: country, s: p.s }, e));
+    if (!n || chunk.length + rows.length > 400) { chunk = rows; puts["an:ev:" + today + ":" + n] = chunk; puts["an:evn:" + today] = n + 1; }
+    else { chunk = chunk.concat(rows); puts[ck] = chunk; }
+    const days = (await st.get("an:days")) || [];
+    if (days[days.length - 1] !== today) { days.push(today); puts["an:days"] = days; }
+    puts["an:day:" + today] = day; puts["an:p:" + h] = p;
+    await st.put(puts);
+    return json({ ok: true });
+  }
+  async anPurge() {
+    const st = this.state.storage, cut = this.anToday() - AN_KEEP_DAYS;
+    const days = (await st.get("an:days")) || [], keep = [], gone = [];
+    for (const d of days) (d < cut ? gone : keep).push(d);
+    for (const d of gone) {
+      const n = (await st.get("an:evn:" + d)) || 0, keys = ["an:evn:" + d];
+      for (let i = 0; i < n; i++) keys.push("an:ev:" + d + ":" + i);
+      if (st.delete) await st.delete(keys); else for (const k of keys) await st.put(k, null);
+    }
+    if (gone.length) await st.put("an:days", keep);
+    return json({ ok: true, purgedDays: gone.length });
+  }
+  async anReport(url) {
+    const st = this.state.storage, today = this.anToday();
+    let to = anDayNum(url.searchParams.get("to")), from = anDayNum(url.searchParams.get("from"));
+    if (!Number.isFinite(to)) to = today;
+    if (!Number.isFinite(from)) from = to - 29;
+    from = Math.max(from, to - 400);
+    const days = [], cohorts = [], months = [];
+    for (let d = from; d <= to; d++) {
+      const day = await st.get("an:day:" + d); if (day) days.push({ date: anDayStr(d), groups: day });
+      const ret = await st.get("an:ret:" + d); if (ret) cohorts.push({ date: anDayStr(d), age: today - d, groups: ret });
+    }
+    for (let m = anMonth(from); m <= anMonth(to);) {
+      const mon = await st.get("an:mon:" + m); if (mon) months.push({ month: m, groups: mon });
+      const [y, mm] = m.split("-").map(Number); m = mm === 12 ? (y + 1) + "-01" : y + "-" + String(mm + 1).padStart(2, "0");
+    }
+    const rawDays = ((await st.get("an:days")) || []).length;
+    return json({ ok: true, from: anDayStr(from), to: anDayStr(to), today: anDayStr(today), keepDays: AN_KEEP_DAYS, rawDays, days, months, cohorts });
   }
 
   /* Public rows for one board. No difficulty = each player's single best. */

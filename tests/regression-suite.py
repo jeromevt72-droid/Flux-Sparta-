@@ -159,7 +159,7 @@ ck('D-03 refund policy stated', 'within 14 days of your purchase' in _tm)
 # Owner decision (Sep 26, 2026): children may play. The privacy policy covers a general audience with a parents' contact;
 # the Terms still say 13+ (open question to the owner), so that half of the old check stays.
 # COPPA 2025 (owner, Sep 26, 2026): kids may play with no personal information collected; both pages say so, marked for lawyer review.
-ck('D-03 children: policy and terms both let kids play, marked for lawyer review', 'children may play' in _pv and 'Parents and guardians' in _pv and 'Anyone may play FLUX, including children' in _tm and 'at least 13' not in _tm and _pv.count('For lawyer review before launch') == 1 and _tm.count('For lawyer review before launch') == 1)
+ck('D-03 children: policy and terms both let kids play, marked for lawyer review', 'children may play' in _pv and 'Parents and guardians' in _pv and 'Anyone may play FLUX, including children' in _tm and 'at least 13' not in _tm and _pv.count('For lawyer review before launch') == 2 and _tm.count('For lawyer review before launch') == 2)   # children + in-house statistics
 ck('D-03 governing law set', 'State of California' in _tm and 'Alameda County' in _tm)
 
 print('\n--- D-19 / D-20 ---')

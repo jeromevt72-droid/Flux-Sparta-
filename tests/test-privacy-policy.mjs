@@ -29,7 +29,7 @@ function suite(files, quiet = false) {
   ck('P1 the policy is finished: no "not ready" note, no placeholder, an effective date', !/Not yet ready|OWNER INPUT|class="todo"|\[[A-Z ]+:/.test(pv) && /Effective date: <strong>[A-Z][a-z]+ \d{1,2}, 20\d\d<\/strong>/.test(pv));
   ck('P1 the retired /welcome/ copy (still reachable) is the same finished policy', wv === pv);
   const hits = Object.entries(files).filter(([f, s]) => !/privacy\.html$/.test(f) && TRACKERS.test(s)).map(([f, s]) => f + ': ' + s.match(TRACKERS)[0]);
-  ck('P2 no analytics, advertising, tracking pixels or cookies anywhere the site serves (as the policy says)', hits.length === 0 && /no analytics, no advertising, no tracking pixels, and no\s*cookies/.test(pv), hits.slice(0, 3).join(' | '));
+  ck('P2 no third-party analytics, advertising, tracking pixels or cookies anywhere the site serves (as the policy says)', hits.length === 0 && /no third-party analytics, no advertising, no tracking pixels, and no\s*cookies/.test(pv), hits.slice(0, 3).join(' | '));
   ck('P2 ads are switched off in the game (the revive is free)', /const ADS_ENABLED = false;/.test(game));
   const rule = /if \(!\/\^\[A-Z0-9\]\+\$\/\.test\(s\) \|\| s\.length > TYPED_NAME_MAX\)/;
   ck('P3 the policy describes the names the game really allows (preset to start; typed: one word, letters and numbers, up to 12; no email, phone or link)',
@@ -53,7 +53,13 @@ function suite(files, quiet = false) {
     loc.length === 0 && /only ever uses a country,\s*never a precise location/.test(pv), loc.join(' | '));
   ck('P6 the player identifier is described as used only to run the game, never for ads or tracking',
     /<strong>The player identifier is used only to run the game:<\/strong>/.test(pv) && /<strong>never<\/strong> used for advertising/.test(pv));
-  ck('P6 future stats are promised to be anonymous, in-house, with no third-party trackers', /Future gameplay statistics/.test(pv) && /anonymous and kept on our own servers/.test(pv) && /no third-party analytics or tracking service/.test(pv));
+  const g = files['public/play/index.html'], wk = files['worker.js'];
+  ck('P6 the in-house statistics are described the way they are built (own server, one-way code, country only, src tag, 90 days, lawyer review)',
+    /const FLUX_STATS_URL='\/api\/events';/.test(g) && /const AN_KEEP_DAYS = 90;/.test(wk) && /"flux-stats:" \+ String\(playerId\)/.test(wk)
+    && /<h3 id="stats">Anonymous gameplay statistics \(in-house\)<\/h3>\s*<div class="review"><strong>For lawyer review before launch\.<\/strong>/.test(pv)
+    && /<strong>our own server<\/strong>/.test(pv) && /one-way code, different from the\s+leaderboard's tag/.test(pv) && /<strong>90 days<\/strong>/.test(pv) && /\?src=tiktok/.test(pv) && !/Future gameplay statistics/.test(pv));
+  const evs = [...g.matchAll(/fluxTrack\('([a-z_]+)'/g)].map((m) => m[1]).sort().join(',');
+  ck('P6 ...the events the game sends are exactly the ones the policy lists', evs === 'first_run,level_up,open,run_end,share' && /the app being opened[\s\S]{0,120}first run, each finished run[\s\S]{0,120}level-ups, and taps on the share button/.test(pv), evs);
   ck('T1 Terms: kids may play, no "13 and older", children section marked for lawyer review',
     /Anyone may play FLUX, including children/.test(tm) && !/at least 13/.test(tm) && /<div class="review"><strong>For lawyer review before launch\.<\/strong>/.test(tm));
   ck('T1 Terms describe the name rules (one word, letters and numbers, up to 12, no full names)', /a typed name must be one word, letters and numbers\s+only, up to 12 characters/.test(tm) && /Full names/.test(tm) && !/up to 14 characters|dice|Names cannot be typed/.test(tm));
@@ -87,6 +93,8 @@ control('policy stops limiting the player identifier', 'P6', edit('public/privac
 control('Terms back to 13 and older', 'T1', edit('public/terms.html', 'Anyone may play FLUX, including children.', 'You must be at least 13 years old to play FLUX.'));
 control('retired Terms copy left behind', 'T1', edit('public/welcome/terms.html', 'Effective date:', 'Effective date: [OWNER INPUT REQUIRED: date]'));
 control('children section back to "13 and older"', 'P3', edit('public/privacy.html', 'FLUX is a game for a general audience, and children may play it.', 'FLUX is intended for players aged 13 and older.'));
+control('the game counts a new event the policy does not list', 'P6', edit('public/play/index.html', "fluxTrack('share');", "fluxTrack('share'); fluxTrack('scroll');"));
+control('stats kept longer than the policy says', 'P6', edit('worker.js', 'const AN_KEEP_DAYS = 90;', 'const AN_KEEP_DAYS = 365;'));
 control('upload sends a new field', 'P4', edit('worker.js', 'body: JSON.stringify({ playerId, name, score, level, difficulty, country, detected })', 'body: JSON.stringify({ playerId, name, score, level, difficulty, country, detected, ua: request.headers.get("user-agent") })'));
 const total = main.F + NC;
 console.log('\n' + (total ? 'PRIVACY POLICY FAILED: ' + main.F + ' check(s), ' + NC + ' uncaught control(s)' : 'PRIVACY POLICY PASSED: all checks and all negative controls'));

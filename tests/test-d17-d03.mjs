@@ -64,7 +64,7 @@ for(const bad of ['100% secure','completely anonymous','we collect no informatio
 ck('states FLUX never receives card numbers', pv.includes('never receives your card number'));
 ck('states leaderboard is public', pv.includes('public'));
 ck('states no IP stored', pv.includes('do not store your IP address'));
-ck('states no analytics/cookies', /no analytics,[\s\S]{0,80}no\s*\ncookies|no analytics[\s\S]{0,80}cookies/.test(pv));
+ck('states no third-party analytics/cookies (in-house statistics are described separately)', /no third-party analytics,[\s\S]{0,80}cookies/.test(pv) && pv.includes('Anonymous gameplay statistics (in-house)'));
 
 console.log('\n'+'='.repeat(50));
 console.log(F? '  '+F+' FAILED' : '  ALL D-17 / D-03 TESTS PASSED');
