@@ -25,22 +25,32 @@ node test-checkout-navigation.mjs  # 60: installed-PWA checkout navigation
 node test-backdrop-bleed.mjs      # Solar backdrop image covers the full physical screen (root background, CSS-cover sizing) + negative controls
 node test-backdrop-bleed-browser.mjs # extra, not in the gate: simulated short viewport + clipped container on iPhone/iPad sizes in real Chromium
 node test-ball-colour.mjs         # every ball matches an orb on the field: all new balls + 90,000 frames of simulated play + negative controls
+node test-debug-readout.mjs       # temporary screen readout: opens only after 5 quick taps on the menu title, never saved, read-only + negative controls
+node test-debug-readout-browser.mjs # extra, not in the gate: real Chromium on iPhone/iPad/iPad mini sizes, HUD logo taps never open it
 node test-levelup-continuity.mjs  # level-up keeps every orb, score, combo, lives, FLUX; only difficulty ramps (~1 s) + negative controls
 node test-level-banner.mjs        # level-up banner never overlaps launcher, danger line, HUD or play area (measured device layouts) + negative controls
+node test-intensity.mjs          # intensity: rises with combo/level/FLUX, settles after a miss, never changes the game (seeded), never behind an orb or the ball, lite mode, sound past x12 + negative controls
+node test-intensity-browser.mjs  # extra, not in the gate: real pixels, orb/ball contrast never drops at full intensity (default + Solar, iPhone/iPad/iPad mini)
 node test-level-banner-browser.mjs # extra, not in the gate: same checks on real Chromium rendering, 10 iPhone/iPad sizes
 node test-miss-notice.mjs         # miss notice ("BALL LOST • n LIVES LEFT") in the HUD strip, never on the launcher or play area (measured device layouts) + negative controls
+node test-orb-colours-v2.mjs      # orb colours v2: approved 5-colour palettes, cap, Toxic apart from Aurora, block style at the exact hit radius, ball ring + symbol, hit areas unchanged + negative controls
 node test-rc287.mjs              # RC2.8.7: D-50..D-61 (levels, HUD, palettes, game over, sound) + negative controls
 node test-rc287-browser.mjs      # RC2.8.7 extra, not in the gate: real Chromium, 360px fit, 11px text, 44px buttons, notch inset
 node test-preset-names.mjs       # pilot names: preset for new pilots, typed one-word names (rules), old names switched with a notice, EDIT closes on save/cancel + negative controls
+node test-comeback-ease.mjs       # comeback ease: two misses within 20 s -> top speed 85% for 6 s; never faster, never adds points, identical game when off + negative controls
 node test-rc281.mjs              # RC2.8.1: D-29 D-31 D-33 D-34 + pending-delivery message
 node test-rc28-worker.mjs          # RC2.8 server: D-22 D-25 D-26 D-27, moderation, tags, reconciliation (REAL worker)
+node test-generous-catch.mjs      # generous catch: +8px at the launcher ends in the first 3 runs only (never Easy), never a perfect catch, identical game when off, simulated beginner + negative controls
 node test-rc28-client.mjs          # RC2.8 game: D-23 D-24, honest status, tags (REAL game page)
 node test-audit-fixes.mjs         # 60+: AUDIT A-1..A-4 on the REAL worker + game hash agreement
+node test-first-60s.mjs            # first 60 seconds: first-run colour hint in the HUD strip (not over the orbs), hint ring on the matching orb, one tap to play + negative controls
 node test-one-app-runtime.mjs      # 40: RUNS the real Gateway+game: 10 relaunches, demo, Stripe return
 node test-negative-controls.mjs    # 10: re-inserts each defect and REQUIRES a failure
 node test-privacy-policy.mjs        # launch: the privacy policy is finished (both copies) and matches the code: no analytics/ads/cookies, auto names, name rule, children, upload fields + negative controls
 node test-merge-one-identity.mjs   # 40: MERGE — one origin, one identity, demo isolated
 node test-single-identity.mjs      # 27: top-level Play, one identity, purchase lock
+node test-share-card.mjs           # share card: "I added N for <flag> <country>!" + link to /play/, image when the phone can share it, text/copy fallbacks, straight from the tap + negative controls
+node test-share-card-browser.mjs # extra, not in the gate: real Chromium, iPhone/iPad/iPad mini, button, JPEG card, what the share sheet receives
   node test-offline-queue.mjs        # 19: offline queue, retry, permanent vs temporary
   node test-d09-bestrun.mjs          # 20: best-run record + legacy migration
   node test-d01-d08-lifecycle.mjs    # 19: demo suspend/resume, pill, hostile origin

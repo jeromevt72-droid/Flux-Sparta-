@@ -125,7 +125,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 .shopRow button:disabled{opacity:.55;box-shadow:none}
 .profileTag{opacity:.55;font-weight:600;letter-spacing:.06em;margin-left:2px;font-size:11px}.lbTag{opacity:.5;font-weight:600;font-size:11px;letter-spacing:.04em}.shopNote{display:inline-block;margin-top:6px;font-size:12px;opacity:.7;line-height:1.4}.uploadStatus{min-height:14px;margin:6px 0 0;font-size:11px;letter-spacing:.12em;color:#8fa3d8;text-align:center}
 .restoreLink{display:block;width:100%;margin:-4px 0 12px;flex:none}#profileEditor.hidden+.restoreLink{display:none}.restoreOverlay .panel{max-height:88vh;overflow:auto}.restoreWho{font-size:12px;letter-spacing:.12em;color:#eaf7ff;margin:6px 0 10px}.restoreText{font-size:12px;line-height:1.55;color:#b9c6e6;margin:0 0 10px}.restoreWarn{font-size:11px;line-height:1.5;color:#ffd08a;margin:0 0 10px}.restoreMsg{font-size:12px;line-height:1.5;color:#ff9fc6;min-height:1.5em;margin:4px 0 8px}.restoreCode{font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.5;word-break:break-all;user-select:all;-webkit-user-select:all;background:#050a22;border:1px solid #2c4b87;border-radius:12px;padding:10px;margin:0 0 10px;color:#9ff3ff}.restoreInput{width:100%;box-sizing:border-box;font-family:ui-monospace,Menlo,monospace;font-size:16px;background:#050a22;color:#eaf7ff;border:1px solid #2c4b87;border-radius:12px;padding:10px;margin:0 0 6px;resize:none}.restoreRow{display:flex;gap:8px}.restoreRow button{flex:1}.restoreOverlay button{margin-top:8px}.restoreOther{display:block;width:100%}
-.goName{margin:6px 0 10px;padding:12px;border:1px solid #2c6bff;border-radius:16px;background:rgba(18,32,77,.55)}.goNameT{font-size:11px;letter-spacing:.16em;color:#5ff3ff;font-weight:800;margin-bottom:8px}.goNameRow{display:flex;gap:8px;margin-bottom:8px}.goNameRow input,.goNameRow select{min-width:0;background:#050a22;color:#eaf7ff;border:1px solid #2c4b87;border-radius:12px;padding:10px 12px;font:700 16px system-ui,sans-serif;text-transform:uppercase}.goNameRow input{flex:1}.goNameRow select{flex:0 0 42%;font-size:14px}.goNameRow input::placeholder{color:#6d7fa8}.goNameNote{font-size:11px;color:#9fb3d9;margin-top:6px}.colorHint{position:fixed;left:50%;top:24%;transform:translateX(-50%);z-index:50;pointer-events:none;background:rgba(6,12,34,.86);border:1px solid #2c6bff;border-radius:16px;padding:12px 18px;color:#eaf7ff;font:800 14px/1.35 system-ui,sans-serif;letter-spacing:.08em;text-align:center;max-width:86vw;box-shadow:0 10px 30px rgba(0,0,0,.5);transition:opacity .5s}.colorHint b{color:#5ff3ff}.colorHint.out{opacity:0}
+.goName{margin:6px 0 10px;padding:12px;border:1px solid #2c6bff;border-radius:16px;background:rgba(18,32,77,.55)}.goNameT{font-size:11px;letter-spacing:.16em;color:#5ff3ff;font-weight:800;margin-bottom:8px}.goNameRow{display:flex;gap:8px;margin-bottom:8px}.goNameRow input,.goNameRow select{min-width:0;background:#050a22;color:#eaf7ff;border:1px solid #2c4b87;border-radius:12px;padding:10px 12px;font:700 16px system-ui,sans-serif;text-transform:uppercase}.goNameRow input{flex:1}.goNameRow select{flex:0 0 42%;font-size:14px}.goNameRow input::placeholder{color:#6d7fa8}.goNameNote{font-size:11px;color:#9fb3d9;margin-top:6px}
 .installBtn{display:block;width:100%;margin-top:8px}
 /* RC2.8.7: D-57 game over = the score + one line; D-60 name offer; D-58 "Playing for". */.goScore{font-size:56px;font-weight:900;line-height:1.05;color:#5deaff;letter-spacing:.04em;text-shadow:0 0 24px #27d9ff66;margin:0}.goLine{margin:8px 0 4px!important;color:#eaf7ff!important;font-size:15px!important;font-weight:800;line-height:1.4!important}.goLine .goNew{color:#ffd23f}.goMeta{margin:0 0 4px!important;color:#8fa5d1!important;font-size:12px!important;letter-spacing:.08em}.goClaim{margin:8px 0 10px;padding:12px;border:1px solid #2c6bff;border-radius:16px;background:rgba(18,32,77,.55)}.goClaimT{font-size:14px;font-weight:800;color:#eaf7ff;margin-bottom:8px}.goClaimRow{display:flex;gap:8px}.goClaimRow button{flex:1;padding:10px 8px;font-size:12px;letter-spacing:.08em}.goClaimRow button.goClaimNo{background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none}.playingFor{display:block;width:100%;margin:8px 0 0;padding:8px 10px;background:transparent;color:#b9c6e5;border:0;box-shadow:none;font-size:13px;font-weight:700;letter-spacing:.02em;text-transform:none}.playingFor u{color:#62eaff;text-underline-offset:3px}
 /* D-46 lite graphics: the moving star fields, the live-blurred nebula and the FLUX Mode full-screen filter are redrawn every frame; on old devices they cost more than the game itself. */.fluxLite #starsFar,.fluxLite #starsNear{animation:none!important}.fluxLite #nebulaDrift{display:none!important}.fluxLite #app{filter:none!important}
@@ -356,6 +356,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
   <div id="goName" class="goName hidden"><div class="goNameT">PUT YOUR SCORE ON THE WORLD GRID</div><div class="goNameRow"><input id="goCallsign" maxlength="12" placeholder="YOUR NAME" autocomplete="off" autocorrect="off" spellcheck="false"><select id="goCountry" aria-label="Country"></select></div><button id="goSave" type="button">SAVE &amp; UPLOAD</button><div class="goNameNote" id="goNameMsg">Your best score counts for your country.</div></div>
   <div class="gameoverModes"><div class="menuLabel">CHOOSE YOUR NEXT FLOW</div><div class="difficulty" id="gameoverDifficulty"><button data-d="easy">EASY</button><button data-d="medium">MEDIUM</button><button data-d="hard">HARD</button></div></div>
   <button id="againBtn">RUN IT BACK</button>
+  <button id="shareBtn" type="button" class="hidden" style="margin-top:8px;background:transparent;color:#ffd23f;border:1px solid #6b5a1a;box-shadow:none">📤 SHARE MY SCORE</button>
   <button id="gameoverLeaderBtn" style="margin-top:8px;background:transparent;color:#7fdfff;border:1px solid #234174;box-shadow:none">🌎 GLOBAL LEADERBOARD</button>
   <button id="gameoverMenuBtn" style="margin-top:8px;background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none">⌂ MENU</button>
   <button id="gameoverInstallBtn" type="button" class="installBtn hidden" style="margin-top:8px;background:transparent;color:#5ff3ff;border:1px solid #2c6bff;box-shadow:none">📲 ADD TO HOME SCREEN</button>
@@ -599,14 +600,20 @@ let ball,targets=[],particles=[],texts=[],shake=0;
    =========================================================================== */
 const STORE_OPEN = false;
 
+/* ORB COLOURS v2: every skin has exactly 5 colours, 4 core + 1 unlock colour
+   (level 2, symbol ★). Chosen for fast motion and side vision (clear brightness
+   steps), red-green colour blindness and harmony (Ou & Luo 2006); Toxic's are
+   kept clearly apart from the free Aurora skin. The number of colours in play
+   is min(colors.length, 4+floor(level/2)), so the cap means 4 at level 1 and 5
+   from level 2 on. Only drawing colours: hit areas and scoring are unchanged. */
 const SKINS={
   /* D-56 (RC2.8.7) PALETTES. Every colour is bright on the dark field; the
      first four (the ones in play until level 2) differ in hue AND lightness;
      no palette pairs a red with a green (the common colour-blind confusion). */
-  aurora:{name:'AURORA',price:null,colors:['#ffd23f','#1fb8e0','#ff4f98','#b48cff','#ff9a3d','#5c8cff','#f0f4ff','#e05cff','#7dffea']},
-  toxic:{name:'TOXIC',price:'$1.99',colors:['#d6ff3d','#2ee6b8','#5cb8ff','#b06bff','#fff36b','#7dff8a','#f0f4ff','#2ecfff','#e8a6ff']},
-  cosmic:{name:'COSMIC',price:'$1.99',colors:['#ffe066','#5ce1ff','#ff7ae0','#9d7bff','#7a9dff','#ff9ec8','#f0f4ff','#c46bff','#8cfff0']},
-  solar:{name:'SOLAR INFERNO',price:'$2.99',bg:'/solar-inferno.webp',bgW:900,bgH:1599,bgBase:'#1c0c0b',colors:['#ffcf33','#7cc0ff','#c48cff','#ff3a24','#ffe8a3','#ff9e5c','#f0f4ff','#ff7ac0','#ffb830']}
+  aurora:{name:'AURORA',price:null,colors:['#ffe768','#62bdfa','#f16e52','#5be8c8','#7473fb']},
+  toxic:{name:'TOXIC',price:'$1.99',colors:['#d7fe71','#f773ac','#9eedfc','#bd4ff1','#fd2c29']},
+  cosmic:{name:'COSMIC',price:'$1.99',colors:['#ebf2ff','#e971ef','#57dcab','#ecc238','#eb5454']},
+  solar:{name:'SOLAR INFERNO',price:'$2.99',bg:'/solar-inferno.webp',bgW:900,bgH:1599,bgBase:'#1c0c0b',colors:['#fcf6e9','#46daf0','#6d7ae5','#54df6d','#ef7ba6']}
 };
 // CELESTIAL LEVEL-UP BACKGROUND — self-contained and safe to remove.
 // To turn this off entirely: set CELESTIAL_BG_ENABLED=false (one line),
@@ -662,10 +669,11 @@ function backdropCoverArea(){
   }catch(e){}
   return { w:w, h:h+Math.min(240,Math.max(0,sh-h)) };
 }
-// The level gradient at 50%, laid over the image: the same look as the image
-// at 50% opacity over #app's gradient before.
+// The level gradient laid over the image (BACKDROP_DARK), so the image shows
+// at 25% and every orb colour stands out from it.
+const BACKDROP_DARK=.75;   // share of the dark field laid over a skin backdrop: the image shows at 25%, so orbs stand out
 function halfTheme(css){
-  return css.replace(/#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/gi,(m,r,g,b)=>'rgba('+parseInt(r,16)+','+parseInt(g,16)+','+parseInt(b,16)+',.5)');
+  return css.replace(/#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/gi,(m,r,g,b)=>'rgba('+parseInt(r,16)+','+parseInt(g,16)+','+parseInt(b,16)+','+BACKDROP_DARK+')');
 }
 function applySkinBackground(){
   const layer=document.getElementById('skinBgLayer');
@@ -788,7 +796,7 @@ function playOrbHit(speed){
 }
 function playFusion(comboNow){
   // D-61: one semitone higher for every combo step, all the way to x12.
-  const base=360*Math.pow(2,(Math.max(1,Math.min(12,comboNow))-1)/12);
+  const base=360*Math.pow(2,(Math.max(1,Math.min(24,comboNow))-1)/12);   // past x12 the step comes from the hit streak (see INTENSITY)
   tone(base,.11,'triangle',.105,base*.45);
   setTimeout(()=>tone(base*1.5,.14,'sine',.085,base*.25),45);
   noise(.075,.045,900+comboNow*90);
@@ -855,7 +863,7 @@ var runActive=false;
 function newGame(){
  try{ window.parent.postMessage({type:'flux-playing'}, '*'); }catch(e){}
  pendingLevel=0;levelCountdown=0;levelTickAt=0;speedLevel=1;
- score=0;combo=1;level=1;streak=0;flux=0;fluxMode=0;misses=0;revivesUsedThisRun=0;missFragments=[];particles=[];texts=[];shake=0;targets=[];comboTimer=0;levelBanner=0;missNotice=0;perfectFlash=0;bonusTimer=rand(5,9);growTimer=rand(9,14);
+ score=0;combo=1;level=1;streak=0;flux=0;fluxMode=0;misses=0;revivesUsedThisRun=0;missFragments=[];particles=[];texts=[];shake=0;targets=[];comboTimer=0;levelBanner=0;missNotice=0;colorHintLeft=0;perfectFlash=0;bonusTimer=rand(5,9);growTimer=rand(9,14);
  refreshHudRects(); // pauseBtn just became visible -- make sure the exclusion zone reflects that now, not the pre-game state
  applyCelestialBackground(level);
  setPaddle(W/2);
@@ -1026,6 +1034,8 @@ function ensureBallColourTarget(){
 }
 function burst(x,y,col,n=14){
  for(let i=0;i<n;i++)particles.push({x,y,vx:rand(-5,5),vy:rand(-5,5),life:1,col});
+ const extra=juiceExtraParticles(n);   // INTENSITY: more particles at high combo/level/FLUX (never in lite mode)
+ for(let i=0;i<extra;i++)particles.push({x,y,vx:juiceRand(-5,5),vy:juiceRand(-5,5),life:1,col});
 }
 function popup(x,y,s,col='#fff'){texts.push({x,y,s,life:1,col})}
 function addFlux(v){flux=Math.min(100,flux+v);if(flux>=100&&!fluxMode){flux=0;fluxMode=6;score+=250;popup(W/2,120,'FLUX MODE','#62eaff');burst(W/2,120,'#62eaff',30);haptic(50);playFlux();flash(.22);shake=Math.min(14,shake+6);updateHud();}}
@@ -1300,15 +1310,29 @@ function endGame(){
    try{ window.parent.postMessage({type:'flux-gameover'}, '*'); }catch(e){}
  },420);
 }
+/* SPEED HELP. Help rules that only ever LOWER the ball's top speed register a
+   factor here (the comeback ease, the first-run help). The limit in update()
+   is normalMaxSpeed()*speedHelp(); with no help active the factor is exactly
+   1, so the game is exactly the same. A ball cruising between the lowered
+   limit and the normal one is slowed to it within about a second (the same
+   rate the game uses to speed it up); short speed kicks above the normal limit
+   (after a fusion) are left exactly as the normal game leaves them. Help never
+   adds points, lives or orbs. */
+const SPEED_HELPS=[];
+function speedHelp(){ let k=1; for(let i=0;i<SPEED_HELPS.length;i++) k*=SPEED_HELPS[i](); return k; }
+// The ball's normal top speed (the ramp raises it with speedLevel; FLUX mode lifts it).
+function normalMaxSpeed(){ return fluxMode>0?18.5:Math.min(17.5,(12+speedLevel*.48)*DIFFICULTY[difficulty].speed); }
+function slowToSpeedHelp(dt){ const k=speedHelp(); if(k===1 || !ball) return; const n=normalMaxSpeed(), lim=n*k, sp=Math.hypot(ball.vx,ball.vy); if(sp>lim && sp<=n+1e-9){ const nsp=Math.max(lim,sp-n*2.2*dt); ball.vx*=nsp/sp; ball.vy*=nsp/sp; } }
 function update(dt){
  if(levelBanner>0) levelBanner=Math.max(0,levelBanner-dt);
+ if(colorHintLeft>0) colorHintLeft=Math.max(0,colorHintLeft-dt);
  if(missNotice>0) missNotice=Math.max(0,missNotice-dt);
  checkScoreLevel(); tickLevelUp(dt);   // D-50
  // Combo is a real pressure mechanic: keep chaining fusions before the timer expires.
  if(comboTimer>0) comboTimer-=dt;
  else if(combo>1){combo=1;streak=0;popup(W/2,150,'COMBO LOST','#8da0c8');updateHud();}
  if(perfectFlash>0)perfectFlash-=dt;
- const maxSpeed=fluxMode>0?18.5:Math.min(17.5,(12+speedLevel*.48)*DIFFICULTY[difficulty].speed);
+ const maxSpeed=normalMaxSpeed()*speedHelp(); slowToSpeedHelp(dt);   // x1 unless a speed help is on (see SPEED HELP)
  if(fluxMode>0){fluxMode-=dt;document.getElementById('app').style.filter='brightness(1.18) saturate(1.35)';document.getElementById('fluxGlow').classList.add('on');}else{document.getElementById('app').style.filter='none';document.getElementById('fluxGlow').classList.remove('on');}
  let sp=Math.hypot(ball.vx,ball.vy);
  if(sp<maxSpeed) {
@@ -1380,19 +1404,19 @@ function update(dt){
    }
  }
  // At higher levels, the nearest matching target gets a subtle pulse: it is a hint, not an auto-aim.
- if(level>=5 && ball){
+ if((level>=5 || colorHintLeft>0) && ball){   // also during the first-run colour hint: shows which orb matches
    let bestT=null,bestD=Infinity;
    for(const t of targets) if(t.color===ball.color){
      const d=dist(ball,t); if(d<bestD){bestD=d;bestT=t;}
    }
-   targets.forEach(t=>t.hint=(t===bestT && bestD<Math.min(W,H)*.52));
-   if(bestT && bestD<Math.min(W,H)*.28 && Math.random()<dt*.75) playThreat();
- }
+   targets.forEach(t=>t.hint=(t===bestT && (colorHintLeft>0 || bestD<Math.min(W,H)*.52)));
+   if(level>=5 && bestT && bestD<Math.min(W,H)*.28 && Math.random()<dt*.75) playThreat();
+ } else if(targets.some(t=>t.hint)) targets.forEach(t=>t.hint=false);   // the first-run hint ended below level 5
  // paddle collision: angle determined by hit position
  if(ball.vy>0 && ball.y+ball.r>=paddle.y-paddle.h/2 && ball.y<paddle.y+18 &&
-    ball.x>paddle.x-paddle.w/2-ball.r && ball.x<paddle.x+paddle.w/2+ball.r){
+    ball.x>paddle.x-paddle.w/2-ball.r-catchMargin() && ball.x<paddle.x+paddle.w/2+ball.r+catchMargin()){   // catchMargin() is 0 except a new player's first runs
    ball.y=paddle.y-paddle.h/2-ball.r;
-   const hit=(ball.x-paddle.x)/(paddle.w/2);
+   const hit=clampCatchHit((ball.x-paddle.x)/(paddle.w/2));
    const speed=Math.min(maxSpeed,Math.max(7*DIFFICULTY[difficulty].speed,Math.hypot(ball.vx,ball.vy)*1.035));
    const angle= -Math.PI/2 + hit*1.05;
    ball.vx=Math.cos(angle)*speed;ball.vy=Math.sin(angle)*speed;
@@ -1407,7 +1431,7 @@ function update(dt){
    if(perfect){
      comboTimer=Math.max(comboTimer,1.2);
      orbValue=Math.min(42,orbValue + 1);
-     burst(ball.x,ball.y,'#ffffff',12);popup(ball.x,ball.y,'PERFECT • ORB +'+orbValue,'#ffffff');flash(.055);shake=Math.min(10,shake+2);haptic(18+Math.min(20,combo));
+     burst(ball.x,ball.y,'#ffffff',12);juiceBurst(ball.x,ball.y,colors[ball.color],22);popup(ball.x,ball.y,'PERFECT • ORB +'+orbValue,'#ffffff');flash(.055);shake=Math.min(10,shake+2);haptic(18+Math.min(20,combo));
    }else{burst(ball.x,ball.y,'#65efff',7);popup(ball.x,ball.y,'+ '+paddlePoints,'#65efff');}
    impactHaptic(speed);playPaddleHit((speed-6)/12);
    addFlux(3+Math.min(5,combo));
@@ -1427,7 +1451,25 @@ function glowCircle(x,y,r,col,alpha=1){
  ctx.save();ctx.globalAlpha=alpha;ctx.shadowBlur=r*1.8;ctx.shadowColor=col;ctx.fillStyle=col;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();ctx.restore();
 }
 const glyphs=['●','▲','■','◆','★','✚','▼','◉','⬢'];
-const ORB_GLYPH_ALPHA=.3;   // D-56: subtle
+/* BLOCK STYLE (orb colours v2): solid saturated fill, a light highlight on top,
+   a darker lower edge and a thin dark outline, so every orb pops off any
+   background (the outline keeps the edge visible even on Solar's flares). The
+   ball uses the same style plus its thin white ring and its colour's symbol.
+   Symbols are bold: dark on light fills, white on dark fills. No glow blur on
+   orbs (cheaper on old iPads). Drawing only: radii and hit tests unchanged. */
+function shadeHex(h,k){const n=parseInt(h.slice(1),16),r=n>>16,g=n>>8&255,b=n&255,f=function(c){return Math.round(k>0?c+(255-c)*k:c*(1+k));};return 'rgb('+f(r)+','+f(g)+','+f(b)+')';}
+function hexLum(h){const n=parseInt(h.slice(1),16),l=function(c){c/=255;return c<=.04045?c/12.92:Math.pow((c+.055)/1.055,2.4);};return .2126*l(n>>16)+.7152*l(n>>8&255)+.0722*l(n&255);}
+const ORB_OUTLINE='rgba(8,10,24,.9)';
+function blockOrb(x,y,r,col){
+  ctx.save();ctx.shadowBlur=0;
+  ctx.globalAlpha=.35;ctx.fillStyle='#000';ctx.beginPath();ctx.arc(x,y+2,r+1,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;   // soft drop under the orb
+  const g=ctx.createLinearGradient(0,y-r,0,y+r);g.addColorStop(0,shadeHex(col,.18));g.addColorStop(.5,col);g.addColorStop(1,shadeHex(col,-.30));   // darker lower edge
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.42)';ctx.beginPath();ctx.ellipse(x,y-r*.48,r*.62,r*.26,0,0,Math.PI*2);ctx.fill();   // light highlight on top
+  ctx.lineWidth=Math.max(1.5,r*.08);ctx.strokeStyle=ORB_OUTLINE;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();   // thin dark outline
+  ctx.restore();
+}
+function orbSymbol(x,y,r,col,sym){ctx.save();ctx.globalAlpha=1;ctx.fillStyle=hexLum(col)>.28?'#10132a':'#ffffff';ctx.font='900 '+Math.max(11,r*.8)+'px -apple-system,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(sym,x,y+1);ctx.restore();}
 function draw(){
  ctx.clearRect(0,0,W,H);
  // celestial background — drifting nebula glow + slow-scrolling, twinkling starfield
@@ -1469,6 +1511,7 @@ function draw(){
    ctx.beginPath();ctx.moveTo(18,ceilY);ctx.lineTo(W-18,ceilY);ctx.stroke();
    ctx.restore();
  }
+ drawJuiceUnderOrbs();   // INTENSITY: edge light (outside the orb field) and trail glow (never behind an orb)
  // targets
  for(const t of targets){
    if(t.bonus){
@@ -1486,31 +1529,26 @@ function draw(){
      ctx.save();
      const growPct=t.matured?1:t.r/t.maxR;
      const glow=t.matured?(.6+.4*Math.sin(performance.now()*.01+t.phase)):.3+.25*growPct;
-     ctx.shadowBlur=t.matured?32:18;ctx.shadowColor=colors[t.color];ctx.fillStyle=colors[t.color]+'30';ctx.strokeStyle=colors[t.color];ctx.lineWidth=t.matured?3:2;
-     ctx.globalAlpha=1;
-     ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.fill();ctx.stroke();
+     blockOrb(t.x,t.y,t.r,colors[t.color]);
+     ctx.strokeStyle=colors[t.color];
      if(t.matured){
        ctx.globalAlpha=glow;ctx.lineWidth=2;ctx.setLineDash([3,5]);
        ctx.beginPath();ctx.arc(t.x,t.y,t.r+8,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
      }
-     ctx.globalAlpha=t.matured?.85:ORB_GLYPH_ALPHA;ctx.fillStyle=t.matured?'#ffffff':'#04101a';ctx.font='900 '+Math.max(11,t.r*(t.matured?.7:.55))+'px -apple-system,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-     ctx.fillText(t.matured?'⚡':glyphs[t.color%glyphs.length],t.x,t.y+1);
+     orbSymbol(t.x,t.y,t.r,colors[t.color],t.matured?'⚡':glyphs[t.color%glyphs.length]);
      ctx.restore();
      continue;
    }
-   ctx.save();ctx.shadowBlur=22;ctx.shadowColor=colors[t.color];ctx.fillStyle=colors[t.color]+'28';ctx.strokeStyle=colors[t.color];ctx.lineWidth=2;
+   ctx.save();
    const pulseScale=t.hitPulse>0?1+(t.hitPulse/0.28)*.35:1;
    if(t.hitPulse>0){
-     ctx.shadowBlur=40;ctx.globalAlpha=t.hitPulse/0.28;
+     ctx.shadowBlur=40;ctx.shadowColor=colors[t.color];ctx.globalAlpha=t.hitPulse/0.28;
      ctx.beginPath();ctx.arc(t.x,t.y,t.r*pulseScale,0,Math.PI*2);ctx.fillStyle='#ffffff55';ctx.fill();
-     ctx.globalAlpha=1;
+     ctx.globalAlpha=1;ctx.shadowBlur=0;
    }
-   ctx.beginPath();ctx.arc(t.x,t.y,t.r,0,Math.PI*2);ctx.fill();ctx.stroke();
-   ctx.globalAlpha=.7;ctx.beginPath();ctx.arc(t.x- t.r*.25,t.y-t.r*.28,t.r*.2,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();
-   // Colorblind-friendly cue: each color also gets a fixed glyph, drawn regardless of hue.
-   // D-56: the symbol stays (colour-blind cue) but is subtle.
-   ctx.globalAlpha=ORB_GLYPH_ALPHA;ctx.fillStyle='#04101a';ctx.font=Math.max(11,t.r*.55)+'px -apple-system,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
-   ctx.fillText(glyphs[t.color%glyphs.length],t.x,t.y+1);
+   blockOrb(t.x,t.y,t.r,colors[t.color]);
+   // Colour-blind cue: each colour has a fixed, bold symbol (the 5th colour is ★).
+   orbSymbol(t.x,t.y,t.r,colors[t.color],glyphs[t.color%glyphs.length]);
    if(t.hint){
      ctx.globalAlpha=.48+.18*Math.sin(t.phase*3);
      ctx.strokeStyle=colors[t.color];ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(t.x,t.y,t.r+7,0,Math.PI*2);ctx.stroke();
@@ -1525,9 +1563,9 @@ function draw(){
    ctx.restore();
  }
  // trail
- ball?.trail.forEach((p,i)=>{if(i%2===0)glowCircle(p.x,p.y,Math.max(2,ball.r*(1-i/12)*.45),colors[ball.color],(1-i/12)*.25)});
- // D-56: the ball is the brightest thing on the field -- a solid disc with a white-hot core; orbs are translucent.
- if(ball){glowCircle(ball.x,ball.y,ball.r,colors[ball.color]);glowCircle(ball.x,ball.y,ball.r*.55,'#ffffff',.5);glowCircle(ball.x-ball.r*.28,ball.y-ball.r*.3,ball.r*.22,'#fff',.9)}
+ ball?.trail.forEach((p,i)=>{if(i%2===0)glowCircle(p.x,p.y,Math.max(2,ball.r*(1-i/12)*.5),colors[ball.color],(1-i/12)*.4)});
+ // The ball: block style like the orbs, plus a thin white ring and its colour's symbol, so it is never mistaken for an orb.
+ if(ball){blockOrb(ball.x,ball.y,ball.r,colors[ball.color]);ctx.save();ctx.lineWidth=2;ctx.strokeStyle='#ffffff';ctx.globalAlpha=.95;ctx.beginPath();ctx.arc(ball.x,ball.y,ball.r+3.5,0,Math.PI*2);ctx.stroke();ctx.restore();orbSymbol(ball.x,ball.y,ball.r*1.2,colors[ball.color],glyphs[ball.color%glyphs.length]);}
  // trajectory guide: a faint projected path from the FLUX orb toward the lower field.
  if(ball && level>=4){
    ctx.save();
@@ -1600,6 +1638,14 @@ function draw(){
    ctx.save();ctx.globalAlpha=Math.min(1,missNotice<.5?missNotice/.5:1);ctx.textAlign='center';ctx.textBaseline='top';ctx.shadowBlur=10;
    ctx.font='900 '+Math.max(11,L.f1)+'px -apple-system,sans-serif';ctx.fillStyle='#ffffff';ctx.shadowColor='#ff3b5c';ctx.fillText(L.t1,L.cx,L.y1);
    ctx.font='900 '+Math.max(11,L.f2)+'px -apple-system,sans-serif';ctx.fillStyle='#ff8fa3';ctx.shadowColor='#ff3b5c';ctx.fillText(L.t2,L.cx,L.y2);
+   ctx.restore();
+ }
+ // First-run colour hint: same slot, lowest priority.
+ else if(colorHintLeft>0 && !levelBanner){
+   const L=levelBannerLayout('HIT THE ORB THAT','MATCHES YOUR BALL');
+   ctx.save();ctx.globalAlpha=Math.min(1,colorHintLeft<.6?colorHintLeft/.6:1);ctx.textAlign='center';ctx.textBaseline='top';ctx.shadowBlur=10;
+   ctx.font='900 '+Math.max(11,L.f1)+'px -apple-system,sans-serif';ctx.fillStyle='#ffffff';ctx.shadowColor='#62eaff';ctx.fillText(L.t1,L.cx,L.y1);
+   ctx.font='900 '+Math.max(11,L.f2)+'px -apple-system,sans-serif';ctx.fillStyle=(ball&&colors[ball.color])||'#5ff3ff';ctx.shadowColor='#000000';ctx.fillText(L.t2,L.cx,L.y2);
    ctx.restore();
  }
  // Level-up banner: drawn after the shake transform is undone, so it never moves.
@@ -2612,14 +2658,18 @@ document.getElementById('goSave').onclick=function(){
   submitScore();   // the server refreshes the name on every upload
 };
 /* D-40 (RC2.8.5) The color rule was never explained in the game. A short
-   hint on the very first run only; it never blocks play or touches input. */
+   hint on the very first run only; it never blocks play or touches input.
+   FIRST 60 SECONDS: it used to be a box over the play field, covering orbs
+   (often the very orb that matched the ball) while a new player looked for
+   one. It is now drawn in the HUD strip slot (like the level banner and the
+   miss notice), canvas-drawn so it can never take a touch, and for the same
+   few seconds the nearest orb of the ball's colour gets the pulsing hint ring,
+   so the player sees which orb is meant. */
+const COLOR_HINT_S=5;
+let colorHintLeft=0;
 function showColorHint(){
   try{ if(localStorage.getItem('fluxColorHintSeen')==='1') return; localStorage.setItem('fluxColorHintSeen','1'); }catch(e){}
-  const h=document.createElement('div'); h.className='colorHint'; h.id='colorHint';
-  h.innerHTML='HIT ORBS THAT <b>MATCH YOUR BALL\u2019S COLOR</b>';
-  document.getElementById('app').appendChild(h);
-  setTimeout(function(){ h.classList.add('out'); },3200);
-  setTimeout(function(){ h.remove(); },3800);
+  colorHintLeft=COLOR_HINT_S;
 }
 /* ==================================================================
    RC2.8.7 -- D-57 GAME-OVER LINE, D-60 NAME OFFER, D-58 PLAYING FOR
@@ -2979,6 +3029,35 @@ async function openRestoreConfirm(id,info){
   };
 }
 
+/* GENEROUS CATCH (new players only). In a player's first 3 runs, and never on
+   Easy, the launcher catches the ball up to 8px beyond each end. A catch in
+   that margin bounces like an edge hit and scores like any ordinary catch;
+   it can NEVER be a perfect catch (the perfect zone is the launcher centre,
+   |hit| < .14, and the margin is beyond its ends). From the 4th run on, and
+   on Easy, catchMargin() is 0 and clampCatchHit() returns its input, so the
+   game is exactly the same as before. Nothing else changes: points, combo,
+   speed, orbs, levels. */
+const CATCH_MARGIN_PX=8, CATCH_FIRST_RUNS=3;
+let generousCatchOn=false;
+// FIRST-RUN HELP: in a player's very first run only, the ball's top speed is a
+// little lower (through the shared SPEED HELP hook: it never adds points).
+const FIRST_RUN_SLOW=.08;
+let firstRunSlowOn=false;
+function firstRunSpeedFactor(){ return firstRunSlowOn ? 1-FIRST_RUN_SLOW : 1; }
+SPEED_HELPS.push(firstRunSpeedFactor);
+function catchMargin(){ return generousCatchOn ? CATCH_MARGIN_PX : 0; }
+function clampCatchHit(h){ if(!generousCatchOn) return h; const m=1+ball.r/(paddle.w/2); return Math.max(-m,Math.min(m,h)); }   // margin catches bounce like the launcher's end
+function generousCatchFor(runsDone,diff){ return runsDone<CATCH_FIRST_RUNS; }   // every difficulty, including Easy (owner decision)
+(function(){
+  const newGame0=newGame;
+  newGame=function(){
+    let runsDone=0; try{ runsDone=+localStorage.getItem('fluxRunsPlayed')||0; }catch(e){}
+    generousCatchOn=generousCatchFor(runsDone,difficulty);
+    firstRunSlowOn=runsDone===0;
+    return newGame0.apply(this,arguments);
+  };
+})();
+
 /* D-36 (RC2.8.3): the restore code lives inside EDIT, not in the main menu.
    The link under the name editor has two jobs:
      - a pilot already exists on this device (EDIT was tapped): show its code;
@@ -3079,6 +3158,33 @@ try{ if(localStorage.fluxNameNotice==='1') fluxNameToast("Your name didn't fit t
    RC2.8.6 -- D-47 INSTALL AFTER FIRST PLAY, D-48 BRING MY PILOT,
               D-46 LITE GRAPHICS (runtime part)
    ================================================================== */
+/* COMEBACK EASE. After two misses within 20 seconds of play, the ball's top
+   speed is 15% lower for 6 seconds (the last second eases back), through the
+   shared SPEED HELP hook (see update()). It only slows the ball: no points, no
+   extra lives, no change to orbs, timers or scoring. With the ease off its
+   factor is exactly 1, so the game is exactly the same. */
+const EASE_WINDOW_S=20, EASE_TIME_S=6, EASE_SLOW=.15;
+let easeClock=0, easeLastMiss=-1e9, easeLeft=0;
+function easeFactor(){ return easeLeft<=0 ? 1 : 1-EASE_SLOW*Math.min(1,easeLeft); }   // 0.85, back to 1 over the final second
+SPEED_HELPS.push(easeFactor);
+(function(){
+  const update0=update;
+  update=function(dt){
+    easeClock+=dt;
+    const r=update0.apply(this,arguments);
+    if(easeLeft>0) easeLeft=Math.max(0,easeLeft-dt);
+    return r;
+  };
+  const registerMiss0=registerMiss;
+  registerMiss=function(){
+    if(easeClock-easeLastMiss<=EASE_WINDOW_S) easeLeft=EASE_TIME_S;
+    easeLastMiss=easeClock;
+    return registerMiss0.apply(this,arguments);
+  };
+  const newGame0=newGame;
+  newGame=function(){ easeClock=0; easeLastMiss=-1e9; easeLeft=0; return newGame0.apply(this,arguments); };
+})();
+
 /* D-48: the install offer never appears before a first game (owner decision).
    After a run, a single button appears on the GAME-OVER screen only
    (owner decision: not in the menu), and is gone once installed:
@@ -3123,6 +3229,74 @@ function fluxDoInstall(){
   }
   if (mode === 'ios') fluxShowIosGuide();
 }
+/* SHARE CARD. After each run, SHARE MY SCORE opens the phone's own share
+   sheet (iPhone: Messages, WhatsApp, Instagram...; Android: the system
+   chooser) with a score card image, one line of text and a link that opens
+   the web game directly. Wording: "I added <points> for <flag> <country>!"
+   when the run added to the country's total (the same number the game-over
+   line shows), otherwise "I scored <points> for <flag> <country>!". No name,
+   no player ID, nothing personal. The card is drawn when the game-over screen
+   appears, so the tap can call the share sheet straight away (iPhone Safari
+   only allows sharing directly from a tap). Fallbacks: text + link only on
+   browsers that can't share images; copy to clipboard where there is no share
+   sheet. Nothing is uploaded by the game; offline it still works. */
+let shareInfo=null, shareFile=null, shareCanvas=null;
+function shareUrl(){ return location.origin+'/play/'; }
+function shareText(info){
+  const c=countryLabel(info.country);
+  return (info.added>0 ? 'I added '+info.added.toLocaleString('en-US')+' for '+c.flag+' '+c.name+'!' : 'I scored '+info.score.toLocaleString('en-US')+' for '+c.flag+' '+c.name+'!')+' Beat me in FLUX:';
+}
+function drawShareCard(info){
+  const cv=document.createElement('canvas'); cv.width=720; cv.height=900;   // 4:5, sharp in chat apps, quick to encode
+  const x=cv.getContext('2d'); if(!x) return cv;
+  x.scale(720/1080,720/1080);   // drawn in 1080x1350 units
+  const g=x.createLinearGradient(0,0,0,1350); g.addColorStop(0,'#111b43'); g.addColorStop(.55,'#07091d'); g.addColorStop(1,'#03040d');
+  x.fillStyle=g; x.fillRect(0,0,1080,1350);
+  const pal=(SKINS[activeSkin]||SKINS.aurora).colors;
+  for(let i=0;i<5;i++){ x.globalAlpha=.9; x.fillStyle=pal[i%pal.length]; x.beginPath(); x.arc(170+i*185,1150,34,0,Math.PI*2); x.fill(); }
+  x.globalAlpha=1; x.textAlign='center';
+  x.fillStyle='#5ff3ff'; x.font='900 120px -apple-system,system-ui,sans-serif'; x.fillText('F L U X',540,210);
+  const c=countryLabel(info.country);
+  x.font='220px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; x.fillText(c.flag,540,520);
+  x.fillStyle='#ffffff'; x.font='900 150px -apple-system,system-ui,sans-serif';
+  x.fillText((info.added>0?'+':'')+(info.added>0?info.added:info.score).toLocaleString('en-US'),540,760);
+  x.fillStyle='#ffd23f'; x.font='800 60px -apple-system,system-ui,sans-serif';
+  x.fillText((info.added>0?'added for ':'scored for ')+c.name,540,860);
+  x.fillStyle='#9fb3e6'; x.font='700 44px -apple-system,system-ui,sans-serif'; x.fillText('Can you beat it? Play free:',540,1000);
+  x.fillStyle='#eaf7ff'; x.font='800 40px -apple-system,system-ui,sans-serif'; x.fillText(shareUrl().replace(/^https?:\/\//,''),540,1060);
+  return cv;
+}
+function prepareShare(sc,prevOverall){
+  shareFile=null;
+  shareInfo={ score:sc, added:(profileComplete && sc>0 && sc>prevOverall) ? sc-prevOverall : 0, country:country };
+  const btn=document.getElementById('shareBtn'); if(btn){ btn.textContent='📤 SHARE MY SCORE'; btn.classList.toggle('hidden', !(sc>0)); }
+  try{ const cv=drawShareCard(shareInfo); shareCanvas=cv;   // kept until encoded, so it cannot be garbage-collected mid-encode
+    if(cv.toBlob) cv.toBlob(function(b){ shareCanvas=null; try{ if(b) shareFile=new File([b],'flux-score.jpg',{type:'image/jpeg'}); }catch(e){} },'image/jpeg',.9); }catch(e){}   // JPEG: several times faster to encode than PNG
+}
+function shareScore(){
+  if(!shareInfo) return;
+  const text=shareText(shareInfo), url=shareUrl(), btn=document.getElementById('shareBtn');
+  const done=function(){}, failed=function(e){ if(e && e.name==='AbortError') return; copyShare(text+' '+url,btn); };
+  try{
+    if(shareFile && navigator.canShare && navigator.canShare({files:[shareFile]})){ navigator.share({files:[shareFile],text:text+' '+url}).then(done,failed); return; }   // image + text (the link is in the text: some apps drop a separate url)
+    if(navigator.share){ navigator.share({text:text,url:url}).then(done,failed); return; }
+  }catch(e){}
+  copyShare(text+' '+url,btn);
+}
+function copyShare(t,btn){
+  const ok=function(){ if(btn) btn.textContent='✓ COPIED — PASTE IT ANYWHERE'; };
+  try{ navigator.clipboard.writeText(t).then(ok,function(){}); }catch(e){}
+}
+(function(){
+  const btn=document.getElementById('shareBtn'); if(btn) btn.onclick=shareScore;
+  // Start the card the moment the run ends (0.42 s before the game-over screen shows)...
+  const endGame0=endGame;
+  endGame=function(){ try{ prepareShare(score,overallBestScore()); }catch(e){} return endGame0.apply(this,arguments); };
+  // ...and make sure it matches the numbers the game-over line uses.
+  const show0=showGameOverLine;
+  showGameOverLine=function(sc,prevBest,prevOverall){ const r=show0.apply(this,arguments); if(!shareInfo || shareInfo.score!==sc || shareInfo.country!==country || shareInfo.added!==((profileComplete && sc>0 && sc>prevOverall) ? sc-prevOverall : 0)) prepareShare(sc,prevOverall); return r; };
+})();
+
 /* D-49: iPhone keeps Safari and the Home Screen app in separate storage, so a
    new icon would start as a NEW pilot (the owner's TITAN split). The guide
    copies the pilot's restore code first; the installed app then offers
@@ -3165,6 +3339,76 @@ document.getElementById('bringPilotBtn').onclick = fluxBringPilot;
 })();
 refreshInstallButtons();
 
+/* INTENSITY ("juice"). One value, 0..1, from combo, level and FLUX mode. It
+   scales only effects: burst size, a soft glow under the ball's trail and a
+   light around the screen edges. It drops fast after a miss and settles.
+   Rules: medium-high at most; it never touches scoring, speed or physics;
+   extra particles use their own random numbers so the game's own random
+   sequence (spawns, colours) is exactly the same with or without it; the
+   edge light is drawn ONLY outside the area orbs can ever be in, and the
+   trail glow is skipped wherever an orb is, so no effect ever sits behind an
+   orb and orb contrast can never drop. Lite mode (old iPads): no extra
+   particles, no trail glow, a faint edge light only. */
+let juice=0, juiceSeed=987654321;
+const JUICE_EDGE_GAP=14;   // the edge light stays at least this far outside the orb field
+const JUICE_BURST_MAX=.7, JUICE_TRAIL_ALPHA=.35, JUICE_EDGE_ALPHA=.26, JUICE_EDGE_ALPHA_LITE=.1, JUICE_MISS_KEEP=.25;
+function juiceRand(a,b){ juiceSeed=(juiceSeed*1103515245+12345)%2147483648; return a+(juiceSeed/2147483648)*(b-a); }
+function juiceTarget(){
+  const c=Math.min(1,Math.max(0,(combo-1)/7)), l=Math.min(1,Math.max(0,(level-1)/8));
+  return Math.min(1,.6*c+.25*l+(fluxMode>0?.4:0));
+}
+function tickJuice(dt){
+  const t=juiceTarget();
+  juice+=(t-juice)*Math.min(1,dt*(t>juice?2.5:1.5));
+  juice=Math.max(0,Math.min(1,juice));
+}
+// Effect-only burst (perfect catch): its own random numbers, so gameplay randomness is untouched.
+function juiceBurst(x,y,col,n){ const k=window.__fluxLite?Math.ceil(n/2):n+juiceExtraParticles(n); for(let i=0;i<k;i++)particles.push({x:x,y:y,vx:juiceRand(-6,6),vy:juiceRand(-6,6),life:1,col:col}); }
+function juiceExtraParticles(n){ return window.__fluxLite ? 0 : Math.round(n*JUICE_BURST_MAX*juice); }
+// The area orbs can ever occupy (same bounds as the orb movement in update()).
+function orbFieldRect(){ const top=maxHudBottom(); return { left:16, right:W-16, top:top, bottom:Math.max(top+60,H*.79) }; }
+function juiceEdgeColour(){ return fluxMode>0 ? '98,234,255' : (juice>.6 ? '255,92,190' : '120,140,255'); }
+function drawJuiceUnderOrbs(){
+  if(juice<.02 || !playing && !paused) return;
+  const lite=!!window.__fluxLite, f=orbFieldRect();
+  // Edge light: clipped to the frame AROUND the orb field (HUD band, below the field, thin side strips).
+  ctx.save();
+  ctx.beginPath();
+  const G=JUICE_EDGE_GAP, top=Math.max(0,f.top-G), bot=Math.min(H,f.bottom+G), sl=Math.max(0,f.left-G), sr=Math.min(W,f.right+G);
+  ctx.rect(0,0,W,top); ctx.rect(0,bot,W,H-bot); if(sl>=6) ctx.rect(0,top,sl,bot-top); if(W-sr>=6) ctx.rect(sr,top,W-sr,bot-top);
+  ctx.clip();
+  const a=(lite?JUICE_EDGE_ALPHA_LITE:JUICE_EDGE_ALPHA)*juice, rgb=juiceEdgeColour();
+  const on='rgba('+rgb+','+a.toFixed(3)+')', off='rgba('+rgb+',0)';
+  // Each band fades to nothing at its inner edge, so there is no visible seam.
+  const band=function(x0,y0,x1,y1,rx,ry,rw,rh){ const g=ctx.createLinearGradient(x0,y0,x1,y1); g.addColorStop(0,on); g.addColorStop(1,off); ctx.fillStyle=g; ctx.fillRect(rx,ry,rw,rh); };
+  band(0,0,0,top, 0,0,W,top);                 // top (HUD band)
+  band(0,H,0,bot, 0,bot,W,H-bot);             // bottom (launcher band)
+  if(sl>=6) band(0,0,sl,0, 0,top,sl,bot-top);  // left strip (skipped when too thin to fade)
+  if(W-sr>=6) band(W,0,sr,0, sr,top,W-sr,bot-top); // right strip
+  ctx.restore();
+  // Trail glow: under the orbs, and skipped near any orb and near the ball, so it is never behind either.
+  if(lite || !ball) return;
+  const R=ball.r*1.25;
+  ball.trail.forEach(function(p,i){
+    if(i%2) return;
+    const r=R*(1-i/12);
+    if(targets.some(function(t){ return Math.hypot(t.x-p.x,t.y-p.y)<t.r+r+JUICE_EDGE_GAP; })) return;
+    if(Math.hypot(ball.x-p.x,ball.y-p.y)<ball.r+r+JUICE_EDGE_GAP) return;   // nor behind the ball itself
+    glowCircle(p.x,p.y,r,colors[ball.color],JUICE_TRAIL_ALPHA*juice*(1-i/12));
+  });
+}
+(function(){
+  const update0=update;
+  update=function(dt){ const r=update0.apply(this,arguments); tickJuice(dt); return r; };
+  const registerMiss0=registerMiss;
+  registerMiss=function(){ juice*=JUICE_MISS_KEEP; return registerMiss0.apply(this,arguments); };   // settle after a miss
+  const newGame0=newGame;
+  newGame=function(){ juice=0; return newGame0.apply(this,arguments); };
+  // Combo sound keeps climbing past x12: the step comes from the hit streak (no effect on scoring).
+  const playFusion0=playFusion;
+  playFusion=function(c){ return playFusion0(c>=12 ? Math.min(24,Math.max(c,streak)) : c); };
+})();
+
 /* D-46 LITE GRAPHICS (runtime). The first seconds of play are timed; if most
    frames take longer than 25 ms (under 40 fps) the device switches to lite
    graphics and remembers it: normal (not Retina) sharpness, no glow, half the
@@ -3188,6 +3432,72 @@ function fluxEnableLite(){
   try{ resize(); }catch(e){}
 }
 if (window.__fluxLite) fluxApplyLiteParticles();
+
+/* SCREEN READOUT (temporary, Solar band debugging). Shows the real screen
+   measurements iOS reports, so the Home Screen app's bottom strip can be
+   measured on a device. Opened ONLY by tapping the big FLUX title on the start
+   menu 5 times within 3 seconds (the title is not a button and is not on
+   screen during play; the HUD logo cannot be tapped). Never saved: closing it,
+   or reloading, hides it. Read-only: it changes nothing in the game. Safe to
+   delete this block when the band is confirmed fixed. */
+const FLUX_READOUT_TAPS = 5, FLUX_READOUT_WINDOW_MS = 3000;
+let fluxReadoutTaps = [], fluxReadoutTimer = 0;
+function fluxReadoutTap(now){
+  fluxReadoutTaps = fluxReadoutTaps.filter(function(t){ return now - t < FLUX_READOUT_WINDOW_MS; });
+  fluxReadoutTaps.push(now);
+  if (fluxReadoutTaps.length >= FLUX_READOUT_TAPS){ fluxReadoutTaps = []; toggleFluxReadout(); return true; }
+  return false;
+}
+function fluxReadoutProbe(css){
+  const d = document.createElement('div');
+  d.style.cssText = 'position:fixed;left:0;top:0;width:0;visibility:hidden;pointer-events:none;' + css;
+  document.body.appendChild(d);
+  const cs = getComputedStyle(d), r = { h: d.getBoundingClientRect().height, pt: cs.paddingTop, pr: cs.paddingRight, pb: cs.paddingBottom, pl: cs.paddingLeft };
+  d.remove(); return r;
+}
+function fluxReadoutText(){
+  const L = [], n = function(v){ return (Math.round(v * 10) / 10) + ''; };
+  const vv = window.visualViewport, root = document.documentElement, app = document.getElementById('app');
+  const inset = fluxReadoutProbe('padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)');
+  const vh = function(u){ try{ return CSS.supports('height','100' + u) ? n(fluxReadoutProbe('height:100' + u).h) : 'n/a'; }catch(e){ return 'n/a'; } };
+  let standalone = !!navigator.standalone; try{ standalone = standalone || matchMedia('(display-mode: standalone)').matches; }catch(e){}
+  const a = app ? app.getBoundingClientRect() : null;
+  const A = (typeof backdropCoverArea === 'function') ? backdropCoverArea() : null;
+  L.push('FLUX SCREEN READOUT (temporary)');
+  L.push('mode       ' + (standalone ? 'Home Screen app' : 'browser tab') + ', orientation ' + (typeof window.orientation === 'number' ? window.orientation : ((screen.orientation && screen.orientation.type) || '?')));
+  L.push('screen     ' + screen.width + ' x ' + screen.height + '  (avail ' + screen.availWidth + ' x ' + screen.availHeight + ')  dpr ' + (window.devicePixelRatio || 1));
+  L.push('inner      ' + innerWidth + ' x ' + innerHeight + '   html client ' + root.clientWidth + ' x ' + root.clientHeight);
+  L.push('visualVP   ' + (vv ? n(vv.width) + ' x ' + n(vv.height) + ' top ' + n(vv.offsetTop) : 'n/a'));
+  L.push('100vh ' + vh('vh') + '  dvh ' + vh('dvh') + '  lvh ' + vh('lvh') + '  svh ' + vh('svh'));
+  L.push('safe area  top ' + inset.pt + ' right ' + inset.pr + ' bottom ' + inset.pb + ' left ' + inset.pl);
+  L.push('#app       top ' + (a ? n(a.top) : '?') + ' bottom ' + (a ? n(a.bottom) : '?') + '  gap ' + (a ? n(Math.max(screen.width, screen.height) - a.bottom) : '?'));
+  L.push('backdrop   ' + activeBackground + (A ? '  cover area ' + n(A.w) + ' x ' + n(A.h) : '') );
+  L.push('root bg    size ' + (root.style.backgroundSize || '-') + '  pos ' + (root.style.backgroundPosition || '-'));
+  L.push('ua         ' + String(navigator.userAgent).replace(/^Mozilla\/5\.0 /, '').slice(0, 90));
+  return L.join('\n');
+}
+function toggleFluxReadout(){
+  const old = document.getElementById('fluxReadout');
+  if (old){ old.remove(); clearInterval(fluxReadoutTimer); fluxReadoutTimer = 0; return; }
+  const d = document.createElement('div');
+  d.id = 'fluxReadout';
+  d.style.cssText = 'position:fixed;left:8px;right:8px;top:calc(env(safe-area-inset-top,0px) + 8px);z-index:99;background:#02040cf2;border:1px solid #62eaff;border-radius:12px;padding:10px;color:#dff8ff;font:12px/1.45 ui-monospace,Menlo,monospace;pointer-events:auto';
+  d.innerHTML = '<pre id="fluxReadoutText" style="margin:0 0 8px;white-space:pre-wrap;word-break:break-all;font:inherit;user-select:text;-webkit-user-select:text"></pre>' +
+    '<button type="button" id="fluxReadoutCopy" style="min-height:44px;margin-right:8px">COPY</button><button type="button" id="fluxReadoutClose" style="min-height:44px">CLOSE</button>';
+  document.getElementById('app').appendChild(d);
+  const txt = document.getElementById('fluxReadoutText');
+  const refresh = function(){ txt.textContent = fluxReadoutText(); };
+  refresh(); fluxReadoutTimer = setInterval(refresh, 500);   // live: rotate the device and watch it change
+  document.getElementById('fluxReadoutClose').onclick = function(){ toggleFluxReadout(); };
+  document.getElementById('fluxReadoutCopy').onclick = function(){
+    const t = fluxReadoutText();
+    try{ navigator.clipboard.writeText(t).then(function(){ document.getElementById('fluxReadoutCopy').textContent = 'COPIED'; }, function(){}); }catch(e){}
+  };
+}
+(function(){
+  const title = document.querySelector('#start h1');
+  if (title) title.onclick = function(){ fluxReadoutTap(Date.now()); };
+})();
 </script>
 <!-- D-38 (RC2.8.4): IN-APP BROWSER BANNER. A link tapped inside TikTok,
      Instagram, Facebook, Messenger, Snapchat or LINE opens in that app's own
