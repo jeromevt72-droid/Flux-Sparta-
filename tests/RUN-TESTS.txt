@@ -47,6 +47,7 @@ node test-one-app-runtime.mjs      # 40: RUNS the real Gateway+game: 10 relaunch
 node test-negative-controls.mjs    # 10: re-inserts each defect and REQUIRES a failure
 node test-privacy-policy.mjs        # launch: the privacy policy is finished (both copies) and matches the code: no analytics/ads/cookies, auto names, name rule, children, upload fields + negative controls
 node test-analytics.mjs          # in-house anonymous stats: events, one-way code, country only, src, daily/monthly/retention totals, 90-day raw purge, admin-only, never slows or breaks the game + negative controls
+node test-admin-stats.mjs        # admin: search with the new name rules, PLAYER STATS dashboard numbers (by day/month/src/country, Day 1/7/30), the guide + negative controls
 node test-merge-one-identity.mjs   # 40: MERGE — one origin, one identity, demo isolated
 node test-single-identity.mjs      # 27: top-level Play, one identity, purchase lock
 node test-share-card.mjs           # share card: "I added N for <flag> <country>!" + link to /play/, image when the phone can share it, text/copy fallbacks, straight from the tap + negative controls
