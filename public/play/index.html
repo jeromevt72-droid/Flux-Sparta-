@@ -111,7 +111,11 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
   .fluxbar{top:66px;gap:6px;letter-spacing:.08em}.fluxbar div{width:78px}
 }
 #flash{position:absolute;inset:0;pointer-events:none;background:white;opacity:0;mix-blend-mode:screen}
-.menuPanel{max-height:92vh;overflow:auto}.menuSection{margin:12px 0 14px}.menuLabel{font-size:11px;letter-spacing:.16em;color:#8094c0;margin-bottom:8px}.difficulty{display:flex;gap:7px}.difficulty button{flex:1;padding:11px 4px;font-size:11px;letter-spacing:.08em;background:#0c1537;color:#91a6d4;border:1px solid #294578;box-shadow:none}.difficulty button.selected{background:#62eaff;color:#04101a;box-shadow:0 0 18px #27d9ff66}.profileRow{display:flex;gap:7px;margin:0 0 12px}.profileRow input,.profileRow select{min-width:0;flex:1;border:1px solid #294578;border-radius:12px;background:#070d27;color:#eaf7ff;padding:11px 10px;font-size:16px;font-weight:800}.profileRow select{flex:0 0 118px}.menuTiles{display:flex;gap:8px;margin-top:12px}.menuTiles>div{flex:1;border:1px solid #263a72;background:#0b1030aa;border-radius:12px;padding:8px}.menuTiles span{display:block;font-size:11px;letter-spacing:.08em;color:#7f93bd}.menuTiles b{display:block;margin-top:3px;font-size:16px}.menuLinks{display:flex;gap:8px;margin-top:10px}.linkBtn{flex:1;padding:9px 8px;font-size:11px;letter-spacing:.08em;background:#0b1230;color:#7fdfff;border:1px solid #234174;box-shadow:none}.offline{font-size:11px!important;letter-spacing:.06em;color:#5c779f!important;margin:11px 0 0!important}.miniOverlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#030512dd;z-index:6}.gameoverModes{margin:14px 0 12px}.gameoverModes .menuLabel{margin-bottom:7px}.gameoverModes .difficulty{max-width:340px;margin:auto}.gameoverModes button{padding:10px 4px;font-size:11px}.profileSaved{display:flex;align-items:center;justify-content:center;gap:8px;margin:0 0 12px;color:#8fa5d1;font-size:12px;letter-spacing:.08em}.profileSaved b{color:#62eaff}.editProfile{background:transparent!important;color:#62eaff!important;border:1px solid #294578!important;box-shadow:none!important;padding:6px 14px!important;font-size:11px!important;letter-spacing:.1em!important;min-height:44px}@media(max-width:430px){.menuPanel{padding:20px}.menuPanel h1{font-size:42px}.profileRow select{flex-basis:104px}.menuLinks{flex-direction:column}}
+.menuPanel{max-height:92vh;overflow:auto}.menuSection{margin:12px 0 14px}.menuLabel{font-size:11px;letter-spacing:.16em;color:#8094c0;margin-bottom:8px}.difficulty{display:flex;gap:7px}.difficulty button{flex:1;padding:11px 4px;font-size:11px;letter-spacing:.08em;background:#0c1537;color:#91a6d4;border:1px solid #294578;box-shadow:none}.difficulty button.selected{background:#62eaff;color:#04101a;box-shadow:0 0 18px #27d9ff66}.profileRow{display:flex;gap:7px;margin:0 0 12px}.profileRow input,.profileRow select{min-width:0;flex:1;border:1px solid #294578;border-radius:12px;background:#070d27;color:#eaf7ff;padding:11px 10px;font-size:16px;font-weight:800}.profileRow select{flex:0 0 118px}
+/* PRESET NAMES: the name box is read-only; the dice picks another preset name. */
+.nameShuffle{flex:0 0 44px;min-width:44px;min-height:44px;padding:0;border:1px solid #294578;border-radius:12px;background:#0c1638;color:#eaf7ff;font-size:20px;box-shadow:none}
+.profileRow input[readonly],.goNameRow input[readonly]{font-size:14px;letter-spacing:0;cursor:default}
+div.profileRow,div.goNameRow{flex-wrap:wrap}div.profileRow input[readonly],div.goNameRow input[readonly]{flex:1 1 calc(100% - 52px)}div.profileRow select,div.goNameRow select{flex:1 1 100%}.menuTiles{display:flex;gap:8px;margin-top:12px}.menuTiles>div{flex:1;border:1px solid #263a72;background:#0b1030aa;border-radius:12px;padding:8px}.menuTiles span{display:block;font-size:11px;letter-spacing:.08em;color:#7f93bd}.menuTiles b{display:block;margin-top:3px;font-size:16px}.menuLinks{display:flex;gap:8px;margin-top:10px}.linkBtn{flex:1;padding:9px 8px;font-size:11px;letter-spacing:.08em;background:#0b1230;color:#7fdfff;border:1px solid #234174;box-shadow:none}.offline{font-size:11px!important;letter-spacing:.06em;color:#5c779f!important;margin:11px 0 0!important}.miniOverlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#030512dd;z-index:6}.gameoverModes{margin:14px 0 12px}.gameoverModes .menuLabel{margin-bottom:7px}.gameoverModes .difficulty{max-width:340px;margin:auto}.gameoverModes button{padding:10px 4px;font-size:11px}.profileSaved{display:flex;align-items:center;justify-content:center;gap:8px;margin:0 0 12px;color:#8fa5d1;font-size:12px;letter-spacing:.08em}.profileSaved b{color:#62eaff}.editProfile{background:transparent!important;color:#62eaff!important;border:1px solid #294578!important;box-shadow:none!important;padding:6px 14px!important;font-size:11px!important;letter-spacing:.1em!important;min-height:44px}@media(max-width:430px){.menuPanel{padding:20px}.menuPanel h1{font-size:42px}.profileRow select{flex-basis:104px}.menuLinks{flex-direction:column}}
 .lbPanel{max-height:86vh;display:flex;flex-direction:column}.lbBody{flex:1;min-height:0;overflow:auto;margin:14px 0 18px;text-align:left}.lbLoading,.lbEmpty{color:#8da0c8;font-size:12px;text-align:center;padding:20px 0}.lbLeading{text-align:center;font-size:11px;letter-spacing:.08em;color:#9eb0d6;background:#0b1030;border:1px solid #263a72;border-radius:12px;padding:9px;margin-bottom:12px}.lbLeading b{color:#62eaff}.lbSectionLabel{font-size:11px;letter-spacing:.16em;color:#7f93bd;margin:16px 0 8px}.lbList{display:flex;flex-direction:column;gap:6px}.lbRow{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #263a72;background:#0b1030aa;border-radius:10px;font-size:12px}.lbRow.lbMine{border-color:#62eaff;box-shadow:0 0 14px #27d9ff44}.lbRank{width:32px;color:#7f93bd;font-weight:900;font-size:11px}.lbFlag{font-size:15px}.lbName{flex:1;font-weight:800;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lbScore{font-weight:900;color:#62eaff}
 #shop .panel{width:min(420px,88vw)}
 .shopRow{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid #1c2c5c}
@@ -151,7 +155,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 </div>
 <div id="pauseOverlay" class="hidden"><div class="panel"><h2>FLUX PAUSED</h2><p>Your field is frozen. Take a breath, then get back in the flow.</p><button id="resumeBtn">RESUME</button><button id="pauseMenuBtn" style="margin-top:8px;background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none">⌂ END RUN &amp; MENU</button></div></div>
 <div id="shop" class="hidden"><div class="panel menuPanel"><h2 style="color:#62eaff;letter-spacing:.14em;margin:0 0 4px">THEMES & SKINS</h2><p style="margin:0 0 14px">Cosmetic only — never changes gameplay fairness.<br><span class="shopNote">Purchases belong to your pilot. Save your restore code (EDIT → RESTORE CODE): it brings this pilot and its skins back on a new phone, in the Home Screen app, or after clearing data.</span></p><div id="shopList"></div><div class="menuLabel" style="margin-top:16px">WORLD</div><div id="backgroundList"></div><button id="shopClose" style="margin-top:14px">BACK</button></div></div>
-<div id="start"><div class="panel menuPanel"><h1>FLUX</h1><div class="acronym">FLOW • LAUNCH • UNITE • XCELERATE</div><div class="menuSection"><div class="menuLabel">SELECT YOUR FLOW</div><div class="difficulty" id="difficulty"><button data-d="easy">EASY</button><button data-d="medium">MEDIUM</button><button data-d="hard">HARD</button></div></div><div id="profileEditor" class="profileRow"><input id="callsign" maxlength="14" placeholder="FLUX ID"><select id="country"><option value="AF">🇦🇫 AFGHANISTAN</option>
+<div id="start"><div class="panel menuPanel"><h1>FLUX</h1><div class="acronym">FLOW • LAUNCH • UNITE • XCELERATE</div><div class="menuSection"><div class="menuLabel">SELECT YOUR FLOW</div><div class="difficulty" id="difficulty"><button data-d="easy">EASY</button><button data-d="medium">MEDIUM</button><button data-d="hard">HARD</button></div></div><div id="profileEditor" class="profileRow"><input id="callsign" maxlength="16" placeholder="FLUX ID" readonly aria-label="Pilot name"><button type="button" id="nameShuffle" class="nameShuffle" aria-label="Pick another name">🎲</button><select id="country"><option value="AF">🇦🇫 AFGHANISTAN</option>
 <option value="AL">🇦🇱 ALBANIA</option>
 <option value="DZ">🇩🇿 ALGERIA</option>
 <option value="AD">🇦🇩 ANDORRA</option>
@@ -353,7 +357,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
   <p class="goLine" id="goLine"></p>
   <p class="goMeta"><b id="finalMode">MEDIUM</b> · BEST <b id="best">0</b></p>
   <div id="goClaim" class="goClaim hidden"><div class="goClaimT">Put your name on the board?</div><div class="goClaimRow"><button id="goClaimYes" type="button">YES</button><button id="goClaimNo" type="button" class="goClaimNo">NOT NOW</button></div></div>
-  <div id="goName" class="goName hidden"><div class="goNameT">PUT YOUR SCORE ON THE WORLD GRID</div><div class="goNameRow"><input id="goCallsign" maxlength="14" placeholder="YOUR NAME" autocomplete="off" autocorrect="off" spellcheck="false"><select id="goCountry" aria-label="Country"></select></div><button id="goSave" type="button">SAVE &amp; UPLOAD</button><div class="goNameNote" id="goNameMsg">Your best score counts for your country.</div></div>
+  <div id="goName" class="goName hidden"><div class="goNameT">PUT YOUR SCORE ON THE WORLD GRID</div><div class="goNameRow"><input id="goCallsign" maxlength="16" placeholder="PILOT NAME" readonly aria-label="Pilot name"><button type="button" id="goShuffle" class="nameShuffle" aria-label="Pick another name">🎲</button><select id="goCountry" aria-label="Country"></select></div><button id="goSave" type="button">SAVE &amp; UPLOAD</button><div class="goNameNote" id="goNameMsg">Your best score counts for your country.</div></div>
   <div class="gameoverModes"><div class="menuLabel">CHOOSE YOUR NEXT FLOW</div><div class="difficulty" id="gameoverDifficulty"><button data-d="easy">EASY</button><button data-d="medium">MEDIUM</button><button data-d="hard">HARD</button></div></div>
   <button id="againBtn">RUN IT BACK</button>
   <button id="gameoverLeaderBtn" style="margin-top:8px;background:transparent;color:#7fdfff;border:1px solid #234174;box-shadow:none">🌎 GLOBAL LEADERBOARD</button>
@@ -423,6 +427,34 @@ let pendingLevel=0,levelCountdown=0,levelTickAt=0,speedLevel=1;   // D-50: SPEED
 let cachedHudRects=[]; // declared early -- resize() runs at script load time and references this immediately
 let difficulty=localStorage.fluxDifficulty||'medium', callsign=localStorage.fluxCallsign||'', country=localStorage.fluxCountry||'US';
 let profileComplete=localStorage.fluxProfileComplete==='1';
+/* PRESET PILOT NAMES (child privacy). Players never type a name: every FLUX ID
+   is built from these friendly word lists, e.g. "SWIFT COMET 42", so a child
+   can play without giving any personal information. The same lists and rules
+   are in worker.js and play/index.html (a test keeps them identical). A name
+   typed before presets existed is replaced by the pilot's own preset,
+   derived from its random player identifier. Numbers skip 14, 18, 69 and 88. */
+const NAME_ADJ = ['SWIFT','BRAVE','BRIGHT','CALM','CLEVER','COSMIC','EAGER','FAST','GENTLE','GOLDEN','HAPPY','JOLLY','KIND','LUCKY','MIGHTY','NOBLE','QUICK','QUIET','RAPID','SHINY','SILVER','SMART','SOLAR','SPEEDY','STARRY','SUNNY','SUPER','TURBO','VIVID','WISE','ZIPPY','BOLD'];
+const NAME_NOUN = ['COMET','ROCKET','STAR','NOVA','ORBIT','PLANET','MOON','METEOR','GALAXY','NEBULA','RANGER','FALCON','EAGLE','TIGER','PANDA','OTTER','FOX','OWL','LYNX','HAWK','DRAGON','SPARK','BOLT','FLASH','WAVE','RIVER','CLOUD','MAPLE','CEDAR','PEBBLE','BADGER','ROBIN'];
+const NAME_NUMS = []; for (let i = 10; i <= 99; i++) if (i !== 14 && i !== 18 && i !== 69 && i !== 88) NAME_NUMS.push(i);
+function isPresetName(s) {
+  const m = /^([A-Z]+) ([A-Z]+) (\d\d)$/.exec(typeof s === 'string' ? s : '');
+  return !!m && NAME_ADJ.indexOf(m[1]) >= 0 && NAME_NOUN.indexOf(m[2]) >= 0 && NAME_NUMS.indexOf(+m[3]) >= 0;
+}
+function presetNameFrom(n) {
+  n = n >>> 0;
+  const a = n % NAME_ADJ.length; n = Math.floor(n / NAME_ADJ.length);
+  const b = n % NAME_NOUN.length; n = Math.floor(n / NAME_NOUN.length);
+  return NAME_ADJ[a] + ' ' + NAME_NOUN[b] + ' ' + NAME_NUMS[n % NAME_NUMS.length];
+}
+function presetNameForId(id) {   // FNV-1a of the player identifier: the same pilot always gets the same preset
+  let h = 2166136261; const s = String(id || '');
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return presetNameFrom(h);
+}
+function randomPresetName() {
+  let n = 0; try { const u = new Uint32Array(1); crypto.getRandomValues(u); n = u[0]; } catch (e) { n = Math.floor(Math.random() * 4294967296); }
+  return presetNameFrom(n);
+}
 /* D-43 (RC2.8.5) AUTO NAME. Owner: a child asked "what's my FLUX ID?" before
    playing. A brand-new pilot now gets a visible, unique default name such as
    PILOT-7Q2K under their detected flag, and can rename any time (EDIT, or
@@ -435,10 +467,7 @@ let profileComplete=localStorage.fluxProfileComplete==='1';
 (function () {
   try {
     if (localStorage.fluxProfileComplete === '1' || localStorage.fluxCallsign) return;
-    var A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', b = new Uint8Array(4), t = '';
-    try { crypto.getRandomValues(b); } catch (e) { for (var i = 0; i < 4; i++) b[i] = (Math.random() * 256) | 0; }
-    for (var j = 0; j < 4; j++) t += A[b[j] % A.length];
-    callsign = 'PILOT-' + t;
+    callsign = randomPresetName();   // PRESET NAMES: e.g. SWIFT COMET 42
     localStorage.fluxCallsign = callsign;
     localStorage.fluxAutoName = '1';
     localStorage.fluxProfileComplete = '1';
@@ -448,6 +477,9 @@ let profileComplete=localStorage.fluxProfileComplete==='1';
 })();
 if(!localStorage.fluxPlayerId){localStorage.fluxPlayerId=(crypto.randomUUID?crypto.randomUUID():'p'+Date.now()+Math.random().toString(16).slice(2));}
 const playerId=localStorage.fluxPlayerId;
+// PRESET NAMES: a name typed before presets existed becomes this pilot's own preset (the server shows the same one).
+if(callsign && !isPresetName(callsign)){ callsign=presetNameForId(playerId); try{ localStorage.fluxCallsign=callsign; }catch(e){} }
+function presetOrMine(v){ v=String(v||'').trim().toUpperCase(); return isPresetName(v)?v:presetNameForId(playerId); }   // PRESET NAMES: typed text never becomes a name
 const countryFlags={AF:'🇦🇫',AL:'🇦🇱',DZ:'🇩🇿',AD:'🇦🇩',AO:'🇦🇴',AG:'🇦🇬',AR:'🇦🇷',AM:'🇦🇲',AU:'🇦🇺',AT:'🇦🇹',AZ:'🇦🇿',BS:'🇧🇸',BH:'🇧🇭',BD:'🇧🇩',BB:'🇧🇧',BY:'🇧🇾',BE:'🇧🇪',BZ:'🇧🇿',BJ:'🇧🇯',BT:'🇧🇹',BO:'🇧🇴',BA:'🇧🇦',BW:'🇧🇼',BR:'🇧🇷',BN:'🇧🇳',BG:'🇧🇬',BF:'🇧🇫',BI:'🇧🇮',CV:'🇨🇻',KH:'🇰🇭',CM:'🇨🇲',CA:'🇨🇦',CF:'🇨🇫',TD:'🇹🇩',CL:'🇨🇱',CN:'🇨🇳',CO:'🇨🇴',KM:'🇰🇲',CG:'🇨🇬',CD:'🇨🇩',CR:'🇨🇷',CI:'🇨🇮',HR:'🇭🇷',CU:'🇨🇺',CY:'🇨🇾',CZ:'🇨🇿',DK:'🇩🇰',DJ:'🇩🇯',DM:'🇩🇲',DO:'🇩🇴',EC:'🇪🇨',EG:'🇪🇬',SV:'🇸🇻',GQ:'🇬🇶',ER:'🇪🇷',EE:'🇪🇪',SZ:'🇸🇿',ET:'🇪🇹',FJ:'🇫🇯',FI:'🇫🇮',FR:'🇫🇷',GA:'🇬🇦',GM:'🇬🇲',GE:'🇬🇪',DE:'🇩🇪',GH:'🇬🇭',GR:'🇬🇷',GD:'🇬🇩',GT:'🇬🇹',GN:'🇬🇳',GW:'🇬🇼',GY:'🇬🇾',HT:'🇭🇹',HN:'🇭🇳',HU:'🇭🇺',IS:'🇮🇸',IN:'🇮🇳',ID:'🇮🇩',IR:'🇮🇷',IQ:'🇮🇶',IE:'🇮🇪',IL:'🇮🇱',IT:'🇮🇹',JM:'🇯🇲',JP:'🇯🇵',JO:'🇯🇴',KZ:'🇰🇿',KE:'🇰🇪',KI:'🇰🇮',KW:'🇰🇼',KG:'🇰🇬',LA:'🇱🇦',LV:'🇱🇻',LB:'🇱🇧',LS:'🇱🇸',LR:'🇱🇷',LY:'🇱🇾',LI:'🇱🇮',LT:'🇱🇹',LU:'🇱🇺',MG:'🇲🇬',MW:'🇲🇼',MY:'🇲🇾',MV:'🇲🇻',ML:'🇲🇱',MT:'🇲🇹',MH:'🇲🇭',MR:'🇲🇷',MU:'🇲🇺',MX:'🇲🇽',FM:'🇫🇲',MD:'🇲🇩',MC:'🇲🇨',MN:'🇲🇳',ME:'🇲🇪',MA:'🇲🇦',MZ:'🇲🇿',MM:'🇲🇲',NA:'🇳🇦',NR:'🇳🇷',NP:'🇳🇵',NL:'🇳🇱',NZ:'🇳🇿',NI:'🇳🇮',NE:'🇳🇪',NG:'🇳🇬',KP:'🇰🇵',MK:'🇲🇰',NO:'🇳🇴',OM:'🇴🇲',PK:'🇵🇰',PW:'🇵🇼',PS:'🇵🇸',PA:'🇵🇦',PG:'🇵🇬',PY:'🇵🇾',PE:'🇵🇪',PH:'🇵🇭',PL:'🇵🇱',PT:'🇵🇹',QA:'🇶🇦',RO:'🇷🇴',RU:'🇷🇺',RW:'🇷🇼',KN:'🇰🇳',LC:'🇱🇨',VC:'🇻🇨',WS:'🇼🇸',SM:'🇸🇲',ST:'🇸🇹',SA:'🇸🇦',SN:'🇸🇳',RS:'🇷🇸',SC:'🇸🇨',SL:'🇸🇱',SG:'🇸🇬',SK:'🇸🇰',SI:'🇸🇮',SB:'🇸🇧',SO:'🇸🇴',ZA:'🇿🇦',KR:'🇰🇷',SS:'🇸🇸',ES:'🇪🇸',LK:'🇱🇰',SD:'🇸🇩',SR:'🇸🇷',SE:'🇸🇪',CH:'🇨🇭',SY:'🇸🇾',TW:'🇹🇼',TJ:'🇹🇯',TZ:'🇹🇿',TH:'🇹🇭',TL:'🇹🇱',TG:'🇹🇬',TO:'🇹🇴',TT:'🇹🇹',TN:'🇹🇳',TR:'🇹🇷',TM:'🇹🇲',TV:'🇹🇻',UG:'🇺🇬',UA:'🇺🇦',AE:'🇦🇪',GB:'🇬🇧',US:'🇺🇸',UY:'🇺🇾',UZ:'🇺🇿',VU:'🇻🇺',VA:'🇻🇦',VE:'🇻🇪',VN:'🇻🇳',YE:'🇾🇪',ZM:'🇿🇲',ZW:'🇿🇼',OTHER:'🌎'};
 /* D-50 (RC2.8.7) SCORE-BASED LEVELS. A level is reached by SCORE. Perfect
    catches still score, but no longer drive the level. Medium thresholds for
@@ -1694,7 +1726,7 @@ document.getElementById('pauseMenuBtn').onclick=()=>{
   try{ window.parent.postMessage({type:'flux-menu'}, '*'); }catch(e){}
 };
 function saveProfile(){
- callsign=(document.getElementById('callsign').value.trim()||'PLAYER').toUpperCase();
+ { const v=document.getElementById('callsign').value.trim().toUpperCase(); callsign=isPresetName(v)?v:presetNameForId(playerId); }   // PRESET NAMES
  country=document.getElementById('country').value||'US';
  localStorage.fluxCallsign=callsign;localStorage.fluxCountry=country;localStorage.fluxProfileComplete='1';profileComplete=true;refreshMenu();
 }
@@ -1710,7 +1742,10 @@ function refreshMenu(){
 }
 document.querySelectorAll('#difficulty button').forEach(b=>b.onclick=()=>{difficulty=b.dataset.d;localStorage.fluxDifficulty=difficulty;refreshMenu()});
 document.querySelectorAll('#gameoverDifficulty button').forEach(b=>b.onclick=()=>{difficulty=b.dataset.d;localStorage.fluxDifficulty=difficulty;best=+localStorage[bestKey()]||0;document.getElementById('best').textContent=best.toLocaleString();document.getElementById('finalMode').textContent=difficulty.toUpperCase();refreshMenu()});
-document.getElementById('callsign').onchange=e=>{callsign=(e.target.value.trim()||'PLAYER').toUpperCase();e.target.value=callsign};
+document.getElementById('callsign').onchange=e=>{const v=e.target.value.trim().toUpperCase();callsign=isPresetName(v)?v:presetNameForId(playerId);e.target.value=callsign};
+// PRESET NAMES: the only way to change a name is to shuffle to another preset.
+document.getElementById('nameShuffle').onclick=()=>{callsign=randomPresetName();document.getElementById('callsign').value=callsign;};
+document.getElementById('goShuffle').onclick=()=>{document.getElementById('goCallsign').value=randomPresetName();};
 document.getElementById('country').onchange=e=>{country=e.target.value};
 document.getElementById('editProfile').onclick=()=>{profileComplete=false;document.getElementById('profileEditor').classList.remove('hidden');document.getElementById('profileSaved').classList.add('hidden');};
 function equipSkin(sku){
@@ -2415,7 +2450,7 @@ saveProfile = function () {
     setTimeout(() => { input.style.borderColor = ''; }, 1600);
     return false;
   }
-  callsign = typed.toUpperCase();
+  callsign = presetOrMine(typed);
   country = document.getElementById('country').value || 'US';
   localStorage.fluxCallsign = callsign;
   localStorage.fluxCountry = country;
@@ -2427,8 +2462,8 @@ saveProfile = function () {
 
 document.getElementById('callsign').onchange = e => {
   const v = e.target.value.trim().toUpperCase();
-  callsign = v;
-  e.target.value = v;
+  callsign = isPresetName(v) ? v : presetNameForId(playerId);   // PRESET NAMES
+  e.target.value = callsign;
 };
 
 /* --- 6. (RC2.8.5) The start button has ONE handler: the D-39/D-43 one near the
@@ -2558,11 +2593,12 @@ function showNamePrompt(){
   const box=document.getElementById('goName'); if(!box) return;
   const sel=document.getElementById('goCountry'), menuSel=document.getElementById('country');
   if(sel && menuSel){ if(!sel.options.length) sel.innerHTML=menuSel.innerHTML; sel.value=menuSel.value||country||'US'; }
+  const inp=document.getElementById('goCallsign'); if(inp && !isPresetName(inp.value)) inp.value=isPresetName(callsign)?callsign:randomPresetName();   // PRESET NAMES: the box is never empty
   box.classList.remove('hidden');
 }
 document.getElementById('goSave').onclick=function(){
   const inp=document.getElementById('goCallsign'); const typed=(inp.value||'').trim();
-  if(!typed){ inp.placeholder='ENTER YOUR NAME'; inp.style.borderColor='#ff4f98'; inp.focus(); setTimeout(function(){ inp.style.borderColor=''; },1600); return; }
+  if(!typed){ inp.placeholder='TAP 🎲 FOR A NAME'; inp.style.borderColor='#ff4f98'; inp.focus(); setTimeout(function(){ inp.style.borderColor=''; },1600); return; }
   document.getElementById('callsign').value=typed;
   document.getElementById('country').value=document.getElementById('goCountry').value;
   if(!saveProfile()) return;
@@ -2618,7 +2654,7 @@ function showGameOverLine(sc,prevBest,prevOverall){
    run or later is offered -- once, dismissable -- to put a name on the board. */
 function shouldOfferNameClaim(sc,prevBest,runNo){
   try{
-    return localStorage.fluxAutoName==='1' && /^PILOT-[A-Z0-9]{4}$/.test(callsign) &&
+    return localStorage.fluxAutoName==='1' && isPresetName(callsign) &&
       runNo>=2 && sc>0 && sc>prevBest && localStorage.fluxNameClaimOffered!=='1';
   }catch(e){ return false; }
 }

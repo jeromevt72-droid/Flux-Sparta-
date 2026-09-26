@@ -40,15 +40,15 @@ console.log('\n== IDENTITY: install -> Gateway -> Play -> register -> 10 relaunc
 ck('Play navigates within the same origin', gw1.nav.to===ORIGIN+'/play/', String(gw1.nav.to));
   ck('Play opens no new window', gw1.nav.opened.length===0);
 
-  // The game loads at that address and registers TITAN via the REAL saveProfile.
+  // The game loads at that address and registers SWIFT COMET 42 via the REAL saveProfile.
   const g1 = boot(GAME, { origin:ORIGIN, path:'/play/', store, uuid });
   ck('game boots without error', g1.errors.length===0, g1.errors.join('|'));
   const firstId = mem.fluxPlayerId;
   ck('exactly one player created on first game load', minted===1 && firstId==='player-1', firstId);
-  g1.els.callsign.value = 'titan';
+  g1.els.callsign.value = 'swift comet 42';   // PRESET NAMES: a preset, as the shuffle offers
   g1.els.country.value = 'PH';
   const ok = g1.ctx.saveProfile();
-  ck('real saveProfile registers the FLUX ID', ok===true && mem.fluxCallsign==='TITAN', mem.fluxCallsign);
+  ck('real saveProfile registers the FLUX ID', ok===true && mem.fluxCallsign==='SWIFT COMET 42', mem.fluxCallsign);
   mem.fluxBest_medium = '3623';            // a saved best, as endGame would record
 
   // 10 kill/relaunch cycles, each: Gateway -> Play -> game.
@@ -67,7 +67,7 @@ ck('Play navigates within the same origin', gw1.nav.to===ORIGIN+'/play/', String
   ck('10 relaunches: Gateway never changed player storage', gwClean);
   ck('10 relaunches: still exactly ONE playerId ever created', minted===1, 'minted='+minted);
   ck('10 relaunches: playerId never changed', ids.size===1 && [...ids][0]==='player-1', [...ids].join(','));
-  ck('FLUX ID survived every relaunch', mem.fluxCallsign==='TITAN');
+  ck('FLUX ID survived every relaunch', mem.fluxCallsign==='SWIFT COMET 42');
   ck('country survived', mem.fluxCountry==='PH');
   ck('personal best survived', mem.fluxBest_medium==='3623');
   ck('profile marked complete (no re-registration prompt)', mem.fluxProfileComplete==='1');

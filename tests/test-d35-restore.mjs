@@ -6,6 +6,8 @@
 import fs from 'fs'; import path from 'path'; import vm from 'vm';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { boot, makeStore } from './harness.mjs';
+import { P as PN, isPresetName } from './preset-names.mjs';   // PRESET NAMES
+const TN = PN('TITAN');
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const GAME_HTML = fs.readFileSync(path.join(__dirname,'FLUX-Sparta','public','play','index.html'),'utf8');
 const WORKER_SRC = fs.readFileSync(path.join(__dirname,'FLUX-Sparta','worker.js'),'utf8');
@@ -87,14 +89,14 @@ async function suite({ gameHtml, workerMod, quiet=false }){
     ck('S2 GET is not accepted (secret stays out of URLs)', r.status===404);
 
     const A='a1b2c3d4-0000-4000-8000-00000000000a';
-    await submit(worker,env,A,'Titan',4315,2,'hard','US');
-    await submit(worker,env,A,'Titan',900,1,'easy','US');
+    await submit(worker,env,A,TN,4315,2,'hard','US');
+    await submit(worker,env,A,TN,900,1,'easy','US');
     const before=snapshot(env);
     r=await call(worker,env,'/api/restore-check',{ method:'POST', body:{ playerId:A } });
     const lb=await call(worker,env,'/api/leaderboard?limit=25');
-    const row=lb.data.top.find(x=>x.name==='TITAN');
+    const row=lb.data.top.find(x=>x.name===TN);
     ck('S3 known pilot -> found:true', r.data && r.data.found===true, r.text.slice(0,120));
-    ck('S3 name, country returned', r.data.name==='TITAN' && r.data.country==='US');
+    ck('S3 name, country returned', r.data.name===TN && r.data.country==='US');
     ck('S3 tag identical to the leaderboard tag', row && r.data.tag===row.tag, (row&&row.tag)+' vs '+r.data.tag);
     ck('S3 bests per difficulty', r.data.bests.hard.score===4315 && r.data.bests.hard.level===2 && r.data.bests.easy.score===900 && !r.data.bests.medium);
     ck('S3 response never echoes a playerId', !r.text.includes(A) && !('playerId' in r.data));
@@ -121,7 +123,7 @@ async function suite({ gameHtml, workerMod, quiet=false }){
   /* ---------------- codes ---------------- */
   if(!quiet) console.log('== codes: FX1-<id>-<check> ==');
   try {
-    const { g } = bootGame({ fluxPlayerId:'c0ffee00-1111-4222-8333-444455556666', fluxProfileComplete:'1', fluxCallsign:'TITAN' });
+    const { g } = bootGame({ fluxPlayerId:'c0ffee00-1111-4222-8333-444455556666', fluxProfileComplete:'1', fluxCallsign:TN });
     const id='c0ffee00-1111-4222-8333-444455556666';
     const code=await g.ctx.makeRestoreCode(id);
     ck('C1 code format', /^FX1-c0ffee00-1111-4222-8333-444455556666-[0-9A-F]{4}$/.test(code), code);
@@ -158,9 +160,9 @@ async function suite({ gameHtml, workerMod, quiet=false }){
       fluxBest_medium:'5000', fluxEntitlementsV1:JSON.stringify({v:1,source:'server',playerId:OLD,skus:['cosmic'],verifiedAt:1}), fluxOwned_cosmic:'1',
       fluxDifficulty:'hard', fluxGatewayCountry:'PH', fluxPendingSubmits:JSON.stringify([{id:'q1',playerId:OLD,score:1,level:1}]) });
     const NEW='new-pilot-0002';
-    const plan=g.ctx.buildRestorePlan({ name:'titan', tag:'VNXB79C', country:'US', bests:{ easy:{score:500,level:1}, hard:{score:4878,level:2} }, skus:['solar'] }, NEW);
+    const plan=g.ctx.buildRestorePlan({ name:TN.toLowerCase(), tag:'VNXB79C', country:'US', bests:{ easy:{score:500,level:1}, hard:{score:4878,level:2} }, skus:['solar'] }, NEW);
     ck('C3 player id', plan.fluxPlayerId===NEW);
-    ck('C3 name upper-cased, profile complete', plan.fluxCallsign==='TITAN' && plan.fluxProfileComplete==='1');
+    ck('C3 name upper-cased, profile complete', plan.fluxCallsign===TN && plan.fluxProfileComplete==='1');
     ck('C3 country and tag', plan.fluxCountry==='US' && plan.fluxPublicTag==='VNXB79C');
     ck('C3 bests replaced by the restored pilot\'s (lower easy best wins)', plan.fluxBest_easy==='500' && JSON.parse(plan.fluxBestRun_easy).playerId===NEW && JSON.parse(plan.fluxBestRun_easy).score===500);
     ck('C3 difficulty with no server best is cleared', plan.fluxBest_medium===null && plan.fluxBestRun_medium===null && plan.fluxBestLevel_medium===null);
@@ -181,15 +183,15 @@ async function suite({ gameHtml, workerMod, quiet=false }){
     let WRITES=0;
     {
       const { g, mem } = bootGame(init);
-      const plan=g.ctx.buildRestorePlan({ name:'TITAN', tag:'VNXB79C', country:'US', bests:{ easy:{score:10,level:1} }, skus:[] }, 'new-1');
+      const plan=g.ctx.buildRestorePlan({ name:TN, tag:'VNXB79C', country:'US', bests:{ easy:{score:10,level:1} }, skus:[] }, 'new-1');
       let n=0; const { store:cs, mem:cm } = makeStore(init);
       const counting=new Proxy(cs,{ get:(t,k)=> k==='setItem' ? (a,b)=>{ n++; return t.setItem(a,b); } : t[k], set:(t,k,v)=>{ t[k]=v; return true; }, has:(t,k)=> k in t });
       const gc=boot(GAME,{ origin:ORIGIN, path:'/play/', store:counting }); n=0;
-      gc.ctx.applyRestorePlan(gc.ctx.buildRestorePlan({ name:'TITAN', tag:'VNXB79C', country:'US', bests:{ easy:{score:10,level:1} }, skus:[] }, 'new-1'));
+      gc.ctx.applyRestorePlan(gc.ctx.buildRestorePlan({ name:TN, tag:'VNXB79C', country:'US', bests:{ easy:{score:10,level:1} }, skus:[] }, 'new-1'));
       WRITES=n;
       const ok=g.ctx.applyRestorePlan(plan);
       ck('C4 apply succeeds ('+WRITES+' writes; every one is failure-tested below)', ok===true && WRITES>=5);
-      ck('C4 device holds exactly the new pilot', mem.fluxPlayerId==='new-1' && mem.fluxCallsign==='TITAN' && mem.fluxBest_easy==='10' && mem.fluxPublicTag==='VNXB79C');
+      ck('C4 device holds exactly the new pilot', mem.fluxPlayerId==='new-1' && mem.fluxCallsign===TN && mem.fluxBest_easy==='10' && mem.fluxPublicTag==='VNXB79C');
       ck('C4 journal removed', !('fluxRestoreJournal' in mem));
     }
     for (let failAt=1; failAt<=WRITES; failAt++) {
@@ -199,7 +201,7 @@ async function suite({ gameHtml, workerMod, quiet=false }){
         set:(t,k,v)=>{ t[k]=v; return true; }, deleteProperty:(t,k)=>{ delete t[k]; return true; }, has:(t,k)=> k in t });
       const g=boot(GAME,{ origin:ORIGIN, path:'/play/', store });
       const beforeState=JSON.stringify(Object.entries(mem).sort());
-      const plan=g.ctx.buildRestorePlan({ name:'TITAN', tag:'VNXB79C', country:'US', bests:{ easy:{score:10,level:1} }, skus:[] }, 'new-1');
+      const plan=g.ctx.buildRestorePlan({ name:TN, tag:'VNXB79C', country:'US', bests:{ easy:{score:10,level:1} }, skus:[] }, 'new-1');
       ctl.n=0; ctl.failAt=failAt;
       const ok=g.ctx.applyRestorePlan(plan);
       const n=ctl.n; ctl.failAt=0;
@@ -212,7 +214,7 @@ async function suite({ gameHtml, workerMod, quiet=false }){
     // Build a journal exactly as applyRestorePlan writes it, apply only HALF, then relaunch.
     const init={ fluxPlayerId:'old-2', fluxProfileComplete:'1', fluxCallsign:'OLDIE', fluxBest_easy:'99999', fluxBestRun_easy:JSON.stringify({score:99999,level:3,difficulty:'easy',playerId:'old-2',at:1}) };
     const { g } = bootGame(init);
-    const plan=g.ctx.buildRestorePlan({ name:'TITAN', tag:'VNXB79C', country:'US', bests:{ easy:{score:10,level:1} }, skus:[] }, 'new-2');
+    const plan=g.ctx.buildRestorePlan({ name:TN, tag:'VNXB79C', country:'US', bests:{ easy:{score:10,level:1} }, skus:[] }, 'new-2');
     const before={}; for(const k of Object.keys(plan)) before[k]= k in init ? init[k] : null;
     const crashed={ ...init, fluxRestoreJournal:JSON.stringify({ v:1, after:plan, before }) };
     const keys=Object.keys(plan); for(const k of keys.slice(0, Math.floor(keys.length/2))){ if(plan[k]===null) delete crashed[k]; else crashed[k]=plan[k]; }
@@ -221,9 +223,9 @@ async function suite({ gameHtml, workerMod, quiet=false }){
     for(const k of keys.slice(Math.floor(keys.length/2))){ if(plan[k]===null) delete crashed2[k]; else crashed2[k]=plan[k]; }
     const { g:g5, mem:m5 } = bootGame(crashed2);
     const sub5=run(g5,"difficulty='easy'; buildSubmission()");
-    ck('C7 crash before the id was written: relaunch completes it', run(g5,'playerId')==='new-2' && m5.fluxCallsign==='TITAN' && sub5 && sub5.playerId==='new-2' && sub5.score===10, run(g5,'playerId')+' '+(sub5&&sub5.score));
+    ck('C7 crash before the id was written: relaunch completes it', run(g5,'playerId')==='new-2' && m5.fluxCallsign===TN && sub5 && sub5.playerId==='new-2' && sub5.score===10, run(g5,'playerId')+' '+(sub5&&sub5.score));
     const { g:g2, mem:m2 } = bootGame(crashed);
-    ck('C7 relaunch completes the restore', run(g2,'playerId')==='new-2' && m2.fluxCallsign==='TITAN' && m2.fluxBest_easy==='10');
+    ck('C7 relaunch completes the restore', run(g2,'playerId')==='new-2' && m2.fluxCallsign===TN && m2.fluxBest_easy==='10');
     ck('C7 journal cleared after replay', !('fluxRestoreJournal' in m2));
     const sub=run(g2,"difficulty='easy'; buildSubmission()");
     ck('C7 no old best uploaded under the restored pilot', sub && sub.playerId==='new-2' && sub.score===10, sub && (sub.playerId+' '+sub.score));
@@ -250,24 +252,24 @@ async function suite({ gameHtml, workerMod, quiet=false }){
   try {
     const env=makeEnv(LeaderboardDO); const f=fetchVia(worker,env);
     const SAFARI='5afa0000-aaaa-4bbb-8ccc-dddddddddddd';
-    await submit(worker,env,SAFARI,'TITAN',4878,2,'hard','US');
+    await submit(worker,env,SAFARI,TN,4878,2,'hard','US');
     await env.LEADERBOARD_DO.get('global').fetch('https://do.internal/grant',{ method:'POST', body:JSON.stringify({ playerId:SAFARI, sku:'solar', sessionId:'cs_e2e' }) });
     // the old icon: empty storage, asks for a FLUX ID, has minted its own id
     const { g:icon, mem:im } = bootGame({ fluxEntitlementsV1:JSON.stringify({v:1,source:'server',playerId:'icon-own',skus:['cosmic'],verifiedAt:1}) }, { uuid:()=>'icon-own', fetchImpl:f });
     // RC2.8.5 (D-43): an empty icon now starts as a new auto-named pilot (PILOT-XXXX)
-    ck('E0 old icon starts as a new pilot (the reported bug)', /^PILOT-[A-Z2-9]{4}$/.test(run(icon,'callsign')) && run(icon,'playerId')==='icon-own');
-    const { g:safari } = bootGame({ fluxPlayerId:SAFARI, fluxProfileComplete:'1', fluxCallsign:'TITAN' }, { fetchImpl:f });
+    ck('E0 old icon starts as a new pilot (the reported bug)', isPresetName(run(icon,'callsign')) && run(icon,'playerId')==='icon-own');
+    const { g:safari } = bootGame({ fluxPlayerId:SAFARI, fluxProfileComplete:'1', fluxCallsign:TN }, { fetchImpl:f });
     const code=await safari.ctx.makeRestoreCode(SAFARI);
     const parsed=await icon.ctx.parseRestoreCode('\n'+code+' ');
     const chk=await icon.ctx.checkRestoreOnServer(parsed.playerId);
-    ck('E1 icon finds the Safari pilot on the server', chk.kind==='found' && chk.info.name==='TITAN');
+    ck('E1 icon finds the Safari pilot on the server', chk.kind==='found' && chk.info.name===TN);
     ck('E1 apply', icon.ctx.applyRestorePlan(icon.ctx.buildRestorePlan(chk.info, parsed.playerId))===true);
     const { g:after, mem:am } = bootGame({ ...im }, { fetchImpl:f });      // location.reload()
-    ck('E2 relaunched icon IS the Safari pilot', run(after,'playerId')===SAFARI && run(after,'callsign')==='TITAN' && run(after,'profileComplete')===true);
+    ck('E2 relaunched icon IS the Safari pilot', run(after,'playerId')===SAFARI && run(after,'callsign')===TN && run(after,'profileComplete')===true);
     ck('E2 ...and is no longer marked as an auto name', am.fluxAutoName===undefined);
     const lb=await call(worker,env,'/api/leaderboard?limit=25');
     const mine=await after.ctx.myPidHash();
-    ck('E2 leaderboard highlights the restored pilot', lb.data.top.some(x=>x.pid===mine && x.name==='TITAN'));
+    ck('E2 leaderboard highlights the restored pilot', lb.data.top.some(x=>x.pid===mine && x.name===TN));
     ck('E2 tag shown matches the board', am.fluxPublicTag===lb.data.top.find(x=>x.pid===mine).tag);
     ck('E3 old verified-skin cache for icon-own not carried over (offline)', !after.ctx.ownsSkin('cosmic'));
     await after.ctx.syncEntitlements();

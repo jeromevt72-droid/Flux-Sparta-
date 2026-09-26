@@ -6,6 +6,8 @@ import worker, { LeaderboardDO } from "./FLUX-Sparta/worker.js";
 import { levelFor } from './level-rule.mjs';   // RC2.8.7: D-51 fixture levels
 import fs from "fs"; import path from "path"; import { fileURLToPath } from "url";
 import { boot, makeStore } from "./harness.mjs";
+import { P as PN } from "./preset-names.mjs";   // PRESET NAMES: labels become preset names
+const N_TITAN = PN("TITAN"), N_PROTO = PN("PROTOTEST"), N_ALPHA = PN("ALPHA"), N_BRAVO = PN("BRAVO");
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 let F=0; const ck=(l,c,x='')=>{console.log((c?'  PASS  ':'  FAIL  ')+l+(x?'  ['+x+']':''));if(!c)F++;};
 /* ---------------- fake Durable Object runtime ---------------- */
@@ -107,12 +109,12 @@ const PROTO=["__proto__","proto","constructor","prototype","toString","valueOf",
 await section("D-29: prototype-name player IDs never crash the server", async()=>{
   for (const id of PROTO) {
     const env=env2();
-    const r=await submit(env,id,"PROTOTEST",1234);
+    const r=await submit(env,id,N_PROTO,1234);
     ck(id+": submit is 200 or a controlled 4xx, never 5xx", r.status<500, r.status+" "+r.raw.slice(0,60));
     if (r.status===200) {
       ck(id+": treated as a NEW player (no inherited record)", r.data.isNewBest===true && r.data.best===1234, r.raw.slice(0,80));
       const lb=await call(env,"/api/leaderboard");
-      ck(id+": appears exactly once with the right score", lb.data.top.filter(x=>x.name==="PROTOTEST"&&x.score===1234).length===1);
+      ck(id+": appears exactly once with the right score", lb.data.top.filter(x=>x.name===N_PROTO&&x.score===1234).length===1);
     }
     const e=await call(env,"/api/entitlements?playerId="+encodeURIComponent(id));
     ck(id+": entitlements lookup is not 5xx and owns nothing", e.status<500 && (!e.data.skus || (Array.isArray(e.data.skus) && e.data.skus.length===0)), e.status+" "+e.raw.slice(0,60));
@@ -122,19 +124,19 @@ await section("D-29: prototype-name player IDs never crash the server", async()=
 
 await section("D-29: every server map is safe from inherited keys", async()=>{
   const env=env2();
-  await submit(env,"valueOf","ALPHA",500); await submit(env,"real-player-01","BRAVO",400);
+  await submit(env,"valueOf",N_ALPHA,500); await submit(env,"real-player-01",N_BRAVO,400);
   const d=inst(env);
   for (const k of ["players","lastSubmit","entitlements","seenSessions","restricted","nameBans","countries"])
     ck("map '"+k+"' has no inherited Object properties", d[k] && !("toString" in d[k]) && !("hasOwnProperty" in d[k]), typeof d[k]);
-  const f=await call(env,"/api/admin/find-player",{method:"POST",body:{query:"ALPHA"},headers:ADMIN});
+  const f=await call(env,"/api/admin/find-player",{method:"POST",body:{query:N_ALPHA},headers:ADMIN});
   const pid=f.data?.matches?.[0]?.pid;
   const rs=await call(env,"/api/admin/restrict",{method:"POST",body:{pid,reason:"t"},headers:ADMIN});
-  ck("restricting a prototype-named player works", rs.status===200 && !(await call(env,"/api/leaderboard")).data.top.some(x=>x.name==="ALPHA"));
+  ck("restricting a prototype-named player works", rs.status===200 && !(await call(env,"/api/leaderboard")).data.top.some(x=>x.name===N_ALPHA));
   for (const n of ["toString","__proto__","constructor","hasOwnProperty"]) {
     const b=await call(env,"/api/admin/name-ban",{method:"POST",body:{name:n},headers:ADMIN});
     ck("banning the name '"+n+"' is safe", b.status<500, b.status+" "+b.raw.slice(0,60));
   }
-  ck("BRAVO unaffected by bans on prototype names", (await call(env,"/api/leaderboard")).data.top.some(x=>x.name==="BRAVO"));
+  ck("BRAVO unaffected by bans on prototype names", (await call(env,"/api/leaderboard")).data.top.some(x=>x.name===N_BRAVO));
   const imp=await (await inst(env).fetch(new Request("https://do.internal/import",{method:"POST",headers:{"Content-Type":"application/json"},
      body:JSON.stringify({records:[{playerId:"toString",name:"IMP1",country:"US",score:700,level:3,difficulty:"medium"},
                                    {playerId:"__proto__",name:"IMP2",country:"US",score:600,level:3,difficulty:"medium",polluted:true}]})}))).json();
@@ -190,26 +192,26 @@ await section("D-33: public tags are consistent across every view", async()=>{
   const env=env2();
   for (let i=0;i<130;i++) await submit(env,"cccccccc-dddd-4eee-8fff-"+String(i).padStart(12,"0"),"FILL"+i,100000-i*10);
   const A="cccccccc-dddd-4eee-8fff-900000000001", B="cccccccc-dddd-4eee-8fff-900000000002";
-  await submit(env,A,"TITAN",200000,"medium","PH"); await submit(env,B,"TITAN",50,"medium","PH");   // B ranks ~132nd
+  await submit(env,A,N_TITAN,200000,"medium","PH"); await submit(env,B,N_TITAN,50,"medium","PH");   // B ranks ~132nd
   const d=inst(env); const realPid=d.pid.bind(d);
   const forced={[A]:"abcdef0123456789",[B]:"abcdef0120000000"};
   d.pid=async(id)=>forced[id]||realPid(id); d.pidCache=new Map(); d.tagCache=null;
-  const t25=(await call(env,"/api/leaderboard?limit=25")).data.top.find(r=>r.name==="TITAN").tag;
-  const t100=(await call(env,"/api/leaderboard?limit=100")).data.top.find(r=>r.name==="TITAN").tag;
+  const t25=(await call(env,"/api/leaderboard?limit=25")).data.top.find(r=>r.name===N_TITAN).tag;
+  const t100=(await call(env,"/api/leaderboard?limit=100")).data.top.find(r=>r.name===N_TITAN).tag;
   ck("collision with a player OUTSIDE the top 25 is detected", t25.length===12, t25);
   ck("...and outside the top 100", t100.length===12, t100);
   ck("top-25 and top-100 views show the same tag", t25===t100);
   const lbAll=await call(env,"/api/leaderboard?limit=100");
   const ph=lbAll.data.countries.find(c=>c.country==="PH");
   ck("country leader shows the same tag", ph.topTag===t25, ph.topTag+" vs "+t25);
-  const f=await call(env,"/api/admin/find-player",{method:"POST",body:{query:"TITAN"},headers:ADMIN});
+  const f=await call(env,"/api/admin/find-player",{method:"POST",body:{query:N_TITAN},headers:ADMIN});
   const adminTag=f.data.matches.find(x=>x.bests.medium.score===200000).tag;
   ck("admin page shows the same tag", adminTag===t25, adminTag);
   d.lastSubmit=Object.create(null);
-  const me=await submit(env,A,"TITAN",200001,"medium","PH");
+  const me=await submit(env,A,N_TITAN,200001,"medium","PH");
   ck("the player's own submit response shows the same tag", me.data.tag===t25, me.data.tag);
-  d.lastSubmit=Object.create(null); await submit(env,B,"TITAN",300000,"medium","PH");   // B overtakes A
-  const after=(await call(env,"/api/leaderboard?limit=25")).data.top.filter(r=>r.name==="TITAN").map(r=>r.tag);
+  d.lastSubmit=Object.create(null); await submit(env,B,N_TITAN,300000,"medium","PH");   // B overtakes A
+  const after=(await call(env,"/api/leaderboard?limit=25")).data.top.filter(r=>r.name===N_TITAN).map(r=>r.tag);
   ck("tags unchanged when rankings change", after.includes(t25) && after.length===2 && after.every(x=>x.length===12), after.join(","));
 });
 
@@ -253,7 +255,7 @@ await section("Client: a clear pending-delivery message", async()=>{
                                                                   : {paid:true,delivered:true,pendingDelivery:false,sku:"solar",playerId:"buyer-9"});
     if(url.includes("/api/entitlements")) return J({skus: mode==="pending"?[]:["solar"]});
     return J({}); };
-  const { store, mem } = makeStore({ fluxProfileComplete:"1", fluxCallsign:"TITAN" });
+  const { store, mem } = makeStore({ fluxProfileComplete:"1", fluxCallsign:N_TITAN });
   const g=boot(GAME,{origin:"https://x.test",path:"/play/",store,fetchImpl,uuid:()=>"buyer-9"});
   await new Promise(r=>setTimeout(r,20));
   const shown=[]; g.ctx.showInfo=(t,b)=>shown.push(t+" | "+b);
