@@ -423,7 +423,7 @@ await control('D-60 NOT NOW does nothing', { expect: 'N3', game: rep("document.g
 // D-61
 await control('D-61 loud start, no fade', { expect: 'A1', game: rep('      masterGain.gain.value=0;\n', '      masterGain.gain.value=.52;\n') });
 await control('D-61 volume raised later', { expect: 'A3', game: rep('function playTick(){', "function raiseVolume(){ if(masterGain) masterGain.gain.value=1; }\nfunction playTick(){") });
-await control('D-61 combo pitch stops rising at x7', { expect: 'A4', game: rep('const base=360*Math.pow(2,(Math.max(1,Math.min(12,comboNow))-1)/12);', 'const base=360+Math.min(7,comboNow)*42;') });
+await control('D-61 combo pitch stops rising at x7', { expect: 'A4', game: rep('const base=360*Math.pow(2,(Math.max(1,Math.min(24,comboNow))-1)/12);', 'const base=360+Math.min(7,comboNow)*42;') });
 
 const total = main.F + NC;
 console.log('\n' + (total ? ('RC2.8.7 FAILED: ' + main.F + ' check(s), ' + NC + ' uncaught control(s)') : 'RC2.8.7 PASSED: all checks and all negative controls'));
