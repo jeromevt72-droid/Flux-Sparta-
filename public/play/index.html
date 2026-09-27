@@ -592,7 +592,11 @@ function recordBestRun(runScore,runLevel){
 }
 best=+localStorage[bestKey()]||0;
 function isPhone(){return W<=700}
-function targetCap(){const d=DIFFICULTY[difficulty],g=Math.min(2,Math.floor((level-1)/4));return isPhone()?Math.min(6,d.capPhone+g):Math.min(9,d.capPad+g)}
+/* EASY ORBS (owner): Easy keeps 6 orbs on the field at every level (5 on small
+   phones: 380px wide or less, or 700px tall or less), in the same colours as
+   before -- repeats, never extra colours. Medium and Hard are unchanged. */
+function easyOrbCount(){ return (W<=380||H<=700)?5:6; }
+function targetCap(){if(difficulty==='easy')return easyOrbCount();const d=DIFFICULTY[difficulty],g=Math.min(2,Math.floor((level-1)/4));return isPhone()?Math.min(6,d.capPhone+g):Math.min(9,d.capPad+g)}
 let paddle={x:0,y:0,w:150,h:12,handleH:28,hitFlash:0,hitSide:0};
 let ball,targets=[],particles=[],texts=[],shake=0;
 /* ===========================================================================
@@ -919,6 +923,7 @@ function newGame(){
    addTarget(color,z[0],z[1]);
  }
  ball.color=pickBallColour();   // the first ball matches an orb on the field
+ if(difficulty==='easy'){ ball.color=easyPickColour(ball.color); easyTopUpMatches(); }   // Easy: at least two matching orbs
  updateHud(); playing=true; runActive=true;
 }
 function addTarget(color,x,y,r=18+Math.random()*6){
@@ -1073,6 +1078,7 @@ function resetFieldAfterMiss(){
    addTarget(color,x,y,isPhone()?16+Math.random()*5:18+Math.random()*6);
  }
  if(ball) ball.color=pickBallColour();   // the new ball (after a miss or a revive) matches an orb on the new field
+ if(ball && difficulty==='easy'){ ball.color=easyPickColour(ball.color); easyTopUpMatches(); }   // Easy: at least two matching orbs
  updateHud();
 }
 /* BALL COLOUR RULE. Every ball must match the colour of at least one orb on
@@ -1095,9 +1101,45 @@ function pickBallColour(){
   return present[Math.floor(Math.random()*present.length)];
 }
 function ensureBallColourTarget(){
-  if(!ball || ballHasColourTarget()) return;
-  const [x,y]=safeSpawnPoint(20);
-  addTarget(ball.color,x,y,isPhone()?16+Math.random()*5:18+Math.random()*6);
+  if(!ball) return;
+  if(!ballHasColourTarget()){
+    const [x,y]=safeSpawnPoint(20);
+    addTarget(ball.color,x,y,isPhone()?16+Math.random()*5:18+Math.random()*6);
+  }
+  if(difficulty==='easy' && playing) easyTopUpMatches();
+}
+/* EASY: AT LEAST TWO MATCHES (owner). On Easy the ball always has at least
+   EASY_MATCH_MIN orbs of its colour on the field (after hits, misses, new
+   balls, level-ups). A missing match is added as a new orb while the field
+   has room; on a full field one orb of another colour takes the ball's colour
+   (the one whose colour is most repeated, farthest from the ball), so the
+   field keeps its size and its colours. Only existing colours are used. */
+const EASY_MATCH_MIN=2;
+function colourCount(c){ let n=0; targets.forEach(function(t){ if(isColourTarget(t) && t.color===c) n++; }); return n; }
+function easyFieldFull(){ return targets.filter(function(t){ return !t.bonus && !t.growing; }).length>=targetCap(); }
+function easyPickColour(cur){
+  const two=[];
+  targets.forEach(function(t){ if(isColourTarget(t) && two.indexOf(t.color)<0 && colourCount(t.color)>=EASY_MATCH_MIN) two.push(t.color); });
+  if(!two.length || two.indexOf(cur)>=0) return cur;
+  return two[Math.floor(Math.random()*two.length)];
+}
+function easyTopUpMatches(){
+  if(!ball || difficulty!=='easy') return;
+  for(let n=colourCount(ball.color); n<EASY_MATCH_MIN; n++){
+    if(targets.length<targetCap()){
+      const [x,y]=safeSpawnPoint(20);
+      addTarget(ball.color,x,y,isPhone()?16+Math.random()*5:18+Math.random()*6);
+      continue;
+    }
+    let pick=null, bestN=-1, bestD=-1;
+    targets.forEach(function(t){
+      if(t.bonus || t.growing || t.color===ball.color) return;
+      const k=colourCount(t.color), d=dist(ball,t);
+      if(k>bestN || (k===bestN && d>bestD)){ pick=t; bestN=k; bestD=d; }
+    });
+    if(!pick) break;
+    pick.color=ball.color;
+  }
 }
 function burst(x,y,col,n=14){
  for(let i=0;i<n;i++)particles.push({x,y,vx:rand(-5,5),vy:rand(-5,5),life:1,col});
@@ -1227,7 +1269,7 @@ function fuse(t){
  burst(t.x,t.y,colors[t.color],28);
  popup(t.x,t.y,'+'+points,colors[t.color]);
  targets.splice(idx,1);
- addTarget(newColor,t.x+rand(-36,36),t.y+rand(-36,36),Math.min(30,t.r+3));
+ if(!(difficulty==='easy' && t.growing && easyFieldFull())) addTarget(newColor,t.x+rand(-36,36),t.y+rand(-36,36),Math.min(30,t.r+3));   // EASY ORBS: a fused growing orb is not replaced when the Easy field already has its 5-6 orbs
  // Higher levels create more meaningful choices instead of a single obvious cluster.
  if(level>=5 && Math.random()<.20 && targets.length<targetCap()) spawnTarget();
  const speed=Math.min(17.5,Math.hypot(ball.vx,ball.vy)*1.045+0.18+speedLevel*.025);
