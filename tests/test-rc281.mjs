@@ -90,7 +90,7 @@ async function call(env,p,{method="GET",body,headers={},raw}={}){
 }
 const inst=(env)=>[...env.LEADERBOARD_DO._instances.values()][0];
 const submit=(env,id,name,score,d="medium",c="US",level=levelFor(score,d))=>   // D-51: the level this score reaches
-call(env,"/api/submit-score",{method:"POST",body:{playerId:id,name,score,level,difficulty:d,country:c}});
+call(env,"/api/submit-score",{method:"POST",body:{playerId:id,name,score,level,difficulty:d,country:c,season:1}});   // SEASON 1: scores say their season
 const section=async(title,fn)=>{ console.log("\n== "+title+" =="); try{ await fn(); }catch(e){ ck("section completed without crashing",false,String(e).slice(0,100)); } };
 async function webhook(env,session){ const payload=JSON.stringify({id:"evt_"+Math.random(),type:"checkout.session.completed",data:{object:session}});
   return call(env,"/api/stripe-webhook",{method:"POST",raw:payload,headers:{"stripe-signature":await signStripe(payload,"whsec_fake",Math.floor(Date.now()/1000))}}); }

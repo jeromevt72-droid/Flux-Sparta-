@@ -32,7 +32,7 @@ async function suite(gameHtml, quiet = false) {
   const ck = (l, c, x = '') => { if (!quiet) console.log((c ? '  PASS  ' : '  FAIL  ') + l + (x !== '' ? '  [' + x + ']' : '')); if (!c) { F++; failed.push(l); } };
   const SCRIPTS = scriptsOf(gameHtml);
   const bootGame = (init = {}, env = {}) => {
-    const { store, mem } = makeStore(init);
+    const { store, mem } = makeStore(Object.assign({ fluxSeason: '1' }, init));   // SEASON 1: fixture devices are already on Season 1 (else their seeded bests are cleared once)
     const g = boot(SCRIPTS, { origin: 'https://preview.example', path: '/play/', store, fetchImpl: () => Promise.resolve(new Response('{"ok":true}', { status: 200 })) });
     g.win.setTimeout = () => 0;
     g.ctx.fluxIsStandalone = () => !!env.standalone;

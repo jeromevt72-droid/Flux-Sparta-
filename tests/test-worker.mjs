@@ -58,7 +58,9 @@ function makeEnv(extra = {}) {
   };
 }
 
+// SEASON 1: every score now says which season the page is for (the server refuses one without it).
 function req(path, { method = "GET", body, cf } = {}) {
+  if (path === "/api/submit-score" && body && !("season" in body)) body = { season: 1, ...body };
   const r = new Request("https://flux-sparta-3.example.dev" + path, {
     method,
     headers: body ? { "Content-Type": "application/json" } : undefined,

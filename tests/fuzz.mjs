@@ -26,7 +26,9 @@ const makeEnv = () => ({
   LEADERBOARD_DO: makeNamespace(), STRIPE_SECRET_KEY: "sk", STRIPE_WEBHOOK_SECRET: "wh",
   STRIPE_PRICE_TOXIC: "p1", STRIPE_PRICE_COSMIC: "p2", STRIPE_PRICE_SOLAR: "p3",
 });
+// SEASON 1: every score now says which season the page is for (the server refuses one without it).
 function req(p, { method = "GET", body, cf, raw } = {}) {
+  if (p === "/api/submit-score" && body && !("season" in body)) body = { season: 1, ...body };
   const r = new Request("https://x.dev" + p, {
     method, headers: { "Content-Type": "application/json" },
     body: raw !== undefined ? raw : (body ? JSON.stringify(body) : undefined),

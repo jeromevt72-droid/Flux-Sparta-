@@ -42,6 +42,19 @@ function levelForScore(score, difficulty) {
   return Math.min(MAX_LEVEL, lv);
 }
 
+/* SEASON 1 (owner): the Easy (x0.4) and Medium (x0.85) point rates changed, so
+   old bests could never be beaten. Once, the first time the leaderboard Durable
+   Object loads with this code, every player's bests are copied into an archive
+   in the DO ("archive:season0" + chunks, shown on the admin page) and then
+   cleared, so every board starts empty. The stored "season" key makes it run
+   exactly once (see LeaderboardDO.startSeason). Scores must say which season
+   the page was built for: a page older than Season 1 (an open tab, a queued
+   upload) is refused with 409, so it cannot put old-rate scores back. */
+const SEASON = 1;
+const SEASON_ARCHIVE_KEY = "archive:season0";        // meta; chunks are archive:season0:<n>
+const SEASON_ARCHIVE_CHUNK_BYTES = 64 * 1024;       // well under the 128 KiB DO value limit
+const SEASON_ARCHIVE_PUT_KEYS = 100;                // a DO put takes at most 128 keys
+
 // Minimum gap between two accepted submissions from one playerId.
 const SUBMIT_COOLDOWN_MS = 10_000;
 
@@ -111,6 +124,7 @@ export default {
             "/api/admin/purchase-grant":    () => adminPurchaseChange(request, env, true),
             "/api/admin/issue-restore-code": () => adminIssueRestore(request, env),   // D-37
             "/api/admin/analytics":          () => adminAnalytics(request, env),     // STATS dashboard data
+            "/api/admin/season-archive":     () => adminDO(request, env, "/admin-season-archive", {}),   // SEASON 1: archived Season 0 scores, read-only
           }[path];
           if (admin) return withCors(await admin());
         }
@@ -245,6 +259,13 @@ async function submitScore(request, env) {
   }
   if (score > SCORE_CEILING) {
     return json({ error: "Score is above the maximum" }, 422);
+  }
+
+  // SEASON 1: a page (or a queued upload) from before Season 1 carries no
+  // season. Its score is at the old point rates, so it is refused -- 409, which
+  // older pages already treat as a permanent refusal and drop from their queue.
+  if (!(Number.isFinite(body.season) && body.season >= SEASON)) {
+    return json({ error: "A new season has started. Reload FLUX to play Season " + SEASON + ".", season: SEASON, staleSeason: true }, 409);
   }
 
   // Player's pick wins; cf.country is the fallback for "OTHER"/unset.
@@ -1117,6 +1138,7 @@ export class LeaderboardDO {
       const rl = await this.state.storage.get("restoreLog");
       this.restoreLog = Array.isArray(rl) ? rl : [];
       if (!(await this.state.storage.get("nameRulesV1"))) await this.migrateNames();   // PILOT NAMES, once
+      if (!((await this.state.storage.get("season")) >= SEASON)) await this.startSeason();   // SEASON 1, once
       this.ready = true;
     });
   }
@@ -1132,6 +1154,95 @@ export class LeaderboardDO {
     }
     this.flags = this.flags.map((f) => (f && ownGet(switched, f.pid) ? { ...f, name: switched[f.pid] } : f));
     await this.state.storage.put({ players: this.players, flags: this.flags, nameRulesV1: 1 });
+  }
+
+  /* SEASON 1 (see SEASON). Runs inside load()'s blockConcurrencyWhile, so no
+     request is served while it runs, and only when the stored "season" is below
+     SEASON -- so a second load, a restart or a concurrent request never archives
+     or clears again (Season 1 scores are safe). Order, so a failure part-way
+     never loses a score:
+       1. the archive chunks are written (a retry rewrites the same chunks, from
+          the same untouched bests);
+       2. ONE put writes the cleared players, empty country figures, the archive
+          summary and season = SEASON together -- all or nothing;
+       3. memory follows, tags are invalidated, countries are recomputed.
+     Only "bests" change. Names, countries, restrictions, name bans, skins and
+     purchases, restore log, analytics and cooldowns are not touched. */
+  async startSeason() {
+    const players = [];
+    for (const id of Object.keys(this.players)) {
+      const r = this.players[id], bests = Object.create(null);
+      for (const d of Object.keys(r.bests || {})) {
+        const b = r.bests[d];
+        if (b && Number.isFinite(b.score)) bests[d] = { score: b.score, level: b.level, updatedAt: b.updatedAt || 0 };
+      }
+      if (Object.keys(bests).length) players.push({ playerId: r.playerId || id, name: r.name, country: r.country, bests });
+    }
+    const chunks = [];
+    let cur = [], size = 2;
+    for (const p of players) {
+      const n = new TextEncoder().encode(JSON.stringify(p)).length + 1;
+      if (cur.length && size + n > SEASON_ARCHIVE_CHUNK_BYTES) { chunks.push(cur); cur = []; size = 2; }
+      cur.push(p); size += n;
+    }
+    if (cur.length) chunks.push(cur);
+    for (let i = 0; i < chunks.length; i += SEASON_ARCHIVE_PUT_KEYS) {
+      const puts = {};
+      chunks.slice(i, i + SEASON_ARCHIVE_PUT_KEYS).forEach((c, j) => { puts[SEASON_ARCHIVE_KEY + ":" + (i + j)] = c; });
+      await this.state.storage.put(puts);
+    }
+    const scores = players.reduce((n, p) => n + Object.keys(p.bests).length, 0);
+    const meta = { season: 0, archivedAt: Date.now(), players: players.length, scores, chunks: chunks.length };
+    const cleared = Object.create(null);
+    for (const id of Object.keys(this.players)) cleared[id] = Object.assign(Object.create(null), this.players[id], { bests: Object.create(null) });
+    await this.state.storage.put({ players: cleared, countries: {}, [SEASON_ARCHIVE_KEY]: meta, season: SEASON });
+    this.players = cleared;
+    this.invalidateTags();
+    await this.recomputeCountries();
+  }
+
+  /* The archived Season 0 scores, for the admin page (read-only). One row per
+     player and difficulty, highest first. Like every admin view, a public hash,
+     never a playerId. */
+  async readSeasonArchive() {
+    const meta = await this.state.storage.get(SEASON_ARCHIVE_KEY);
+    const players = [];
+    for (let i = 0; meta && i < meta.chunks; i++) {
+      const c = await this.state.storage.get(SEASON_ARCHIVE_KEY + ":" + i);
+      if (Array.isArray(c)) players.push(...c);
+    }
+    return { meta: meta || null, players };
+  }
+  async handleAdminSeasonArchive() {
+    const { meta, players } = await this.readSeasonArchive();
+    const rows = [];
+    for (const p of players) {
+      const pid = await this.pid(p.playerId), tag = await this.tagFor(p.playerId);
+      for (const d of Object.keys(p.bests || {})) {
+        const b = p.bests[d];
+        rows.push({ difficulty: d, pid, tag, name: cleanName(p.name), country: p.country || "", score: b.score, level: b.level, updatedAt: b.updatedAt || 0 });
+      }
+    }
+    rows.sort((a, b) => b.score - a.score || a.updatedAt - b.updatedAt);
+    return json({ ok: true, season: 0, archivedAt: meta ? meta.archivedAt : null, players: meta ? meta.players : 0, count: rows.length, rows });
+  }
+  /* A privacy deletion also erases the pilot from the Season 0 archive. */
+  async eraseFromSeasonArchive(playerId) {
+    const meta = await this.state.storage.get(SEASON_ARCHIVE_KEY);
+    if (!meta) return;
+    const puts = {};
+    let removed = 0, lostScores = 0;
+    for (let i = 0; i < meta.chunks; i++) {
+      const k = SEASON_ARCHIVE_KEY + ":" + i, c = await this.state.storage.get(k);
+      if (!Array.isArray(c)) continue;
+      const kept = c.filter((p) => p.playerId !== playerId);
+      if (kept.length === c.length) continue;
+      for (const p of c) if (p.playerId === playerId) { removed++; lostScores += Object.keys(p.bests || {}).length; }
+      puts[k] = kept;
+    }
+    if (!removed) return;
+    puts[SEASON_ARCHIVE_KEY] = { ...meta, players: Math.max(0, meta.players - removed), scores: Math.max(0, (meta.scores || 0) - lostScores) };
+    await this.state.storage.put(puts);
   }
 
   async pid(playerId) {
@@ -1174,6 +1285,7 @@ export class LeaderboardDO {
       "/admin-overview": () => this.handleAdminOverview(),
       "/admin-dismiss-flag": () => this.handleAdminDismissFlag(request),
       "/admin-issue-restore": () => this.handleAdminIssueRestore(request),
+      "/admin-season-archive": () => this.handleAdminSeasonArchive(),
     }[url.pathname];
     return route ? route() : json({ error: "Not found" }, 404);
   }
@@ -1611,6 +1723,7 @@ export class LeaderboardDO {
     // D-37: the restore log keeps the date and tag of each issue, but the name
     // and the written reason (which may mention an email) are erased too.
     const nextLog = this.restoreLog.map((e) => (e.pid === pid ? { at: e.at, pid: e.pid, tag: e.tag, name: "", reason: "(erased on privacy request)" } : e));
+    await this.eraseFromSeasonArchive(id);   // SEASON 1: the archived Season 0 scores go too
     await this.state.storage.put({ players: nextPlayers, lastSubmit: nextLast, flags: nextFlags, entitlements: nextEnt, restoreLog: nextLog });
     this.players = nextPlayers; this.lastSubmit = nextLast; this.flags = nextFlags; this.entitlements = nextEnt; this.restoreLog = nextLog;
     this.invalidateTags();

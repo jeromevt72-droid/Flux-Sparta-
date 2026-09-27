@@ -40,7 +40,7 @@ async function call(worker, env, p, { method='GET', body, headers={} }={}){
 }
 async function submit(worker, env, playerId, name, score, level, difficulty, country='US'){
   skew += 20000;                                   // step past the 10 s cooldown
-  return call(worker, env, '/api/submit-score', { method:'POST', body:{ playerId, name, score, level, difficulty, country } });
+  return call(worker, env, '/api/submit-score', { method:'POST', body:{ playerId, name, score, level, difficulty, country, season:1 } });   // SEASON 1: scores say their season
 }
 async function pidHash(id){
   const buf=await crypto.subtle.digest('SHA-256', new TextEncoder().encode('flux-pid:'+id));
@@ -62,7 +62,7 @@ async function suite({ gameHtml, workerMod, quiet=false }){
   const ck=(l,c,x='')=>{ if(!quiet) console.log((c?'  PASS  ':'  FAIL  ')+l+(x?'  ['+x+']':'')); if(!c){ F++; failed.push(l); } };
   const GAME=scriptsOf(gameHtml);
   const worker=workerMod.default, LeaderboardDO=workerMod.LeaderboardDO;
-  const bootGame=(init={}, opts={})=>{ const { store, mem } = makeStore(init);
+  const bootGame=(init={}, opts={})=>{ const { store, mem } = makeStore(Object.assign({ fluxSeason:'1' }, init));   // SEASON 1: fixture devices are already on Season 1 (else their seeded bests are cleared once)
     const g=boot(GAME,{ origin:ORIGIN, path:'/play/', store, uuid:opts.uuid||(()=>'fresh-'+Math.random().toString(16).slice(2)), fetchImpl:opts.fetchImpl });
     return { g, mem, store }; };
 

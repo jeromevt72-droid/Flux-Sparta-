@@ -34,7 +34,7 @@ function makeEnv(DO) {
 let pidN = 0;
 const submit = async (w, env, body) => { skew += 20000;
   const r = await w.fetch(new Request(ORIGIN + '/api/submit-score', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ playerId: 'es-' + (++pidN), name: 'T', country: 'US', ...body }) }), env);
+    body: JSON.stringify({ playerId: 'es-' + (++pidN), name: 'T', country: 'US', season: 1, ...body }) }), env);   // SEASON 1: scores say their season
   return r.status; };
 
 // Simulated player (same model as the PR's measurements and test-generous-catch.mjs):

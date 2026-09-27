@@ -165,7 +165,7 @@ section("5. Import does not clobber better live scores");
   // A live score that beats the KV record for the same player
   await worker.fetch(new Request("https://x.dev/api/submit-score", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ playerId: "old0", name: "LIVE", score: 99000, level: levelFor(99000, "hard"), difficulty: "hard", country: "PH" }),
+    body: JSON.stringify({ playerId: "old0", name: "LIVE", score: 99000, level: levelFor(99000, "hard"), difficulty: "hard", country: "PH", season: 1 }),   // SEASON 1
   }), env);
 
   await imp(env);
@@ -254,7 +254,7 @@ section("10. Leaderboard is usable immediately after import");
   check("difficulty filter works on imported rows", hard.top.length > 0 && hard.top.every(t => t.difficulty === "hard"));
   const sub = await worker.fetch(new Request("https://x.dev/api/submit-score", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ playerId: "newguy", name: "NEW", score: 120000, level: levelFor(120000, "hard"), difficulty: "hard", country: "KE" }),
+    body: JSON.stringify({ playerId: "newguy", name: "NEW", score: 120000, level: levelFor(120000, "hard"), difficulty: "hard", country: "KE", season: 1 }),   // SEASON 1
   }), env);
   check("new score accepted post-import", sub.status === 200);
   const board = await lb(env);

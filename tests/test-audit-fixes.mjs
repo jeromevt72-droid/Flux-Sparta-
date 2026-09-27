@@ -77,7 +77,7 @@ async function call(env, p, { method="GET", body, headers={}, cf } = {}) {
 const PID_A = "11111111-aaaa-4bbb-8ccc-000000000001";
 const PID_B = "22222222-aaaa-4bbb-8ccc-000000000002";
 async function submit(env, playerId, name, score, country="US") {
-  return call(env, "/api/submit-score", { method:"POST", body:{ playerId, name, score, level: levelFor(score, "medium"), difficulty:"medium", country } });
+  return call(env, "/api/submit-score", { method:"POST", body:{ playerId, name, score, level: levelFor(score, "medium"), difficulty:"medium", country, season: 1 } });   // SEASON 1: scores say their season
 }
 
 console.log("== A-1: the public leaderboard never reveals a playerId ==");

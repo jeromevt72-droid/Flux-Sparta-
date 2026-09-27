@@ -57,6 +57,8 @@
   table.st th:first-child,table.st td:first-child{text-align:left}
   table.st th{color:var(--dim);font-weight:700;font-size:10px;letter-spacing:.1em}
   .stwrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table.s0 th:nth-child(2),table.s0 td:nth-child(2),table.s0 th:nth-child(3),table.s0 td:nth-child(3){text-align:left}
+  table.s0 td:nth-child(3){white-space:normal;min-width:110px}
   .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin:10px 0}
   .tile{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px}
   .tile b{display:block;font-size:20px;color:var(--cyan)}.tile span{font-size:11px;color:var(--dim)}
@@ -99,6 +101,11 @@
   </div>
   <div id="stats"></div>
 
+  <h2>SEASON 0 SCORES (ARCHIVED)</h2>
+  <p class="note">Read-only. Every best from before Season 1, kept when the boards were reset. Nothing here is public.</p>
+  <div class="row"><button id="s0Load" class="ghost" style="flex:1">SHOW SEASON 0 SCORES</button></div>
+  <div id="season0"></div>
+
   <details id="guide" class="guide">
     <summary>GUIDE</summary>
 
@@ -126,6 +133,17 @@
       <li><b>Old-name clean-up:</b> names typed before these rules that break them were switched to the pilot's preset, and
       their old text was deleted from the server once. You cannot find a pilot by an old deleted name; ask for the
       name they see now.</li>
+    </ul>
+
+    <h3>Season 1 reset</h3>
+    <ul>
+      <li>When the Easy and Medium point rates changed, old bests could no longer be beaten, so every board (Easy, Medium,
+      Hard and All) was reset <b>once</b> for <b>Season 1</b>. It ran by itself on the first request after that update.</li>
+      <li>Every old best was copied first: <b>SEASON 0 SCORES (ARCHIVED)</b> lists them (difficulty, pilot, country, score,
+      level, date), highest first. It is read-only and never shown to players. A privacy deletion removes the pilot there too.</li>
+      <li>Only scores were reset. Pilots, names, #tags, countries, skins, purchases, restore codes, restrictions, name bans and
+      stats are unchanged. Players see "Season 1 starts now!" once; their phone's old bests are cleared to match.</li>
+      <li>A game page left open from before Season 1 cannot post old-rate scores; it is refused until the page reloads.</li>
     </ul>
 
     <h3>Reading PLAYER STATS</h3>
@@ -439,8 +457,26 @@
     say('');
   }
 
+  /* ---------------- season 0 archive (read-only) ---------------- */
+  async function loadSeason0() {
+    var box = $('season0'); box.textContent = '';
+    say('Loading Season 0 scores…');
+    var d = await call('season-archive');
+    var rows = d.rows || [];
+    box.appendChild(el('p', 'note', fmt(d.count) + ' archived score' + (d.count === 1 ? '' : 's') + ' from ' + fmt(d.players) + ' pilot' + (d.players === 1 ? '' : 's') +
+      (d.archivedAt ? ' · archived ' + when(d.archivedAt) : '')));
+    if (!rows.length) { box.appendChild(el('div', 'empty', 'No archived scores.')); say(''); return; }
+    var t = table(['#', 'Difficulty', 'Pilot', 'Country', 'Score', 'Level', 'Date'], rows.map(function (r, i) {
+      return [i + 1, String(r.difficulty || '').toUpperCase(), (r.name || 'PILOT') + ' #' + r.tag, r.country || '??', fmt(r.score), 'L' + r.level,
+        r.updatedAt ? new Date(r.updatedAt).toLocaleDateString() : '—'];
+    }));
+    t.firstChild.className = 'st s0'; box.appendChild(t);
+    say('');
+  }
+
   function guard(fn) { return function () { fn().catch(function (e) { say(e.message, 'err'); }); }; }
   $('stLoad').onclick = guard(loadStats);
+  $('s0Load').onclick = guard(loadSeason0);
   $('loadEx').onclick = guard(loadExceptions);
   $('find').onclick = guard(find);
   $('q').addEventListener('keydown', function (e) { if (e.key === 'Enter') guard(find)(); });

@@ -28,7 +28,8 @@ globalThis.SUBMIT_QUEUE_KEY=SUBMIT_QUEUE_KEY; globalThis.SUBMIT_MAX_ATTEMPTS=SUB
 globalThis.difficulty=difficulty; globalThis.playerId=playerId; globalThis.callsign=callsign; globalThis.country=country;
 // RC2.8 queue (D-24): backoff table, cooldown wait and processor state.
 Object.assign(globalThis,{SUBMIT_BACKOFF_MS:[5000,15000,45000,120000,300000,600000],SUBMIT_COOLDOWN_WAIT_MS:11000,
-  _flushing:null,_retryTimer:null,_flushAgain:false,lastUploadResult:null,document:{getElementById:()=>null}});
+  _flushing:null,_retryTimer:null,_flushAgain:false,lastUploadResult:null,document:{getElementById:()=>null},
+  FLUX_SEASON:1});   // SEASON 1: the page constant the extracted queue functions read
 for(const f of ['loadQueue','saveQueue','buildSubmission','enqueueSubmission','dequeueSubmission','recordSubmitFailure','clearSubmitFailure','submitScore','updateUploadStatus','scheduleFlush'])
   eval(grab(f).replace('function '+f+'(', 'globalThis.'+f+'=function('));
 // grab() finds 'function X(' — for async fns the slice starts at 'function',
@@ -72,7 +73,7 @@ ck('recorded as rejected', JSON.parse(store.fluxLastSubmitError).reason==='rejec
 // after 8 failures, which was the defect. RC2.8 keeps the best and instead
 // SPACES retries out, growing to a 10-minute cap.
 console.log('\n-- no hammering: retries are spaced out, the best is kept --');
-store.fluxPendingSubmits=JSON.stringify([{id:'x',playerId:'p1',name:'N',score:1,level:1,difficulty:'medium',attempts:20}]);
+store.fluxPendingSubmits=JSON.stringify([{id:'x',playerId:'p1',name:'N',score:1,level:1,difficulty:'medium',season:1,attempts:20}]);   // SEASON 1: a Season 1 item
 const _realST=globalThis.setTimeout; const waits=[];
 globalThis.setTimeout=(fn,ms)=>{ if(ms>=1000){ waits.push(ms); return 0; } return _realST(fn,ms); };
 netMode='500'; await flushSubmitQueue();

@@ -49,7 +49,7 @@ try {
 
 // ---- D-24: temporary failures never destroy an unsent personal best -----
 function queueGame(responder){
-  const { store, mem } = makeStore({ fluxProfileComplete:'1', fluxCallsign:'TITAN', fluxDifficulty:'medium' });
+  const { store, mem } = makeStore({ fluxProfileComplete:'1', fluxCallsign:'TITAN', fluxDifficulty:'medium', fluxSeason:'1' });   // SEASON 1: fixture devices are already on Season 1 (else their seeded bests are cleared once)
   const calls=[];
   const fetchImpl=(u,o)=>{ const url=String(u);
     if(!url.includes('/api/submit-score')) return Promise.resolve({ok:true,status:200,json:()=>Promise.resolve({skus:[]}),headers:{get:()=>null}});
@@ -99,7 +99,7 @@ try {
   const { g, mem, calls, timers } = queueGame(()=>{ n++; return n===1 ? gate.then(()=>R(200,{},{ok:true,public:true,rank:1,tag:'K7Q2MX8'})) : R(200,{},{ok:true,public:true,rank:1,tag:'K7Q2MX8'}); });
   g.ctx.recordBestRun(4200, 3); const first = g.ctx.submitScore();
   await tick();                                            // first upload now in flight
-  g.ctx.enqueueSubmission({ id:'player-q:hard:900:1', playerId:'player-q', name:'TITAN', score:900, level:1, difficulty:'hard', at:Date.now(), attempts:0 });
+  g.ctx.enqueueSubmission({ id:'player-q:hard:900:1', playerId:'player-q', name:'TITAN', score:900, level:1, difficulty:'hard', season:1, at:Date.now(), attempts:0 });   // SEASON 1: a Season 1 item
   const second = g.ctx.flushSubmitQueue();                 // arrives mid-run
   release(); await first; await second;
   ck('work arriving mid-run is sent in the same run, not left for a timer',

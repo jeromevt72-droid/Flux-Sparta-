@@ -24,7 +24,7 @@ function makeEnv(DO) {
       return { fetch(u, i) { const r = () => o.fetch(new Request(u, i)); const p = chain.then(r, r); chain = p.then(() => {}, () => {}); return p; } }; } } };
 }
 const submit = async (w, env, body) => { skew += 20000;
-  const r = await w.fetch(new Request(ORIGIN + '/api/submit-score', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }), env);
+  const r = await w.fetch(new Request(ORIGIN + '/api/submit-score', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ season: 1, ...body }) }), env);   // SEASON 1: scores say their season
   return { status: r.status, data: await r.json().catch(() => null) }; };
 
 async function suite({ gameHtml, gwHtml, workerMod, quiet = false }) {
