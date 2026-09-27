@@ -23,7 +23,10 @@ const only = process.argv.includes('--skip-negative-controls');   // used BY the
 const failed = [];
 for (const [cmd, file] of SUITES) {
   if (only && file === 'test-negative-controls.mjs') continue;
-  const r = spawnSync(cmd, [file], { cwd: ROOT, encoding:'utf8', timeout: 20*60*1000 });
+  // test-negative-controls.mjs runs the whole gate again inside itself (D-30), so it gets
+  // the time of a full gate (the other suites keep 20 minutes each).
+  const limit = file === 'test-negative-controls.mjs' ? 45 : 20;
+  const r = spawnSync(cmd, [file], { cwd: ROOT, encoding:'utf8', timeout: limit*60*1000 });
   const ok = r.status === 0;
   console.log('  ' + (ok ? 'PASS' : 'FAIL') + '  ' + file + (ok ? '' : '  (exit ' + r.status + (r.signal?', '+r.signal:'') + ')'));
   if (!ok) failed.push(file);
