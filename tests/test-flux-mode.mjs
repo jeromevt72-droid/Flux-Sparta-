@@ -90,12 +90,12 @@ function suite(gameHtml, quiet = false) {
       const lim1 = b.run('normalMaxSpeed()'), mode = b.run('fluxMode'), gain = b.run('score') - s0, fl = b.run('flux'), filt = b.run("String(document.getElementById('app').style.filter)");
       frame(b); const filt2 = b.run("String(document.getElementById('app').style.filter)");
       let dur = 0; for (let i = 0; i < 600 && b.run('fluxMode') > 0; i++) { frame(b); dur += 1 / 60; }
-      x3.push({ diff, ok: mode > 6 - 1.5 / 60 && mode <= 6 && gain === 250 && lim1 === 18.5 && fl === 0 && filt2 === 'brightness(1.18) saturate(1.35)' && Math.abs(dur + 1 / 60 - 6) < .03, info: diff + ': ' + [mode.toFixed(3), '+' + gain, lim1, 'meter ' + fl, filt2, dur.toFixed(2) + ' s'].join(', ') });
+      x3.push({ diff, ok: mode > 6 - 1.5 / 60 && mode <= 6 && gain === (diff === 'easy' ? 100 : 250) && lim1 === 18.5 && fl === 0 && filt2 === 'brightness(1.18) saturate(1.35)' && Math.abs(dur + 1 / 60 - 6) < .03, info: diff + ': ' + [mode.toFixed(3), '+' + gain, lim1, 'meter ' + fl, filt2, dur.toFixed(2) + ' s'].join(', ') });
       void filt;
     }
     ck('X1 every difficulty: a full meter announces "FLUX MODE" with STARTS IN 3-2-1 (a tick each second) before it starts', x1.every((r) => r.ok), x1.map((r) => r.info).join(' | '));
     ck('X2 during the countdown nothing speeds up, no filter, no +250, a fusion scores like normal play', x2.every((r) => r.ok), x2.map((r) => r.info).join(' | '));
-    ck('X3 once started, FLUX MODE is as before: 6 s, +250 once, top speed 18.5, screen filter, meter back to 0', x3.every((r) => r.ok), x3.map((r) => r.info).join(' | '));
+    ck('X3 once started, FLUX MODE is as before: 6 s, +250 once (+100 on Easy: Easy points x0.4), top speed 18.5, screen filter, meter back to 0', x3.every((r) => r.ok), x3.map((r) => r.info).join(' | '));
     // X4: Easy, levels 1 and 2: the meter fills and stays full; no FLUX MODE for 20 s.
     { const res = [];
       for (const lv of [1, 2]) { const b = bootGame('easy'); b.run('playing=true;level=' + lv + ';speedLevel=' + lv + ';'); frame(b); const lim0 = b.run('normalMaxSpeed()');
@@ -114,8 +114,8 @@ function suite(gameHtml, quiet = false) {
         'level-up pending ' + lvCd + ', level 3 at ' + (tLevel / 60).toFixed(2) + ' s, announce at ' + (tAnnounce / 60).toFixed(2) + ' s, start at ' + (tStart / 60).toFixed(2) + ' s'); }
     // X6: FLUX MODE's own effects, unchanged in the code.
     ck('X6 FLUX MODE effects unchanged: top speed 18.5, orb x1.15, fusion +60, overload +100, 6 s, +250, filter',
-      code.includes('function normalMaxSpeed(){ return fluxMode>0?18.5:') && code.includes('*(fluxMode>0?1.15:1));') && code.includes('120+combo*10+(fluxMode>0?60:0)') && code.includes('200+combo*15+(fluxMode>0?100:0)')
-      && /flux=0;fluxMode=6;score\+=250;/.test(code) && code.includes("if(fluxMode>0){fluxMode-=dt;document.getElementById('app').style.filter='brightness(1.18) saturate(1.35)';"));
+      code.includes('function normalMaxSpeed(){ return fluxMode>0?18.5:') && code.includes('*(fluxMode>0?1.15:1)));') && code.includes('120+combo*10+(fluxMode>0?60:0)') && code.includes('200+combo*15+(fluxMode>0?100:0)')
+      && /flux=0;fluxMode=6;score\+=scorePoints\(250\);/.test(code) && code.includes("if(fluxMode>0){fluxMode-=dt;document.getElementById('app').style.filter='brightness(1.18) saturate(1.35)';"));
     // X7: one countdown at a time.
     { const a = bootGame('medium'); a.run('playing=true;score=levelScoreAt(2,difficulty);'); frame(a); const lvPending = a.run('pendingLevel');
       a.run('addFlux(100);'); let fluxDuringLevel = false; for (let i = 0; i < 400 && a.run('pendingLevel'); i++) { frame(a); if (a.run('pendingLevel') && (a.run('fluxCountdown') > 0 || a.run('fluxMode') > 0)) fluxDuringLevel = true; }
@@ -168,8 +168,8 @@ control('old behaviour: FLUX MODE starts the moment the meter is full', 'X1', re
 control('countdown with no announcement on screen', 'X1', rep('else if(fluxCountdown>0){', 'else if(false){'));
 control('countdown too short (1 s)', 'X1', rep('const FLUX_COUNTDOWN_S=3,', 'const FLUX_COUNTDOWN_S=1,'));
 control('ball speeds up during the countdown', 'X2', rep('function normalMaxSpeed(){ return fluxMode>0?18.5:', 'function normalMaxSpeed(){ return (fluxMode>0||fluxCountdown>0)?18.5:'));
-control('FLUX bonus points during the countdown', 'X2', rep('*(fluxMode>0?1.15:1));', '*((fluxMode>0||fluxCountdown>0)?1.15:1));'));
-control('FLUX MODE shorter once running', 'X3', rep('flux=0;fluxMode=6;score+=250;', 'flux=0;fluxMode=5;score+=250;'));
+control('FLUX bonus points during the countdown', 'X2', rep('*(fluxMode>0?1.15:1)));', '*((fluxMode>0||fluxCountdown>0)?1.15:1)));'));
+control('FLUX MODE shorter once running', 'X3', rep('flux=0;fluxMode=6;score+=scorePoints(250);', 'flux=0;fluxMode=5;score+=scorePoints(250);'));
 control('Easy rule removed (FLUX MODE from level 1)', 'X4', rep("function fluxModeAllowed(){ return !(difficulty==='easy' && level<FLUX_EASY_FROM_LEVEL); }", 'function fluxModeAllowed(){ return true; }'));
 control('Easy rule off by one (level 4)', 'X5', rep('FLUX_EASY_FROM_LEVEL=3;', 'FLUX_EASY_FROM_LEVEL=4;'));
 control('FLUX speed changed', 'X6', rep('function normalMaxSpeed(){ return fluxMode>0?18.5:', 'function normalMaxSpeed(){ return fluxMode>0?19.5:'));

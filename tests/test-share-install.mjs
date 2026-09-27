@@ -108,11 +108,11 @@ async function suite(gameHtml, quiet = false) {
     ck('N4 ...the next run takes it away', b.vis.btn === false);
     b.endRun(12000, 3);
     ck('N4 ...and never a third time', b.vis.btn === false && b.mem.fluxInstallOffers === '2');
-    const pb = bootGame({ fluxRunsPlayed: '2', fluxBestRun_easy: JSON.stringify({ score: 1000, level: 1 }) }, { ios: true });
-    pb.endRun(1500, 1);
+    const pb = bootGame({ fluxRunsPlayed: '2', fluxBestRun_easy: JSON.stringify({ score: 500, level: 1 }) }, { ios: true });
+    pb.endRun(700, 1);   // Easy level 2 is 750 (EASY SCORING), so 700 is still level 1
     ck('N5 a new personal best over an earlier one counts as a good run', pb.vis.btn === true);
-    const nb = bootGame({ fluxRunsPlayed: '2', fluxBestRun_easy: JSON.stringify({ score: 2000, level: 1 }) }, { ios: true });
-    nb.endRun(1500, 1);
+    const nb = bootGame({ fluxRunsPlayed: '2', fluxBestRun_easy: JSON.stringify({ score: 740, level: 1 }) }, { ios: true });
+    nb.endRun(700, 1);
     ck('N5 ...a run below the best at level 1 does not', nb.vis.btn === false);
     const st = bootGame({ fluxRunsPlayed: '3' }, { ios: true, standalone: true }); st.endRun(9000, 3);
     ck('N7 already installed: never offered, not used up', st.vis.btn === false && st.mem.fluxInstallOffers === undefined);

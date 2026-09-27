@@ -88,12 +88,12 @@ async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = fals
     const b = bootGame({ fluxPlayerId: 'lv-1', fluxCallsign: 'TITAN', fluxProfileComplete: '1', fluxDifficulty: 'medium' });
     const T = b.run('JSON.stringify(LEVEL_SCORE_THRESHOLDS)'), M = b.run('JSON.stringify(LEVEL_SCORE_MULT)');
     ck('L1 Medium thresholds for levels 2-9 are 2500 6000 10000 15000 21000 28000 36000 45000', T === '[2500,6000,10000,15000,21000,28000,36000,45000]', T);
-    ck('L1 Easy x0.75, Hard x1.35', M === '{"easy":0.75,"medium":1,"hard":1.35}', M);
+    ck('L1 Easy x0.3 (Easy points are x0.4), Hard x1.35', M === '{"easy":0.3,"medium":1,"hard":1.35}', M);
     const lf = (s, d) => b.g.ctx.levelForScore(s, d);
     ck('L1 edges: Medium 2499->1, 2500->2, 44999->8, 45000->9, 10M->9', lf(2499, 'medium') === 1 && lf(2500, 'medium') === 2 && lf(44999, 'medium') === 8 && lf(45000, 'medium') === 9 && lf(1e7, 'medium') === 9);
-    ck('L1 edges: Easy 1874->1, 1875->2, 33750->9; Hard 3374->1, 3375->2, 60750->9',
-      lf(1874, 'easy') === 1 && lf(1875, 'easy') === 2 && lf(33750, 'easy') === 9 && lf(3374, 'hard') === 1 && lf(3375, 'hard') === 2 && lf(60750, 'hard') === 9);
-    ck('L1 the game uses the same table as the server fixtures (level-rule.mjs)', [0, 1874, 1875, 2500, 9999, 26423, 44999, 45000, 60750, 99999].every((s) => ['easy', 'medium', 'hard'].every((d) => lf(s, d) === levelFor(s, d))));
+    ck('L1 edges: Easy 749->1, 750->2, 13499->8, 13500->9; Hard 3374->1, 3375->2, 60750->9',
+      lf(749, 'easy') === 1 && lf(750, 'easy') === 2 && lf(13499, 'easy') === 8 && lf(13500, 'easy') === 9 && lf(3374, 'hard') === 1 && lf(3375, 'hard') === 2 && lf(60750, 'hard') === 9);
+    ck('L1 the game uses the same table as the server fixtures (level-rule.mjs)', [0, 749, 750, 1874, 1875, 2500, 13500, 9999, 26423, 44999, 45000, 60750, 99999].every((s) => ['easy', 'medium', 'hard'].every((d) => lf(s, d) === levelFor(s, d))));
 
     b.g.ctx.newGame(); b.flush();
     let ticks = 0, levelUps = 0; b.g.ctx.playTick = () => { ticks++; }; b.g.ctx.playLevelUp = () => { levelUps++; };
@@ -166,7 +166,7 @@ async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = fals
     const pid = 'rc287-cool'; await submit(w, env, { playerId: pid, score: 100, level: 1 }); skew -= 19000;
     ck('S5 ...and the submit cooldown', (await submit(w, env, { playerId: pid, score: 200, level: 1 })) === 429);
     const wt = (workerSrc.match(/const LEVEL_SCORE_THRESHOLDS = (\[[^\]]*\])/) || [])[1];
-    ck('S6 server and game use the same thresholds and multipliers', wt && JSON.stringify(JSON.parse(wt)) === JSON.stringify(RULE_T) && /LEVEL_SCORE_MULT = \{ easy: 0\.75, medium: 1, hard: 1\.35 \}/.test(workerSrc) && JSON.stringify(RULE_M) === '{"easy":0.75,"medium":1,"hard":1.35}');
+    ck('S6 server and game use the same thresholds and multipliers', wt && JSON.stringify(JSON.parse(wt)) === JSON.stringify(RULE_T) && /LEVEL_SCORE_MULT = \{ easy: 0\.3, medium: 1, hard: 1\.35 \}/.test(workerSrc) && JSON.stringify(RULE_M) === '{"easy":0.3,"medium":1,"hard":1.35}');
   } catch (e) { ck('D-51 section ran', false, String(e.stack || e).slice(0, 300)); }
 
   /* ================= D-52 ================= */

@@ -69,7 +69,7 @@ function suite(gameHtml, quiet = false) {
       const pitch = (c, st) => { tones.length = 0; run('streak=' + st + ';'); g.ctx.playFusion(c); return tones[0]; };
       const p12 = pitch(12, 12), p18 = pitch(12, 18), p24 = pitch(12, 24), p40 = pitch(12, 40), p11 = pitch(11, 30);
       ck('J7 the combo sound keeps climbing past x12 with the hit streak, up to 2 octaves', p18 > p12 && p24 > p18 && p40 === p24 && p11 < p12, [p11, p12, p18, p24, p40].map(Math.round).join(' '));
-      ck('J7 ...and scoring is unchanged (combo cap 12, same points formula)', code.includes('combo=Math.min(12,combo+1);') && code.includes('const points=Math.round((orbValue + combo*2)*(t.r>23?1.15:1)*(fluxMode>0?1.15:1));')); }
+      ck('J7 ...and scoring is unchanged (combo cap 12, same points formula; Easy scaling in scorePoints)', code.includes('combo=Math.min(12,combo+1);') && code.includes('const points=scorePoints(Math.round((orbValue + combo*2)*(t.r>23?1.15:1)*(fluxMode>0?1.15:1)));')); }
     // J8 perfect catch
     { const { g, run } = bootGame(); g.ctx.newGame();
       run('playing=true; particles=[]; ball.color=2; ball.vy=5; ball.vx=0; ball.x=paddle.x; ball.y=paddle.y-paddle.h/2-ball.r+1;');
