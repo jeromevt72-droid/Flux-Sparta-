@@ -27,6 +27,7 @@ node test-backdrop-bleed-browser.mjs # extra, not in the gate: simulated short v
 node test-ball-colour.mjs         # every ball matches an orb on the field: all new balls + 90,000 frames of simulated play + negative controls
 node test-levelup-continuity.mjs  # level-up keeps every orb, score, combo, lives, FLUX; only difficulty ramps (~1 s) + negative controls
 node test-level-banner.mjs        # level-up banner never overlaps launcher, danger line, HUD or play area (measured device layouts) + negative controls
+node test-flux-mode.mjs          # FLUX MODE without surprise: "FLUX MODE" + 3-2-1 before any speed-up (all difficulties), Easy only from level 3, effects unchanged once running, one countdown at a time, banner clear of HUD/launcher/danger line + negative controls
 node test-intensity.mjs          # intensity: rises with combo/level/FLUX, settles after a miss, never changes the game (seeded), never behind an orb or the ball, lite mode, sound past x12 + negative controls
 node test-intensity-browser.mjs  # extra, not in the gate: real pixels, orb/ball contrast never drops at full intensity (default + Solar, iPhone/iPad/iPad mini)
 node test-level-banner-browser.mjs # extra, not in the gate: same checks on real Chromium rendering, 10 iPhone/iPad sizes

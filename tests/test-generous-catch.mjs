@@ -89,7 +89,11 @@ control('off on Easy again', 'G1', rep('function generousCatchFor(runsDone,diff)
 control('first run not slowed', 'G6', rep('const FIRST_RUN_SLOW=.08;', 'const FIRST_RUN_SLOW=0;'));
 control('slowed in every run', 'G6', rep('    firstRunSlowOn=runsDone===0;', '    firstRunSlowOn=true;'));
 control('fusion speed kicks removed by the help', 'G6', rep('if(sp>lim && sp<=n+1e-9){', 'if(sp>lim){'));
-control('help too weak for the target', 'G7', rep('const FIRST_RUN_SLOW=.08;', 'const FIRST_RUN_SLOW=.01;'));
+// Easy has no FLUX MODE speed-up before level 3 (test-flux-mode.mjs), so a first
+// run on Easy is a little calmer than before: a 1% slow-down alone now just
+// reaches the target (37/60). "Too weak" is therefore no slow-down and half the
+// margin (31/60).
+control('help too weak for the target', 'G7', (s) => rep('const CATCH_MARGIN_PX=8,', 'const CATCH_MARGIN_PX=4,')(rep('const FIRST_RUN_SLOW=.08;', 'const FIRST_RUN_SLOW=0;')(s)));
 control('margin catch counted as perfect', 'G3', rep('   const perfect=Math.abs(hit)<.14;', '   const perfect=Math.abs(hit)<.14 || Math.abs((ball.x-paddle.x)/(paddle.w/2))>1+ball.r/(paddle.w/2);'));
 control('bounces changed a little when off (changes the game)', 'G4', rep('function clampCatchHit(h){ if(!generousCatchOn) return h;', 'function clampCatchHit(h){ if(!generousCatchOn) return h*1.001;'));
 control('no margin at all', 'G2', rep('const CATCH_MARGIN_PX=8,', 'const CATCH_MARGIN_PX=0,'));
