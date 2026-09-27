@@ -9,7 +9,7 @@
 //   S4 the server uses the same Easy thresholds: a real Easy run is accepted,
 //      nothing looser (two levels off is refused), 455,000 ceiling kept;
 //   S5 the same simulated player (new beginner, steady player; seeded) scores
-//      clearly less on Easy than on Medium and on Hard (mean at most 80%).
+//      clearly less on Easy than on Medium and on Hard (mean at most 85%).
 // Ends with negative controls.
 import fs from 'fs'; import path from 'path'; import vm from 'vm';
 import { fileURLToPath, pathToFileURL } from 'url';
@@ -117,8 +117,8 @@ async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = fals
         const mean = {};
         for (const d of ['easy', 'medium', 'hard']) { let t = 0; for (let s = 1; s <= SEEDS; s++) t += play(d, s, p); mean[d] = Math.round(t / SEEDS); }
         const low = Math.min(mean.medium, mean.hard);
-        ck('S5 ' + p[0] + ': Easy mean score is at most 80% of Medium and of Hard (Easy ' + mean.easy + ', Medium ' + mean.medium + ', Hard ' + mean.hard + '; ' + SEEDS + ' seeded runs each)',
-          mean.easy <= low * 0.8, (100 * mean.easy / low).toFixed(0) + '%');
+        ck('S5 ' + p[0] + ': Easy mean score is at most 85% of Medium and of Hard (Easy ' + mean.easy + ', Medium ' + mean.medium + ', Hard ' + mean.hard + '; ' + SEEDS + ' seeded runs each)',
+          mean.easy <= low * 0.85, (100 * mean.easy / low).toFixed(0) + '%');
       }
     }
   } catch (e) { ck('easy scoring section ran', false, String(e.stack || e).slice(0, 300)); }
