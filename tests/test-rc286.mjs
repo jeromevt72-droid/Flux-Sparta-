@@ -39,10 +39,10 @@ async function suite({ gameHtml, gwHtml, quiet = false }) {
     b.endRun();
     ck('I2 after a run the button appears on the game-over screen', b.vis.gameoverInstallBtn === true && b.mem.fluxRunsPlayed === '1');
     ck('I2 ...and never in the menu (owner decision)', !gameHtml.includes('id="installBtn"'));
-    ck('I2 on iPhone it says ADD TO HOME SCREEN', /ADD TO HOME SCREEN/.test(b.el('gameoverInstallBtn').textContent), b.el('gameoverInstallBtn').textContent);
+    ck('I2 on iPhone it says Put FLUX on your Home Screen', /Put FLUX on your Home Screen/.test(b.el('gameoverInstallBtn').textContent), b.el('gameoverInstallBtn').textContent);
     let guide = 0; b.g.ctx.fluxShowIosGuide = () => { guide++; };
     b.el('gameoverInstallBtn').onclick();
-    ck('I2 ...and tapping it shows the 3-step guide', guide === 1);
+    ck('I2 ...and tapping it shows the one-line coach', guide === 1);
   } catch (e) { ck('iPhone section ran', false, String(e.stack || e).slice(0, 200)); }
   try {
     const b = bootGame({}, { ios: false });
@@ -50,7 +50,7 @@ async function suite({ gameHtml, gwHtml, quiet = false }) {
     b.g.win.onbeforeinstallprompt(evt);
     ck('I6 Android: even with install available, nothing before the first game', b.vis.gameoverInstallBtn === false);
     b.endRun();
-    ck('I3 Android after a run: INSTALL NOW (no instructions)', b.vis.gameoverInstallBtn === true && /INSTALL NOW/.test(b.el('gameoverInstallBtn').textContent), b.el('gameoverInstallBtn').textContent);
+    ck('I3 Android after a run: the same one button (no instructions)', b.vis.gameoverInstallBtn === true && /Put FLUX on your Home Screen/.test(b.el('gameoverInstallBtn').textContent), b.el('gameoverInstallBtn').textContent);
     let guide = 0; b.g.ctx.fluxShowIosGuide = () => { guide++; };
     b.el('gameoverInstallBtn').onclick();
     ck('I3 ...tapping it opens the phone\'s own install prompt, never the guide', prompted === 1 && guide === 0);
@@ -95,17 +95,14 @@ async function suite({ gameHtml, gwHtml, quiet = false }) {
     ck('B3 clipboard permission refused: falls back too', entry === 2);
   } catch (e) { ck('B2 ran', false, String(e.stack || e).slice(0, 200)); }
   try {
-    const mk = () => { let html = ''; const btns = {}; return { get html() { return html; }, btns,
-      over: (h) => { html = h; return { querySelector: (q) => (btns[q] = btns[q] || { onclick: null }), remove() {} }; } }; };
+    // The tap copies the pilot by itself; no separate COPY MY PILOT step (details: test-share-install.mjs).
     const withScores = bootGame({ fluxPlayerId: 'g-1', fluxCallsign: 'TITAN', fluxProfileComplete: '1', fluxBest_easy: '900' }, { ios: true });
-    const m1 = mk(); withScores.g.ctx.restoreOverlay = m1.over; let copied = null; withScores.g.ctx.copyText = (t) => { copied = t; };
-    await withScores.g.ctx.fluxShowIosGuide();
-    const cpb = m1.btns['#guideCopyPilot']; if (cpb && typeof cpb.onclick === 'function') cpb.onclick({ target: {} });
-    ck('G1 iPhone guide for a pilot with scores: COPY MY PILOT copies its restore code first', /COPY MY PILOT/.test(m1.html) && /^FX1-g-1-[0-9A-F]{4}$/.test(copied || ''), copied);
-    ck('G1 ...and tells them to tap BRING MY PILOT in the app', /BRING MY PILOT FROM SAFARI/.test(m1.html) && /Add to Home Screen/.test(m1.html));
-    const fresh = bootGame({}, { ios: true }); const m2 = mk(); fresh.g.ctx.restoreOverlay = m2.over;
-    await fresh.g.ctx.fluxShowIosGuide();
-    ck('G2 a pilot with nothing to carry gets just the 2 install steps', !/COPY MY PILOT/.test(m2.html) && /Add to Home Screen/.test(m2.html));
+    let copied = null; withScores.g.win.navigator.clipboard = { writeText: (t) => { copied = t; return Promise.resolve(); } };
+    withScores.endRun(); await new Promise((r) => setTimeout(r, 30));
+    withScores.el('gameoverInstallBtn').onclick();
+    ck('G1 iPhone: tapping the offer copies the pilot\'s restore code by itself', /^FX1-g-1-[0-9A-F]{4}$/.test(copied || ''), copied);
+    ck('G1 ...and the installed app offers to bring it back (welcome, or BRING MY PILOT)', /Welcome back/.test(gameHtml) && /BRING MY PILOT FROM SAFARI/.test(gameHtml));
+    ck('G2 no separate COPY MY PILOT step any more', !/COPY MY PILOT/.test(gameHtml));
   } catch (e) { ck('G ran', false, String(e.stack || e).slice(0, 200)); }
 
   if (!quiet) console.log('== D-46: lite graphics on slow devices ==');
@@ -160,7 +157,7 @@ await control('Android shown the iPhone instructions', { expect: 'I3', game: rep
 await control('install button shown inside the installed app', { expect: 'I4', game: rep("if (fluxIsStandalone() || !fluxHasPlayed()) return null;", "if (!fluxHasPlayed()) return null;") });
 await control('bring-my-pilot shown in the browser', { expect: 'B1', game: rep("try{ return fluxIsStandalone() && localStorage.getItem('fluxAutoName') === '1'", "try{ return localStorage.getItem('fluxAutoName') === '1'") });
 await control('bring-my-pilot skips the server check', { expect: 'B2', game: rep("  const r = await checkRestoreOnServer(parsed.playerId);\n  if (r.kind !== 'found'){ openRestoreEntry(); return; }\n  openRestoreConfirm(parsed.playerId, r.info);", "  applyRestorePlan(buildRestorePlan({}, parsed.playerId));") });
-await control('guide forgets to copy the pilot', { expect: 'G1', game: rep("  if (cp) cp.onclick = function(e){ copyText(code, e.target); };", "") });
+await control('the tap forgets to copy the pilot', { expect: 'G1', game: rep("if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(function(){}, function(){});", "") });
 await control('lite never switches on', { expect: 'L1', game: rep("fluxPerfSlow >= FLUX_PERF_FRAMES * FLUX_PERF_SLOW_SHARE) fluxEnableLite();", "fluxPerfSlow > FLUX_PERF_FRAMES) fluxEnableLite();") });
 await control('lite switches on for fast devices', { expect: 'L2', game: rep("if (ms > FLUX_PERF_SLOW_MS) fluxPerfSlow++;", "fluxPerfSlow++;") });
 await control('pauses counted as slow frames', { expect: 'L4', game: rep("if (!(ms > 0 && ms < 1000)) return;", "if (!(ms > 0)) return;") });
