@@ -1,13 +1,12 @@
-// PADDLE FOLLOW (players: "the paddle lags behind my thumb"), in the release gate. Real game page in the harness vm.
-//   F1 a touchmove moves the launcher in the SAME event (through the real touchmove listener), before any frame runs;
-//   F2 it moves at least as far as the thumb slides (gain >= 1) on iPhone, iPad and iPad mini, also with a narrowed launcher;
-//   F3 no easing: once moved, frames never drift the launcher further toward some target;
-//   F4 at a wall, the moment the thumb turns back the launcher moves back (no dead zone to unwind);
-//   F5 the drag is anchored at touch-down, so the first pixels of a slide are not lost;
-//   F6 many small moves add up exactly to one big move (nothing lost re-anchoring each event);
-//   F7 the launcher narrowing mid-drag never makes it jump;
-//   F8 the finger's pointer events drive it too (Chrome holds touchmove back for the first ~15px), the same finger
-//      reported by both touch and pointer events moves it once, another finger's pointer does nothing, a mouse is unchanged.
+// PADDLE UNDER THE THUMB (players hold the round grip: "the paddle lags"), in the release gate. Real game page in the harness vm.
+//   F1 touch-down and every touchmove put the launcher's centre EXACTLY at the finger's x, in the same event, before any frame;
+//   F2 ...on iPhone, iPad and iPad mini, full and narrowed launcher, for fast long jumps too (no speed limit);
+//   F3 no easing: frames after a move leave the launcher exactly under the finger (the game loop never moves it);
+//   F4 at a wall it stops, and the moment the thumb turns back it is under the thumb again;
+//   F5 touching the round grip itself and sliding keeps the grip's centre under the thumb the whole way;
+//   F6 the launcher narrowing mid-slide keeps it centred on the finger;
+//   F7 pointer events drive it too (Chrome holds touchmove back), the newest coalesced sample wins,
+//      touch and pointer for one finger agree, another finger's pointer does nothing, a mouse is unchanged.
 // Ends with negative controls.
 import fs from 'fs'; import path from 'path'; import vm from 'vm';
 import { fileURLToPath } from 'url';
@@ -37,69 +36,57 @@ function suite(html, quiet = false) {
     return { g, run, down, move, up, pdown, pmove, px, W: dims[0] };
   };
 
+  const coalesced = (pid, xs, pt = 'touch', yy) => ({ type: 'pointermove', pointerType: pt, pointerId: pid, isPrimary: true, clientX: xs[0], clientY: yy,
+    getCoalescedEvents: () => xs.map((x) => ({ clientX: x, clientY: yy })) });
   try {
-    const b = bootGame(); b.down(1, 200); const p0 = b.px(); b.move(1, 220);
-    const moved = b.px() - p0;
-    ck('F1 a touchmove moves the launcher in the same event, before any frame', moved >= 20 && (b.g.listeners.touchmove || []).length === 1, 'moved ' + moved.toFixed(2));
-    const afterMove = b.px(); for (let i = 0; i < 30; i++) b.g.ctx.update(1 / 60);
-    ck('F3 no easing: frames after the move leave the launcher exactly where the thumb put it', b.px() === afterMove, afterMove + ' -> ' + b.px());
+    const b = bootGame(); b.down(1, 200); const atDown = b.px(); b.move(1, 220); const moved = b.px();
+    ck('F1 touch-down and a touchmove put the launcher centre exactly at the finger, in the same event', atDown === 200 && moved === 220 && (b.g.listeners.touchmove || []).length === 1, atDown + ' / ' + moved);
+    for (let i = 0; i < 20; i++) b.g.ctx.update(1 / 60);
+    ck('F3 no easing: 20 frames later the launcher is still exactly under the finger', b.px() === 220, String(b.px()));
   } catch (e) { ck('F1/F3 section ran', false, String(e.stack || e).slice(0, 300)); }
-
   try {
     const res = []; let ok = true;
-    for (const dims of [[390, 844], [820, 1180], [744, 1133]]) for (const narrow of [false, true]) {
-      const b = bootGame(dims); if (narrow) b.run('paddle.w=isPhone()?96:112; setPaddle(paddle.x);');
-      const mid = b.W / 2; b.run('setPaddle(W/2);'); b.down(2, mid);
-      let x = mid; let minRatio = Infinity;
-      for (let i = 0; i < 20; i++) { const p = b.px(); x += 3; b.move(2, x); if (b.px() < b.run('W-paddle.w/2-8') - 0.01) minRatio = Math.min(minRatio, (b.px() - p) / 3); }
-      b.up(); b.run('setPaddle(W/2);'); b.down(3, mid); x = mid;
-      for (let i = 0; i < 20; i++) { const p = b.px(); x -= 3; b.move(3, x); if (b.px() > b.run('paddle.w/2+8') + 0.01) minRatio = Math.min(minRatio, (p - b.px()) / 3); }
-      res.push(dims[0] + (narrow ? 'n' : '') + ':' + minRatio.toFixed(2)); if (!(minRatio >= 1)) ok = false;
+    for (const d of [[390, 844], [820, 1180], [744, 1133]]) for (const narrow of [false, true]) {
+      const b = bootGame(d); if (narrow) b.run('paddle.w=paddleWidthFor(9); setPaddle(paddle.x);');
+      const lo = b.run('paddle.w/2+8'), hi = b.run('W-paddle.w/2-8');
+      b.down(1, Math.round(d[0] / 2));
+      for (const x of [lo + 3, hi - 3, Math.round(d[0] / 2) + 7, lo + 1]) { b.move(1, x); if (b.px() !== x) { ok = false; res.push(d[0] + (narrow ? 'n' : '') + ':' + x + '->' + b.px()); } }
+      b.up();
     }
-    ck('F2 the launcher moves at least as far as the thumb (iPhone, iPad, iPad mini; full and narrowed launcher)', ok, res.join(' '));
+    ck('F2 exactly under the finger on iPhone, iPad and iPad mini, full and narrowed launcher, even for edge-to-edge jumps in one event', ok, res.join(' '));
   } catch (e) { ck('F2 section ran', false, String(e.stack || e).slice(0, 300)); }
-
   try {
-    const b = bootGame(); b.down(4, 200); b.move(4, 200 + 390); const wall = b.px();
-    ck('F4 (setup) the launcher is at the right wall', Math.abs(wall - b.run('W-paddle.w/2-8')) < 0.01);
-    b.move(4, 200 + 390 - 5);
-    ck('F4 at the wall, turning the thumb back 5px moves the launcher back at once (>= 5px)', wall - b.px() >= 5, (wall - b.px()).toFixed(2));
-    b.up(); b.down(5, 300); b.move(5, 300 - 390); const lw = b.px(); b.move(5, 300 - 390 + 4);
-    ck('F4 ...same at the left wall', b.px() - lw >= 4, (b.px() - lw).toFixed(2));
+    const b = bootGame(); b.down(1, 200); b.move(1, 389); const wall = b.px();
+    ck('F4 (setup) past the right edge the launcher stops at the wall', Math.abs(wall - b.run('W-paddle.w/2-8')) < 0.01);
+    b.move(1, 300);
+    ck('F4 turning back, it is under the thumb again at once', b.px() === 300, String(b.px()));
   } catch (e) { ck('F4 section ran', false, String(e.stack || e).slice(0, 300)); }
-
   try {
-    const b = bootGame(); const p0 = b.px(), gain = b.run('dragGain()'); b.down(6, 150); b.move(6, 160);
-    ck('F5 the drag is anchored at touch-down: the first 10px of a slide move the launcher', Math.abs(b.px() - (p0 + 10 * gain)) < 0.01, (b.px() - p0).toFixed(2) + ' vs ' + (10 * gain).toFixed(2));
-    const c = bootGame(); const q0 = c.px(); c.down(7, 150); c.move(7, 150);
-    ck('F5 ...touching down moves nothing by itself', c.px() === q0);
+    const b = bootGame(); const gx = b.px(), gy = b.run('paddle.y+paddle.h/2+GRIP_STEM+GRIP_D/2');
+    const ev = (x) => ({ touches: [{ identifier: 7, clientX: x, clientY: gy }], preventDefault() {} });
+    b.g.win.ontouchstart(ev(gx + 4));
+    let off = Math.abs(b.px() - (gx + 4));
+    for (let x = gx + 4; x > gx - 120; x -= 9) { for (const f of b.g.listeners.touchmove) f(ev(x)); off = Math.max(off, Math.abs(b.px() - x)); }
+    ck('F5 holding the round grip and sliding keeps the grip centre under the thumb the whole way', gy >= b.run('H*DRAG_ZONE') && off === 0, 'max offset ' + off);
   } catch (e) { ck('F5 section ran', false, String(e.stack || e).slice(0, 300)); }
-
   try {
-    const a = bootGame(), b = bootGame(); a.down(8, 150); b.down(8, 150);
-    for (let i = 1; i <= 30; i++) a.move(8, 150 + i * 2); b.move(8, 210);
-    ck('F6 thirty 2px moves add up exactly to one 60px move', Math.abs(a.px() - b.px()) < 1e-6, a.px() + ' vs ' + b.px());
+    const b = bootGame(); b.down(1, 180); b.move(1, 190); b.run('paddle.w=paddleWidthFor(9); setPaddle(paddle.x);'); b.move(1, 191);
+    ck('F6 the launcher narrowing mid-slide keeps it centred on the finger', b.px() === 191, String(b.px()));
   } catch (e) { ck('F6 section ran', false, String(e.stack || e).slice(0, 300)); }
-
   try {
-    const b = bootGame(); b.down(9, 100); b.move(9, 160); const before = b.px();
-    b.run('paddle.w=110; setPaddle(paddle.x);'); b.move(9, 160);
-    ck('F7 the launcher narrowing mid-drag never makes it jump', Math.abs(b.px() - before) < 0.01, before + ' -> ' + b.px());
+    const b = bootGame(), y = Math.round(844 * 0.9);
+    b.pdown(3, 150); const pd = b.px(); b.pmove(3, 158);
+    ck('F7 pointerdown and pointermove put it under the finger (touchmove held back)', pd === 150 && b.px() === 158, pd + ' / ' + b.px());
+    for (const f of b.g.listeners.pointermove) f(coalesced(3, [160, 171, 183], 'touch', y));
+    ck('F7 ...the newest coalesced sample wins', b.px() === 183, String(b.px()));
+    b.move(3, 190);
+    ck('F7 ...the same finger\'s touchmove agrees', b.px() === 190, String(b.px()));
+    b.pmove(9, 40);
+    ck('F7 ...another finger\'s pointer does not move it', b.px() === 190, String(b.px()));
+    b.up(); b.g.win.onpointerup({ pointerId: 3 }); b.pdown(4, 77, 'mouse', 300);
+    const clickMoved = b.px() !== 190; b.pmove(4, 77, 'mouse', 300);
+    ck('F7 ...a mouse is unchanged: a click moves nothing, the pointer points directly', !clickMoved && b.px() === Math.max(b.run('paddle.w/2+8'), 77), String(b.px()));
   } catch (e) { ck('F7 section ran', false, String(e.stack || e).slice(0, 300)); }
-  try {
-    const b = bootGame(); const p0 = b.px(), gain = b.run('dragGain()');
-    b.pdown(11, 150); b.down(1, 150); b.pmove(11, 154); b.pmove(11, 158);
-    ck('F8 pointermove moves the launcher from the first pixels (touchmove held back)', Math.abs(b.px() - (p0 + 8 * gain)) < 0.01, (b.px() - p0).toFixed(2));
-    b.move(1, 158); b.pmove(11, 170); b.move(1, 170);
-    ck('F8 ...the same finger reported by touch AND pointer events moves it once (20px slide = 20 x gain)', Math.abs(b.px() - (p0 + 20 * gain)) < 0.01, (b.px() - p0).toFixed(2) + ' vs ' + (20 * gain).toFixed(2));
-    const k = b.px(); b.pmove(12, 30);
-    ck('F8 ...another finger\'s pointer does not move it', b.px() === k);
-    b.up(); b.g.win.onpointerup({ pointerId: 11 }); const q0 = b.px(); b.down(2, 200); b.pmove(13, 230);
-    ck('F8 ...a drag started from the touch binds the finger\'s pointer too', Math.abs(b.px() - (q0 + 30 * gain)) < 0.01, (b.px() - q0).toFixed(2));
-    b.up(); b.g.win.onpointerup({ pointerId: 13 }); const m0 = b.px(); b.pdown(1, 60, 'mouse', 700);
-    const clickMoved = b.px() !== m0; b.pmove(1, 77, 'mouse', 300);
-    ck('F8 ...a mouse is unchanged: a click moves nothing, the pointer points directly', !clickMoved && b.px() === Math.max(b.run('paddle.w/2+8'), 77), b.px());
-  } catch (e) { ck('F8 section ran', false, String(e.stack || e).slice(0, 300)); }
   return { F, failed };
 }
 
@@ -115,20 +102,21 @@ function control(label, expect, mutate) {
 }
 const rep = (a, b) => (s) => (s.includes(a) ? s.replace(a, b) : s);
 const both = (...fs) => (s) => { let o = s; for (const f of fs) { const n = f(o); if (n === o) return s; o = n; } return o; };
-const MOVE = 'if(dx) setPaddle(paddle.x+dx*dragGain());'; const MOVEL = 'function dragTo(x,y){ const dx=x-drag.x; drag.x=x; drag.y=y; if(dx) setPaddle(paddle.x+dx*dragGain());';
-control('smoothing: the launcher eases toward the thumb', 'F1', both(
-  rep(MOVE, 'if(dx) drag.tx=(drag.tx==null?paddle.x:drag.tx)+dx*dragGain();'),
-  rep('if(gripPulse>0) gripPulse=Math.max(0,gripPulse-dt);', 'if(gripPulse>0) gripPulse=Math.max(0,gripPulse-dt); if(drag&&drag.tx!=null) setPaddle(paddle.x+(drag.tx-paddle.x)*.35);')));
-control('the move waits for a later frame', 'F1', rep(MOVE, 'if(dx) requestAnimationFrame(function(){ setPaddle(paddle.x+dx*dragGain()); });'));
-control('gain below 1 (the launcher moves less than the thumb)', 'F2', rep('return Math.max(1,travel/(W*0.45));', 'return 0.7;'));
-control('anchored drag (#25): a wall leaves a dead zone when the thumb turns back', 'F4 at the wall', both(
-  rep('drag={id:tt.identifier,pid:null,x0:tt.clientX,x:tt.clientX,y:tt.clientY};', 'drag={id:tt.identifier,pid:null,x0:tt.clientX,x:tt.clientX,y:tt.clientY,p0:paddle.x};'),
-  rep(MOVE, 'setPaddle(drag.p0+(x-drag.x0)*dragGain());')));
-control('drag anchored only at the first touchmove (first pixels lost)', 'F5 the drag', rep('window.ontouchstart=function(e){ pointer(e); };', 'window.ontouchstart=null;'));
-control('small moves dropped when re-anchoring each event', 'F6', rep('const dx=x-drag.x; drag.x=x;', 'const dx=Math.abs(x-drag.x)<3?0:x-drag.x; drag.x=x;'));
-control('touch pointer events ignored (#25: nothing until Chrome releases touchmove)', 'F8 pointermove', rep("if(e.pointerType && e.pointerType!=='mouse'){   // touch/pen", "if(e.pointerType && e.pointerType!=='mouse'){ return;   // touch/pen"));
-control('touch and pointer counted separately (the thumb counted twice)', 'F8 ...the same finger', rep("    dragTo(e.clientX,e.clientY);\n    return;", "    setPaddle(paddle.x+(e.clientX-(drag.px==null?drag.x:drag.px))*dragGain()); drag.px=e.clientX;\n    return;"));
-control('a mouse click moves the launcher', 'F8 ...a mouse', rep("window.onpointerdown=function(e){ if(e.pointerType && e.pointerType!=='mouse') pointer(e); };", "window.onpointerdown=function(e){ if(e.pointerType==='mouse') setPaddle(e.clientX); else pointer(e); };"));
+const MOVE = 'drag.x=x; drag.y=y; setPaddle(x);';
+control('smoothing: the launcher eases toward the finger', 'F1', rep(MOVE, 'drag.x=x; drag.y=y; setPaddle(paddle.x+(x-paddle.x)*.35);'));
+control('the move waits for a later frame', 'F1', rep(MOVE, 'drag.x=x; drag.y=y; requestAnimationFrame(function(){ setPaddle(x); });'));
+control('touch-down moves nothing (grip jumps on first move)', 'F1', rep("if(tt.clientY>=H*DRAG_ZONE){ drag={id:tt.identifier,pid:null,x0:tt.clientX,x:tt.clientX,y:tt.clientY}; t=tt; break; }", "if(tt.clientY>=H*DRAG_ZONE){ drag={id:tt.identifier,pid:null,x0:tt.clientX,x:tt.clientX,y:tt.clientY}; return; }"));
+control('a speed limit per event', 'F2', rep(MOVE, 'drag.x=x; drag.y=y; setPaddle(paddle.x+Math.max(-40,Math.min(40,x-paddle.x)));'));
+control('the game loop eases the launcher', 'F3', rep('if(gripPulse>0) gripPulse=Math.max(0,gripPulse-dt);', 'if(gripPulse>0) gripPulse=Math.max(0,gripPulse-dt); paddle.x+=(W/2-paddle.x)*.05;'));
+control('relative drag with gain (#28): the grip runs away from the thumb', 'F5', rep(MOVE, 'const dx=x-drag.x; drag.x=x; drag.y=y; setPaddle(paddle.x+dx*1.6);'));
+control('anchored drag (#25): a wall leaves a dead zone', 'F4 turning back', both(
+  rep("drag={id:tt.identifier,pid:null,x0:tt.clientX,x:tt.clientX,y:tt.clientY};", "drag={id:tt.identifier,pid:null,x0:tt.clientX,x:tt.clientX,y:tt.clientY,p0:paddle.x};"),
+  rep(MOVE, 'drag.x=x; drag.y=y; setPaddle(drag.p0==null?x:drag.p0+(x-drag.x0)); if(drag.p0!=null && x>drag.x0+150) drag.x0=x-150;')));
+control('an offset kept from touch-down (grip not under the thumb)', 'F5', rep(MOVE, 'if(drag.off==null) drag.off=paddle.x-x; drag.x=x; drag.y=y; setPaddle(x+drag.off+6);'));
+control('a narrowed launcher is placed by its old left edge (off-centre)', 'F6', rep(MOVE, 'drag.x=x; drag.y=y; setPaddle(x-(paddle.w-paddleWidthFor(1))/2);'));
+control('touch pointer events ignored (nothing until Chrome releases touchmove)', 'F7 pointerdown', rep("if(e.pointerType && e.pointerType!=='mouse'){   // touch/pen", "if(e.pointerType && e.pointerType!=='mouse'){ return;   // touch/pen"));
+control('the oldest coalesced sample used', 'F7 ...the newest', rep('if(c && c.length) return c[c.length-1];', 'if(c && c.length) return c[0];'));
+control('a mouse click moves the launcher', 'F7 ...a mouse', rep("window.onpointerdown=function(e){ if(e.pointerType && e.pointerType!=='mouse') pointer(e); };", "window.onpointerdown=function(e){ if(e.pointerType==='mouse') setPaddle(e.clientX); else pointer(e); };"));
 const total = main.F + NC;
-console.log('\n' + (total ? 'PADDLE FOLLOW FAILED: ' + main.F + ' check(s), ' + NC + ' uncaught control(s)' : 'PADDLE FOLLOW PASSED: all checks and all negative controls'));
+console.log('\n' + (total ? 'PADDLE UNDER THUMB FAILED: ' + main.F + ' check(s), ' + NC + ' uncaught control(s)' : 'PADDLE UNDER THUMB PASSED: all checks and all negative controls'));
 process.exit(total ? 1 : 0);
