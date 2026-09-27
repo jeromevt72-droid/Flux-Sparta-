@@ -70,7 +70,7 @@ function suite(html, quiet = false) {
     b.g.ctx.pointer({ pointerType: 'mouse', clientX: 77 });
     ck('D1 ...a mouse still points directly', b.run('paddle.x') === Math.max(b.run('paddle.w/2+8'), 77));
     b.g.ctx.pointer({ pointerType: 'touch', clientX: 380 });
-    ck('D1 ...a touch "pointer" event is ignored (touches are handled once, relatively)', b.run('paddle.x') === Math.max(b.run('paddle.w/2+8'), 77));
+    ck('D1 ...a stray touch "pointer" event (no drag under way) moves nothing', b.run('paddle.x') === Math.max(b.run('paddle.w/2+8'), 77));
     b.run('setPaddle(W/2);'); b.g.win.ontouchend({ touches: [] });
     mv(3, 195, 760); mv(3, 195 + W * 0.25, 760); const right = b.run('paddle.x');
     b.g.win.ontouchend({ touches: [] }); mv(4, 195, 760); mv(4, 195 - W * 0.5, 760); const left = b.run('paddle.x');
@@ -117,7 +117,7 @@ control('grip too small', 'G1', rep('const GRIP_D=58,', 'const GRIP_D=40,'));
 control('grip under the home indicator', 'G1', rep('H-fluxSafeBottom-GRIP_GAP-GRIP_D-GRIP_STEM-paddle.h/2', 'H-GRIP_GAP-GRIP_D-GRIP_STEM-paddle.h/2'));
 control('grip in a fixed colour', 'G2', rep("ctx.fillStyle=col;ctx.beginPath();ctx.arc(paddle.x,cy,r,0,Math.PI*2);ctx.fill();", "ctx.fillStyle='#62eaff';ctx.beginPath();ctx.arc(paddle.x,cy,r,0,Math.PI*2);ctx.fill();"));
 control('no pulse at the start of a run', 'G3', rep('gripPulse=1.6; drag=null;', 'gripPulse=0; drag=null;'));
-control('absolute control back (the finger covers the ball)', 'D1', rep('setPaddle(drag.p0+(t.clientX-drag.x0)*dragGain());', 'setPaddle(t.clientX);'));
+control('absolute control back (the finger covers the ball)', 'D1', rep('dragTo(t.clientX,t.clientY);', 'setPaddle(t.clientX);'));
 control('the whole screen moves the launcher', 'D1 ...a touch higher up', rep('const DRAG_ZONE=0.6;', 'const DRAG_ZONE=0;'));
 control('a slow drag (the thumb must cross the whole screen)', 'D2', rep('return Math.max(1,travel/(W*0.45));', 'return 1;'));
 control('a new touch continues the old drag (jump)', 'D3', rep('window.ontouchend=window.ontouchcancel=function(e){ if(!drag) return;', 'window.ontouchend=window.ontouchcancel=function(e){ return;'));
