@@ -8,13 +8,13 @@
 //      game-over screen only, at most TWICE ever; never a pop-up by itself;
 //      never in the installed app; not used up where nothing can be offered;
 //   A  Android: the phone's own one-tap install prompt, nothing else;
-//   S  iPhone/iPad Safari: the tap copies the pilot by itself (and carries it in
-//      the address after "#"), then ONE line "Tap ⋯ → Share → Add to Home
+//   S  iPhone/iPad Safari: the tap copies the pilot by itself (clipboard only --
+//      never in the page address, which Share could send), then ONE line "Tap ⋯ → Share → Add to Home
 //      Screen" with an arrow at ⋯ (iPhone: bottom; iPad: top); "Edit Actions"
 //      only behind "Can't find it?"; "Not now" always there; no COPY MY PILOT;
-//   W  first launch of the Home Screen app: one tap "Welcome back, <name>! Tap
-//      to continue" brings the pilot in (from the address, else the copied
-//      code); never replaces a pilot that already played there;
+//   W  first launch of the Home Screen app: one tap "Welcome back! Tap to
+//      continue" reads the copied pilot and brings it in; never replaces a pilot
+//      that already played there; never shown in a browser tab;
 //   P  in-app browsers (Instagram, Facebook, Messenger, TikTok...): ONE line
 //      "Open in Safari to install" with an arrow at their ⋯ menu (top right).
 // Ends with negative controls: each defect re-inserted MUST be caught by the named check.
@@ -140,7 +140,8 @@ async function suite(gameHtml, quiet = false) {
     b.g.win.history.replaceState = (st, t, u) => { url = String(u); };
     b.endRun(12000, 3); await flush();
     b.el.onclick();
-    ck('S1 the tap copies the pilot by itself (no COPY MY PILOT step) and carries it in the address after "#"', /^FX1-pilot-77-[0-9A-F]{4}$/.test(copied || '') && /#pilot=FX1-pilot-77-/.test(url || '') && !/COPY MY PILOT/.test(gameHtml), copied + ' ' + url);
+    ck('S1 the tap copies the pilot by itself (no COPY MY PILOT step)', /^FX1-pilot-77-[0-9A-F]{4}$/.test(copied || '') && !/COPY MY PILOT/.test(gameHtml), copied);
+    ck('S1 ...and never puts it in the page address (a link shared from Safari must never carry a pilot code)', url === null && !/#pilot|replaceState\([^)]*code/.test(gameHtml), String(url));
     const coach = made.find((e) => /coachLine/.test(e.innerHTML)) || { innerHTML: '' };
     const lines = (coach.innerHTML.match(/<p class="coachLine[^"]*"/g) || []).length;
     ck('S2 then ONE line: "Tap ⋯ → Share → Add to Home Screen"', lines === 1 && coach.innerHTML.includes('Tap <b>⋯</b> → <b>Share</b> → <b>Add to Home Screen</b>') && !/<b>\d\.<\/b>/.test(coach.innerHTML), coach.innerHTML.slice(0, 160));
@@ -159,29 +160,25 @@ async function suite(gameHtml, quiet = false) {
     const src = bootGame(PILOT, { ios: true }); const code = await src.g.ctx.makeRestoreCode('pilot-77');
     const INFO = { found: true, name: 'TITAN', tag: 'K7Q2MX8', country: 'PH', bests: { medium: { score: 9000, level: 3 } }, skus: [] };
     const fresh = () => ({ fluxPlayerId: 'new-app-1', fluxCallsign: 'SWIFT COMET 42', fluxAutoName: '1', fluxProfileComplete: '1' });
-    const w = bootGame(fresh(), { ios: true, standalone: true }); const made = recorder(w); let url = 'unset';
-    w.g.win.history.replaceState = (st, t, u) => { url = String(u); };
-    w.g.win.location.hash = '#pilot=' + code;
-    w.run('FLUX_PILOT_FROM_URL=' + JSON.stringify(code) + ';'); w.g.ctx.checkRestoreOnServer = async () => ({ kind: 'found', info: INFO });
-    await w.g.ctx.fluxWelcomeBack();
-    const btn = made.find((e) => e.id === 'welcomeGo') || {};
-    ck('W1 the new app says "Welcome back, TITAN! Tap to continue" straight away (pilot carried in the address)', btn.textContent === 'Welcome back, TITAN! Tap to continue', btn.textContent);
-    ck('W1 ...no instructions on it', !made.some((e) => /Safari|Share|restore code/i.test(e.textContent || '') && e.id !== 'welcomeNo'));
-    btn.onclick(); await flush();
-    ck('W2 one tap brings the pilot in (same pilot, scores) and the address is cleaned', w.mem.fluxPlayerId === 'pilot-77' && w.mem.fluxCallsign === 'TITAN' && w.mem.fluxBest_medium === '9000' && w.g.nav.reload === true && url === '/play/', w.mem.fluxPlayerId + ' ' + url);
     const c = bootGame(fresh(), { ios: true, standalone: true }); const madeC = recorder(c);
     c.g.win.navigator.clipboard = { readText: () => Promise.resolve('  ' + code + '\n') }; c.g.ctx.checkRestoreOnServer = async () => ({ kind: 'found', info: INFO });
     await c.g.ctx.fluxWelcomeBack();
     const btnC = madeC.find((e) => e.id === 'welcomeGo') || {};
-    ck('W3 without the address: "Welcome back! Tap to continue", and the tap reads the copied pilot', btnC.textContent === 'Welcome back! Tap to continue', btnC.textContent);
+    ck('W1 the new app shows one button: "Welcome back! Tap to continue", no instructions', btnC.textContent === 'Welcome back! Tap to continue' && !madeC.some((e) => /Safari|Share|restore code/i.test(e.textContent || '') && e.id !== 'welcomeNo'), btnC.textContent);
     await btnC.onclick(); await flush();
-    ck('W3 ...one tap, pilot in', c.mem.fluxPlayerId === 'pilot-77' && c.g.nav.reload === true);
+    ck('W2 one tap reads the copied pilot and brings it in (same pilot, scores)', c.mem.fluxPlayerId === 'pilot-77' && c.mem.fluxCallsign === 'TITAN' && c.mem.fluxBest_medium === '9000' && c.g.nav.reload === true, c.mem.fluxPlayerId);
+    const e = bootGame(fresh(), { ios: true, standalone: true }); const madeE = recorder(e); let entry = 0;
+    e.g.win.navigator.clipboard = { readText: () => Promise.resolve('hello') }; e.g.ctx.openRestoreEntry = () => { entry++; };
+    await e.g.ctx.fluxWelcomeBack(); await (madeE.find((x) => x.id === 'welcomeGo') || { onclick: async () => {} }).onclick(); await flush();
+    ck('W3 nothing usable copied: the usual paste-your-code box, the new pilot is kept', entry === 1 && e.mem.fluxPlayerId === 'new-app-1');
+    const tab = bootGame(fresh(), { ios: true, standalone: false }); const madeT = recorder(tab); await tab.g.ctx.fluxWelcomeBack();
+    ck('W6 never shown in a browser tab (a new player there is not "back")', !madeT.some((x) => x.id === 'welcomeGo'));
     const played = bootGame(Object.assign(fresh(), { fluxBest_easy: '500', fluxRunsPlayed: '2' }), { ios: true, standalone: true }); const madeP = recorder(played);
-    played.run('FLUX_PILOT_FROM_URL=' + JSON.stringify(code) + ';'); played.g.ctx.checkRestoreOnServer = async () => ({ kind: 'found', info: INFO });
+    played.g.ctx.checkRestoreOnServer = async () => ({ kind: 'found', info: INFO });
     await played.g.ctx.fluxWelcomeBack();
     ck('W4 a pilot that already played in the app is never replaced', !madeP.some((e) => e.id === 'welcomeGo') && played.mem.fluxPlayerId === 'new-app-1');
     const n = bootGame(fresh(), { ios: true, standalone: true }); const madeN = recorder(n);
-    n.run('FLUX_PILOT_FROM_URL=' + JSON.stringify(code) + ';'); n.g.ctx.checkRestoreOnServer = async () => ({ kind: 'found', info: INFO });
+    n.g.ctx.checkRestoreOnServer = async () => ({ kind: 'found', info: INFO });
     await n.g.ctx.fluxWelcomeBack(); (madeN.find((e) => e.id === 'welcomeNo') || { onclick() {} }).onclick();
     ck('W5 "Start as a new pilot" keeps the new pilot and does not ask again', n.mem.fluxPlayerId === 'new-app-1' && n.mem.fluxWelcomeDone === '1');
   } catch (e) { ck('welcome section ran', false, String(e.stack || e).slice(0, 300)); }
@@ -232,8 +229,9 @@ await control('several numbered steps again', 'S2', rep("'<p class=\"coachLine\"
 await control('Edit Actions shown straight away', 'S2 ...', rep("'<p class=\"coachHelp hidden\" id=\"coachHelp\">'", "'<p class=\"coachHelp\" id=\"coachHelp\">'"));
 await control('arrow on the wrong side on iPhone', 'S3', rep("    up = pad;", "    up = true;"));
 await control('iPhone taken for an iPad (its user agent says "Mac")', 'S4', rep("(navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)", "(navigator.userAgent.indexOf('Mac') !== -1)"));
-await control('welcome without the name', 'W1', rep("return fluxShowWelcome(String(r.info.name || '').toUpperCase(),", "return fluxShowWelcome('',"));
-await control('welcome replaces a pilot that already played', 'W4', rep("  if (done || !fluxFreshPilot()){", "  if (done){"));
+await control('pilot code put in the page address again', 'S1 ...and never', rep("  try{ if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(function(){}, function(){}); }catch(e){}\n}", "  try{ if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(function(){}, function(){}); }catch(e){}\n  history.replaceState(null, '', location.pathname + '#pilot=' + code);\n}"));
+await control('welcome shown in a browser tab', 'W6', rep("if (done || !fluxFreshPilot() || !fluxIsStandalone() || fluxHasPlayed()) return null;", "if (done || !fluxFreshPilot() || fluxHasPlayed()) return null;"));
+await control('welcome replaces a pilot that already played', 'W4', rep("if (done || !fluxFreshPilot() || !fluxIsStandalone() || fluxHasPlayed()) return null;", "if (done || !fluxIsStandalone()) return null;"));
 await control('in-app browsers get Home Screen steps', 'P1', rep('  if (app){\n    line = ios', '  if (false){\n    line = ios'));
 await control('in-app browsers not detected for the offer', 'P4', rep("  if (fluxInApp()) return 'inapp';\n", ''));
 const total = main.F + NC;
