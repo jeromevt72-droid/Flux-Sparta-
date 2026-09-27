@@ -3,10 +3,10 @@
 //      launcher's colour with a lighter ring, and always above the iPhone home indicator;
 //   G2 it follows each skin's launcher colour; G3 it pulses gently at the start of each run only;
 //   G4 the old T-handle is gone;
-//   D1 a finger that starts in the bottom 40% drags the launcher RELATIVELY (by how far it slides);
+//   D1 a finger that starts in the bottom 40% puts the launcher's centre at the finger's x (the grip stays under the thumb);
 //      a touch higher up does nothing; a mouse still points directly;
-//   D2 a short thumb slide (about a quarter of the screen width from the middle) reaches both edges;
-//   D3 lifting the finger and touching again starts a new drag from where the launcher is;
+//   D2 the thumb at either edge takes the launcher to that wall;
+//   D3 touching again puts it under the new finger; a second finger does not take it over;
 //   H1 "Slide anywhere ↔" on the first run only, gone once the player slides;
 //   K1 catch width, catch test and scoring unchanged;
 //   T1 popups such as COMBO LOST never rise into the HUD / FLUX meter row.
@@ -61,23 +61,23 @@ function suite(html, quiet = false) {
 
   try {
     const b = bootGame(); b.g.ctx.newGame(); b.run('playing=true; paused=false;');
-    const W = 390, H = 844, p0 = b.run('paddle.x'), gain = b.run('dragGain()');
+    const W = 390, H = 844;
     const mv = (id, x, y) => b.g.ctx.pointer({ touches: [{ identifier: id, clientX: x, clientY: y }] });
-    mv(1, 100, 700); mv(1, 130, 700);
-    ck('D1 a finger in the bottom 40% moves the launcher by how far it slides (x' + gain.toFixed(2) + ')', Math.abs(b.run('paddle.x') - (p0 + 30 * gain)) < 0.01, b.run('paddle.x') + ' vs ' + (p0 + 30 * gain));
+    mv(1, 100, 700); const atDown = b.run('paddle.x'); mv(1, 130, 700);
+    ck('D1 a finger in the bottom 40% puts the launcher centre exactly at the finger (touch-down and every move)', atDown === 100 && b.run('paddle.x') === 130, atDown + ' / ' + b.run('paddle.x'));
     const before = b.run('paddle.x'); b.g.win.ontouchend({ touches: [] }); mv(2, 300, 300); mv(2, 20, 300);
     ck('D1 ...a touch higher up (top 60%) does nothing', b.run('paddle.x') === before);
     b.g.ctx.pointer({ pointerType: 'mouse', clientX: 77 });
     ck('D1 ...a mouse still points directly', b.run('paddle.x') === Math.max(b.run('paddle.w/2+8'), 77));
     b.g.ctx.pointer({ pointerType: 'touch', clientX: 380 });
     ck('D1 ...a stray touch "pointer" event (no drag under way) moves nothing', b.run('paddle.x') === Math.max(b.run('paddle.w/2+8'), 77));
-    b.run('setPaddle(W/2);'); b.g.win.ontouchend({ touches: [] });
-    mv(3, 195, 760); mv(3, 195 + W * 0.25, 760); const right = b.run('paddle.x');
-    b.g.win.ontouchend({ touches: [] }); mv(4, 195, 760); mv(4, 195 - W * 0.5, 760); const left = b.run('paddle.x');
-    ck('D2 a short thumb slide (a quarter of the width from the middle) reaches the edge, both ways',
+    b.g.win.ontouchend({ touches: [] });
+    mv(3, 195, 760); mv(3, W - 2, 760); const right = b.run('paddle.x'); mv(3, 2, 760); const left = b.run('paddle.x');
+    ck('D2 the thumb at either edge takes the launcher to that wall',
       Math.abs(right - b.run('W-paddle.w/2-8')) < 0.01 && Math.abs(left - b.run('paddle.w/2+8')) < 0.01, right + ' / ' + left);
-    b.g.win.ontouchend({ touches: [] }); const at = b.run('paddle.x'); mv(4, 50, 800); mv(4, 60, 800);   // Android reuses the finger's id
-    ck('D3 lifting the finger and touching again starts from where the launcher is (no jump)', Math.abs(b.run('paddle.x') - (at + 10 * gain)) < 0.01);
+    b.g.win.ontouchend({ touches: [] }); mv(4, 250, 800);
+    b.g.ctx.pointer({ touches: [{ identifier: 4, clientX: 260, clientY: 800 }, { identifier: 5, clientX: 60, clientY: 790 }] });
+    ck('D3 touching again puts the launcher under the new finger; a second finger does not take it over', b.run('paddle.x') === 260, b.run('paddle.x'));
   } catch (e) { ck('drag section ran', false, String(e.stack || e).slice(0, 300)); }
 
   try {
@@ -117,10 +117,10 @@ control('grip too small', 'G1', rep('const GRIP_D=58,', 'const GRIP_D=40,'));
 control('grip under the home indicator', 'G1', rep('H-fluxSafeBottom-GRIP_GAP-GRIP_D-GRIP_STEM-paddle.h/2', 'H-GRIP_GAP-GRIP_D-GRIP_STEM-paddle.h/2'));
 control('grip in a fixed colour', 'G2', rep("ctx.fillStyle=col;ctx.beginPath();ctx.arc(paddle.x,cy,r,0,Math.PI*2);ctx.fill();", "ctx.fillStyle='#62eaff';ctx.beginPath();ctx.arc(paddle.x,cy,r,0,Math.PI*2);ctx.fill();"));
 control('no pulse at the start of a run', 'G3', rep('gripPulse=1.6; drag=null;', 'gripPulse=0; drag=null;'));
-control('absolute control back (the finger covers the ball)', 'D1', rep('dragTo(t.clientX,t.clientY);', 'setPaddle(t.clientX);'));
+control('relative drag back (the grip slides away from the thumb)', 'D1', rep('drag.x=x; drag.y=y; setPaddle(x);', 'const dx=x-drag.x; drag.x=x; drag.y=y; setPaddle(paddle.x+dx*1.6);'));
 control('the whole screen moves the launcher', 'D1 ...a touch higher up', rep('const DRAG_ZONE=0.6;', 'const DRAG_ZONE=0;'));
-control('a slow drag (the thumb must cross the whole screen)', 'D2', rep('return Math.max(1,travel/(W*0.45));', 'return 1;'));
-control('a new touch continues the old drag (jump)', 'D3', rep('window.ontouchend=window.ontouchcancel=function(e){ if(!drag) return;', 'window.ontouchend=window.ontouchcancel=function(e){ return;'));
+control('the launcher stops short of the walls', 'D2', rep('function setPaddle(x){paddle.x=Math.max(paddle.w/2+8,Math.min(W-paddle.w/2-8,x))}', 'function setPaddle(x){paddle.x=Math.max(paddle.w/2+40,Math.min(W-paddle.w/2-40,x))}'));
+control('any finger takes the launcher', 'D3', rep('    if(drag){ for(let i=0;i<e.touches.length;i++) if(e.touches[i].identifier===drag.id){ t=e.touches[i]; break; }', '    if(drag){ const L=e.touches[e.touches.length-1]; if(L && L.clientY>=H*DRAG_ZONE) t=L;'));
 control('hint on every run', 'H1 ...never', rep("let first=false; try{ first=!(+localStorage.fluxRunsPlayed>0); }catch(e){}", "let first=true;"));
 control('catch width changed', 'K1', rep("paddle.w=isPhone()?132:150; paddle.handleH", "paddle.w=isPhone()?150:150; paddle.handleH"));
 control('popups rise into the HUD again', 'T1', rep('ctx.fillText(t.s,t.x,Math.max(t.y,textTop));', 'ctx.fillText(t.s,t.x,t.y);'));
