@@ -1828,25 +1828,46 @@ requestAnimationFrame(loop);
 /* PADDLE CONTROL (tester feedback). A finger that starts in the bottom 40% of
    the screen drags the launcher RELATIVELY: it moves by how far the finger
    slides (times dragGain), so a short thumb slide reaches both edges and the
-   thumb never has to cover the ball. A mouse still points directly. */
+   thumb never has to cover the ball. A mouse still points directly.
+   INSTANT FOLLOW: every event moves the launcher by that event's own slide
+   (no easing, no waiting for a frame), so it can never trail the thumb; a wall
+   simply stops it, and the moment the thumb turns back it moves again (no dead
+   zone to "unwind"). The drag is anchored at touch-down, so the first pixels
+   of a slide are never lost. The same finger is read from BOTH its touch and
+   its pointer events, whichever arrives first (Chrome holds back touchmove for
+   the first ~15px; pointermove is not held back). Each event only adds the
+   distance since the last position seen, so a finger reported twice moves once. */
 const DRAG_ZONE=0.6;   // touches that start below 60% of the height control the launcher
 let drag=null, slideHintDone=false;
-function dragGain(){ const travel=Math.max(1,W-paddle.w-16); return Math.max(1,travel/(W*0.45)); }   // ~45% of the screen width sweeps edge to edge
+function dragGain(){ const travel=Math.max(1,W-paddle.w-16); return Math.max(1,travel/(W*0.45)); }   // ~45% of the screen width sweeps edge to edge; never below 1:1
+function dragTo(x,y){ const dx=x-drag.x; drag.x=x; drag.y=y; if(dx) setPaddle(paddle.x+dx*dragGain()); if(Math.abs(x-drag.x0)>12) slideHintDone=true; }
 function pointer(e){
   if(e.touches){
     let t=null;
-    if(drag) for(let i=0;i<e.touches.length;i++) if(e.touches[i].identifier===drag.id){ t=e.touches[i]; break; }
+    if(drag){ for(let i=0;i<e.touches.length;i++) if(e.touches[i].identifier===drag.id){ t=e.touches[i]; break; }
+      if(!t && drag.id==null){ let best=31;   // drag started from the finger's pointerdown: bind its touch (same spot)
+        for(let i=0;i<e.touches.length;i++){ const tt=e.touches[i], d=Math.abs(tt.clientX-drag.x)+Math.abs(tt.clientY-drag.y); if(d<best){ best=d; t=tt; } }
+        if(t) drag.id=t.identifier; } }
     if(!t){ drag=null;
-      for(let i=0;i<e.touches.length;i++){ const tt=e.touches[i]; if(tt.clientY>=H*DRAG_ZONE){ drag={id:tt.identifier,x0:tt.clientX,p0:paddle.x}; t=tt; break; } } }
+      for(let i=0;i<e.touches.length;i++){ const tt=e.touches[i]; if(tt.clientY>=H*DRAG_ZONE){ drag={id:tt.identifier,pid:null,x0:tt.clientX,x:tt.clientX,y:tt.clientY}; t=tt; break; } } }
     if(!t) return;
-    setPaddle(drag.p0+(t.clientX-drag.x0)*dragGain());
-    if(Math.abs(t.clientX-drag.x0)>12) slideHintDone=true;
+    dragTo(t.clientX,t.clientY);
     return;
   }
-  if(e.pointerType && e.pointerType!=='mouse') return;   // touch and pen are handled as touches above
+  if(e.pointerType && e.pointerType!=='mouse'){   // touch/pen pointer events feed the same finger's drag
+    if(e.type==='pointerdown'){ if(!drag && e.clientY>=H*DRAG_ZONE) drag={id:null,pid:e.pointerId,x0:e.clientX,x:e.clientX,y:e.clientY}; return; }
+    if(!drag) return;
+    if(drag.pid==null && Math.abs(e.clientX-drag.x)+Math.abs(e.clientY-drag.y)<=30) drag.pid=e.pointerId;   // drag started from the touch: bind its pointer
+    if(drag.pid!==e.pointerId) return;
+    dragTo(e.clientX,e.clientY);
+    return;
+  }
   setPaddle(e.clientX);
 }
+window.ontouchstart=function(e){ pointer(e); };   // anchor the drag at touch-down (moves nothing by itself)
+window.onpointerdown=function(e){ if(e.pointerType && e.pointerType!=='mouse') pointer(e); };   // same, from the pointer side; a mouse click changes nothing
 window.ontouchend=window.ontouchcancel=function(e){ if(!drag) return; const ts=e.touches||[]; for(let i=0;i<ts.length;i++) if(ts[i].identifier===drag.id) return; drag=null; };
+window.onpointerup=window.onpointercancel=function(e){ if(drag && drag.pid!=null && e.pointerId===drag.pid) drag=null; };
 // ---------------------------------------------------------------------------
 // D-11 — PAGE LIFECYCLE
 // iOS suspends the AudioContext when the app is backgrounded and nothing here
