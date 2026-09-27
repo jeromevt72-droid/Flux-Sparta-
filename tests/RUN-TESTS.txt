@@ -42,6 +42,7 @@ node test-comeback-ease.mjs       # comeback ease: two misses within 20 s -> top
 node test-rc281.mjs              # RC2.8.1: D-29 D-31 D-33 D-34 + pending-delivery message
 node test-rc28-worker.mjs          # RC2.8 server: D-22 D-25 D-26 D-27, moderation, tags, reconciliation (REAL worker)
 node test-generous-catch.mjs      # generous catch: +8px at the launcher ends in the first 3 runs only (never Easy), never a perfect catch, identical game when off, simulated beginner + negative controls
+node test-medium-orbs.mjs         # Medium orbs: 5 on phones at the start (was 4), +1 every 4 levels, iPad unchanged, same colours; Medium points x0.85 (so Medium < Hard); Hard/Easy frame-for-frame unchanged + negative controls
 node test-rc28-client.mjs          # RC2.8 game: D-23 D-24, honest status, tags (REAL game page)
 node test-audit-fixes.mjs         # 60+: AUDIT A-1..A-4 on the REAL worker + game hash agreement
 node test-first-60s.mjs            # first 60 seconds: first-run colour hint in the HUD strip (not over the orbs), hint ring on the matching orb, one tap to play + negative controls

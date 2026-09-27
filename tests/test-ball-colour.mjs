@@ -37,6 +37,7 @@ function suite(gameHtml, quiet = false) {
     {
       const { g, run } = bootGame('medium', 1);
       g.ctx.newGame(); run('level=4; speedLevel=4; ball.color=4;');   // orange: #ff9a3d, the 5th default colour
+      run('DIFFICULTY.medium.capPhone=4;');   // the 4-orb phone field of the report (Medium now deals 5, which happens to hold every colour)
       const orange = run('colors[ball.color]');
       g.ctx.registerMiss();
       ck('B1 the reported bug: level 4 phone, orange ball, a miss deals a fresh field -> the ball still has an orb to hit',
