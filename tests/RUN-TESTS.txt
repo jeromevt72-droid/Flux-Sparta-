@@ -51,6 +51,7 @@ node test-merge-one-identity.mjs   # 40: MERGE — one origin, one identity, dem
 node test-single-identity.mjs      # 27: top-level Play, one identity, purchase lock
 node test-share-card.mjs           # share card: "I added N for <flag> <country>!" + link to /play/, image when the phone can share it, text/copy fallbacks, straight from the tap + negative controls
 node test-share-card-browser.mjs # extra, not in the gate: real Chromium, iPhone/iPad/iPad mini, button, JPEG card, what the share sheet receives
+node test-share-install.mjs         # share & install: card shows "FLUX Sparta" + the web address large; Add to Home Screen offered once after a good run (Android one-tap, current iOS steps, in-app browsers: open in Safari/browser first) + negative controls
   node test-offline-queue.mjs        # 19: offline queue, retry, permanent vs temporary
   node test-d09-bestrun.mjs          # 20: best-run record + legacy migration
   node test-d01-d08-lifecycle.mjs    # 19: demo suspend/resume, pill, hostile origin
