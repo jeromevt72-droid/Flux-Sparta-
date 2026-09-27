@@ -29,7 +29,7 @@ const VALID_SKUS = new Set(["toxic", "cosmic", "solar"]);
 // per-level score ceiling (score <= level * 50,000 + 5,000). MUST stay
 // identical to LEVEL_SCORE_THRESHOLDS / LEVEL_SCORE_MULT in play/index.html.
 const LEVEL_SCORE_THRESHOLDS = [2500, 6000, 10000, 15000, 21000, 28000, 36000, 45000];   // Medium, levels 2..9
-const LEVEL_SCORE_MULT = { easy: 0.75, medium: 1, hard: 1.35 };
+const LEVEL_SCORE_MULT = { easy: 0.3, medium: 1, hard: 1.35 };   // Easy 0.3: Easy points are x0.4 (EASY_POINTS in play/index.html), thresholds follow
 const LEVEL_TOLERANCE = 1;
 // RC2.8.7: a hard ceiling kept IN ADDITION to D-51. The level rule alone lets
 // any score through once level 9 is claimed; nothing above the RC2.8.5

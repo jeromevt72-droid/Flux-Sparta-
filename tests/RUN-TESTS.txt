@@ -34,6 +34,7 @@ node test-miss-notice.mjs         # miss notice ("BALL LOST • n LIVES LEFT") i
 node test-orb-colours-v2.mjs      # orb colours v2: approved 5-colour palettes, cap, Toxic apart from Aurora, block style at the exact hit radius, ball ring + symbol, hit areas unchanged + negative controls
 node test-orb-gap-launcher.mjs    # orbs never closer than 10px edge to edge (spawn + drift, 3 difficulties), own launcher colour on Solar/Cosmic far from orbs, ball and background + negative controls
 node test-easy-orbs.mjs          # Easy orbs: 6 on the field (5 on phones 380px wide or less / 700px tall), same colours only, the ball always has at least 2 matching orbs on Easy, Medium/Hard unchanged, 10px gap kept + negative controls
+node test-easy-scoring.mjs       # Easy scoring: every Easy point x0.4 (orb, danger, bonus, overload, FLUX, paddle), Easy level thresholds x0.4 too (same level pace), server uses the same Easy thresholds, Medium/Hard unchanged, same simulated player scores clearly less on Easy than Medium and Hard + negative controls
 node test-paddle-grip.mjs         # round grip under the launcher (skin colour, above the home indicator, pulse), relative drag in the bottom 40%, first-run slide hint, popups never over the HUD + negative controls
 node test-rc287.mjs              # RC2.8.7: D-50..D-61 (levels, HUD, palettes, game over, sound) + negative controls
 node test-rc287-browser.mjs      # RC2.8.7 extra, not in the gate: real Chromium, 360px fit, 11px text, 44px buttons, notch inset

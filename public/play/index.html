@@ -519,10 +519,11 @@ if(callsign && !isAllowedName(callsign)){ callsign=presetNameForId(playerId); tr
 const countryFlags={AF:'🇦🇫',AL:'🇦🇱',DZ:'🇩🇿',AD:'🇦🇩',AO:'🇦🇴',AG:'🇦🇬',AR:'🇦🇷',AM:'🇦🇲',AU:'🇦🇺',AT:'🇦🇹',AZ:'🇦🇿',BS:'🇧🇸',BH:'🇧🇭',BD:'🇧🇩',BB:'🇧🇧',BY:'🇧🇾',BE:'🇧🇪',BZ:'🇧🇿',BJ:'🇧🇯',BT:'🇧🇹',BO:'🇧🇴',BA:'🇧🇦',BW:'🇧🇼',BR:'🇧🇷',BN:'🇧🇳',BG:'🇧🇬',BF:'🇧🇫',BI:'🇧🇮',CV:'🇨🇻',KH:'🇰🇭',CM:'🇨🇲',CA:'🇨🇦',CF:'🇨🇫',TD:'🇹🇩',CL:'🇨🇱',CN:'🇨🇳',CO:'🇨🇴',KM:'🇰🇲',CG:'🇨🇬',CD:'🇨🇩',CR:'🇨🇷',CI:'🇨🇮',HR:'🇭🇷',CU:'🇨🇺',CY:'🇨🇾',CZ:'🇨🇿',DK:'🇩🇰',DJ:'🇩🇯',DM:'🇩🇲',DO:'🇩🇴',EC:'🇪🇨',EG:'🇪🇬',SV:'🇸🇻',GQ:'🇬🇶',ER:'🇪🇷',EE:'🇪🇪',SZ:'🇸🇿',ET:'🇪🇹',FJ:'🇫🇯',FI:'🇫🇮',FR:'🇫🇷',GA:'🇬🇦',GM:'🇬🇲',GE:'🇬🇪',DE:'🇩🇪',GH:'🇬🇭',GR:'🇬🇷',GD:'🇬🇩',GT:'🇬🇹',GN:'🇬🇳',GW:'🇬🇼',GY:'🇬🇾',HT:'🇭🇹',HN:'🇭🇳',HU:'🇭🇺',IS:'🇮🇸',IN:'🇮🇳',ID:'🇮🇩',IR:'🇮🇷',IQ:'🇮🇶',IE:'🇮🇪',IL:'🇮🇱',IT:'🇮🇹',JM:'🇯🇲',JP:'🇯🇵',JO:'🇯🇴',KZ:'🇰🇿',KE:'🇰🇪',KI:'🇰🇮',KW:'🇰🇼',KG:'🇰🇬',LA:'🇱🇦',LV:'🇱🇻',LB:'🇱🇧',LS:'🇱🇸',LR:'🇱🇷',LY:'🇱🇾',LI:'🇱🇮',LT:'🇱🇹',LU:'🇱🇺',MG:'🇲🇬',MW:'🇲🇼',MY:'🇲🇾',MV:'🇲🇻',ML:'🇲🇱',MT:'🇲🇹',MH:'🇲🇭',MR:'🇲🇷',MU:'🇲🇺',MX:'🇲🇽',FM:'🇫🇲',MD:'🇲🇩',MC:'🇲🇨',MN:'🇲🇳',ME:'🇲🇪',MA:'🇲🇦',MZ:'🇲🇿',MM:'🇲🇲',NA:'🇳🇦',NR:'🇳🇷',NP:'🇳🇵',NL:'🇳🇱',NZ:'🇳🇿',NI:'🇳🇮',NE:'🇳🇪',NG:'🇳🇬',KP:'🇰🇵',MK:'🇲🇰',NO:'🇳🇴',OM:'🇴🇲',PK:'🇵🇰',PW:'🇵🇼',PS:'🇵🇸',PA:'🇵🇦',PG:'🇵🇬',PY:'🇵🇾',PE:'🇵🇪',PH:'🇵🇭',PL:'🇵🇱',PT:'🇵🇹',QA:'🇶🇦',RO:'🇷🇴',RU:'🇷🇺',RW:'🇷🇼',KN:'🇰🇳',LC:'🇱🇨',VC:'🇻🇨',WS:'🇼🇸',SM:'🇸🇲',ST:'🇸🇹',SA:'🇸🇦',SN:'🇸🇳',RS:'🇷🇸',SC:'🇸🇨',SL:'🇸🇱',SG:'🇸🇬',SK:'🇸🇰',SI:'🇸🇮',SB:'🇸🇧',SO:'🇸🇴',ZA:'🇿🇦',KR:'🇰🇷',SS:'🇸🇸',ES:'🇪🇸',LK:'🇱🇰',SD:'🇸🇩',SR:'🇸🇷',SE:'🇸🇪',CH:'🇨🇭',SY:'🇸🇾',TW:'🇹🇼',TJ:'🇹🇯',TZ:'🇹🇿',TH:'🇹🇭',TL:'🇹🇱',TG:'🇹🇬',TO:'🇹🇴',TT:'🇹🇹',TN:'🇹🇳',TR:'🇹🇷',TM:'🇹🇲',TV:'🇹🇻',UG:'🇺🇬',UA:'🇺🇦',AE:'🇦🇪',GB:'🇬🇧',US:'🇺🇸',UY:'🇺🇾',UZ:'🇺🇿',VU:'🇻🇺',VA:'🇻🇦',VE:'🇻🇪',VN:'🇻🇳',YE:'🇾🇪',ZM:'🇿🇲',ZW:'🇿🇼',OTHER:'🌎'};
 /* D-50 (RC2.8.7) SCORE-BASED LEVELS. A level is reached by SCORE. Perfect
    catches still score, but no longer drive the level. Medium thresholds for
-   levels 2..9; Easy x0.75, Hard x1.35. MUST stay identical to
+   levels 2..9; Easy x0.3 (x0.75 before EASY SCORING cut Easy's points to
+   x0.4), Hard x1.35. MUST stay identical to
    LEVEL_SCORE_THRESHOLDS / LEVEL_SCORE_MULT in worker.js (D-51 checks it). */
 const LEVEL_SCORE_THRESHOLDS=[2500,6000,10000,15000,21000,28000,36000,45000];
-const LEVEL_SCORE_MULT={easy:.75,medium:1,hard:1.35};
+const LEVEL_SCORE_MULT={easy:.3,medium:1,hard:1.35};
 const LEVEL_COUNTDOWN_S=5, LEVEL_RAMP_S=1;   // level-up: 5 s SPEED UP countdown, then ~1 s difficulty ramp
 function levelScoreAt(lv,d){   // score needed to reach level lv (lv 1 = 0)
   if(lv<=1) return 0;
@@ -553,6 +554,14 @@ function levelForScore(sc,d){
         if(changed) localStorage.setItem('fluxPendingSubmits',JSON.stringify(q)); } }
   }catch(e){}
 })();
+/* EASY SCORING: every point won on Easy is scaled by EASY_POINTS (Medium and
+   Hard are untouched). Easy keeps the player alive longer, so without this the
+   same player scored more on Easy than on Medium or Hard, and the leaderboard
+   keeps each player's best across difficulties. Easy's level thresholds
+   (LEVEL_SCORE_MULT.easy = .75 x EASY_POINTS) are scaled the same way, so
+   Easy levels still come at the same pace. */
+const EASY_POINTS=.4;
+function scorePoints(n){ return difficulty==='easy' ? Math.max(1,Math.round(n*EASY_POINTS)) : n; }
 const DIFFICULTY={easy:{capPhone:3,capPad:5,speed:.82,accel:.82,level:.82,mult:.75},medium:{capPhone:4,capPad:6,speed:1,accel:1,level:1,mult:1},hard:{capPhone:5,capPad:7,speed:1.16,accel:1.12,level:1.16,mult:1.35}};
 function bestKey(){return 'fluxBest_'+difficulty}
 // ---------------------------------------------------------------------------
@@ -1169,7 +1178,7 @@ function burst(x,y,col,n=14){
  for(let i=0;i<extra;i++)particles.push({x,y,vx:juiceRand(-5,5),vy:juiceRand(-5,5),life:1,col});
 }
 function popup(x,y,s,col='#fff'){texts.push({x,y,s,life:1,col})}
-function addFlux(v){flux=Math.min(100,flux+v);if(flux>=100&&!fluxMode){flux=0;fluxMode=6;score+=250;popup(W/2,120,'FLUX MODE','#62eaff');burst(W/2,120,'#62eaff',30);haptic(50);playFlux();flash(.22);shake=Math.min(14,shake+6);updateHud();}}
+function addFlux(v){flux=Math.min(100,flux+v);if(flux>=100&&!fluxMode){flux=0;fluxMode=6;score+=scorePoints(250);popup(W/2,120,'FLUX MODE','#62eaff');burst(W/2,120,'#62eaff',30);haptic(50);playFlux();flash(.22);shake=Math.min(14,shake+6);updateHud();}}
 const MISS_NOTICE_S=2.2;
 function registerMiss(){
  misses++;missFragments.push({x:rand(25,W-25),y:H-24,r:rand(7,12),life:1});
@@ -1275,7 +1284,7 @@ function fuse(t){
  combo=Math.min(12,combo+1);
  comboTimer=2.6;
  // Orb value grows only from PERFECT paddle control. Fusions score, but do not inflate the level run.
- const points=Math.round((orbValue + combo*2)*(t.r>23?1.15:1)*(fluxMode>0?1.15:1));
+ const points=scorePoints(Math.round((orbValue + combo*2)*(t.r>23?1.15:1)*(fluxMode>0?1.15:1)));
  score+=points;
  addFlux(8+combo*1.5);
  haptic(14+Math.min(32,combo*2));
@@ -1283,7 +1292,7 @@ function fuse(t){
  // Clearing a danger orb (now visibly marked, see draw()) pays a small bonus —
  // rewards playing the field instead of just tracking colors, without touching
  // the level-progress math you tuned.
- if(t.danger){score+=15;addFlux(4);burst(t.x,t.y,'#ff4f68',10);popup(t.x,t.y-14,'CLEARED •15','#ff8fae');}
+ if(t.danger){const dp=scorePoints(15);score+=dp;addFlux(4);burst(t.x,t.y,'#ff4f68',10);popup(t.x,t.y-14,'CLEARED •'+dp,'#ff8fae');}
 
  // The orb changes color after a successful fusion. This creates a deliberate chain:
  // hit the matching color, then immediately hunt the newly required color.
@@ -1306,7 +1315,7 @@ function fuse(t){
 // straight reward for going out of your way to grab it before it despawns.
 function popBonus(t){
  const idx=targets.indexOf(t); if(idx<0)return;
- const points=Math.round(120+combo*10+(fluxMode>0?60:0));
+ const points=scorePoints(Math.round(120+combo*10+(fluxMode>0?60:0)));
  score+=points;
  addFlux(10);
  haptic(30);
@@ -1322,7 +1331,7 @@ function popBonus(t){
 // strong deflection, not a random one, so a skilled player can aim the kick.
 function burstGrowing(t,maxSpeed){
  const idx=targets.indexOf(t); if(idx<0)return;
- const points=Math.round(200+combo*15+(fluxMode>0?100:0));
+ const points=scorePoints(Math.round(200+combo*15+(fluxMode>0?100:0)));
  score+=points;
  addFlux(18);
  haptic(60);
@@ -1552,7 +1561,7 @@ function update(dt){
    const angle= -Math.PI/2 + hit*1.05;
    ball.vx=Math.cos(angle)*speed;ball.vy=Math.sin(angle)*speed;
    const perfect=Math.abs(hit)<.14;
-   const paddlePoints=perfect?Math.max(2,Math.round(5*combo*DIFFICULTY[difficulty].mult)):2;
+   const paddlePoints=scorePoints(perfect?Math.max(2,Math.round(5*combo*DIFFICULTY[difficulty].mult)):2);
    score+=paddlePoints;
    // Paddle hit-feedback: every single contact gets a quick squash + flash,
    // scaled up on a perfect hit. This is the single most frequent moment in
