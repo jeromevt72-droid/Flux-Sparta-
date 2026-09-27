@@ -37,6 +37,7 @@ function suite(gameHtml, quiet = false) {
     {
       const { g, run } = bootGame('medium', 1);
       g.ctx.newGame(); run('level=4; speedLevel=4; ball.color=4;');   // orange: #ff9a3d, the 5th default colour
+      run('DIFFICULTY.medium.capPhone=4;');   // the 4-orb phone field of the report (Medium now deals 5, which happens to hold every colour)
       const orange = run('colors[ball.color]');
       g.ctx.registerMiss();
       ck('B1 the reported bug: level 4 phone, orange ball, a miss deals a fresh field -> the ball still has an orb to hit',
@@ -44,11 +45,14 @@ function suite(gameHtml, quiet = false) {
     }
     /* 2. Every new ball: start, miss, revive -- all levels, difficulties and possible colours */
     let starts = 0, misses = 0, revives = 0; const bad = [];
-    for (const d of ['easy', 'medium', 'hard']) {
+    // 'medium4' is Medium on the old 4-orb phone field: with Easy's 5-6 orbs and Medium's and Hard's
+    // 5 on phones every colour is usually on the field, so only a smaller field shows a wrong ball colour.
+    for (const d of ['easy', 'medium', 'hard', 'medium4']) {
       for (let lv = 1; lv <= 9; lv++) {
         const nColours = Math.min(5, 4 + Math.floor(lv / 2));   // orb colours v2: 5 colours per skin
         for (let c = 0; c < nColours; c++) {
-          const { g, run } = bootGame(d, 1000 + lv * 10 + c);
+          const { g, run } = bootGame(d === 'medium4' ? 'medium' : d, 1000 + lv * 10 + c);
+          if (d === 'medium4') run('DIFFICULTY.medium.capPhone=4;');
           g.ctx.newGame(); starts++;
           if (!run(MATCH)) bad.push(d + ' L' + lv + ' start');
           run('level=' + lv + '; speedLevel=' + lv + '; ball.color=' + c + '; misses=0;');
@@ -61,7 +65,7 @@ function suite(gameHtml, quiet = false) {
         }
       }
     }
-    ck('B2 every new ball matches an orb: ' + starts + ' starts, ' + misses + ' misses, ' + revives + ' revives (levels 1-9, all difficulties, every colour)', bad.length === 0, bad.slice(0, 5).join(' | '));
+    ck('B2 every new ball matches an orb: ' + starts + ' starts, ' + misses + ' misses, ' + revives + ' revives (levels 1-9, all difficulties + the 4-orb Medium field, every colour)', bad.length === 0, bad.slice(0, 5).join(' | '));
     /* 3. The last matching orb bursts as a matured growing orb */
     {
       const { g, run } = bootGame('medium', 7);

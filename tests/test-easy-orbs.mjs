@@ -5,8 +5,9 @@
 //   E3 on Easy the ball always has at least 2 matching orbs: every new ball
 //      (start, miss, revive) and every frame of long seeded Easy games with
 //      hits, misses and level-ups;
-//   E4 Medium and Hard are unchanged (same orb counts as before, and a seeded
-//      Medium game is frame-for-frame the same as without the Easy code);
+//   E4 Medium and Hard are not touched by the Easy code (their own orb counts:
+//      Medium 5 on phones since the Medium-orbs change, see test-medium-orbs.mjs;
+//      and a seeded Medium game is frame-for-frame the same as without the Easy code);
 //   E5 the 10px orb gap holds on Easy with the fuller field, on every size.
 // Ends with negative controls.
 import fs from 'fs'; import path from 'path'; import vm from 'vm';
@@ -22,8 +23,9 @@ const MATCHES = `targets.filter(t=>${COLOUR}(t)&&t.color===ball.color).length`;
 const NORMAL = 'targets.filter(t=>!t.bonus&&!t.growing).length';
 const IN_PLAY = 'Math.min(colors.length,4+Math.floor(level/2))';
 const GAPMIN = '(function(){let m=Infinity;for(let i=0;i<targets.length;i++)for(let j=i+1;j<targets.length;j++){const a=targets[i],b=targets[j];m=Math.min(m,Math.hypot(a.x-b.x,a.y-b.y)-a.r-b.r);}return m;})()';
-// Medium/Hard orb counts before this change (phone cap, pad cap, +1 every 4 levels up to +2).
-const OLD_CAP = { medium: [4, 6], hard: [5, 7] };
+// Medium/Hard orb counts without the Easy code (phone cap, pad cap, +1 every 4 levels up to +2).
+// Medium starts with 5 on phones (was 4) since the Medium-orbs change (test-medium-orbs.mjs M1).
+const OLD_CAP = { medium: [5, 6], hard: [5, 7] };
 const SIZES = [[390, 844, 6], [430, 932, 6], [375, 667, 5], [360, 640, 5], [360, 800, 5], [820, 1180, 6], [744, 1133, 6]];
 
 function suite(gameHtml, quiet = false) {
@@ -96,7 +98,7 @@ function suite(gameHtml, quiet = false) {
       if (run('targetCap()') !== want) capBad.push(d + ' ' + w + 'x' + h + ' L' + lv + ': ' + run('targetCap()') + ' want ' + want);
     }
     Math.random = realRandom;
-    ck('E4 Medium and Hard keep their orb counts (every size, levels 1-9)', capBad.length === 0, capBad.slice(0, 4).join(' | '));
+    ck('E4 Medium and Hard keep their own orb counts (Medium 5 on phones; every size, levels 1-9)', capBad.length === 0, capBad.slice(0, 4).join(' | '));
     const WITHOUT = (html) => html.replace("function targetCap(){if(difficulty==='easy')return easyOrbCount();", 'function targetCap(){')
       .replace("  if(difficulty==='easy' && playing) easyTopUpMatches();\n", '');
     const trace = (html, d) => { const { g, run } = bootGame(d, 9, 390, 844, html); g.ctx.newGame(); const out = [];

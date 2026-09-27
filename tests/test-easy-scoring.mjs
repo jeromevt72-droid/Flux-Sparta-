@@ -3,7 +3,9 @@
 // never pay better than Medium or Hard for the same player.
 //   S1 on Easy every scoring event pays EASY_POINTS (x0.4, rounded, at least 1):
 //      orb hit, danger orb, bonus orb, overload orb, FLUX MODE, paddle catch;
-//   S2 Medium and Hard points are unchanged (same values as before);
+//   S2 the Easy factor never applies on Medium or Hard: Hard points are
+//      unchanged, Medium points are only Medium's own x0.85 (MEDIUM_POINTS,
+//      test-medium-orbs.mjs), never x0.4;
 //   S3 Easy's level thresholds are scaled by the same x0.4, so Easy levels
 //      come at the same pace as before (750 1800 3000 ... 13500);
 //   S4 the server uses the same Easy thresholds: a real Easy run is accepted,
@@ -40,7 +42,9 @@ const submit = async (w, env, body) => { skew += 20000;
 // Simulated player (same model as the PR's measurements and test-generous-catch.mjs):
 // follows the ball with a delay and a random aim error; 4th+ run; one free revive.
 const PLAYERS = [['new beginner', 12, 18, 15], ['steady player', 6, 9, 28]];
-const SEEDS = 10;
+// 40 seeds (was 10): with Medium's fuller field and x0.85 points, 10 runs were too few to tell
+// Easy from Medium reliably (240 seeded runs: Easy is 66-74% of Medium); the 85% bar is unchanged.
+const SEEDS = 40;
 
 async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = false, sim = true }) {
   let F = 0; const failed = [];
@@ -80,7 +84,10 @@ async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = fals
     want.danger = Math.round(38 * 0.4) + Math.round(15 * 0.4);
     ck('S1 EASY_POINTS is 0.4', EP === 0.4, EP);
     ck('S1 on Easy every scoring event pays x0.4 (orb, danger, bonus, overload, FLUX MODE, perfect and plain catch)', JSON.stringify(easy) === JSON.stringify(want), JSON.stringify(easy) + ' want ' + JSON.stringify(want));
-    ck('S2 Medium points unchanged', JSON.stringify(med) === JSON.stringify(OLD.medium), JSON.stringify(med));
+    // Medium: Medium's own MEDIUM_POINTS (x0.85: orb, danger, bonus, overload, perfect catch; FLUX MODE and a plain catch unscaled), never Easy's x0.4.
+    const wantMed = { ...OLD.medium }; for (const k of ['orb', 'bonus', 'overload', 'perfect']) wantMed[k] = Math.round(OLD.medium[k] * 0.85);
+    wantMed.danger = Math.round(38 * 0.85) + Math.round(15 * 0.85);
+    ck('S2 Medium points are only Medium\'s own x0.85 (no Easy x0.4)', JSON.stringify(med) === JSON.stringify(wantMed), JSON.stringify(med) + ' want ' + JSON.stringify(wantMed));
     ck('S2 Hard points unchanged', JSON.stringify(hard) === JSON.stringify(OLD.hard), JSON.stringify(hard));
 
     const { run: r2 } = bootGame('easy'); Math.random = realRandom;
@@ -146,7 +153,7 @@ async function control(label, { expect, game = (s) => s, workerSrc = (s) => s })
 const rep = (a, b) => (s) => (s.includes(a) ? s.replace(a, b) : s);
 await control('Easy pays full points again (old scoring)', { expect: 'S5', game: rep('const EASY_POINTS=.4;', 'const EASY_POINTS=1;') });
 await control('Easy points cut too little (x0.75)', { expect: 'S1', game: rep('const EASY_POINTS=.4;', 'const EASY_POINTS=.75;') });
-await control('bonus orb not scaled on Easy', { expect: 'S1', game: rep(' const points=scorePoints(Math.round(120+combo*10+(fluxMode>0?60:0)));', ' const points=Math.round(120+combo*10+(fluxMode>0?60:0));') });
+await control('bonus orb not scaled on Easy', { expect: 'S1', game: rep(' const points=mediumPoints(scorePoints(Math.round(120+combo*10+(fluxMode>0?60:0))));', ' const points=mediumPoints(Math.round(120+combo*10+(fluxMode>0?60:0)));') });
 await control('FLUX MODE bonus not scaled on Easy', { expect: 'S1', game: rep('score+=scorePoints(250);', 'score+=250;') });
 await control('Easy scaling applied to Medium too', { expect: 'S2', game: rep("function scorePoints(n){ return difficulty==='easy' ?", "function scorePoints(n){ return difficulty!=='hard' ?") });
 await control('Easy level thresholds not scaled (Easy levels 2.5x slower)', { expect: 'S3', game: rep('const LEVEL_SCORE_MULT={easy:.3,', 'const LEVEL_SCORE_MULT={easy:.75,') });
