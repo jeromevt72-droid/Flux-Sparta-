@@ -609,6 +609,13 @@ best=+localStorage[bestKey()]||0;
 function isPhone(){return W<=700}
 function targetCap(){const d=DIFFICULTY[difficulty],g=Math.min(2,Math.floor((level-1)/4));return isPhone()?Math.min(6,d.capPhone+g):Math.min(9,d.capPad+g)}
 let paddle={x:0,y:0,w:150,h:12,handleH:28,hitFlash:0,hitSide:0};
+/* PADDLE GRIP (tester feedback): a round grip like a camera shutter button
+   under the launcher, joined by a short stem, always above the iPhone home
+   indicator. Drawing only: the launcher's catch width and height are unchanged. */
+const GRIP_D=58, GRIP_STEM=10, GRIP_GAP=6;
+let gripPulse=0, fluxSafeBottom=0;
+function readSafeBottom(){ try{ let p=document.getElementById('safeProbe'); if(!p){ p=document.createElement('div'); p.id='safeProbe'; p.style.cssText='position:fixed;left:0;bottom:0;width:0;height:0;visibility:hidden;pointer-events:none;padding-bottom:env(safe-area-inset-bottom,0px)'; document.body.appendChild(p); }
+  const v=parseFloat(getComputedStyle(p).paddingBottom); return isFinite(v)?v:0; }catch(e){ return 0; } }
 let ball,targets=[],particles=[],texts=[],shake=0;
 /* ===========================================================================
    STORE SWITCH — the ONE place to open or close the paid store.
@@ -775,7 +782,7 @@ function makeStars(){
   });
   nebulae=Array.from({length:4},()=>({x:rand(0,W),y:rand(0,H),r:rand(120,260),hue:['#2a2f6b','#3a1f5e','#1f3a5e','#2f1f4a'][Math.floor(rand(0,4))],vx:rand(-10,10),vy:rand(6,16),phase:rand(0,Math.PI*2)}));
 }
-function resize(){dpr=window.__fluxLite?1:Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;c.width=W*dpr;c.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);paddle.y=H-Math.max(42,Math.min(90,H*.095));makeStars();refreshHudRects();if(skinBackdropOn())applySkinBackground();/* backdrop re-fits on rotation / window changes */}
+function resize(){dpr=window.__fluxLite?1:Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;c.width=W*dpr;c.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);fluxSafeBottom=readSafeBottom();paddle.y=Math.min(H-Math.max(42,Math.min(90,H*.095)),H-fluxSafeBottom-GRIP_GAP-GRIP_D-GRIP_STEM-paddle.h/2);makeStars();refreshHudRects();if(skinBackdropOn())applySkinBackground();/* backdrop re-fits on rotation / window changes */}
 addEventListener('resize',resize);resize();
 function rand(a,b){return a+Math.random()*(b-a)}
 function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
@@ -916,7 +923,7 @@ function newGame(){
  refreshHudRects(); // pauseBtn just became visible -- make sure the exclusion zone reflects that now, not the pre-game state
  applyCelestialBackground(level);
  setPaddle(W/2);
- paddle.w=isPhone()?132:150; paddle.handleH=isPhone()?22:28;
+ paddle.w=isPhone()?132:150; paddle.handleH=isPhone()?22:28; gripPulse=1.6; drag=null;
  document.getElementById('pauseOverlay')?.classList.add('hidden');
  document.getElementById('pauseBtn').textContent='Ⅱ';
  ball={x:W/2,y:paddle.y-28,r:13,vx:rand(-3.5,3.5),vy:-6.2*DIFFICULTY[difficulty].speed,color:0,trail:[]};
@@ -1525,10 +1532,29 @@ function update(dt){
  particles.forEach(p=>{p.x+=p.vx*dt*60;p.y+=p.vy*dt*60;p.vy+=.08*dt*60;p.life-=dt*1.8});particles=particles.filter(p=>p.life>0);
  texts.forEach(t=>{t.y-=.6*dt*60;t.life-=dt});texts=texts.filter(t=>t.life>0);
  if(paddle.hitFlash>0) paddle.hitFlash=Math.max(0,paddle.hitFlash-dt*4.2);
+ if(gripPulse>0) gripPulse=Math.max(0,gripPulse-dt);
  shake*=.9;
  ensureBallColourTarget();   // ball colour rule: never leave the ball with nothing to hit
  if(playing) keepOrbGap();   // ORB GAP, last, after this frame's drift and any new orb (not during the game-over collapse, which pulls the field together on purpose)
  updatePressureBadge();
+}
+function lighterHex(c,k){ if(!/^#[0-9a-f]{6}$/i.test(c||'')) return '#ffffff'; return 'rgb('+[1,3,5].map(i=>Math.round(parseInt(c.substr(i,2),16)*(1-k)+255*k)).join(',')+')'; }
+function drawGrip(col){
+  const pulse=gripPulse>0 ? 1+.09*Math.sin((1.6-gripPulse)*Math.PI*2.5)*(gripPulse/1.6) : 1;   // gentle pulse at the start of each run
+  const r=GRIP_D/2*pulse, top=paddle.y+paddle.h/2, cy=top+GRIP_STEM+GRIP_D/2;
+  ctx.save();
+  ctx.shadowBlur=18;ctx.shadowColor=col;ctx.strokeStyle=col;ctx.lineWidth=8;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(paddle.x,top);ctx.lineTo(paddle.x,cy-r+2);ctx.stroke();
+  ctx.fillStyle=col;ctx.beginPath();ctx.arc(paddle.x,cy,r,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;ctx.strokeStyle=lighterHex(col,.55);ctx.lineWidth=4;ctx.beginPath();ctx.arc(paddle.x,cy,r-2,0,Math.PI*2);ctx.stroke();
+  ctx.globalAlpha=.35;ctx.fillStyle='#ffffff';ctx.beginPath();ctx.arc(paddle.x,cy-r*.28,r*.42,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+}
+function drawSlideHint(){   // first run only, until the player slides
+  let first=false; try{ first=!(+localStorage.fluxRunsPlayed>0); }catch(e){}
+  if(!first || slideHintDone || !playing) return;
+  ctx.save();ctx.textAlign='center';ctx.font='800 15px -apple-system,sans-serif';ctx.fillStyle='#eaf7ff';ctx.globalAlpha=.9;ctx.shadowBlur=10;ctx.shadowColor='#000';
+  ctx.fillText('Slide anywhere \u2194',W/2,paddle.y-44);ctx.restore();
 }
 function glowCircle(x,y,r,col,alpha=1){
  ctx.save();ctx.globalAlpha=alpha;ctx.shadowBlur=r*1.8;ctx.shadowColor=col;ctx.fillStyle=col;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();ctx.restore();
@@ -1685,9 +1711,7 @@ function draw(){
  ctx.beginPath();ctx.moveTo(paddle.x-visualW/2,paddle.y);ctx.lineTo(paddle.x+visualW/2,paddle.y);ctx.stroke();
  ctx.globalAlpha=1;
  ctx.shadowBlur=32;ctx.shadowColor=paddleCol;
- // Short handle first so the bar remains the visual collision point.
- ctx.strokeStyle=paddleCol;ctx.lineWidth=isPhone()?7:8;ctx.lineCap='round';
- ctx.beginPath();ctx.moveTo(paddle.x,paddle.y+3);ctx.lineTo(paddle.x,paddle.y+paddle.handleH);ctx.stroke();
+ drawGrip(paddleCol);   // round grip under the bar (drawn first, so the bar stays the visual catch line)
  ctx.shadowBlur=32+ease*24;ctx.strokeStyle=grad;ctx.lineWidth=visualH;ctx.lineCap='round';
  ctx.beginPath();ctx.moveTo(paddle.x-visualW/2,paddle.y);ctx.lineTo(paddle.x+visualW/2,paddle.y);ctx.stroke();
  // White flash overlay on top, fading out with the squash -- kept pure
@@ -1698,13 +1722,13 @@ function draw(){
    ctx.beginPath();ctx.moveTo(paddle.x-visualW/2,paddle.y);ctx.lineTo(paddle.x+visualW/2,paddle.y);ctx.stroke();
    ctx.globalAlpha=1;
  }
- // Small grip accent at the bottom of the handle.
- ctx.shadowBlur=14;ctx.strokeStyle='#ffffff';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(paddle.x-7,paddle.y+paddle.handleH);ctx.lineTo(paddle.x+7,paddle.y+paddle.handleH);ctx.stroke();
  ctx.restore();
+ drawSlideHint();
  // D-52 (RC2.8.7): the bottom-right FLUX LIVES box is gone; lives live in the top LIVES box.
  // particles
  for(const p of particles){ctx.globalAlpha=Math.max(0,p.life);glowCircle(p.x,p.y,Math.max(1,p.life*4),p.col,p.life);ctx.globalAlpha=1}
- for(const t of texts){ctx.globalAlpha=t.life;ctx.fillStyle=t.col;ctx.font='900 13px -apple-system,sans-serif';ctx.textAlign='center';ctx.fillText(t.s,t.x,t.y);ctx.globalAlpha=1}
+ const textTop=maxHudBottom()+14;   // popups (COMBO LOST...) never rise into the HUD / FLUX meter row
+ for(const t of texts){ctx.globalAlpha=t.life;ctx.fillStyle=t.col;ctx.font='900 13px -apple-system,sans-serif';ctx.textAlign='center';ctx.fillText(t.s,t.x,Math.max(t.y,textTop));ctx.globalAlpha=1}
  // Moment-to-moment feedback: FLUX MODE and level-up should feel like events, not numbers.
  if(fluxMode>0){
    ctx.save();ctx.globalAlpha=.75;ctx.textAlign='center';ctx.font='900 11px -apple-system,sans-serif';ctx.fillStyle='#62eaff';ctx.shadowBlur=18;ctx.shadowColor='#62eaff';ctx.fillText('FLUX MODE  '+Math.ceil(fluxMode)+'s',W/2,maxHudBottom()+22);ctx.restore();
@@ -1801,7 +1825,28 @@ function loop(ts){
  draw();
 }
 requestAnimationFrame(loop);
-function pointer(e){let x=(e.touches?e.touches[0].clientX:e.clientX);setPaddle(x)}
+/* PADDLE CONTROL (tester feedback). A finger that starts in the bottom 40% of
+   the screen drags the launcher RELATIVELY: it moves by how far the finger
+   slides (times dragGain), so a short thumb slide reaches both edges and the
+   thumb never has to cover the ball. A mouse still points directly. */
+const DRAG_ZONE=0.6;   // touches that start below 60% of the height control the launcher
+let drag=null, slideHintDone=false;
+function dragGain(){ const travel=Math.max(1,W-paddle.w-16); return Math.max(1,travel/(W*0.45)); }   // ~45% of the screen width sweeps edge to edge
+function pointer(e){
+  if(e.touches){
+    let t=null;
+    if(drag) for(let i=0;i<e.touches.length;i++) if(e.touches[i].identifier===drag.id){ t=e.touches[i]; break; }
+    if(!t){ drag=null;
+      for(let i=0;i<e.touches.length;i++){ const tt=e.touches[i]; if(tt.clientY>=H*DRAG_ZONE){ drag={id:tt.identifier,x0:tt.clientX,p0:paddle.x}; t=tt; break; } } }
+    if(!t) return;
+    setPaddle(drag.p0+(t.clientX-drag.x0)*dragGain());
+    if(Math.abs(t.clientX-drag.x0)>12) slideHintDone=true;
+    return;
+  }
+  if(e.pointerType && e.pointerType!=='mouse') return;   // touch and pen are handled as touches above
+  setPaddle(e.clientX);
+}
+window.ontouchend=window.ontouchcancel=function(e){ if(!drag) return; const ts=e.touches||[]; for(let i=0;i<ts.length;i++) if(ts[i].identifier===drag.id) return; drag=null; };
 // ---------------------------------------------------------------------------
 // D-11 — PAGE LIFECYCLE
 // iOS suspends the AudioContext when the app is backgrounded and nothing here
