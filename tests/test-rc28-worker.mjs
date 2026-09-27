@@ -89,7 +89,7 @@ async function call(env, p, { method="GET", body, headers={}, raw } = {}) {
 }
 const P = (n) => "aaaaaaaa-bbbb-4ccc-8ddd-" + String(n).padStart(12, "0");
 const submit = (env, id, name, score, difficulty="medium", country="US", level=levelFor(score, difficulty)) =>   // D-51: the level this score reaches
-  call(env, "/api/submit-score", { method:"POST", body:{ playerId:id, name, score, level, difficulty, country } });
+  call(env, "/api/submit-score", { method:"POST", body:{ playerId:id, name, score, level, difficulty, country, season:1 } });   // SEASON 1: scores say their season
 const inst = (env) => [...env.LEADERBOARD_DO._instances.values()][0];
 async function tick(){ await new Promise(r=>setTimeout(r,5)); }
 

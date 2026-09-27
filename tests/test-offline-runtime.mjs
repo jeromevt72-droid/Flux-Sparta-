@@ -20,7 +20,8 @@ Object.assign(globalThis,{difficulty,playerId,callsign,country,best,level,
   SUBMIT_QUEUE_KEY:'fluxPendingSubmits',SUBMIT_MAX_ATTEMPTS:Infinity,SUBMIT_QUEUE_MAX:20,
   // RC2.8 queue (D-24): backoff table, cooldown wait and processor state.
   SUBMIT_BACKOFF_MS:[5000,15000,45000,120000,300000,600000],SUBMIT_COOLDOWN_WAIT_MS:11000,
-  _flushing:null,_retryTimer:null,_flushAgain:false,lastUploadResult:null,document:{getElementById:()=>null}});
+  _flushing:null,_retryTimer:null,_flushAgain:false,lastUploadResult:null,document:{getElementById:()=>null},
+  FLUX_SEASON:1});   // SEASON 1: the page constant the extracted queue functions read
 globalThis.bestRunKey=()=>'fluxBestRun_'+difficulty;
 for(const f of ['bestRun','recordBestRun','loadQueue','saveQueue','buildSubmission','enqueueSubmission','dequeueSubmission','recordSubmitFailure','clearSubmitFailure','submitScore','updateUploadStatus','scheduleFlush'])
   eval('globalThis.'+f+' = '+grabLast(f).replace('function '+f+'(','function ('));
@@ -54,7 +55,7 @@ await flushSubmitQueue();
 ck('re-flush sends nothing (no duplicate)', calls===1, 'calls='+calls);
 
 console.log('\n-- relaunch with a pending queue --');
-store.fluxPendingSubmits=JSON.stringify([{id:'x',playerId:'p1',name:'S',score:5,level:1,difficulty:'medium',attempts:0}]);
+store.fluxPendingSubmits=JSON.stringify([{id:'x',playerId:'p1',name:'S',score:5,level:1,difficulty:'medium',season:1,attempts:0}]);   // SEASON 1: a Season 1 item
 calls=0; await flushSubmitQueue();
 ck('pending item submitted after relaunch', calls===1 && loadQueue().length===0);
 
@@ -73,7 +74,7 @@ ck('422 recorded as rejected', JSON.parse(store.fluxLastSubmitError).reason==='r
 // that a queued personal best is DELETED after 8 temporary failures. That was
 // the defect itself, recorded as correct behaviour, which is why no suite ever
 // caught it. Temporary failures must never delete an unsent best.
-store.fluxPendingSubmits=JSON.stringify([{id:'y',playerId:'p1',name:'S',score:1,level:1,difficulty:'medium',attempts:7}]);
+store.fluxPendingSubmits=JSON.stringify([{id:'y',playerId:'p1',name:'S',score:1,level:1,difficulty:'medium',season:1,attempts:7}]);   // SEASON 1: a Season 1 item
 mode='500'; await flushSubmitQueue();
 ck('a best is NEVER deleted by temporary failures (D-24)', loadQueue().length===1 && loadQueue()[0].attempts===8 && JSON.parse(store.fluxLastSubmitError).reason==='queued');
 saveQueue(Array.from({length:40},(_,i)=>({id:'i'+i,score:i,level:1,difficulty:'medium',attempts:0})));

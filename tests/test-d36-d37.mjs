@@ -84,7 +84,7 @@ async function suite({ gameHtml, adminHtml, workerMod, quiet=false }){
   try {
     const env=makeEnv(DO); const stub=env.LEADERBOARD_DO.get('global');
     const ID='a1a1a1a1-0000-4000-8000-000000000001';
-    skew+=20000; await call(worker,env,'/api/submit-score',{ body:{ playerId:ID, name:PN('TITAN'), score:21742, level:levelFor(21742,'hard'), difficulty:'hard', country:'US' } });
+    skew+=20000; await call(worker,env,'/api/submit-score',{ body:{ playerId:ID, name:PN('TITAN'), score:21742, level:levelFor(21742,'hard'), difficulty:'hard', country:'US', season:1 } });   // SEASON 1
     const pid=await pidHash(ID);
     const P='/api/admin/issue-restore-code';
     let r=await call(worker,env,P,{ body:{ pid, reason:'receipt matched' } });

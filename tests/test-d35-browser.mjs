@@ -23,7 +23,7 @@ try {
   await s.fill('#callsign','titan'); await s.selectOption('#country','US');
   await s.evaluate(()=>saveProfile());
   const sid=await s.evaluate(()=>localStorage.fluxPlayerId);
-  const sub=await s.evaluate(async(id)=>{ const r=await fetch('/api/submit-score',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({playerId:id,name:'TITAN',score:4878,level:2,difficulty:'hard',country:'US'})}); return r.json(); }, sid);
+  const sub=await s.evaluate(async(id)=>{ const r=await fetch('/api/submit-score',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({playerId:id,name:'TITAN',score:4878,level:2,difficulty:'hard',country:'US',season:1})}); return r.json(); }, sid);
   await env.LEADERBOARD_DO.get('global').fetch('https://do.internal/grant',{method:'POST',body:JSON.stringify({playerId:sid,sku:'solar',sessionId:'cs_browser'})});
   await s.reload(); await s.waitForTimeout(600);
   ck('B0 Safari pilot uploaded a score', !!sub.tag, JSON.stringify(sub).slice(0,80));
@@ -92,7 +92,7 @@ try {
   const o=await open(other);
   await o.fill('#callsign','flux'); await o.evaluate(()=>saveProfile());
   const oid=await o.evaluate(()=>localStorage.fluxPlayerId);
-  const osub=await o.evaluate(async(id)=>{ const r=await fetch('/api/submit-score',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({playerId:id,name:'FLUX',score:3731,level:2,difficulty:'medium',country:'US'})}); return r.json(); }, oid);
+  const osub=await o.evaluate(async(id)=>{ const r=await fetch('/api/submit-score',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({playerId:id,name:'FLUX',score:3731,level:2,difficulty:'medium',country:'US',season:1})}); return r.json(); }, oid);
   await o.evaluate((t)=>{ localStorage.fluxPublicTag=t; }, osub.tag);
   await o.reload(); await o.waitForTimeout(500);
   await o.click('#editProfile'); await o.click('#restoreLink'); await o.click('#restoreOther');

@@ -52,7 +52,7 @@ function makeEnv(DO) {
 let pidN = 0;
 const submit = async (w, env, body) => { skew += 20000;
   const r = await w.fetch(new Request(ORIGIN + '/api/submit-score', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ playerId: 'rc287-' + (++pidN), name: 'T', country: 'US', ...body }) }), env);
+    body: JSON.stringify({ playerId: 'rc287-' + (++pidN), name: 'T', country: 'US', season: 1, ...body }) }), env);   // SEASON 1: scores say their season
   return r.status; };
 
 async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = false }) {
@@ -65,7 +65,7 @@ async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = fals
 
   // Boot the real page. Elements get a class tracker so visibility is observable.
   const bootGame = (init = {}) => {
-    const calls = [], bodies = []; const { store, mem } = makeStore(init);
+    const calls = [], bodies = []; const { store, mem } = makeStore(Object.assign({ fluxSeason: '1' }, init));   // SEASON 1: fixture devices are already on Season 1 (else their seeded bests are cleared once)
     const fetchImpl = (u, o = {}) => { calls.push(String(u)); if (String(u).includes('submit-score')) { try { bodies.push(JSON.parse(o.body)); } catch (e) {} }
       return Promise.resolve(new Response(JSON.stringify({ ok: true, isNewBest: true, public: true, rank: 1, tag: 'ABCDEFG' }), { status: 200 })); };
     const g = boot(GAME, { origin: ORIGIN, path: '/play/', store, fetchImpl });

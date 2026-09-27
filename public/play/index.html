@@ -536,6 +536,34 @@ function levelForScore(sc,d){
   while(lv<9 && sc>=levelScoreAt(lv+1,d)) lv++;
   return lv;
 }
+/* SEASON 1 (owner): the Easy and Medium point rates changed, so the server
+   archived every old best and started empty boards. Once per device (fluxSeason
+   below FLUX_SEASON): the saved personal bests for easy/medium/hard (the best-run
+   record the share card and menu read, and its two legacy keys) and any queued
+   upload from before Season 1 are cleared, so the phone matches the server.
+   Everything else stays: pilot, name, country, tag, skins, purchases, restore
+   code, settings, first-run flags. A pilot who had played before is shown a
+   one-time "Season 1" message (fluxSeasonNotice, see fluxSeasonToast). Every
+   upload says season:FLUX_SEASON; the server refuses one without it. */
+const FLUX_SEASON=1;
+(function startSeasonOnDevice(){
+  try{
+    if((+localStorage.getItem('fluxSeason')||0)>=FLUX_SEASON) return;
+    let had=(+localStorage.getItem('fluxRunsPlayed')||0)>0;
+    ['easy','medium','hard'].forEach(function(d){
+      ['fluxBestRun_'+d,'fluxBest_'+d,'fluxBestLevel_'+d].forEach(function(k){
+        const v=localStorage.getItem(k);
+        if(v!==null){ if(k.indexOf('fluxBestLevel_')!==0 && v!=='0') had=true; localStorage.removeItem(k); }
+      });
+    });
+    const q=JSON.parse(localStorage.getItem('fluxPendingSubmits')||'[]');
+    if(Array.isArray(q)){ if(q.length) had=true;
+      const keep=q.filter(function(it){ return it && it.season>=FLUX_SEASON; });
+      if(keep.length!==q.length) localStorage.setItem('fluxPendingSubmits',JSON.stringify(keep)); }
+    if(had) localStorage.setItem('fluxSeasonNotice','1');
+    localStorage.setItem('fluxSeason',String(FLUX_SEASON));
+  }catch(e){}
+})();
 /* D-51: the server now requires the level a score reaches. Bests and queued
    uploads saved by earlier versions carry levels from the old perfect-catch
    system, which the server would refuse (and a refused upload also loses a
@@ -2195,6 +2223,7 @@ function buildSubmission(){
     level:run.level,
     difficulty:run.difficulty||difficulty,
     country:(country&&country!=='OTHER')?country:undefined,
+    season:FLUX_SEASON,
     at:Date.now(),
     attempts:0
   };
@@ -2235,7 +2264,8 @@ async function postSubmission(item){
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         playerId:item.playerId, name:item.name, score:item.score,
-        level:item.level, difficulty:item.difficulty, country:item.country
+        level:item.level, difficulty:item.difficulty, country:item.country,
+        season:item.season
       })
     });
   }catch(e){ return { kind:'temporary', waitMs:0 }; }
@@ -2243,6 +2273,7 @@ async function postSubmission(item){
     let body=null; try{ body=await res.json(); }catch(e){}
     return { kind:'ok', body:body };
   }
+  if(res.status===409) return { kind:'stale' };   // SEASON 1: refused as from an older season -- dropped quietly
   if(res.status===429||res.status>=500){
     let waitMs=0;
     try{
@@ -2276,12 +2307,15 @@ function flushSubmitQueue(){
       if(typeof navigator!=='undefined' && navigator.onLine===false) return;
       let retryScheduled=false;
       for(const item of loadQueue()){
+        if(!(item && item.season>=FLUX_SEASON)){ saveQueue(loadQueue().filter(function(x){ return x && x.season>=FLUX_SEASON; })); continue; }   // SEASON 1: an old-season upload is never sent
         const r=await postSubmission(item);
         if(r.kind==='ok'){
           dequeueSubmission(item.id); clearSubmitFailure();
           const b=r.body||{};
           if(b.tag && /^[0-9A-Z]{6,}$/.test(b.tag)){ try{ localStorage.fluxPublicTag=b.tag; }catch(e){} }
           lastUploadResult=b;
+        } else if(r.kind==='stale'){
+          dequeueSubmission(item.id);
         } else if(r.kind==='permanent'){
           dequeueSubmission(item.id); recordSubmitFailure('rejected');
         } else {
@@ -3410,7 +3444,26 @@ document.getElementById('start').onpointerdown=function(e){   // a tap anywhere 
 // One-time notice for a pilot whose old name was switched to a preset.
 // The flag is cleared once the notice has been on screen (timed out or tapped), so a
 // reload during the first launch (service worker update) does not lose it.
-try{ if(localStorage.fluxNameNotice==='1') fluxNameToast("Your name didn't fit the new name rules, so we picked one for you. Tap Edit to change it.", 9000, function(){ try{ localStorage.removeItem('fluxNameNotice'); }catch(e){} }); }catch(e){}
+/* SEASON 1: the one-time "Season 1" message, in the same toast, for a pilot who
+   had played before (set by startSeasonOnDevice). Shown after the name notice if
+   both are due; tap to close, it also closes by itself, and it goes away when a
+   run starts, so it never covers play. The flag is cleared once it was shown. */
+const FLUX_SEASON_MSG='Season 1 starts now! Fresh boards for everyone.';
+function fluxSeasonToast(){
+  try{ if(localStorage.fluxSeasonNotice!=='1') return;
+    const menu=document.getElementById('start'); if(menu && menu.classList.contains('hidden')===true) return;   // a run is on: next time
+    fluxSeasonToast.on=true;
+    fluxNameToast(FLUX_SEASON_MSG, 7000, function(){ fluxSeasonToast.on=false; try{ localStorage.removeItem('fluxSeasonNotice'); }catch(e){} });
+  }catch(e){}
+}
+(function(){
+  const sb=document.getElementById('startBtn'); const prev=sb.onclick;
+  sb.onclick=function(e){
+    if(fluxSeasonToast.on){ try{ const t=document.getElementById('fluxNameToast'); if(t && t.onclick) t.onclick(); }catch(x){} }
+    if(typeof prev==='function') return prev.call(this,e);
+  };
+})();
+try{ if(localStorage.fluxNameNotice==='1') fluxNameToast("Your name didn't fit the new name rules, so we picked one for you. Tap Edit to change it.", 9000, function(){ try{ localStorage.removeItem('fluxNameNotice'); }catch(e){} fluxSeasonToast(); }); else fluxSeasonToast(); }catch(e){}
 
 /* ==================================================================
    RC2.8.6 -- D-47 INSTALL AFTER FIRST PLAY, D-48 BRING MY PILOT,

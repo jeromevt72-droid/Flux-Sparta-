@@ -40,7 +40,7 @@ async function suite({ adminHtml, workerMod, quiet = false }) {
   const ck = (l, c, x = '') => { if (!quiet) console.log((c ? '  PASS  ' : '  FAIL  ') + l + (x !== '' ? '  [' + x + ']' : '')); if (!c) { F++; failed.push(l); } };
   const worker = workerMod.default, env = makeEnv(workerMod.LeaderboardDO);
   const call = async (p, body, headers = {}) => { const res = await worker.fetch(new Request(ORIGIN + p, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body || {}) }), env, {}); let d = null; try { d = await res.json(); } catch (e) {} return { status: res.status, data: d }; };
-  const submit = (pid, name, score, country = 'PH') => call('/api/submit-score', { playerId: pid, name, score, level: 1, difficulty: 'easy', country });
+  const submit = (pid, name, score, country = 'PH') => call('/api/submit-score', { playerId: pid, name, score, level: 1, difficulty: 'easy', country, season: 1 })   // SEASON 1: scores say their season;
   const find = async (q) => ((await call('/api/admin/find-player', { query: q }, H)).data || {}).matches || [];
   try {
     await submit(P(1), 'SWIFT COMET 42', 400); await submit(P(2), 'titan', 300); await submit(P(3), 'NOVA7', 200);
