@@ -137,6 +137,20 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 .restoreLink{display:block;width:100%;margin:-4px 0 12px;flex:none}#profileEditor.hidden+.restoreLink{display:none}.restoreOverlay .panel{max-height:88vh;overflow:auto}.restoreWho{font-size:12px;letter-spacing:.12em;color:#eaf7ff;margin:6px 0 10px}.restoreText{font-size:12px;line-height:1.55;color:#b9c6e6;margin:0 0 10px}.restoreWarn{font-size:11px;line-height:1.5;color:#ffd08a;margin:0 0 10px}.restoreMsg{font-size:12px;line-height:1.5;color:#ff9fc6;min-height:1.5em;margin:4px 0 8px}.restoreCode{font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.5;word-break:break-all;user-select:all;-webkit-user-select:all;background:#050a22;border:1px solid #2c4b87;border-radius:12px;padding:10px;margin:0 0 10px;color:#9ff3ff}.restoreInput{width:100%;box-sizing:border-box;font-family:ui-monospace,Menlo,monospace;font-size:16px;background:#050a22;color:#eaf7ff;border:1px solid #2c4b87;border-radius:12px;padding:10px;margin:0 0 6px;resize:none}.restoreRow{display:flex;gap:8px}.restoreRow button{flex:1}.restoreOverlay button{margin-top:8px}.restoreOther{display:block;width:100%}
 .goName{margin:6px 0 10px;padding:12px;border:1px solid #2c6bff;border-radius:16px;background:rgba(18,32,77,.55)}.goNameT{font-size:11px;letter-spacing:.16em;color:#5ff3ff;font-weight:800;margin-bottom:8px}.goNameRow{display:flex;gap:8px;margin-bottom:8px}.goNameRow input,.goNameRow select{min-width:0;background:#050a22;color:#eaf7ff;border:1px solid #2c4b87;border-radius:12px;padding:10px 12px;font:700 16px system-ui,sans-serif;text-transform:uppercase}.goNameRow input{flex:1}.goNameRow select{flex:0 0 42%;font-size:14px}.goNameRow input::placeholder{color:#6d7fa8}.goNameNote{font-size:11px;color:#9fb3d9;margin-top:6px}
 .installBtn{display:block;width:100%;margin-top:8px}
+.installNo{display:block;margin:2px auto 0;background:none;border:0;box-shadow:none;color:#8da0c8;font-size:13px;font-weight:600;letter-spacing:.04em;padding:10px 16px;min-height:44px;text-decoration:underline}
+/* INSTALL COACH + WELCOME BACK (owner: short, one line, never blocking) */
+.fluxCoach{position:fixed;inset:0;z-index:80;background:rgba(3,5,16,.94);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center}
+.fluxCoach .coachLine{font:800 22px/1.4 -apple-system,system-ui,sans-serif;color:#fff;max-width:330px;margin:0 0 14px}
+.fluxCoach .coachLine b{color:#5ff3ff}
+.fluxCoach .coachHelp{font:500 14px/1.5 -apple-system,system-ui,sans-serif;color:#b9c7ea;max-width:320px;margin:0 0 10px}
+.fluxCoach .coachLink{background:none;border:0;box-shadow:none;color:#8da0c8;font-size:13px;font-weight:600;text-decoration:underline;padding:10px 16px;min-height:44px;letter-spacing:.02em}
+.fluxCoach .coachNo{margin-top:6px;background:transparent;color:#eaf7ff;border:1px solid #2c6bff;box-shadow:none;min-height:44px}
+.coachArrow{position:fixed;right:10px;width:64px;height:84px;pointer-events:none;filter:drop-shadow(0 0 10px rgba(95,243,255,.8))}
+.coachArrow.down{bottom:calc(env(safe-area-inset-bottom,0px) + 50px);animation:coachDown 1s ease-in-out infinite}
+.coachArrow.up{top:calc(env(safe-area-inset-top,0px) + 6px);transform:rotate(180deg);animation:coachUp 1s ease-in-out infinite}
+@keyframes coachDown{0%,100%{transform:translateY(0)}50%{transform:translateY(14px)}}
+@keyframes coachUp{0%,100%{transform:rotate(180deg) translateY(0)}50%{transform:rotate(180deg) translateY(14px)}}
+.fluxWelcomeBtn{max-width:340px;width:100%;min-height:64px;font-size:18px;letter-spacing:.04em;line-height:1.35}
 /* RC2.8.7: D-57 game over = the score + one line; D-60 name offer; D-58 "Playing for". */.goScore{font-size:56px;font-weight:900;line-height:1.05;color:#5deaff;letter-spacing:.04em;text-shadow:0 0 24px #27d9ff66;margin:0}.goLine{margin:8px 0 4px!important;color:#eaf7ff!important;font-size:15px!important;font-weight:800;line-height:1.4!important}.goLine .goNew{color:#ffd23f}.goMeta{margin:0 0 4px!important;color:#8fa5d1!important;font-size:12px!important;letter-spacing:.08em}.goClaim{margin:8px 0 10px;padding:12px;border:1px solid #2c6bff;border-radius:16px;background:rgba(18,32,77,.55)}.goClaimT{font-size:14px;font-weight:800;color:#eaf7ff;margin-bottom:8px}.goClaimRow{display:flex;gap:8px}.goClaimRow button{flex:1;padding:10px 8px;font-size:12px;letter-spacing:.08em}.goClaimRow button.goClaimNo{background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none}.playingFor{display:block;width:100%;margin:8px 0 0;padding:8px 10px;background:transparent;color:#b9c6e5;border:0;box-shadow:none;font-size:13px;font-weight:700;letter-spacing:.02em;text-transform:none}.playingFor u{color:#62eaff;text-underline-offset:3px}
 /* D-46 lite graphics: the moving star fields, the live-blurred nebula and the FLUX Mode full-screen filter are redrawn every frame; on old devices they cost more than the game itself. */.fluxLite #starsFar,.fluxLite #starsNear{animation:none!important}.fluxLite #nebulaDrift{display:none!important}.fluxLite #app{filter:none!important}
 </style>
@@ -369,7 +383,8 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
   <button id="shareBtn" type="button" class="hidden" style="margin-top:8px;background:transparent;color:#ffd23f;border:1px solid #6b5a1a;box-shadow:none">📤 SHARE MY SCORE</button>
   <button id="gameoverLeaderBtn" style="margin-top:8px;background:transparent;color:#7fdfff;border:1px solid #234174;box-shadow:none">🌎 GLOBAL LEADERBOARD</button>
   <button id="gameoverMenuBtn" style="margin-top:8px;background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none">⌂ MENU</button>
-  <button id="gameoverInstallBtn" type="button" class="installBtn hidden" style="margin-top:8px;background:transparent;color:#5ff3ff;border:1px solid #2c6bff;box-shadow:none">📲 ADD TO HOME SCREEN</button>
+  <button id="gameoverInstallBtn" type="button" class="installBtn hidden" style="margin-top:8px;background:transparent;color:#5ff3ff;border:1px solid #2c6bff;box-shadow:none">📲 Put FLUX on your Home Screen</button>
+  <button id="gameoverInstallNo" type="button" class="installNo hidden">Not now</button>
  </div>
 </div>
 </div>
@@ -598,6 +613,13 @@ function isPhone(){return W<=700}
 function easyOrbCount(){ return (W<=380||H<=700)?5:6; }
 function targetCap(){if(difficulty==='easy')return easyOrbCount();const d=DIFFICULTY[difficulty],g=Math.min(2,Math.floor((level-1)/4));return isPhone()?Math.min(6,d.capPhone+g):Math.min(9,d.capPad+g)}
 let paddle={x:0,y:0,w:150,h:12,handleH:28,hitFlash:0,hitSide:0};
+/* PADDLE GRIP (tester feedback): a round grip like a camera shutter button
+   under the launcher, joined by a short stem, always above the iPhone home
+   indicator. Drawing only: the launcher's catch width and height are unchanged. */
+const GRIP_D=58, GRIP_STEM=10, GRIP_GAP=6;
+let gripPulse=0, fluxSafeBottom=0;
+function readSafeBottom(){ try{ let p=document.getElementById('safeProbe'); if(!p){ p=document.createElement('div'); p.id='safeProbe'; p.style.cssText='position:fixed;left:0;bottom:0;width:0;height:0;visibility:hidden;pointer-events:none;padding-bottom:env(safe-area-inset-bottom,0px)'; document.body.appendChild(p); }
+  const v=parseFloat(getComputedStyle(p).paddingBottom); return isFinite(v)?v:0; }catch(e){ return 0; } }
 let ball,targets=[],particles=[],texts=[],shake=0;
 /* ===========================================================================
    STORE SWITCH — the ONE place to open or close the paid store.
@@ -764,7 +786,7 @@ function makeStars(){
   });
   nebulae=Array.from({length:4},()=>({x:rand(0,W),y:rand(0,H),r:rand(120,260),hue:['#2a2f6b','#3a1f5e','#1f3a5e','#2f1f4a'][Math.floor(rand(0,4))],vx:rand(-10,10),vy:rand(6,16),phase:rand(0,Math.PI*2)}));
 }
-function resize(){dpr=window.__fluxLite?1:Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;c.width=W*dpr;c.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);paddle.y=H-Math.max(42,Math.min(90,H*.095));makeStars();refreshHudRects();if(skinBackdropOn())applySkinBackground();/* backdrop re-fits on rotation / window changes */}
+function resize(){dpr=window.__fluxLite?1:Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;c.width=W*dpr;c.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);fluxSafeBottom=readSafeBottom();paddle.y=Math.min(H-Math.max(42,Math.min(90,H*.095)),H-fluxSafeBottom-GRIP_GAP-GRIP_D-GRIP_STEM-paddle.h/2);makeStars();refreshHudRects();if(skinBackdropOn())applySkinBackground();/* backdrop re-fits on rotation / window changes */}
 addEventListener('resize',resize);resize();
 function rand(a,b){return a+Math.random()*(b-a)}
 function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
@@ -905,7 +927,7 @@ function newGame(){
  refreshHudRects(); // pauseBtn just became visible -- make sure the exclusion zone reflects that now, not the pre-game state
  applyCelestialBackground(level);
  setPaddle(W/2);
- paddle.w=isPhone()?132:150; paddle.handleH=isPhone()?22:28;
+ paddle.w=isPhone()?132:150; paddle.handleH=isPhone()?22:28; gripPulse=1.6; drag=null;
  document.getElementById('pauseOverlay')?.classList.add('hidden');
  document.getElementById('pauseBtn').textContent='Ⅱ';
  ball={x:W/2,y:paddle.y-28,r:13,vx:rand(-3.5,3.5),vy:-6.2*DIFFICULTY[difficulty].speed,color:0,trail:[]};
@@ -1552,10 +1574,29 @@ function update(dt){
  particles.forEach(p=>{p.x+=p.vx*dt*60;p.y+=p.vy*dt*60;p.vy+=.08*dt*60;p.life-=dt*1.8});particles=particles.filter(p=>p.life>0);
  texts.forEach(t=>{t.y-=.6*dt*60;t.life-=dt});texts=texts.filter(t=>t.life>0);
  if(paddle.hitFlash>0) paddle.hitFlash=Math.max(0,paddle.hitFlash-dt*4.2);
+ if(gripPulse>0) gripPulse=Math.max(0,gripPulse-dt);
  shake*=.9;
  ensureBallColourTarget();   // ball colour rule: never leave the ball with nothing to hit
  if(playing) keepOrbGap();   // ORB GAP, last, after this frame's drift and any new orb (not during the game-over collapse, which pulls the field together on purpose)
  updatePressureBadge();
+}
+function lighterHex(c,k){ if(!/^#[0-9a-f]{6}$/i.test(c||'')) return '#ffffff'; return 'rgb('+[1,3,5].map(i=>Math.round(parseInt(c.substr(i,2),16)*(1-k)+255*k)).join(',')+')'; }
+function drawGrip(col){
+  const pulse=gripPulse>0 ? 1+.09*Math.sin((1.6-gripPulse)*Math.PI*2.5)*(gripPulse/1.6) : 1;   // gentle pulse at the start of each run
+  const r=GRIP_D/2*pulse, top=paddle.y+paddle.h/2, cy=top+GRIP_STEM+GRIP_D/2;
+  ctx.save();
+  ctx.shadowBlur=18;ctx.shadowColor=col;ctx.strokeStyle=col;ctx.lineWidth=8;ctx.lineCap='round';
+  ctx.beginPath();ctx.moveTo(paddle.x,top);ctx.lineTo(paddle.x,cy-r+2);ctx.stroke();
+  ctx.fillStyle=col;ctx.beginPath();ctx.arc(paddle.x,cy,r,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;ctx.strokeStyle=lighterHex(col,.55);ctx.lineWidth=4;ctx.beginPath();ctx.arc(paddle.x,cy,r-2,0,Math.PI*2);ctx.stroke();
+  ctx.globalAlpha=.35;ctx.fillStyle='#ffffff';ctx.beginPath();ctx.arc(paddle.x,cy-r*.28,r*.42,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+}
+function drawSlideHint(){   // first run only, until the player slides
+  let first=false; try{ first=!(+localStorage.fluxRunsPlayed>0); }catch(e){}
+  if(!first || slideHintDone || !playing) return;
+  ctx.save();ctx.textAlign='center';ctx.font='800 15px -apple-system,sans-serif';ctx.fillStyle='#eaf7ff';ctx.globalAlpha=.9;ctx.shadowBlur=10;ctx.shadowColor='#000';
+  ctx.fillText('Slide anywhere \u2194',W/2,paddle.y-44);ctx.restore();
 }
 function glowCircle(x,y,r,col,alpha=1){
  ctx.save();ctx.globalAlpha=alpha;ctx.shadowBlur=r*1.8;ctx.shadowColor=col;ctx.fillStyle=col;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();ctx.restore();
@@ -1712,9 +1753,7 @@ function draw(){
  ctx.beginPath();ctx.moveTo(paddle.x-visualW/2,paddle.y);ctx.lineTo(paddle.x+visualW/2,paddle.y);ctx.stroke();
  ctx.globalAlpha=1;
  ctx.shadowBlur=32;ctx.shadowColor=paddleCol;
- // Short handle first so the bar remains the visual collision point.
- ctx.strokeStyle=paddleCol;ctx.lineWidth=isPhone()?7:8;ctx.lineCap='round';
- ctx.beginPath();ctx.moveTo(paddle.x,paddle.y+3);ctx.lineTo(paddle.x,paddle.y+paddle.handleH);ctx.stroke();
+ drawGrip(paddleCol);   // round grip under the bar (drawn first, so the bar stays the visual catch line)
  ctx.shadowBlur=32+ease*24;ctx.strokeStyle=grad;ctx.lineWidth=visualH;ctx.lineCap='round';
  ctx.beginPath();ctx.moveTo(paddle.x-visualW/2,paddle.y);ctx.lineTo(paddle.x+visualW/2,paddle.y);ctx.stroke();
  // White flash overlay on top, fading out with the squash -- kept pure
@@ -1725,13 +1764,13 @@ function draw(){
    ctx.beginPath();ctx.moveTo(paddle.x-visualW/2,paddle.y);ctx.lineTo(paddle.x+visualW/2,paddle.y);ctx.stroke();
    ctx.globalAlpha=1;
  }
- // Small grip accent at the bottom of the handle.
- ctx.shadowBlur=14;ctx.strokeStyle='#ffffff';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(paddle.x-7,paddle.y+paddle.handleH);ctx.lineTo(paddle.x+7,paddle.y+paddle.handleH);ctx.stroke();
  ctx.restore();
+ drawSlideHint();
  // D-52 (RC2.8.7): the bottom-right FLUX LIVES box is gone; lives live in the top LIVES box.
  // particles
  for(const p of particles){ctx.globalAlpha=Math.max(0,p.life);glowCircle(p.x,p.y,Math.max(1,p.life*4),p.col,p.life);ctx.globalAlpha=1}
- for(const t of texts){ctx.globalAlpha=t.life;ctx.fillStyle=t.col;ctx.font='900 13px -apple-system,sans-serif';ctx.textAlign='center';ctx.fillText(t.s,t.x,t.y);ctx.globalAlpha=1}
+ const textTop=maxHudBottom()+14;   // popups (COMBO LOST...) never rise into the HUD / FLUX meter row
+ for(const t of texts){ctx.globalAlpha=t.life;ctx.fillStyle=t.col;ctx.font='900 13px -apple-system,sans-serif';ctx.textAlign='center';ctx.fillText(t.s,t.x,Math.max(t.y,textTop));ctx.globalAlpha=1}
  // Moment-to-moment feedback: FLUX MODE and level-up should feel like events, not numbers.
  if(fluxMode>0){
    ctx.save();ctx.globalAlpha=.75;ctx.textAlign='center';ctx.font='900 11px -apple-system,sans-serif';ctx.fillStyle='#62eaff';ctx.shadowBlur=18;ctx.shadowColor='#62eaff';ctx.fillText('FLUX MODE  '+Math.ceil(fluxMode)+'s',W/2,maxHudBottom()+22);ctx.restore();
@@ -1828,7 +1867,28 @@ function loop(ts){
  draw();
 }
 requestAnimationFrame(loop);
-function pointer(e){let x=(e.touches?e.touches[0].clientX:e.clientX);setPaddle(x)}
+/* PADDLE CONTROL (tester feedback). A finger that starts in the bottom 40% of
+   the screen drags the launcher RELATIVELY: it moves by how far the finger
+   slides (times dragGain), so a short thumb slide reaches both edges and the
+   thumb never has to cover the ball. A mouse still points directly. */
+const DRAG_ZONE=0.6;   // touches that start below 60% of the height control the launcher
+let drag=null, slideHintDone=false;
+function dragGain(){ const travel=Math.max(1,W-paddle.w-16); return Math.max(1,travel/(W*0.45)); }   // ~45% of the screen width sweeps edge to edge
+function pointer(e){
+  if(e.touches){
+    let t=null;
+    if(drag) for(let i=0;i<e.touches.length;i++) if(e.touches[i].identifier===drag.id){ t=e.touches[i]; break; }
+    if(!t){ drag=null;
+      for(let i=0;i<e.touches.length;i++){ const tt=e.touches[i]; if(tt.clientY>=H*DRAG_ZONE){ drag={id:tt.identifier,x0:tt.clientX,p0:paddle.x}; t=tt; break; } } }
+    if(!t) return;
+    setPaddle(drag.p0+(t.clientX-drag.x0)*dragGain());
+    if(Math.abs(t.clientX-drag.x0)>12) slideHintDone=true;
+    return;
+  }
+  if(e.pointerType && e.pointerType!=='mouse') return;   // touch and pen are handled as touches above
+  setPaddle(e.clientX);
+}
+window.ontouchend=window.ontouchcancel=function(e){ if(!drag) return; const ts=e.touches||[]; for(let i=0;i<ts.length;i++) if(ts[i].identifier===drag.id) return; drag=null; };
 // ---------------------------------------------------------------------------
 // D-11 — PAGE LIFECYCLE
 // iOS suspends the AudioContext when the app is backgrounded and nothing here
@@ -3309,13 +3369,30 @@ SPEED_HELPS.push(easeFactor);
      Android (browser offers install)  -> "INSTALL NOW" = the phone's own prompt
      iPhone / iPad                     -> "ADD TO HOME SCREEN" = 3-step picture
      already installed / other browser -> no button
-   No pop-ups. */
-let fluxDeferredInstall = null;
+   No pop-ups.
+   SHARE & INSTALL (owner, simplified): play always comes first. After a GOOD
+   run (points, and level 2+ or a new personal best over an earlier one) ONE
+   button "Put FLUX on your Home Screen" with "Not now" under it, on that
+   run's game-over screen only; at most twice ever (fluxInstallOffers).
+     Android -> the phone's own one-tap install
+     iPhone / iPad Safari -> the tap copies the pilot, then one line
+       "Tap ⋯ -> Share -> Add to Home Screen" with an arrow at ⋯
+     inside TikTok / Instagram / Facebook / Messenger -> one line "Open in
+       Safari to install" with an arrow at their ⋯ menu
+     first launch of the Home Screen app -> "Welcome back! Tap to continue" (reads the copied pilot) */
+let fluxDeferredInstall = null, fluxInstallOfferNow = false;
 function fluxIsStandalone(){ try{ return window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches; }catch(e){ return false; } }
 function fluxIsIOS(){ try{ return /iP(hone|od|ad)/.test(navigator.platform) || (navigator.userAgent.indexOf('Mac') !== -1 && 'ontouchend' in document); }catch(e){ return false; } }
+function fluxIsIPad(){ try{ return /iPad/.test(navigator.platform) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); }catch(e){ return false; } }   // iPadOS reports itself as a Mac with touch
+function fluxInApp(){ return window.FLUX_IN_APP || null; }   // set by the D-38 in-app browser check at the end of this page
 function fluxHasPlayed(){ try{ return (+localStorage.getItem('fluxRunsPlayed') || 0) >= 1; }catch(e){ return false; } }
+const FLUX_INSTALL_MAX = 2;   // owner: offered at most twice ever
+function fluxInstallCount(){ try{ return +localStorage.getItem('fluxInstallOffers') || 0; }catch(e){ return FLUX_INSTALL_MAX; } }
+let fluxInstallCode = null;   // this pilot's restore code, ready before the tap (iOS only lets a tap copy synchronously)
+function fluxGoodRun(sc, prevBest, lv){ return sc > 0 && (lv >= 2 || (prevBest > 0 && sc > prevBest)); }
 function fluxInstallMode(){
   if (fluxIsStandalone() || !fluxHasPlayed()) return null;
+  if (fluxInApp()) return 'inapp';
   if (fluxDeferredInstall) return 'android';
   if (fluxIsIOS()) return 'ios';
   return null;
@@ -3324,11 +3401,10 @@ function fluxNeedsPilotBring(){
   try{ return fluxIsStandalone() && localStorage.getItem('fluxAutoName') === '1' && !localStorage.getItem('fluxPublicTag'); }catch(e){ return false; }
 }
 function refreshInstallButtons(){
-  const mode = fluxInstallMode();
-  const label = mode === 'android' ? '\u{1F4F2} INSTALL NOW' : '\u{1F4F2} ADD TO HOME SCREEN';
-  ['gameoverInstallBtn'].forEach(function(id){   // owner decision: after a run only, never in the menu
+  const mode = fluxInstallOfferNow ? fluxInstallMode() : null;
+  ['gameoverInstallBtn','gameoverInstallNo'].forEach(function(id){   // owner decision: after a run only, never in the menu
     const b = document.getElementById(id); if (!b) return;
-    b.textContent = label;
+    if (id === 'gameoverInstallBtn') b.textContent = '\u{1F4F2} Put FLUX on your Home Screen';
     if (mode) b.classList.remove('hidden'); else b.classList.add('hidden');
   });
   const bring = document.getElementById('bringPilotBtn');
@@ -3345,8 +3421,16 @@ function fluxDoInstall(){
     refreshInstallButtons();
     return;
   }
-  if (mode === 'ios') fluxShowIosGuide();
+  if (mode === 'ios' || mode === 'inapp'){ fluxCarryPilot(); fluxShowIosGuide(); }
 }
+/* The tap copies the pilot by itself (no separate step). Owner: ONLY the
+   clipboard -- never the page address, because the install goes through
+   Safari's Share sheet and a shared link must never carry a pilot code. */
+function fluxCarryPilot(){
+  const code = fluxInstallCode; if (!code) return;
+  try{ if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(function(){}, function(){}); }catch(e){}
+}
+function fluxInstallNotNow(){ fluxInstallOfferNow = false; refreshInstallButtons(); }
 /* SHARE CARD. After each run, SHARE MY SCORE opens the phone's own share
    sheet (iPhone: Messages, WhatsApp, Instagram...; Android: the system
    chooser) with a score card image, one line of text and a link that opens
@@ -3359,10 +3443,25 @@ function fluxDoInstall(){
    browsers that can't share images; copy to clipboard where there is no share
    sheet. Nothing is uploaded by the game; offline it still works. */
 let shareInfo=null, shareFile=null, shareCanvas=null;
-function shareUrl(){ return location.origin+'/play/'; }
+function shareUrl(){ return location.origin+'/play/?src=share'; }   // tagged so visits from shared links can be counted; the card prints the clean address
 function shareText(info){
   const c=countryLabel(info.country);
   return (info.added>0 ? 'I added '+info.added.toLocaleString('en-US')+' for '+c.flag+' '+c.name+'!' : 'I scored '+info.score.toLocaleString('en-US')+' for '+c.flag+' '+c.name+'!')+' Beat me in FLUX:';
+}
+/* The card shows the game's name and its web address in large type, since
+   Instagram and TikTok captions don't make links clickable: people type what
+   they see. The address is the site's canonical one (<link rel="canonical">
+   in this page), or this page's own host if there is none. */
+const SHARE_CARD_TITLE='FLUX Sparta', SHARE_CARD_ADDRESS_PX=72;
+function shareSiteAddress(){
+  try{ const l=document.querySelector('link[rel="canonical"]'), h=l && l.getAttribute('href'); if(typeof h==='string' && /^https?:\/\/[^\/]+/.test(h)) return h.replace(/^https?:\/\//,'').split('/')[0]; }catch(e){}
+  return location.host;
+}
+function fitShareFont(x,text,weight,size,maxW){   // the largest size up to `size` at which `text` fits in maxW
+  x.font=weight+' '+size+'px -apple-system,system-ui,sans-serif';
+  const w=x.measureText(text).width;
+  if(w>maxW){ size=Math.floor(size*maxW/w); x.font=weight+' '+size+'px -apple-system,system-ui,sans-serif'; }
+  return size;
 }
 function drawShareCard(info){
   const cv=document.createElement('canvas'); cv.width=720; cv.height=900;   // 4:5, sharp in chat apps, quick to encode
@@ -3371,17 +3470,21 @@ function drawShareCard(info){
   const g=x.createLinearGradient(0,0,0,1350); g.addColorStop(0,'#111b43'); g.addColorStop(.55,'#07091d'); g.addColorStop(1,'#03040d');
   x.fillStyle=g; x.fillRect(0,0,1080,1350);
   const pal=(SKINS[activeSkin]||SKINS.aurora).colors;
-  for(let i=0;i<5;i++){ x.globalAlpha=.9; x.fillStyle=pal[i%pal.length]; x.beginPath(); x.arc(170+i*185,1150,34,0,Math.PI*2); x.fill(); }
+  for(let i=0;i<5;i++){ x.globalAlpha=.9; x.fillStyle=pal[i%pal.length]; x.beginPath(); x.arc(220+i*160,890,26,0,Math.PI*2); x.fill(); }
   x.globalAlpha=1; x.textAlign='center';
-  x.fillStyle='#5ff3ff'; x.font='900 120px -apple-system,system-ui,sans-serif'; x.fillText('F L U X',540,210);
+  x.fillStyle='#5ff3ff'; fitShareFont(x,SHARE_CARD_TITLE,'900',124,960); x.fillText(SHARE_CARD_TITLE,540,170);
   const c=countryLabel(info.country);
-  x.font='220px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; x.fillText(c.flag,540,520);
+  x.font='200px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; x.fillText(c.flag,540,430);
   x.fillStyle='#ffffff'; x.font='900 150px -apple-system,system-ui,sans-serif';
-  x.fillText((info.added>0?'+':'')+(info.added>0?info.added:info.score).toLocaleString('en-US'),540,760);
-  x.fillStyle='#ffd23f'; x.font='800 60px -apple-system,system-ui,sans-serif';
-  x.fillText((info.added>0?'added for ':'scored for ')+c.name,540,860);
-  x.fillStyle='#9fb3e6'; x.font='700 44px -apple-system,system-ui,sans-serif'; x.fillText('Can you beat it? Play free:',540,1000);
-  x.fillStyle='#eaf7ff'; x.font='800 40px -apple-system,system-ui,sans-serif'; x.fillText(shareUrl().replace(/^https?:\/\//,''),540,1060);
+  x.fillText((info.added>0?'+':'')+(info.added>0?info.added:info.score).toLocaleString('en-US'),540,640);
+  const line=(info.added>0?'added for ':'scored for ')+c.name;
+  x.fillStyle='#ffd23f'; fitShareFont(x,line,'800',60,960); x.fillText(line,540,745);
+  x.fillStyle='#9fb3e6'; x.font='700 50px -apple-system,system-ui,sans-serif'; x.fillText('Can you beat it? Play free at',540,1030);
+  // The web address: large, white, one line, on a bright panel (Instagram/TikTok captions are not clickable, so people type it).
+  const site=shareSiteAddress(), X0=24, Y0=1075, BW=1032, BH=150, R=34;
+  x.fillStyle='#12204d'; x.strokeStyle='#5ff3ff'; x.lineWidth=5;
+  x.beginPath(); x.moveTo(X0+R,Y0); x.arcTo(X0+BW,Y0,X0+BW,Y0+BH,R); x.arcTo(X0+BW,Y0+BH,X0,Y0+BH,R); x.arcTo(X0,Y0+BH,X0,Y0,R); x.arcTo(X0,Y0,X0+BW,Y0,R); x.closePath(); x.fill(); x.stroke();
+  x.fillStyle='#ffffff'; const px=fitShareFont(x,site,'800',SHARE_CARD_ADDRESS_PX,990); x.fillText(site,540,Y0+BH/2+px*.36);
   return cv;
 }
 function prepareShare(sc,prevOverall){
@@ -3420,20 +3523,79 @@ function copyShare(t,btn){
    copies the pilot's restore code first; the installed app then offers
    "BRING MY PILOT FROM SAFARI", which reads it back through the existing,
    tested restore flow (server check + confirm). */
-async function fluxShowIosGuide(){
-  let hasScores = false;
-  try{ hasScores = !!localStorage.getItem('fluxPublicTag') || RESTORE_DIFFS.some(function(d){ return (+localStorage.getItem('fluxBest_' + d) || 0) > 0; }); }catch(e){}
-  const code = hasScores ? await makeRestoreCode(playerId) : null;
-  const d = restoreOverlay(
-    '<h2 style="color:#62eaff;letter-spacing:.12em">ADD FLUX TO YOUR HOME SCREEN</h2>' +
-    (code ? '<p class="restoreText"><b>1.</b> Copy your pilot so the app starts as you:</p><button id="guideCopyPilot">COPY MY PILOT</button>' : '') +
-    '<p class="restoreText" style="margin-top:12px"><b>' + (code ? '2' : '1') + '.</b> Tap <b>Share</b> (the square with an arrow) in Safari</p>' +
-    '<p class="restoreText"><b>' + (code ? '3' : '2') + '.</b> Choose <b>Add to Home Screen</b> \u2192 <b>Add</b></p>' +
-    (code ? '<p class="restoreText"><b>4.</b> Open FLUX from the new icon and tap <b>BRING MY PILOT FROM SAFARI</b></p>' : '') +
-    '<button id="guideDone">DONE</button>');
-  const cp = d.querySelector('#guideCopyPilot');
-  if (cp) cp.onclick = function(e){ copyText(code, e.target); };
-  d.querySelector('#guideDone').onclick = function(){ d.remove(); };
+/* INSTALL COACH (owner): ONE line and a big animated arrow at the button to
+   tap -- Safari's ⋯ (iPhone: bottom bar, right; iPad: top right), or the ⋯
+   menu of an in-app browser (top right). The rest hides behind "Can't find it?".
+   "Not now" is always there. */
+const COACH_ARROW = '<svg class="coachArrow" viewBox="0 0 64 84" aria-hidden="true"><path d="M32 4v62M10 46l22 24 22-24" fill="none" stroke="#5ff3ff" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+function fluxShowIosGuide(){
+  const old = document.getElementById('fluxCoach'); if (old) old.remove();
+  const app = fluxInApp(), ios = fluxIsIOS(), pad = fluxIsIPad();
+  let line, help, up;
+  if (app){
+    line = ios ? 'Open in <b>Safari</b> to install' : 'Open in <b>your browser</b> to install';
+    help = app === 'TikTok' ? 'Tap ⋯ (or the share arrow) at the top right → Open in browser.' : 'Tap ⋯ at the top right → Open in browser (or Open in external browser).';
+    up = true;
+  } else {
+    line = 'Tap <b>⋯</b> → <b>Share</b> → <b>Add to Home Screen</b>';
+    help = 'In the Share menu, scroll down. Not there? Tap Edit Actions and add “Add to Home Screen”.';
+    up = pad;
+  }
+  const d = document.createElement('div');
+  d.id = 'fluxCoach'; d.className = 'fluxCoach'; d.setAttribute('role', 'dialog');
+  d.innerHTML = COACH_ARROW.replace('class="coachArrow"', 'class="coachArrow ' + (up ? 'up' : 'down') + '"') +
+    '<p class="coachLine" id="coachLine">' + line + '</p>' +
+    '<p class="coachHelp hidden" id="coachHelp">' + help + '</p>' +
+    '<button type="button" class="coachLink" id="coachMore">Can’t find it?</button>' +
+    '<button type="button" class="coachNo" id="coachNo">Not now</button>';
+  document.getElementById('app').appendChild(d);
+  const more = d.querySelector('#coachMore'); if (more) more.onclick = function(){ const h = d.querySelector('#coachHelp'); if (h) h.classList.remove('hidden'); more.classList.add('hidden'); };
+  const no = d.querySelector('#coachNo'); if (no) no.onclick = function(){ d.remove(); };
+  return d;
+}
+/* WELCOME BACK (owner): the first launch of the Home Screen app shows one
+   button, "Welcome back! Tap to continue". The tap reads the pilot copied in
+   Safari (iOS shows its Paste confirmation) and brings it in, with no
+   instructions. A pilot that already played here is never replaced. */
+function fluxFreshPilot(){
+  try{
+    if (localStorage.getItem('fluxAutoName') !== '1' || localStorage.getItem('fluxPublicTag')) return false;
+    return !RESTORE_DIFFS.some(function(dd){ return (+localStorage.getItem('fluxBest_' + dd) || 0) > 0; });
+  }catch(e){ return false; }
+}
+function fluxShowWelcome(name, onTap){
+  const d = document.createElement('div');
+  d.id = 'fluxWelcome'; d.className = 'fluxCoach'; d.setAttribute('role', 'dialog');
+  const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'fluxWelcomeBtn'; btn.id = 'welcomeGo';
+  btn.textContent = name ? 'Welcome back, ' + name + '! Tap to continue' : 'Welcome back! Tap to continue';
+  const no = document.createElement('button'); no.type = 'button'; no.className = 'coachLink'; no.id = 'welcomeNo'; no.textContent = 'Start as a new pilot';
+  const msg = document.createElement('p'); msg.className = 'coachHelp'; msg.id = 'welcomeMsg';
+  d.appendChild(btn); d.appendChild(msg); d.appendChild(no);
+  document.getElementById('app').appendChild(d);
+  btn.onclick = function(){ onTap(d, msg); };
+  no.onclick = function(){ try{ localStorage.setItem('fluxWelcomeDone', '1'); }catch(e){} d.remove(); };
+  return d;
+}
+function fluxApplyWelcome(id, info, d, msg){
+  const blocked = restoreBlockedReason(); if (blocked){ if (msg) msg.textContent = blocked; return false; }
+  if (!applyRestorePlan(buildRestorePlan(info, id))){ if (msg) msg.textContent = 'This device could not save your pilot. Try again.'; return false; }
+  try{ localStorage.setItem('fluxWelcomeDone', '1'); }catch(e){}
+  if (d) d.remove();
+  location.reload();
+  return true;
+}
+async function fluxWelcomeBack(){
+  let done = false; try{ done = localStorage.getItem('fluxWelcomeDone') === '1'; }catch(e){}
+  if (done || !fluxFreshPilot() || !fluxIsStandalone() || fluxHasPlayed()) return null;
+  return fluxShowWelcome('', async function(d, msg){   // the tap reads the pilot copied in Safari
+    let text = '';
+    try{ if (navigator.clipboard && navigator.clipboard.readText) text = await navigator.clipboard.readText(); }catch(e){}
+    const p = await parseRestoreCode(text);
+    const r = (p.ok && p.playerId !== playerId) ? await checkRestoreOnServer(p.playerId) : null;
+    if (r && r.kind === 'found' && r.info){ fluxApplyWelcome(p.playerId, r.info, d, msg); return; }
+    try{ localStorage.setItem('fluxWelcomeDone', '1'); }catch(e){}
+    d.remove(); openRestoreEntry();   // nothing usable was copied: the usual "paste your code" box
+  });
 }
 async function fluxBringPilot(){
   let text = '';
@@ -3445,17 +3607,29 @@ async function fluxBringPilot(){
   openRestoreConfirm(parsed.playerId, r.info);
 }
 document.getElementById('gameoverInstallBtn').onclick = fluxDoInstall;
+document.getElementById('gameoverInstallNo').onclick = fluxInstallNotNow;
 document.getElementById('bringPilotBtn').onclick = fluxBringPilot;
 (function(){
   const endGame0 = endGame;
   endGame = function(){
+    let good = false;
+    try{ good = fluxGoodRun(score, bestRun().score, levelForScore(score, difficulty)); }catch(e){}   // before this run is recorded
     const r = endGame0.apply(this, arguments);
     try{ localStorage.setItem('fluxRunsPlayed', String((+localStorage.getItem('fluxRunsPlayed') || 0) + 1)); }catch(e){}
+    if (good && fluxInstallCount() < FLUX_INSTALL_MAX && fluxInstallMode()){   // one offer: this game-over screen only, twice ever at most
+      fluxInstallOfferNow = true;
+      try{ localStorage.setItem('fluxInstallOffers', String(fluxInstallCount() + 1)); }catch(e){}
+      fluxInstallCode = null;
+      if (fluxInstallMode() !== 'android') makeRestoreCode(playerId).then(function(c){ fluxInstallCode = c; }, function(){});
+    }
     refreshInstallButtons();
     return r;
   };
+  const newGame0 = newGame;
+  newGame = function(){ fluxInstallOfferNow = false; refreshInstallButtons(); const c = document.getElementById('fluxCoach'); if (c) c.remove(); return newGame0.apply(this, arguments); };
 })();
 refreshInstallButtons();
+try{ setTimeout(function(){ fluxWelcomeBack().catch(function(){}); }, 0); }catch(e){}
 
 /* INTENSITY ("juice"). One value, 0..1, from combo, level and FLUX mode. It
    scales only effects: burst size, a soft glow under the ball's trail and a

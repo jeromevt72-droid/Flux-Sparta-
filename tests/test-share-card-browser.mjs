@@ -31,7 +31,7 @@ for (const [name, w, h] of DEV) {
   // A very quick tap, before the card is ready, still shares the text and link.
   const early = await p.evaluate(() => new Promise((res) => { const iv = setInterval(() => { const go = document.getElementById('gameover'); if (go && !go.classList.contains('hidden')) { clearInterval(iv);
       const hadFile = !!shareFile; document.getElementById('shareBtn').click(); const s = window.__shared; window.__shared = null; res({ hadFile, s }); } }, 5); }));
-  ck(name + ': a tap before the card is ready still shares the text and the link', !early.hadFile && early.s && !early.s.files.length && /^I added 1,200 for/.test(early.s.text) && /\/play\/$/.test(early.s.url), JSON.stringify(early).slice(0, 160));
+  ck(name + ': a tap before the card is ready still shares the text and the link', !early.hadFile && early.s && !early.s.files.length && /^I added 1,200 for/.test(early.s.text) && /\/play\/\?src=share$/.test(early.s.url), JSON.stringify(early).slice(0, 160));
   await p.evaluate(() => { document.getElementById('shareBtn').textContent = '📤 SHARE MY SCORE'; });
   // endGame reveals the game-over screen after a short pause; the card is drawn when the line is shown.
   const ready = await p.evaluate(() => new Promise((res) => { let shown = 0; const iv = setInterval(() => { const go = document.getElementById('gameover'); if (!shown && go && !go.classList.contains('hidden')) shown = performance.now();
@@ -45,8 +45,8 @@ for (const [name, w, h] of DEV) {
   await p.screenshot({ path: SHOTS + '/gameover-' + name.replace(/[^a-z0-9]+/gi, '-') + '.png' });
   await p.locator('#shareBtn').tap(); await p.waitForTimeout(200);
   const s = await p.evaluate(() => window.__shared);
-  const withImage = s && s.files.length === 1 && s.files[0].type === 'image/jpeg' && s.files[0].size > 15000 && /^I added 1,200 for 🇵🇭 Philippines! Beat me in FLUX: http:\/\/localhost:\d+\/play\/$/.test(s.text);
-  const textOnly = s && !s.files.length && /^I added 1,200 for 🇵🇭 Philippines!/.test(s.text) && /\/play\/$/.test(s.url);
+  const withImage = s && s.files.length === 1 && s.files[0].type === 'image/jpeg' && s.files[0].size > 15000 && /^I added 1,200 for 🇵🇭 Philippines! Beat me in FLUX: http:\/\/localhost:\d+\/play\/\?src=share$/.test(s.text);
+  const textOnly = s && !s.files.length && /^I added 1,200 for 🇵🇭 Philippines!/.test(s.text) && /\/play\/\?src=share$/.test(s.url);
   ck(name + ': the share sheet gets "I added 1,200 for 🇵🇭 Philippines! ... /play/" (' + (withImage ? 'with the JPEG card' : 'text + link: card not ready yet') + ')', withImage || textOnly, JSON.stringify(s).slice(0, 200));
   if (name === 'iPhone 15 Pro') { const url = await p.evaluate(() => drawShareCard(shareInfo).toDataURL('image/jpeg',.9)); fs.writeFileSync(SHOTS + '/share-card.jpg', Buffer.from(url.split(',')[1], 'base64'));
     const dims = await p.evaluate(() => { const c = drawShareCard(shareInfo); return [c.width, c.height]; }); ck('the card is 720x900 (4:5, fits every chat and story app)', dims[0] === 720 && dims[1] === 900, dims.join('x')); }

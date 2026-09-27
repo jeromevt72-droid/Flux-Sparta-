@@ -34,6 +34,7 @@ node test-miss-notice.mjs         # miss notice ("BALL LOST • n LIVES LEFT") i
 node test-orb-colours-v2.mjs      # orb colours v2: approved 5-colour palettes, cap, Toxic apart from Aurora, block style at the exact hit radius, ball ring + symbol, hit areas unchanged + negative controls
 node test-orb-gap-launcher.mjs    # orbs never closer than 10px edge to edge (spawn + drift, 3 difficulties), own launcher colour on Solar/Cosmic far from orbs, ball and background + negative controls
 node test-easy-orbs.mjs          # Easy orbs: 6 on the field (5 on phones 380px wide or less / 700px tall), same colours only, the ball always has at least 2 matching orbs on Easy, Medium/Hard unchanged, 10px gap kept + negative controls
+node test-paddle-grip.mjs         # round grip under the launcher (skin colour, above the home indicator, pulse), relative drag in the bottom 40%, first-run slide hint, popups never over the HUD + negative controls
 node test-rc287.mjs              # RC2.8.7: D-50..D-61 (levels, HUD, palettes, game over, sound) + negative controls
 node test-rc287-browser.mjs      # RC2.8.7 extra, not in the gate: real Chromium, 360px fit, 11px text, 44px buttons, notch inset
 node test-preset-names.mjs       # pilot names: preset for new pilots, typed one-word names (rules), old names switched with a notice, EDIT closes on save/cancel + negative controls
@@ -52,6 +53,7 @@ node test-merge-one-identity.mjs   # 40: MERGE — one origin, one identity, dem
 node test-single-identity.mjs      # 27: top-level Play, one identity, purchase lock
 node test-share-card.mjs           # share card: "I added N for <flag> <country>!" + link to /play/, image when the phone can share it, text/copy fallbacks, straight from the tap + negative controls
 node test-share-card-browser.mjs # extra, not in the gate: real Chromium, iPhone/iPad/iPad mini, button, JPEG card, what the share sheet receives
+node test-share-install.mjs         # share & install: card shows "FLUX Sparta" + the web address large; Add to Home Screen offered once after a good run (Android one-tap, current iOS steps, in-app browsers: open in Safari/browser first) + negative controls
   node test-offline-queue.mjs        # 19: offline queue, retry, permanent vs temporary
   node test-d09-bestrun.mjs          # 20: best-run record + legacy migration
   node test-d01-d08-lifecycle.mjs    # 19: demo suspend/resume, pill, hostile origin
