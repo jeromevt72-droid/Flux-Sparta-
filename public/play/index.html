@@ -446,6 +446,7 @@ fluxApplyLite();
 let W,H,dpr,playing=false,paused=false,last=0,score=0,combo=1,level=1,streak=0,best=0,misses=0,revivesUsedThisRun=0,flux=0,fluxMode=0,missFragments=[],comboTimer=0,levelBanner=0,perfectFlash=0,levelHold=0,orbValue=20,bonusTimer=0,growTimer=0;
 let missNotice=0,missNoticeText=['',''];   // miss notice, shown in the HUD strip (see drawSlotNotice)
 let pendingLevel=0,levelCountdown=0,levelTickAt=0,speedLevel=1;   // D-50: SPEED UP countdown + smooth speed ramp
+let fluxCountdown=0,fluxTickAt=0;   // FLUX MODE is announced with a 3-2-1 before it starts (see checkFluxMode)
 let cachedHudRects=[]; // declared early -- resize() runs at script load time and references this immediately
 let difficulty=localStorage.fluxDifficulty||'medium', callsign=localStorage.fluxCallsign||'', country=localStorage.fluxCountry||'US';
 let profileComplete=localStorage.fluxProfileComplete==='1';
@@ -524,6 +525,7 @@ const countryFlags={AF:'🇦🇫',AL:'🇦🇱',DZ:'🇩🇿',AD:'🇦🇩',AO:'
    LEVEL_SCORE_THRESHOLDS / LEVEL_SCORE_MULT in worker.js (D-51 checks it). */
 const LEVEL_SCORE_THRESHOLDS=[2500,6000,10000,15000,21000,28000,36000,45000];
 const LEVEL_SCORE_MULT={easy:.3,medium:1,hard:1.35};
+const FLUX_COUNTDOWN_S=3, FLUX_EASY_FROM_LEVEL=3;   // FLUX MODE: 3 s announce countdown; on Easy it starts from level 3
 const LEVEL_COUNTDOWN_S=5, LEVEL_RAMP_S=1;   // level-up: 5 s SPEED UP countdown, then ~1 s difficulty ramp
 function levelScoreAt(lv,d){   // score needed to reach level lv (lv 1 = 0)
   if(lv<=1) return 0;
@@ -931,7 +933,7 @@ function playThreat(){
 var runActive=false;
 function newGame(){
  try{ window.parent.postMessage({type:'flux-playing'}, '*'); }catch(e){}
- pendingLevel=0;levelCountdown=0;levelTickAt=0;speedLevel=1;
+ pendingLevel=0;levelCountdown=0;levelTickAt=0;speedLevel=1;fluxCountdown=0;fluxTickAt=0;
  score=0;combo=1;level=1;streak=0;flux=0;fluxMode=0;misses=0;revivesUsedThisRun=0;missFragments=[];particles=[];texts=[];shake=0;targets=[];comboTimer=0;levelBanner=0;missNotice=0;colorHintLeft=0;perfectFlash=0;bonusTimer=rand(5,9);growTimer=rand(9,14);
  refreshHudRects(); // pauseBtn just became visible -- make sure the exclusion zone reflects that now, not the pre-game state
  applyCelestialBackground(level);
@@ -1178,7 +1180,30 @@ function burst(x,y,col,n=14){
  for(let i=0;i<extra;i++)particles.push({x,y,vx:juiceRand(-5,5),vy:juiceRand(-5,5),life:1,col});
 }
 function popup(x,y,s,col='#fff'){texts.push({x,y,s,life:1,col})}
-function addFlux(v){flux=Math.min(100,flux+v);if(flux>=100&&!fluxMode){flux=0;fluxMode=6;score+=scorePoints(250);popup(W/2,120,'FLUX MODE','#62eaff');burst(W/2,120,'#62eaff',30);haptic(50);playFlux();flash(.22);shake=Math.min(14,shake+6);updateHud();}}
+/* FLUX MODE, announced (no surprise). Catches and fusions fill the meter;
+   a full meter no longer starts FLUX MODE at once. It is announced first:
+   the HUD-strip banner (the level-up slot) reads "FLUX MODE" / "STARTS IN n"
+   and counts 3-2-1 with a soft tick. Only then does FLUX MODE start, with
+   exactly the same effects as before (6 s, +250, top speed 18.5, bonus
+   points). During the countdown nothing speeds up and points are normal.
+   One countdown at a time: a full meter waits for a level-up countdown (and
+   for a miss notice), and a level-up waits for the FLUX countdown. On Easy,
+   FLUX MODE starts from level 3: before that the meter fills and stays full. */
+function addFlux(v){flux=Math.min(100,flux+v);}
+function fluxModeAllowed(){ return !(difficulty==='easy' && level<FLUX_EASY_FROM_LEVEL); }
+function checkFluxMode(){
+ if(flux<100 || fluxMode>0 || fluxCountdown>0 || pendingLevel || missNotice>0 || !fluxModeAllowed()) return;
+ fluxCountdown=FLUX_COUNTDOWN_S; fluxTickAt=FLUX_COUNTDOWN_S;
+ playTick(); haptic(30); updateHud();
+}
+function tickFluxCountdown(dt){
+ if(!(fluxCountdown>0) || missNotice>0) return;   // a miss notice has the slot: the count waits so it is always seen
+ fluxCountdown-=dt;
+ const shown=Math.ceil(fluxCountdown);
+ if(shown>=1 && shown<fluxTickAt){ fluxTickAt=shown; playTick(); }
+ if(fluxCountdown<=0) startFluxMode();
+}
+function startFluxMode(){fluxCountdown=0;fluxTickAt=0;flux=0;fluxMode=6;score+=scorePoints(250);popup(W/2,120,'FLUX MODE','#62eaff');burst(W/2,120,'#62eaff',30);haptic(50);playFlux();flash(.22);shake=Math.min(14,shake+6);updateHud();}
 const MISS_NOTICE_S=2.2;
 function registerMiss(){
  misses++;missFragments.push({x:rand(25,W-25),y:H-24,r:rand(7,12),life:1});
@@ -1351,7 +1376,7 @@ function burstGrowing(t,maxSpeed){
    and the ball's speed limit rises smoothly over ~2 s (speedLevel) instead of
    jumping. Levels still come one at a time. */
 function checkScoreLevel(){
- if(pendingLevel || level>=9) return;
+ if(pendingLevel || fluxCountdown>0 || level>=9) return;   // one countdown at a time: waits for a FLUX MODE countdown
  if(levelForScore(score,difficulty)>level) startLevelUp(level+1);
 }
 function startLevelUp(n){
@@ -1468,6 +1493,7 @@ function update(dt){
  if(colorHintLeft>0) colorHintLeft=Math.max(0,colorHintLeft-dt);
  if(missNotice>0) missNotice=Math.max(0,missNotice-dt);
  checkScoreLevel(); tickLevelUp(dt);   // D-50
+ checkFluxMode(); tickFluxCountdown(dt);   // FLUX MODE: announce + 3-2-1, then start
  // Combo is a real pressure mechanic: keep chaining fusions before the timer expires.
  if(comboTimer>0) comboTimer-=dt;
  else if(combo>1){combo=1;streak=0;popup(W/2,150,'COMBO LOST','#8da0c8');updateHud();}
@@ -1798,6 +1824,14 @@ function draw(){
    ctx.font='900 '+Math.max(11,L.f2)+'px -apple-system,sans-serif';ctx.fillStyle='#ff8fa3';ctx.shadowColor='#ff3b5c';ctx.fillText(L.t2,L.cx,L.y2);
    ctx.restore();
  }
+ // FLUX MODE countdown: same slot. Announced before anything speeds up.
+ else if(fluxCountdown>0){
+   const L=levelBannerLayout('FLUX MODE','STARTS IN '+Math.max(1,Math.ceil(fluxCountdown)));
+   ctx.save();ctx.textAlign='center';ctx.textBaseline='top';ctx.shadowBlur=12;
+   ctx.font='900 '+Math.max(11,L.f1)+'px -apple-system,sans-serif';ctx.fillStyle='#62eaff';ctx.shadowColor='#27d9ff';ctx.fillText(L.t1,L.cx,L.y1);
+   ctx.font='900 '+Math.max(11,L.f2)+'px -apple-system,sans-serif';ctx.fillStyle='#ffffff';ctx.shadowColor='#62eaff';ctx.fillText(L.t2,L.cx,L.y2);
+   ctx.restore();
+ }
  // First-run colour hint: same slot, lowest priority.
  else if(colorHintLeft>0 && !levelBanner){
    const L=levelBannerLayout('HIT THE ORB THAT','MATCHES YOUR BALL');
@@ -1879,25 +1913,46 @@ requestAnimationFrame(loop);
 /* PADDLE CONTROL (tester feedback). A finger that starts in the bottom 40% of
    the screen drags the launcher RELATIVELY: it moves by how far the finger
    slides (times dragGain), so a short thumb slide reaches both edges and the
-   thumb never has to cover the ball. A mouse still points directly. */
+   thumb never has to cover the ball. A mouse still points directly.
+   INSTANT FOLLOW: every event moves the launcher by that event's own slide
+   (no easing, no waiting for a frame), so it can never trail the thumb; a wall
+   simply stops it, and the moment the thumb turns back it moves again (no dead
+   zone to "unwind"). The drag is anchored at touch-down, so the first pixels
+   of a slide are never lost. The same finger is read from BOTH its touch and
+   its pointer events, whichever arrives first (Chrome holds back touchmove for
+   the first ~15px; pointermove is not held back). Each event only adds the
+   distance since the last position seen, so a finger reported twice moves once. */
 const DRAG_ZONE=0.6;   // touches that start below 60% of the height control the launcher
 let drag=null, slideHintDone=false;
-function dragGain(){ const travel=Math.max(1,W-paddle.w-16); return Math.max(1,travel/(W*0.45)); }   // ~45% of the screen width sweeps edge to edge
+function dragGain(){ const travel=Math.max(1,W-paddle.w-16); return Math.max(1,travel/(W*0.45)); }   // ~45% of the screen width sweeps edge to edge; never below 1:1
+function dragTo(x,y){ const dx=x-drag.x; drag.x=x; drag.y=y; if(dx) setPaddle(paddle.x+dx*dragGain()); if(Math.abs(x-drag.x0)>12) slideHintDone=true; }
 function pointer(e){
   if(e.touches){
     let t=null;
-    if(drag) for(let i=0;i<e.touches.length;i++) if(e.touches[i].identifier===drag.id){ t=e.touches[i]; break; }
+    if(drag){ for(let i=0;i<e.touches.length;i++) if(e.touches[i].identifier===drag.id){ t=e.touches[i]; break; }
+      if(!t && drag.id==null){ let best=31;   // drag started from the finger's pointerdown: bind its touch (same spot)
+        for(let i=0;i<e.touches.length;i++){ const tt=e.touches[i], d=Math.abs(tt.clientX-drag.x)+Math.abs(tt.clientY-drag.y); if(d<best){ best=d; t=tt; } }
+        if(t) drag.id=t.identifier; } }
     if(!t){ drag=null;
-      for(let i=0;i<e.touches.length;i++){ const tt=e.touches[i]; if(tt.clientY>=H*DRAG_ZONE){ drag={id:tt.identifier,x0:tt.clientX,p0:paddle.x}; t=tt; break; } } }
+      for(let i=0;i<e.touches.length;i++){ const tt=e.touches[i]; if(tt.clientY>=H*DRAG_ZONE){ drag={id:tt.identifier,pid:null,x0:tt.clientX,x:tt.clientX,y:tt.clientY}; t=tt; break; } } }
     if(!t) return;
-    setPaddle(drag.p0+(t.clientX-drag.x0)*dragGain());
-    if(Math.abs(t.clientX-drag.x0)>12) slideHintDone=true;
+    dragTo(t.clientX,t.clientY);
     return;
   }
-  if(e.pointerType && e.pointerType!=='mouse') return;   // touch and pen are handled as touches above
+  if(e.pointerType && e.pointerType!=='mouse'){   // touch/pen pointer events feed the same finger's drag
+    if(e.type==='pointerdown'){ if(!drag && e.clientY>=H*DRAG_ZONE) drag={id:null,pid:e.pointerId,x0:e.clientX,x:e.clientX,y:e.clientY}; return; }
+    if(!drag) return;
+    if(drag.pid==null && Math.abs(e.clientX-drag.x)+Math.abs(e.clientY-drag.y)<=30) drag.pid=e.pointerId;   // drag started from the touch: bind its pointer
+    if(drag.pid!==e.pointerId) return;
+    dragTo(e.clientX,e.clientY);
+    return;
+  }
   setPaddle(e.clientX);
 }
+window.ontouchstart=function(e){ pointer(e); };   // anchor the drag at touch-down (moves nothing by itself)
+window.onpointerdown=function(e){ if(e.pointerType && e.pointerType!=='mouse') pointer(e); };   // same, from the pointer side; a mouse click changes nothing
 window.ontouchend=window.ontouchcancel=function(e){ if(!drag) return; const ts=e.touches||[]; for(let i=0;i<ts.length;i++) if(ts[i].identifier===drag.id) return; drag=null; };
+window.onpointerup=window.onpointercancel=function(e){ if(drag && drag.pid!=null && e.pointerId===drag.pid) drag=null; };
 // ---------------------------------------------------------------------------
 // D-11 — PAGE LIFECYCLE
 // iOS suspends the AudioContext when the app is backgrounded and nothing here

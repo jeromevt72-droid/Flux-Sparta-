@@ -48,7 +48,7 @@ async function suite({ gameHtml, gwHtml, workerMod, quiet = false }) {
     ck('A4 a score sent with its own level is accepted', r.status === 200, r.status);
     r = await submit(w, env, { playerId: 'legit-0000-4000-8000-000000000005', name: 'TITAN', score: 26423, level: 6, difficulty: 'medium', country: 'US' });
     ck('A5 a real record run (26,423 = level 6 on Medium) is accepted', r.status === 200 && r.data.ok === true, r.status);
-    ck('A6 the game really stops at level 9 (the cap matches the game)', /if\(pendingLevel \|\| level>=9\) return;/.test(gameHtml) && /while\(lv<9 && /.test(gameHtml));
+    ck('A6 the game really stops at level 9 (the cap matches the game)', /if\(pendingLevel (?:\|\| fluxCountdown>0 )?\|\| level>=9\) return;/.test(gameHtml) && /while\(lv<9 && /.test(gameHtml));
   } catch (e) { ck('D-41 section ran', false, String(e.stack || e).slice(0, 200)); }
 
   /* ---------------- D-39 / D-43 / D-44 / D-40 in the real page ---------------- */

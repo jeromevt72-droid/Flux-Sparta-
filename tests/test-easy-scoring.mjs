@@ -62,7 +62,7 @@ async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = fals
     one('danger', 'targets[0].r=20; targets[0].danger=true; fuse(targets[0]);');   // orb hit + danger bonus
     one('bonus', 'popBonus(targets[0]);');
     one('overload', 'burstGrowing(targets[0],12);');
-    one('flux', 'flux=99; addFlux(5);');
+    one('flux', 'startFluxMode();');
     const paddle = (dx) => `targets=[]; bonusTimer=99; growTimer=99; ball.x=paddle.x+${dx}*paddle.w/2; ball.y=paddle.y-paddle.h/2-ball.r+2; ball.vx=0; ball.vy=5; comboTimer=2; update(1/60);`;
     one('perfect', paddle(0));
     one('catch', paddle(0.6));

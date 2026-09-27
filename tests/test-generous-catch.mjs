@@ -89,8 +89,9 @@ control('off on Easy again', 'G1', rep('function generousCatchFor(runsDone,diff)
 control('first run not slowed', 'G6', rep('const FIRST_RUN_SLOW=.08;', 'const FIRST_RUN_SLOW=0;'));
 control('slowed in every run', 'G6', rep('    firstRunSlowOn=runsDone===0;', '    firstRunSlowOn=true;'));
 control('fusion speed kicks removed by the help', 'G6', rep('if(sp>lim && sp<=n+1e-9){', 'if(sp>lim){'));
-// With 5-6 orbs on Easy a beginner already reaches level 2 fairly often without help (see G7's numbers), so the
-// "too weak" control takes the help down to nothing: G7 must then fail (no gain over playing without it).
+// With 5-6 orbs on Easy a beginner already reaches level 2 fairly often without help (see G7's numbers), and
+// Easy has no FLUX MODE speed-up before level 3 (test-flux-mode.mjs), so the "too weak" control takes the help
+// down to nothing: G7 must then fail (no gain over playing without it).
 control('help too weak for the target', 'G7', (s) => rep('const CATCH_MARGIN_PX=8,', 'const CATCH_MARGIN_PX=0,')(rep('const FIRST_RUN_SLOW=.08;', 'const FIRST_RUN_SLOW=0;')(s)));
 control('margin catch counted as perfect', 'G3', rep('   const perfect=Math.abs(hit)<.14;', '   const perfect=Math.abs(hit)<.14 || Math.abs((ball.x-paddle.x)/(paddle.w/2))>1+ball.r/(paddle.w/2);'));
 control('bounces changed a little when off (changes the game)', 'G4', rep('function clampCatchHit(h){ if(!generousCatchOn) return h;', 'function clampCatchHit(h){ if(!generousCatchOn) return h*1.001;'));
