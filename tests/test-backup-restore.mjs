@@ -22,10 +22,12 @@
 //      checksum; a changed file is refused) and restored;
 //   B9 privacy: a privacy deletion also erases the pilot from every backup, so no restore brings them
 //      back; the Privacy Policy says so and retention stays under its 30 days;
-//   B10 admin page BACKUPS section + GUIDE; deploy needs nothing made by hand (a new Durable Object
-//      class via a migration, no bucket / namespace), the existing cron is reused.
+//   B10 admin page BACKUPS section + GUIDE; deploy needs nothing made by hand: no new binding, class,
+//      migration, bucket or namespace (wrangler.jsonc as on main); the existing cron is reused;
+//   B11 the backup store is a separate instance ("backups") of LeaderboardDO: backup paths never run on
+//      the leaderboard instance and leaderboard routes never run on the backups instance.
 // Ends with negative controls: each defect re-inserted into worker.js / admin.html MUST be caught.
-import fs from 'fs'; import path from 'path'; import util from 'util';
+import fs from 'fs'; import path from 'path'; import util from 'util'; import { spawnSync } from 'child_process';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { levelFor } from './level-rule.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -76,12 +78,12 @@ class FakeState {
 function makeEnv(mod, g, b, withBackup = true) {
   const inst = new Map();
   const env = { ADMIN_TOKEN: 'pw', _g: g, _b: b };
+  // ONE class, one binding: "global" = the leaderboard, "backups" = the backup store (its own storage), others fresh.
+  const broken = { get: async () => { throw new Error('backup instance down'); } };
   env.LEADERBOARD_DO = { idFromName: (n) => n, get(id) {
-    if (!inst.has('lb:' + id)) inst.set('lb:' + id, new mod.LeaderboardDO(new FakeState(id === 'global' ? env._g : new FakeStorage())));
+    if (!inst.has('lb:' + id)) inst.set('lb:' + id, new mod.LeaderboardDO(new FakeState(id === 'global' ? env._g : id === 'backups' ? (withBackup ? env._b : broken) : new FakeStorage()), env));
     const o = inst.get('lb:' + id); return { fetch: (url, init) => o.fetch(new Request(url, init)) }; } };
-  if (withBackup) env.BACKUP_DO = { idFromName: (n) => n, get(id) {
-    if (!inst.has('bk:' + id)) inst.set('bk:' + id, new mod.BackupDO(new FakeState(env._b), env));
-    const o = inst.get('bk:' + id); return { fetch: (url, init) => o.fetch(new Request(url, init)) }; } };
+  env._inst = inst;
   env.restart = () => inst.clear();   // every Durable Object is thrown away; storage survives
   return env;
 }
@@ -338,7 +340,7 @@ async function suite({ workerMod, adminHtml, quiet = false }) {
     gc.failList = false; now = T0 + 42 * DAY; await C.cron();
     ck('B4 the next day works again', dailies().length === 2 && (await C.admin('backups')).data.status.daily.ok === true);
     { const e0 = new FakeStorage(seed()); const E = mk(e0, null, false); let threw = false; try { await E.cron(); } catch (e) { threw = true; }
-      ck('B4 without the backup binding the cron still runs its other jobs and does not fail', !threw); }
+      ck('B4 if the backup instance fails, the cron still runs its other jobs (stats clean-up) and does not fail', !threw && E.env._inst.has('lb:analytics')); }
 
     /* ================= B5 retention ================= */
     if (!quiet) console.log('== B5 retention ==');
@@ -368,9 +370,27 @@ async function suite({ workerMod, adminHtml, quiet = false }) {
       /<h3>Backups and restore<\/h3>/.test(guide) && /DRY RUN<\/b> changes nothing/.test(guide) && /only for a real accident/.test(guide) && /safety copy/.test(guide) && /DOWNLOAD<\/b>/.test(guide) && /privacy deletion<\/b> also removes/.test(guide) && /made after it are lost/.test(guide));
     ck('B10 the page adds no event listeners (property handlers) and writes text only', (adminHtml.match(/addEventListener\(/g) || []).length === 2 && !/innerHTML/.test(adminHtml));
     const cfg = JSON.parse(WRANGLER.replace(/^\s*\/\/.*$/mg, ''));
-    ck('B10 deploy: BACKUP_DO is a new Durable Object class created by migration v2 (new_sqlite_classes); v1 unchanged; no bucket or namespace to make by hand',
-      cfg.durable_objects.bindings.some((x) => x.name === 'BACKUP_DO' && x.class_name === 'BackupDO') && JSON.stringify(cfg.migrations) === JSON.stringify([{ tag: 'v1', new_sqlite_classes: ['LeaderboardDO'] }, { tag: 'v2', new_sqlite_classes: ['BackupDO'] }])
-      && !cfg.r2_buckets && cfg.kv_namespaces.length === 1 && typeof workerMod.BackupDO === 'function');
+    ck('B10 deploy: no new binding, class or migration (backups are an instance of LeaderboardDO, like "analytics"); no bucket or namespace to make by hand',
+      JSON.stringify(cfg.durable_objects.bindings) === JSON.stringify([{ name: 'LEADERBOARD_DO', class_name: 'LeaderboardDO' }]) && JSON.stringify(cfg.migrations) === JSON.stringify([{ tag: 'v1', new_sqlite_classes: ['LeaderboardDO'] }])
+      && !cfg.r2_buckets && !cfg.d1_databases && cfg.kv_namespaces.length === 1 && Object.keys(workerMod).filter((k) => k !== '__src').sort().join() === 'LeaderboardDO,default'
+      && /idFromName\("backups"\)/.test(workerMod.__src || WORKER_SRC));
+    { let mainCfg = null;
+      try { const r = spawnSync('git', ['show', 'origin/main:wrangler.jsonc'], { cwd: ROOT, encoding: 'utf8' }); if (r.status === 0 && r.stdout) mainCfg = r.stdout; } catch (e) {}
+      const strip = (t) => JSON.stringify(JSON.parse(t.replace(/^\s*\/\/.*$/mg, '')));
+      ck('B10 wrangler.jsonc has the same bindings, migrations and triggers as main (checked against origin/main when git is available)', mainCfg === null || strip(mainCfg) === strip(WRANGLER), mainCfg === null ? 'git not available: fixed checks above only' : ''); }
+    // The two roles never mix.
+    const G = mk(new FakeStorage(seed(0, 20)), new FakeStorage(new Map(), { limit: true }));
+    await G.publicView();
+    const lbGet = (id) => G.env.LEADERBOARD_DO.get(id);
+    const onGlobal = await lbGet('global').fetch('https://do.internal/bk/snapshot', { method: 'POST', headers: { 'x-flux-instance': 'backups' }, body: '{}' });
+    const noHeader = await lbGet('backups').fetch('https://do.internal/bk/list', { method: 'POST', body: '{}' });
+    ck('B11 backup paths refuse to run on the leaderboard instance (it is never marked or written) and need the internal header', onGlobal.status === 409 && !G.env._g.map.has('bk:role') && ![...G.env._g.map.keys()].some((k) => /^(m|c):/.test(k)) && noHeader.status === 404, onGlobal.status + ',' + noHeader.status);
+    await G.admin('backup-now');
+    const lbOnBackups = await lbGet('backups').fetch('https://do.internal/leaderboard');
+    const subOnBackups = await lbGet('backups').fetch('https://do.internal/submit', { method: 'POST', body: '{}' });
+    ck('B11 the backups instance never serves leaderboard routes (and never loads or creates a leaderboard there)', lbOnBackups.status === 404 && subOnBackups.status === 404 && !G.env._b.map.has('players') && !G.env._b.map.has('season') && G.env._b.map.get('bk:role') === 'backups');
+    G.env.restart();
+    ck('B11 ...also after a restart', (await lbGet('backups').fetch('https://do.internal/leaderboard')).status === 404 && (await G.admin('backups')).data.snapshots.length === 1);
     ck('B10 the existing 30-minute cron is reused (no new trigger)', JSON.stringify(cfg.triggers) === JSON.stringify({ crons: ['*/30 * * * *'] }));
     ck('B7 every backup route checks the admin password first', ['backups', 'backup-now', 'backup-dry-run', 'backup-restore', 'backup-download', 'backup-import'].every((r) => (workerMod.__src || WORKER_SRC).includes('"/api/admin/' + r + '":')));
     const s7 = []; for (const r of ['backups', 'backup-now', 'backup-dry-run', 'backup-restore', 'backup-download', 'backup-import']) s7.push((await C.req('/api/admin/' + r, { id: ds[0].id, confirm: 'RESTORE ' + ds[0].id })).status);
@@ -413,13 +433,15 @@ await control('restore keeps keys that are not in the backup', 'B3 the leaderboa
 await control('restore does not reload the leaderboard memory', 'B3 the public routes answer exactly as before', { worker: rep('this.ready = false; this.tagCache = null; this.pidCache = new Map();\n    });\n    await this.load();', '});') });
 await control('restore goes ahead with a damaged backup', 'B6 a changed chunk is detected', { worker: rep('const { resp, v } = await this.checked(id); if (resp) return resp;\n    const liveText = await this.dumpLive();\n    const safety', 'const v = await this.verify(id); if (!v.meta) return json({ error: "No such backup." }, 404);\n    if (!v.text) { const parts = []; for (let i = 0; i < v.meta.chunks; i++) parts.push(await this.state.storage.get(this.chunkKey(id, v.meta.gen, i))); v.text = parts.join(""); }\n    const liveText = await this.dumpLive();\n    const safety') });
 await control('cron backs up on every run', 'B4 later runs the same day do nothing', { worker: rep('if (d && (d.ok || d.attempts >= BACKUP_DAILY_ATTEMPTS)) return', 'if (false) return') });
-await control('cron never takes the daily backup', 'B4 the first cron run', { worker: rep('    if (env.BACKUP_DO) ctx.waitUntil(backupDO(env, "/daily"', '    if (false) ctx.waitUntil(backupDO(env, "/daily"') });
+await control('cron never takes the daily backup', 'B4 the first cron run', { worker: rep('    if (env.LEADERBOARD_DO) ctx.waitUntil(backupDO(env, "/daily"', '    if (false) ctx.waitUntil(backupDO(env, "/daily"') });
 await control('a failed daily is not retried', 'B4 it is retried', { worker: rep('if (d && (d.ok || d.attempts >= BACKUP_DAILY_ATTEMPTS)) return', 'if (d) return') });
 await control('retention keeps too many', 'B5 exactly the newest 14', { worker: rep('const BACKUP_KEEP_DAILY = 14;', 'const BACKUP_KEEP_DAILY = 30;') });
 await control('weekly backups kept too long', 'B5 weekly backups', { worker: rep('const BACKUP_MAX_AGE_DAYS = 28;', 'const BACKUP_MAX_AGE_DAYS = 60;') });
 await control('backup route without the password', 'B7 BACK UP NOW needs the admin password', { worker: rep('async function adminBackup(request, env, doPath) {\n  const denied = requireAdmin(request, env); if (denied) return denied;', 'async function adminBackup(request, env, doPath) {') });
-await control('privacy deletion leaves the backups', 'B9 ', { worker: rep('  if (!env.BACKUP_DO) return live;\n', '  return live;\n') });
+await control('privacy deletion leaves the backups', 'B9 ', { worker: rep('  if (!env.LEADERBOARD_DO) return live;\n', '  return live;\n') });
 await control('privacy deletion leaves the Season 0 archive (live and backups)', 'B9 no backup holds the pilot', { worker: rep('    await this.eraseFromSeasonArchive(id);   // SEASON 1', '    this.restoreLog = this.restoreLog;   // SEASON 1') });
+await control('backup paths run on the leaderboard instance', 'B11 backup paths refuse', { worker: rep('if ((await st.get("players")) !== undefined || (await st.get("season")) !== undefined) return', 'if (false) return') });
+await control('backups instance serves leaderboard routes', 'B11 the backups instance never serves', { worker: rep('    if (this.role) return json({ error: "Not found" }, 404);\n', '') });
 await control('upload accepts a changed file', 'B8 a changed file is refused', { worker: rep('if ((await bkSha(text)) !== f.manifest.sha256 || entries.length !== f.manifest.keyCount) return', 'if (false) return') });
 await control('admin page loses the BACKUPS section', 'B10 admin.html has a BACKUPS section', { admin: rep('<h2>BACKUPS</h2>', '<h2>COPIES</h2>') });
 await control('admin page restore without the typed phrase', 'B10 the real restore is only offered', { admin: rep('go.disabled = true;', 'go.disabled = false;') });

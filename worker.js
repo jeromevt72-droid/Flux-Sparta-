@@ -82,7 +82,7 @@ export default {
     ctx.waitUntil(reconcilePayments(env).catch((e) => console.error("reconcile:", e && e.message)));
     ctx.waitUntil(analyticsDO(env, "/an-purge", { method: "POST" }).catch(() => {}));   // STATS: raw events older than 90 days -> totals only
     // BACKUPS: the first run of each UTC day takes the daily leaderboard backup; later runs that day do nothing.
-    if (env.BACKUP_DO) ctx.waitUntil(backupDO(env, "/daily", { method: "POST" })
+    if (env.LEADERBOARD_DO) ctx.waitUntil(backupDO(env, "/daily", { method: "POST" })
       .then(async (r) => { if (!r.ok) console.error("backup: daily failed:", (await r.text()).slice(0, 300)); })
       .catch((e) => console.error("backup: daily failed:", e && e.message)));
   },
@@ -905,7 +905,7 @@ async function adminPrivacyDelete(request, env) {
   if (!(typeof b.pid === "string" && PID_RE.test(b.pid))) return json({ error: "Invalid entry" }, 400);
   const payload = { pid: b.pid, removePurchases: !!b.removePurchases };
   const live = await adminDO(request, env, "/admin-privacy-delete", payload);
-  if (!env.BACKUP_DO) return live;
+  if (!env.LEADERBOARD_DO) return live;
   let backups;
   try {
     const r = await backupDO(env, "/purge-player", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
@@ -919,7 +919,7 @@ async function adminPrivacyDelete(request, env) {
 /* BACKUPS: every backup route needs the admin password, like every admin action. */
 async function adminBackup(request, env, doPath) {
   const denied = requireAdmin(request, env); if (denied) return denied;
-  if (!env.BACKUP_DO) return json({ error: "Backups are not set up on this server (no BACKUP_DO binding)." }, 500);
+  if (!env.LEADERBOARD_DO) return json({ error: "Backups are not set up on this server (no LEADERBOARD_DO binding)." }, 500);
   const b = await adminBody(request);
   const resp = await backupDO(env, doPath, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) });
   const headers = new Headers(resp.headers);
@@ -1176,8 +1176,9 @@ export class LeaderboardDO {
      restricted[pidHash] = {at, reason}      moderation, keyed by the public hash
      nameBans[normalisedName] = {at}         exact-name bans, display only
      flags[]                                  unusual submissions, informational */
-  constructor(state) {
+  constructor(state, env) {
     this.state = state;
+    this.env = env || {};
     this.ready = false;
     this.pidCache = new Map();
   }
@@ -1328,6 +1329,10 @@ export class LeaderboardDO {
   async fetch(request) {
     const url0 = new URL(request.url);
     if (url0.pathname.startsWith("/an-")) return this.handleAnalytics(request, url0);   // STATS instance: never loads the leaderboard
+    if (url0.pathname.startsWith("/bk/")) return this.handleBackups(request, url0);    // BACKUPS instance: never loads the leaderboard
+    // BACKUPS: the "backups" instance never serves leaderboard routes.
+    if (this.role === undefined) this.role = (await this.state.storage.get(BACKUP_ROLE_KEY)) || "";
+    if (this.role) return json({ error: "Not found" }, 404);
     await this.load();
     const url = new URL(request.url);
     const route = {
@@ -1354,6 +1359,23 @@ export class LeaderboardDO {
       "/backup-restore": () => this.handleBackupRestore(request),
     }[url.pathname];
     return route ? route() : json({ error: "Not found" }, 404);
+  }
+
+  /* BACKUPS (see BackupStore). Runs only on the "backups" instance: the worker
+     marks its calls with a header, and an instance holding leaderboard data
+     ("players" / "season") refuses, so backup code can never write into the
+     leaderboard's own storage. The first call marks the instance as the backup
+     store; from then on it refuses every leaderboard route. */
+  async handleBackups(request, url) {
+    if (request.headers.get(BACKUP_INSTANCE_HEADER) !== "backups") return json({ error: "Not found" }, 404);
+    if (!this.bk) {
+      const st = this.state.storage;
+      if ((await st.get("players")) !== undefined || (await st.get("season")) !== undefined) return json({ error: "Backups never run on the leaderboard instance." }, 409);
+      if ((await st.get(BACKUP_ROLE_KEY)) !== "backups") await st.put(BACKUP_ROLE_KEY, "backups");
+      this.role = "backups";
+      this.bk = new BackupStore(this.state, this.env);
+    }
+    return this.bk.fetch(request, url.pathname.slice(3));
   }
 
   /* STATS (see the note at AN_EVENTS). One request at a time, in order. */
@@ -1867,7 +1889,7 @@ export class LeaderboardDO {
     return new Response(text, { headers: { "Content-Type": "application/json" } });
   }
   /* BACKUPS: replace the whole storage with a snapshot (called only by
-     BackupDO.restore, which checks the admin's typed confirmation and takes a
+     BackupStore.restore, which checks the admin's typed confirmation and takes a
      safety backup first). Keys that are not in the snapshot are deleted, every
      snapshot key is written, in one transaction where the runtime has one; then
      memory is reloaded from storage. */
@@ -1897,9 +1919,11 @@ export class LeaderboardDO {
 /* ------------------------------------------------------------------ */
 /* BACKUPS                                                             */
 /* ------------------------------------------------------------------ */
-/* The leaderboard ("global" LeaderboardDO) is copied into a separate Durable
-   Object, BackupDO ("backups"), which is created automatically on deploy (a
-   wrangler migration; no bucket or namespace to set up by hand).
+/* The leaderboard ("global" LeaderboardDO instance) is copied into a separate
+   instance of the SAME class, "backups" (like "analytics"): it has its own
+   storage, and needs no new binding, class, migration, bucket or namespace --
+   nothing to set up in Cloudflare, nothing that can fail a deploy. Its requests
+   use the /bk/ paths (LeaderboardDO.handleBackups -> BackupStore).
      - A snapshot is EVERY key and value of the leaderboard's storage (players and
        bests, purchases, seen sessions, restore log, name bans, restrictions,
        flags, countries, season marker, Season 0 archive chunks, anything added
@@ -1924,6 +1948,8 @@ export class LeaderboardDO {
    The analytics instance is NOT backed up: it is anonymous totals that rebuild
    themselves, and the leaderboard is what cannot be recreated. */
 const BACKUP_SCHEMA = 1;
+const BACKUP_INSTANCE_HEADER = "x-flux-instance";
+const BACKUP_ROLE_KEY = "bk:role";         // stored only in the "backups" instance
 const BACKUP_LIST_PAGE = 500;
 const BACKUP_PUT_KEYS = 100;               // a DO put / delete takes at most 128 keys
 const BACKUP_CHUNK_CHARS = 30000;          // <= 90 KB of UTF-8 per value: well under the 128 KiB limit
@@ -1940,7 +1966,9 @@ const BACKUP_ID = /^\d{8}-\d{6}-(daily|manual|safety|imported)(-\d+)?$/;
 const BK_MARK = "\u0000flux";              // marks a stored undefined / NaN / Infinity, which plain JSON would lose
 
 function backupDO(env, path, init) {
-  return env.BACKUP_DO.get(env.BACKUP_DO.idFromName("backups")).fetch("https://do.internal" + path, init);
+  const headers = new Headers((init && init.headers) || {});
+  headers.set(BACKUP_INSTANCE_HEADER, "backups");
+  return env.LEADERBOARD_DO.get(env.LEADERBOARD_DO.idFromName("backups")).fetch("https://do.internal/bk" + path, { ...(init || {}), headers });
 }
 async function bkListAll(st) {
   const entries = [];
@@ -2071,7 +2099,7 @@ async function bkErasePilot(entries, pid, removePurchases) {
   return touched ? out : null;
 }
 
-export class BackupDO {
+class BackupStore {
   constructor(state, env) {
     this.state = state;
     this.env = env || {};
@@ -2079,9 +2107,9 @@ export class BackupDO {
   }
 
   /* One request at a time, in order (cron and admin never interleave). */
-  fetch(request) {
+  fetch(request, path) {
     const run = async () => {
-      try { return await this.route(new URL(request.url).pathname, request); }
+      try { return await this.route(path, request); }
       catch (e) { console.error("backup:", e && e.message); return json({ ok: false, error: "Backup error: " + ((e && e.message) || e) }, 500); }
     };
     const p = this.chain.then(run, run);

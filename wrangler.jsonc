@@ -28,20 +28,12 @@
     ]
   },
   // RC2.8: automatic payment reconciliation every 30 minutes (free on Workers).
-  // BACKUPS reuse this cron: the first run of each UTC day takes the daily backup.
   "triggers": { "crons": ["*/30 * * * *"] },
   "durable_objects": {
     "bindings": [
       {
         "name": "LEADERBOARD_DO",
         "class_name": "LeaderboardDO"
-      },
-      // BACKUPS: daily verified snapshots of the leaderboard (see BackupDO in
-      // worker.js). A Durable Object class is created by the deploy itself
-      // (migration v2 below): nothing to set up by hand in Cloudflare.
-      {
-        "name": "BACKUP_DO",
-        "class_name": "BackupDO"
       }
     ]
   },
@@ -50,12 +42,6 @@
       "tag": "v1",
       "new_sqlite_classes": [
         "LeaderboardDO"
-      ]
-    },
-    {
-      "tag": "v2",
-      "new_sqlite_classes": [
-        "BackupDO"
       ]
     }
   ],
