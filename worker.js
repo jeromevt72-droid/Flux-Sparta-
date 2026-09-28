@@ -58,6 +58,41 @@ const SEASON_ARCHIVE_PUT_KEYS = 100;                // a DO put takes at most 12
 // Minimum gap between two accepted submissions from one playerId.
 const SUBMIT_COOLDOWN_MS = 10_000;
 
+/* FREE PLAN (owner decision: FLUX stays on the free Cloudflare Workers plan).
+   Free-plan daily limits this server must stay under, reset at 00:00 UTC:
+     Worker requests        100,000 / day  (static assets in ./public do NOT
+                                            invoke this script: wrangler.jsonc)
+     Durable Object requests 100,000 / day (every stub.fetch below)
+     DO SQLite rows written  100,000 / day
+     DO SQLite rows read   5,000,000 / day
+   USAGE COUNTER: each Worker isolate counts, in memory, its own invocations
+   (w), the Durable Object requests it makes (d) and an ESTIMATE of the rows
+   those requests write (rw). The counts ride along, at no extra request, on
+   the next call this isolate makes to the "analytics" instance anyway (a run's
+   stats, a stats beacon, the cron, the admin page), which adds them into
+   today's stats row -- no extra request and no extra row. Accuracy: a lower
+   bound. An isolate that is evicted before its next analytics call loses its
+   unsent counts (at most the requests since its last run upload); the
+   analytics instance's own writes are counted exactly. The Cloudflare
+   dashboard stays the authority; this is the early warning on the admin page
+   (alert at USAGE_ALERT_PCT of any limit). */
+const FREE_LIMITS = { workerRequests: 100_000, doRequests: 100_000, rowsWritten: 100_000, rowsRead: 5_000_000 };
+const USAGE_ALERT_PCT = 80;
+const SUBMIT_ROWS_EST = 3;              // an accepted score writes players, lastSubmit, countries (+ flags when one is added)
+let USE = { day: -1, w: 0, d: 0, rw: 0 };
+function useFresh() { const day = Math.floor(Date.now() / 86_400_000); if (USE.day !== day) USE = { day, w: 0, d: 0, rw: 0 }; }
+function useCount(field, n = 1) { useFresh(); USE[field] += n; }
+function takeUse() { useFresh(); const out = { day: USE.day, w: USE.w, d: USE.d, rw: USE.rw }; USE.w = 0; USE.d = 0; USE.rw = 0; return out; }
+
+/* LEADERBOARD MEMO (FREE PLAN): GET /api/leaderboard answers from this
+   isolate's memory for up to LB_MEMO_MS, so a busy isolate asks the Durable
+   Object at most about once a minute per board. Any POST through this isolate
+   (a score, an admin action) clears it at once. Each response says
+   X-Flux-Cache: hit | miss. (The Cache API was not used: on a *.workers.dev
+   address it stores nothing, and a cache hit is still a Worker request.) */
+const LB_MEMO_MS = 60_000;
+const lbMemo = new WeakMap();
+
 const ISO2 = /^[A-Z]{2}$/;
 // Restrictive on purpose: keeps "__proto__" and friends out of the record maps.
 const PLAYER_ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -70,23 +105,26 @@ const validPlayerId = (v) => PLAYER_ID.test(String(v || "")) && !UNSAFE_KEYS.has
 
 export default {
   async scheduled(event, env, ctx) {
+    useCount("w");                        // FREE PLAN: a cron run is a Worker request too (48 a day)
     ctx.waitUntil(reconcilePayments(env).catch((e) => console.error("reconcile:", e && e.message)));
-    ctx.waitUntil(analyticsDO(env, "/an-purge", { method: "POST" }).catch(() => {}));   // STATS: raw events older than 90 days -> totals only
+    ctx.waitUntil(analyticsDO(env, "/an-purge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ use: takeUse() }) }).catch(() => {}));   // STATS: raw events older than 90 days -> totals only
   },
 
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname;
+    useCount("w");                        // FREE PLAN: every invocation of this script
 
     try {
       if (path.startsWith("/api/")) {
         if (request.method === "OPTIONS") return preflight();
+        if (request.method !== "GET") lbMemo.delete(env);   // LEADERBOARD MEMO: a write through this isolate shows at once
 
         if (path === "/api/leaderboard" && request.method === "GET") {
-          return withCors(await forwardToDO(request, env, "/leaderboard" + url.search));
+          return withCors(await getLeaderboard(request, env, url));
         }
         if (path === "/api/submit-score" && request.method === "POST") {
-          return withCors(await submitScore(request, env));
+          return withCors(await submitRun(request, env, ctx));   // FREE PLAN: a run's score AND its stats, one request
         }
         if (path === "/api/events" && request.method === "POST") {
           return withCors(await ingestEvents(request, env));   // STATS (in-house, anonymous)
@@ -125,6 +163,7 @@ export default {
             "/api/admin/issue-restore-code": () => adminIssueRestore(request, env),   // D-37
             "/api/admin/analytics":          () => adminAnalytics(request, env),     // STATS dashboard data
             "/api/admin/season-archive":     () => adminDO(request, env, "/admin-season-archive", {}),   // SEASON 1: archived Season 0 scores, read-only
+            "/api/admin/usage":              () => adminUsage(request, env),         // FREE PLAN: today's requests vs the free limits
           }[path];
           if (admin) return withCors(await admin());
         }
@@ -138,6 +177,9 @@ export default {
         return withCors(json({ error: "Not found" }, 404));
       }
 
+      // FREE PLAN: never reached in production. wrangler.jsonc serves every file
+      // in ./public, and every missing path (not_found_handling "404-page"),
+      // without invoking this script; only /api/* runs it (run_worker_first).
       if (env.ASSETS) return env.ASSETS.fetch(request);
       return new Response("Not found", { status: 404 });
     } catch (err) {
@@ -154,7 +196,21 @@ export default {
 function leaderboardStub(env) {
   if (!env.LEADERBOARD_DO) return null;
   const id = env.LEADERBOARD_DO.idFromName("global");
-  return env.LEADERBOARD_DO.get(id);
+  const stub = env.LEADERBOARD_DO.get(id);
+  return { fetch(u, init) { useCount("d"); return stub.fetch(u, init); } };   // FREE PLAN: every DO request is counted
+}
+/* LEADERBOARD MEMO (see LB_MEMO_MS). */
+async function getLeaderboard(request, env, url) {
+  let memo = lbMemo.get(env);
+  if (!memo) { memo = new Map(); lbMemo.set(env, memo); }
+  const now = Date.now(), key = url.search, hit = memo.get(key);
+  if (hit && now - hit.at < LB_MEMO_MS) return new Response(hit.body, { status: 200, headers: { "Content-Type": "application/json", "X-Flux-Cache": "hit" } });
+  const resp = await forwardToDO(request, env, "/leaderboard" + url.search);
+  if (resp.status !== 200) return resp;
+  const body = await resp.text();
+  if (memo.size >= 16) memo.clear();
+  memo.set(key, { at: now, body });
+  return new Response(body, { status: 200, headers: { "Content-Type": "application/json", "X-Flux-Cache": "miss" } });
 }
 
 async function forwardToDO(request, env, path, init) {
@@ -184,6 +240,7 @@ const AN_KEEP_DAYS = 90;
 const AN_MAX_BATCH = 40;
 function analyticsDO(env, path, init) {
   if (!env.LEADERBOARD_DO) return Promise.resolve(json({ error: "not configured" }, 500));
+  useCount("d");
   return env.LEADERBOARD_DO.get(env.LEADERBOARD_DO.idFromName("analytics")).fetch("https://do.internal" + path, init);
 }
 async function analyticsCode(playerId) {
@@ -214,9 +271,54 @@ async function ingestEvents(request, env) {
     const cf = (request.cf && request.cf.country) || "";
     const country = ISO2.test(c) ? c : (ISO2.test(cf) ? cf : "XX");   // country only, never a precise location
     const r = await analyticsDO(env, "/an-ingest", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ h: await analyticsCode(playerId), src: cleanSrc(body.src), country, events }) });
+      body: JSON.stringify({ h: await analyticsCode(playerId), src: cleanSrc(body.src), country, events, use: takeUse() }) });
     return json({ ok: r.ok }, r.ok ? 200 : 500);
   } catch (e) { return json({ ok: false }, 500); }
+}
+/* FREE PLAN: ONE REQUEST PER RUN. At game over the game sends its score and
+   that run's stats together to /api/submit-score:
+     { playerId, name, score, level, difficulty, country, season,
+       stats: { src, events: [...] } }            (stats is optional)
+   The score goes to the leaderboard exactly as before (same checks, same
+   forwarded fields). The stats go to the "analytics" instance exactly as
+   /api/events would send them (same cleaning, same one-way code, country
+   only) -- but only once the score has a final answer: on 429 / 5xx the game
+   keeps the whole upload queued and sends it again, so the stats are not
+   counted twice. They are sent after the reply (waitUntil), so the player
+   never waits for them. Pages from before this change send no "stats" and
+   keep using /api/events: both paths stay. */
+function runStats(body, playerId) {
+  const st = body && body.stats;
+  if (!st || typeof st !== "object" || !validPlayerId(playerId)) return null;
+  const events = (Array.isArray(st.events) ? st.events : []).slice(0, AN_MAX_BATCH).map(cleanEvent).filter(Boolean);
+  return events.length ? { src: st.src, events } : null;
+}
+async function ingestRunStats(request, env, playerId, chosen, stats) {
+  const c = typeof chosen === "string" ? chosen.trim().toUpperCase() : "";
+  const cf = (request.cf && request.cf.country) || "";
+  const country = ISO2.test(c) ? c : (ISO2.test(cf) ? cf : "XX");   // country only, never a precise location
+  const r = await analyticsDO(env, "/an-ingest", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ h: await analyticsCode(playerId), src: cleanSrc(stats.src), country, events: stats.events, use: takeUse() }) });
+  return r.ok;
+}
+async function submitRun(request, env, ctx) {
+  const body = await readJsonObject(request);
+  const resp = await submitScore(body, request, env);
+  if (resp.ok) useCount("rw", SUBMIT_ROWS_EST);
+  const playerId = body && typeof body.playerId === "string" ? body.playerId.trim() : "";
+  const stats = runStats(body, playerId);
+  if (stats && resp.status !== 429 && resp.status < 500) {
+    const p = ingestRunStats(request, env, playerId, body.country, stats).catch(() => false);
+    if (ctx && typeof ctx.waitUntil === "function") ctx.waitUntil(p); else await p;
+  }
+  return resp;
+}
+/* FREE PLAN: today's usage against the free limits, for the admin page. */
+async function adminUsage(request, env) {
+  const denied = requireAdmin(request, env); if (denied) return denied;
+  const r = await analyticsDO(env, "/an-usage", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ use: takeUse() }) });
+  const headers = new Headers(r.headers); headers.set("Cache-Control", "no-store");
+  return new Response(r.body, { status: r.status, headers });
 }
 async function adminAnalytics(request, env) {
   const denied = requireAdmin(request, env); if (denied) return denied;
@@ -227,14 +329,23 @@ const AN_DAY_MS = 86400000;
 const anDayStr = (d) => new Date(d * AN_DAY_MS).toISOString().slice(0, 10);
 const anDayNum = (s) => (/^\d{4}-\d{2}-\d{2}$/.test(s || "") ? Math.floor(Date.parse(s + "T00:00:00Z") / AN_DAY_MS) : NaN);
 const anMonth = (d) => anDayStr(d).slice(0, 7);
+/* FREE PLAN: adds one Worker isolate's counts (only today's) and the rows this
+   write itself makes into day._use. Returns whether anything was added. */
+function anUse(day, use, today, ownRows) {
+  const u = day._use || { w: 0, d: 0, rw: 0 };
+  const n = (v) => { const x = Math.floor(Number(v)); return Number.isFinite(x) && x > 0 ? Math.min(x, 10_000_000) : 0; };
+  const ok = !!use && typeof use === "object" && use.day === today;
+  u.w += ok ? n(use.w) : 0; u.d += ok ? n(use.d) : 0; u.rw += (ok ? n(use.rw) : 0) + n(ownRows);
+  day._use = u;
+  return ok || n(ownRows) > 0;
+}
 function anAdd(bucket, groups, field, n) { for (const g of groups) { const o = bucket[g] || (bucket[g] = {}); o[field] = (o[field] || 0) + n; } }
 
 /* ------------------------------------------------------------------ */
 /* Score submission                                                    */
 /* ------------------------------------------------------------------ */
 
-async function submitScore(request, env) {
-  const body = await readJsonObject(request);
+async function submitScore(body, request, env) {
   if (!body) return json({ error: "Invalid request body" }, 400);
 
   const playerId = typeof body.playerId === "string" ? body.playerId.trim() : "";
@@ -1296,7 +1407,8 @@ export class LeaderboardDO {
       try {
         if (url.pathname === "/an-ingest" && request.method === "POST") return await this.anIngest(await request.json());
         if (url.pathname === "/an-report") return await this.anReport(url);
-        if (url.pathname === "/an-purge") return await this.anPurge();
+        if (url.pathname === "/an-purge") return await this.anPurge(await this.anBody(request));
+        if (url.pathname === "/an-usage") return await this.anUsage(await this.anBody(request));   // FREE PLAN
         return json({ error: "Not found" }, 404);
       } catch (e) { return json({ error: "stats failed" }, 500); }
     };
@@ -1352,10 +1464,38 @@ export class LeaderboardDO {
     const days = (await st.get("an:days")) || [];
     if (days[days.length - 1] !== today) { days.push(today); puts["an:days"] = days; }
     puts["an:day:" + today] = day; puts["an:p:" + h] = p;
+    anUse(day, b.use, today, Object.keys(puts).length);   // FREE PLAN: the usage counter rides in today's row
     await st.put(puts);
     return json({ ok: true });
   }
-  async anPurge() {
+  async anBody(request) { try { const t = await request.text(); return t ? JSON.parse(t) || {} : {}; } catch (e) { return {}; } }
+  /* FREE PLAN: a Worker isolate's usage counts (see FREE_LIMITS), added into today's row. */
+  async anAddUse(use) {
+    if (!use || !(Number(use.w) > 0 || Number(use.d) > 0 || Number(use.rw) > 0)) return;
+    const st = this.state.storage, today = this.anToday(), day = (await st.get("an:day:" + today)) || {};
+    if (!anUse(day, use, today, 1)) return;
+    const days = (await st.get("an:days")) || [], puts = { ["an:day:" + today]: day };
+    if (days[days.length - 1] !== today) { days.push(today); puts["an:days"] = days; }
+    await st.put(puts);
+  }
+  async anUsage(b) {
+    await this.anAddUse(b && b.use);
+    const st = this.state.storage, today = this.anToday(), days = [];
+    for (let d = today - 6; d <= today; d++) {
+      const u = ((await st.get("an:day:" + d)) || {})._use || { w: 0, d: 0, rw: 0 };
+      days.push({ date: anDayStr(d), w: u.w || 0, d: u.d || 0, rw: u.rw || 0 });
+    }
+    const u = days[days.length - 1], L = FREE_LIMITS;
+    const pct = { workerRequests: 100 * u.w / L.workerRequests, doRequests: 100 * u.d / L.doRequests, rowsWritten: 100 * u.rw / L.rowsWritten };
+    const nowMs = this.nowMs ? this.nowMs() : Date.now(), dayFrac = Math.max(1 / 24, (nowMs - today * AN_DAY_MS) / AN_DAY_MS);
+    const peak = Math.max(pct.workerRequests, pct.doRequests, pct.rowsWritten);
+    return json({ ok: true, today: anDayStr(today), usage: { workerRequests: u.w, doRequests: u.d, rowsWritten: u.rw }, limits: L, pct,
+      alertPct: USAGE_ALERT_PCT, alert: peak >= USAGE_ALERT_PCT, projectedPct: Math.round(peak / dayFrac), resetsAt: new Date((today + 1) * AN_DAY_MS).toISOString(),
+      accuracy: "approximate lower bound: counted in each Worker instance's memory and saved on its next stats call; the Cloudflare dashboard is exact",
+      days });
+  }
+  async anPurge(b) {
+    await this.anAddUse(b && b.use);
     const st = this.state.storage, cut = this.anToday() - AN_KEEP_DAYS;
     const days = (await st.get("an:days")) || [], keep = [], gone = [];
     for (const d of days) (d < cut ? gone : keep).push(d);
@@ -1375,7 +1515,7 @@ export class LeaderboardDO {
     from = Math.max(from, to - 400);
     const days = [], cohorts = [], months = [];
     for (let d = from; d <= to; d++) {
-      const day = await st.get("an:day:" + d); if (day) days.push({ date: anDayStr(d), groups: day });
+      const day = await st.get("an:day:" + d); if (day) { const { _use, ...groups } = day; days.push({ date: anDayStr(d), groups }); }   // FREE PLAN: usage is not a stats group
       const ret = await st.get("an:ret:" + d); if (ret) cohorts.push({ date: anDayStr(d), age: today - d, groups: ret });
     }
     for (let m = anMonth(from); m <= anMonth(to);) {
@@ -1516,7 +1656,8 @@ export class LeaderboardDO {
     const nextPlayers = setKey(this.players, playerId, record);
     const nextLast = setKey(this.lastSubmit, playerId, now);
     const nextFlags = flag ? pruneFlags([...this.flags.filter((f) => f.id !== flag.id), flag], now) : this.flags;
-    await this.state.storage.put({ players: nextPlayers, lastSubmit: nextLast, flags: nextFlags });
+    // FREE PLAN: "flags" is written only when this upload adds one (a row written less per score).
+    await this.state.storage.put(flag ? { players: nextPlayers, lastSubmit: nextLast, flags: nextFlags } : { players: nextPlayers, lastSubmit: nextLast });
     this.players = nextPlayers; this.lastSubmit = nextLast; this.flags = nextFlags;
     this.invalidateTags();
 

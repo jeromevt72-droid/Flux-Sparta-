@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="FLUX">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="icon" href="/icon-192.png">
 <title>Play FLUX Sparta — Free Arcade Game</title>
 <meta name="description" content="Play FLUX Sparta free in your browser. Match the color, chain combos and send your points to your country on the Global Grid.">
 <link rel="canonical" href="https://flux-sparta-3.jeromevt72.workers.dev/play/">
@@ -153,6 +154,11 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 .fluxWelcomeBtn{max-width:340px;width:100%;min-height:64px;font-size:18px;letter-spacing:.04em;line-height:1.35}
 /* RC2.8.7: D-57 game over = the score + one line; D-60 name offer; D-58 "Playing for". */.goScore{font-size:56px;font-weight:900;line-height:1.05;color:#5deaff;letter-spacing:.04em;text-shadow:0 0 24px #27d9ff66;margin:0}.goLine{margin:8px 0 4px!important;color:#eaf7ff!important;font-size:15px!important;font-weight:800;line-height:1.4!important}.goLine .goNew{color:#ffd23f}.goMeta{margin:0 0 4px!important;color:#8fa5d1!important;font-size:12px!important;letter-spacing:.08em}.goClaim{margin:8px 0 10px;padding:12px;border:1px solid #2c6bff;border-radius:16px;background:rgba(18,32,77,.55)}.goClaimT{font-size:14px;font-weight:800;color:#eaf7ff;margin-bottom:8px}.goClaimRow{display:flex;gap:8px}.goClaimRow button{flex:1;padding:10px 8px;font-size:12px;letter-spacing:.08em}.goClaimRow button.goClaimNo{background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none}.playingFor{display:block;width:100%;margin:8px 0 0;padding:8px 10px;background:transparent;color:#b9c6e5;border:0;box-shadow:none;font-size:13px;font-weight:700;letter-spacing:.02em;text-transform:none}.playingFor u{color:#62eaff;text-underline-offset:3px}
 /* D-46 lite graphics: the moving star fields, the live-blurred nebula and the FLUX Mode full-screen filter are redrawn every frame; on old devices they cost more than the game itself. */.fluxLite #starsFar,.fluxLite #starsNear{animation:none!important}.fluxLite #nebulaDrift{display:none!important}.fluxLite #app{filter:none!important}
+/* FREE PLAN: the small offline / server-limit note (menu and game over only). */
+#fluxNetNote{position:fixed;left:50%;bottom:calc(12px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:7;display:none;pointer-events:none;
+  font:700 11px/1.2 system-ui,-apple-system,sans-serif;letter-spacing:.14em;color:#ffc15e;background:rgba(6,9,28,.86);border:1px solid rgba(255,193,94,.4);
+  border-radius:999px;padding:7px 12px;white-space:nowrap;max-width:calc(100vw - 24px);overflow:hidden;text-overflow:ellipsis}
+#fluxNetNote.show{display:block}
 </style>
 </head>
 <body>
@@ -371,6 +377,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 <option value="YE">🇾🇪 YEMEN</option>
 <option value="ZM">🇿🇲 ZAMBIA</option>
 <option value="ZW">🇿🇼 ZIMBABWE</option><option value="OTHER">🌎 OTHER</option></select><div id="nameHint" class="nameHint hidden" role="alert">One word only, e.g. TITAN</div></div><button type="button" class="linkBtn restoreLink" id="restoreLink">HAVE A RESTORE CODE?</button><div id="profileSaved" class="profileSaved hidden"><span>PILOT <b id="profileName">PLAYER</b><small id="profileTag" class="profileTag"></small> • <b id="profileCountry">🇺🇸</b></span><button class="editProfile" id="editProfile">EDIT</button></div><button id="startBtn">ENTER THE FLUX</button><button type="button" id="playingFor" class="playingFor hidden">Playing for <span id="playingForWho">🇺🇸 United States</span> · <u>change</u></button><div class="menuTiles"><div><span>PERSONAL BEST</span><b id="menuBest">0</b></div><div><span>BEST LEVEL</span><b id="menuLevel">1</b></div></div><div id="uploadStatus" class="uploadStatus" aria-live="polite"></div><div class="menuLinks"><button class="linkBtn" id="leaderBtn">🌎 GLOBAL LEADERBOARD</button><button class="linkBtn" id="skinsBtn">✦ THEMES & SKINS</button></div><button type="button" class="linkBtn installBtn hidden" id="bringPilotBtn">📋 BRING MY PILOT FROM SAFARI</button><p class="offline" id="offlineClaim">● PERSONAL BEST SAVES ON THIS DEVICE</p></div></div>
+<div id="fluxNetNote" role="status" aria-live="polite">OFFLINE — SCORES WILL UPLOAD LATER</div>
 <div id="gameover" class="hidden">
  <div class="panel">
   <div class="goScore" id="finalScore">0</div>
@@ -2202,6 +2209,55 @@ function showInfo(title,msg){const d=document.createElement('div');d.className='
 //   success             -> remove from the queue
 // Attempts are capped so a bad item cannot retry forever.
 // ---------------------------------------------------------------------------
+/* FREE PLAN: SERVER LIMIT / OFFLINE. FLUX runs on Cloudflare's free plan
+   (100,000 server requests a day, reset at 00:00 UTC). Past the limit the
+   server answers with Cloudflare's own error page ("Error 1027 ... rate
+   limited", not our JSON), and a phone can simply be offline. Either way the
+   game keeps working: the pages come from the service worker cache, runs are
+   played, and scores + stats wait in the upload queue. When Cloudflare's limit
+   page is seen, every server call (uploads, leaderboard, purchases check,
+   country) pauses until the next UTC midnight (the reset), at most an hour
+   between tries, shared by all tabs -- never a retry loop. A small note says
+   "OFFLINE -- SCORES WILL UPLOAD LATER" on the menu and game-over screens. */
+const FLUX_NET_PAUSE_KEY='fluxNetPause';
+const FLUX_NET_PAUSE_MAX_MS=3600000;
+let fluxNetDown=false;                                     // the last upload failed for a temporary reason
+function fluxNetPausedFor(){
+  let t=0; try{ t=+localStorage.getItem(FLUX_NET_PAUSE_KEY)||0; }catch(e){}
+  const left=t-Date.now();
+  return left>0 ? Math.min(left, FLUX_NET_PAUSE_MAX_MS+300000) : 0;
+}
+function fluxNetHeld(){ return (typeof navigator!=='undefined' && navigator.onLine===false) || fluxNetPausedFor()>0; }
+/* Cloudflare's own limit page (not our JSON): 'limit'. Anything else: null. */
+async function fluxEdgeKind(res){
+  try{
+    const st=res && res.status;
+    if(!(st===429 || st===403 || st>=500)) return null;
+    const ct=String((res.headers && res.headers.get && res.headers.get('Content-Type')) || '');
+    if(ct.indexOf('json')>=0) return null;
+    const t=await res.text();
+    return /\b1027\b|rate[ -]?limited|limit exceeded/i.test(t) ? 'limit' : null;
+  }catch(e){ return null; }
+}
+function fluxNetPause(){
+  const now=Date.now(), midnight=(Math.floor(now/86400000)+1)*86400000;
+  const until=Math.min(midnight+Math.floor(Math.random()*300000), now+FLUX_NET_PAUSE_MAX_MS);
+  try{ localStorage.setItem(FLUX_NET_PAUSE_KEY,String(until)); }catch(e){}
+  fluxNetNote();
+  return until-now;
+}
+function fluxNetOk(){
+  fluxNetDown=false;
+  try{ if(localStorage.getItem(FLUX_NET_PAUSE_KEY)) localStorage.removeItem(FLUX_NET_PAUSE_KEY); }catch(e){}
+  fluxNetNote();
+}
+function fluxNetNote(){
+  try{
+    const el=document.getElementById('fluxNetNote'); if(!el) return;
+    const show=(fluxNetHeld() || fluxNetDown) && !(typeof playing!=='undefined' && (playing || runActive));
+    el.className=show ? 'show' : '';
+  }catch(e){}
+}
 const SUBMIT_QUEUE_KEY='fluxPendingSubmits';
 const SUBMIT_MAX_ATTEMPTS=Infinity;   // RC2.8: temporary failures never exhaust a best (see D-24)
 const SUBMIT_QUEUE_MAX=20;
@@ -2244,12 +2300,21 @@ const SUBMIT_BACKOFF_MS=[5000,15000,45000,120000,300000,600000];
 const SUBMIT_COOLDOWN_WAIT_MS=11000;
 let _flushing=null, _retryTimer=null, _flushAgain=false;
 
+/* FREE PLAN: a run's stats travel INSIDE its queued upload ("stats"), so a
+   run is one request, and stats made offline wait with the score. At most 40
+   events per upload (the server's batch size); the newest are kept. */
+function fluxMergeStats(item, stats){
+  if(!item || !stats || !stats.events || !stats.events.length) return;
+  const prev=(item.stats && item.stats.events) || [];
+  item.stats={ src:stats.src || (item.stats && item.stats.src), events:prev.concat(stats.events).slice(-40) };
+}
 function enqueueSubmission(item){
   if(!item) return;
   const q=loadQueue();
   const same=function(x){ return x.playerId===item.playerId && x.difficulty===item.difficulty; };
   const existing=q.find(same);
-  if(existing && existing.score>=item.score) return;          // keep the better unsent best
+  if(existing && existing.score>=item.score){ if(item.stats){ fluxMergeStats(existing, item.stats); saveQueue(q); } return; }   // keep the better unsent best (and this run's stats with it)
+  if(existing && existing.stats){ const mine=item.stats; item.stats=existing.stats; fluxMergeStats(item, mine); }
   saveQueue(q.filter(function(x){ return !same(x); }).concat([item]));
   updateUploadStatus();
 }
@@ -2265,16 +2330,21 @@ async function postSubmission(item){
       body:JSON.stringify({
         playerId:item.playerId, name:item.name, score:item.score,
         level:item.level, difficulty:item.difficulty, country:item.country,
+        stats:item.stats,
         season:item.season
       })
     });
-  }catch(e){ return { kind:'temporary', waitMs:0 }; }
+  }catch(e){ fluxNetDown=true; return { kind:'temporary', waitMs:0 }; }
   if(res.ok){
     let body=null; try{ body=await res.json(); }catch(e){}
+    fluxNetOk();
     return { kind:'ok', body:body };
   }
   if(res.status===409) return { kind:'stale' };   // SEASON 1: refused as from an older season -- dropped quietly
+  if(await fluxEdgeKind(res)==='limit'){ fluxNetDown=true; return { kind:'temporary', waitMs:fluxNetPause() }; }   // FREE PLAN: Cloudflare's daily limit -- wait for the reset
+  if(res.status===403 && String((res.headers && res.headers.get && res.headers.get('Content-Type')) || '').indexOf('json')<0){ fluxNetDown=true; return { kind:'temporary', waitMs:0 }; }   // Cloudflare's own block page is never our refusal: keep the run
   if(res.status===429||res.status>=500){
+    fluxNetDown=true;
     let waitMs=0;
     try{
       const ra=res.headers && res.headers.get && res.headers.get('Retry-After');
@@ -2305,12 +2375,13 @@ function flushSubmitQueue(){
       do {
       _flushAgain=false;
       if(typeof navigator!=='undefined' && navigator.onLine===false) return;
+      if(fluxNetPausedFor()>0){ if(loadQueue().length) scheduleFlush(fluxNetPausedFor()); return; }   // FREE PLAN: past the daily limit, wait for the reset
       let retryScheduled=false;
       for(const item of loadQueue()){
         if(!(item && item.season>=FLUX_SEASON)){ saveQueue(loadQueue().filter(function(x){ return x && x.season>=FLUX_SEASON; })); continue; }   // SEASON 1: an old-season upload is never sent
         const r=await postSubmission(item);
         if(r.kind==='ok'){
-          dequeueSubmission(item.id); clearSubmitFailure();
+          dequeueSubmission(item.id); clearSubmitFailure(); fluxAckSet(item);
           const b=r.body||{};
           if(b.tag && /^[0-9A-Z]{6,}$/.test(b.tag)){ try{ localStorage.fluxPublicTag=b.tag; }catch(e){} }
           lastUploadResult=b;
@@ -2339,9 +2410,35 @@ function flushSubmitQueue(){
   })();
   return _flushing;
 }
-function submitScore(){
+/* FREE PLAN: at game over ({run:true}) the run's stats go INSIDE the score
+   upload -- one request per run. A best the server has already accepted (same
+   pilot, season, name and country) is not sent again at every game over;
+   then the stats go alone, as the one request of that run. Any other call
+   (a new name, a new country) always uploads. */
+const FLUX_ACK_KEY='fluxUploadedBest';
+function fluxAckGet(){
+  let o=null; try{ o=JSON.parse(localStorage.getItem(FLUX_ACK_KEY)||'null'); }catch(e){}
+  return (o && o.season===FLUX_SEASON && o.pid===playerId) ? o : { season:FLUX_SEASON, pid:playerId };
+}
+function fluxAckSet(item){
+  try{
+    if(!item || item.playerId!==playerId) return;
+    const o=fluxAckGet();
+    if(!(o[item.difficulty]>=item.score)) o[item.difficulty]=item.score;
+    o.name=item.name; o.country=item.country||'';
+    localStorage.setItem(FLUX_ACK_KEY,JSON.stringify(o));
+  }catch(e){}
+}
+function fluxAlreadyUploaded(item){
+  const o=fluxAckGet();
+  if(!(o[item.difficulty]>=item.score) || o.name!==item.name || o.country!==(item.country||'')) return false;
+  return !loadQueue().some(function(x){ return x && x.playerId===item.playerId && x.difficulty===item.difficulty; });
+}
+function submitScore(opts){
+  const run=!!(opts && opts.run);
   const item=buildSubmission();
-  if(!item) return Promise.resolve();
+  if(!item || (run && fluxAlreadyUploaded(item))){ if(run) fluxStatsFlush(); return Promise.resolve(); }
+  if(run) fluxMergeStats(item, fluxStatsTake());
   enqueueSubmission(item);
   return flushSubmitQueue();
 }
@@ -2352,6 +2449,7 @@ function submitScore(){
    review queue, so "pending review" is never shown. */
 let lastUploadResult=null;
 function updateUploadStatus(){
+  fluxNetNote();
   try{
     const el=document.getElementById('uploadStatus');
     if(el){
@@ -2395,8 +2493,47 @@ function myPidHash(){
   }
   return _myPidHash;
 }
+/* FREE PLAN: LEADERBOARD CACHE. The Global Leaderboard here and the World
+   Grid on the Gateway share ONE copy of the board (localStorage, same origin,
+   so every view and every tab): it is shown at once, and fetched again at most
+   once a minute -- by any view or tab ("fluxLbTry" marks the last fetch). A
+   manual reopen inside that minute shows the copy. Offline, or past the
+   server's daily limit, the last copy is shown. */
+const FLUX_LB_KEY='fluxLbCache', FLUX_LB_TRY_KEY='fluxLbTry', FLUX_LB_TTL_MS=60000, FLUX_LB_URL='/api/leaderboard?limit=50';
+let fluxLbInflight=null;
+function fluxLbCached(){
+  try{ const c=JSON.parse(localStorage.getItem(FLUX_LB_KEY)||'null'); if(c && c.data && Number.isFinite(c.at)) return c; }catch(e){}
+  return null;
+}
+function fluxLbLoad(){
+  const c=fluxLbCached(), now=Date.now();
+  if(c && c.at<=now && now-c.at<FLUX_LB_TTL_MS) return Promise.resolve(c);
+  if(fluxLbInflight) return fluxLbInflight;
+  let t=0; try{ t=+localStorage.getItem(FLUX_LB_TRY_KEY)||0; }catch(e){}
+  const held=fluxNetHeld();
+  if(held || (t<=now && now-t<FLUX_LB_TTL_MS)){
+    return c ? Promise.resolve(c) : Promise.reject(new Error(held ? 'The leaderboard is offline right now. Your runs are saved and will upload later.' : 'The leaderboard is refreshing. Try again in a minute.'));
+  }
+  try{ localStorage.setItem(FLUX_LB_TRY_KEY,String(now)); }catch(e){}
+  const p=fetch(FLUX_LB_URL).then(async r=>{
+    if(!r.ok){
+      if(await fluxEdgeKind(r.clone ? r.clone() : r)==='limit') fluxNetPause();
+      let message='Leaderboard service is not configured yet.';
+      try{const err=await r.json();if(err&&err.error)message=err.error;}catch(e){}
+      throw new Error(message);
+    }
+    const o={ at:Date.now(), data:await r.json() };
+    try{ localStorage.setItem(FLUX_LB_KEY,JSON.stringify(o)); }catch(e){}
+    return o;
+  });
+  fluxLbInflight=p;
+  const done=function(){ fluxLbInflight=null; };
+  p.then(done,done);
+  return p.catch(function(err){ if(c) return c; throw err; });
+}
 function openLeaderboard(){
-  if(isOffline()){
+  const cached=fluxLbCached();
+  if(isOffline() && !cached){
     showInfo('CONNECTION REQUIRED','The Global Leaderboard needs an internet connection. Your runs are saved on this device and will be submitted automatically when you are back online.');
     return;
   }
@@ -2405,14 +2542,11 @@ function openLeaderboard(){
   d.innerHTML='<div class="panel lbPanel"><h2 style="color:#62eaff;letter-spacing:.14em">GLOBAL LEADERBOARD</h2><div id="lbBody" class="lbBody"><p class="lbLoading">Loading rankings…</p></div><button id="lbClose">BACK</button></div>';
   document.getElementById('app').appendChild(d);
   d.querySelector('#lbClose').onclick=()=>d.remove();
-  fetch('/api/leaderboard?limit=25').then(async r=>{
-    if(!r.ok){
-      let message='Leaderboard service is not configured yet.';
-      try{const err=await r.json();if(err&&err.error)message=err.error;}catch(e){}
-      throw new Error(message);
-    }
-    return r.json();
-  }).then(async data=>{
+  let shownAt=0;
+  const render=async function(o){
+    if(!o || !o.data || o.at===shownAt) return;
+    shownAt=o.at;
+    const data=o.data;
     const myPid = await myPidHash();   // A-1
     const body=d.querySelector('#lbBody');
     if(!data.top||!data.top.length){body.innerHTML='<p class="lbEmpty">No runs submitted yet. Be the first on the board.</p>';return}
@@ -2420,7 +2554,7 @@ function openLeaderboard(){
     if(data.leadingCountry){
       html+='<div class="lbLeading">'+(countryFlags[data.leadingCountry.country]||'🌎')+' <b>'+data.leadingCountry.country+'</b> is leading with '+data.leadingCountry.playerCount+' pilot'+(data.leadingCountry.playerCount===1?'':'s')+'</div>';
     }
-    html+='<div class="lbList">'+data.top.map((r,i)=>{
+    html+='<div class="lbList">'+data.top.slice(0,25).map((r,i)=>{
       const mine=!!myPid && r.pid===myPid;   // A-1: compare hashes, never ids
       return '<div class="lbRow'+(mine?' lbMine':'')+'"><span class="lbRank">#'+(i+1)+'</span><span class="lbFlag">'+(countryFlags[r.country]||'🌎')+'</span><span class="lbName">'+escapeHtml(r.name)+(r.tag?'<small class="lbTag"> #'+escapeHtml(r.tag)+'</small>':'')+'</span><span class="lbScore">'+r.score.toLocaleString()+'</span></div>';
     }).join('')+'</div>';
@@ -2429,10 +2563,15 @@ function openLeaderboard(){
         return '<div class="lbRow"><span class="lbFlag">'+(countryFlags[c.country]||'🌎')+'</span><span class="lbName">'+c.country+'</span><span class="lbScore">'+c.totalScore.toLocaleString()+'</span></div>';
       }).join('')+'</div>';
     }
+    const age=Math.max(0,Math.round((Date.now()-o.at)/60000));
+    if(age>=2) html+='<p class="lbEmpty" style="margin-top:10px">Updated '+age+' min ago'+(fluxNetHeld()?' · offline':'')+'</p>';
     body.innerHTML=html;
-  }).catch((err)=>{
+  };
+  if(cached) render(cached);   // FREE PLAN: the last copy, at once
+  fluxLbLoad().then(render).catch((err)=>{
+    if(shownAt) return;        // a copy is already on screen
     const msg=escapeHtml(err&&err.message?err.message:'Couldn\'t reach the leaderboard.');
-    d.querySelector('#lbBody').innerHTML='<p class="lbEmpty">'+msg+'<br><br>Cloudflare leaderboard setup is required before cross-device scores can appear.</p>';
+    d.querySelector('#lbBody').innerHTML='<p class="lbEmpty">'+msg+'</p>';
   });
 }/* ==================================================================
    FLUX v4 CLIENT PATCH
@@ -2808,10 +2947,11 @@ document.getElementById('callsign').onchange = e => {
    place. --- */
 
 /* --- 7. First run: preselect the real country instead of 🇺🇸 --- */
-if (!localStorage.fluxCountry) {
+if (!localStorage.fluxCountry && !localStorage.fluxGeoAsked && !fluxNetHeld()) {   // FREE PLAN: asked once per device
   fetch('/api/geo')
     .then(r => r.json())
     .then(d => {
+      try { localStorage.fluxGeoAsked = '1'; } catch (e) {}
       if (!d || !d.country || localStorage.fluxCountry) return;
       if (!countryFlags[d.country]) return;
       country = d.country;
@@ -2823,9 +2963,19 @@ if (!localStorage.fluxCountry) {
     .catch(() => {});
 }
 
-/* --- 8. Load entitlements now, and again after any purchase redirect --- */
-syncEntitlements();
-setTimeout(syncEntitlements, 3000);
+/* --- 8. Load entitlements now, and again after any purchase redirect ---
+   FREE PLAN: once per page load, and not at all when the server answered in
+   the last 30 minutes (the verified copy is used; a purchase on this device
+   is checked on its own). The second check, 3 s later, only when coming back
+   from a purchase. Never while offline or past the daily limit. */
+(function () {
+  const back = /[?&]session_id=/.test(location.search);
+  const v = readVerifiedEntitlements();
+  const fresh = !!v && Number.isFinite(v.verifiedAt) && Date.now() - v.verifiedAt >= 0 && Date.now() - v.verifiedAt < 1800000;
+  if (fluxNetHeld()) return;
+  if (back || !fresh) syncEntitlements();
+  if (back) setTimeout(syncEntitlements, 3000);
+})();
 
 /* ================= END FLUX v4 CLIENT PATCH ================= */
 
@@ -2907,7 +3057,9 @@ if('serviceWorker' in navigator){
 
 // Retry any runs that finished while the device was offline.
 addEventListener('online',function(){ try{ flushSubmitQueue(); }catch(e){} });
+window.onoffline=function(){ fluxNetNote(); };   // FREE PLAN: the offline note (a property handler: one listener site less)
 try{ flushSubmitQueue(); }catch(e){}
+fluxNetNote();
 
 // Network-dependent features report the requirement instead of failing oddly.
 function isOffline(){ return typeof navigator!=='undefined' && navigator.onLine===false; }
@@ -2922,7 +3074,8 @@ function isOffline(){ return typeof navigator!=='undefined' && navigator.onLine=
    is visible in the menu next to EDIT; players rename there if they want. */
 function uploadOrAskName(){
   const box=document.getElementById('goName');
-  if(profileComplete){ if(box) box.classList.add('hidden'); return submitScore(); }
+  if(profileComplete){ if(box) box.classList.add('hidden'); return submitScore({run:true}); }   // FREE PLAN: score + this run's stats, one request
+  if(typeof fluxStatsFlush==='function') fluxStatsFlush();   // unnamed: no upload yet, the stats go alone
   showNamePrompt();
 }
 function showNamePrompt(){
@@ -3879,8 +4032,19 @@ function fluxStatsSrc(){
 function fluxTrack(e,extra){
   try{ if(fluxStatsQueue.length<60) fluxStatsQueue.push(Object.assign({e:e},extra||{})); }catch(x){}
 }
+/* FREE PLAN: the run's stats are taken from here into its score upload (one
+   request per run); fluxStatsFlush sends them alone only when there is no
+   score to upload, or once per page load when the app is hidden. Offline or
+   past the daily limit they stay here and ride with the next upload. */
+function fluxStatsTake(){
+  if(!fluxStatsQueue.length) return null;
+  const s={src:fluxStatsSrc(),events:fluxStatsQueue.slice(0,40)};
+  fluxStatsQueue=[];
+  return s;
+}
 function fluxStatsFlush(){
   try{
+    if(typeof fluxNetHeld==='function' && fluxNetHeld() && fluxStatsQueue.length) return;   // kept for the next upload
     if(!fluxStatsQueue.length || !navigator.sendBeacon) { fluxStatsQueue=[]; return; }
     const body=JSON.stringify({pid:playerId,country:country,src:fluxStatsSrc(),events:fluxStatsQueue.slice(0,40)});
     fluxStatsQueue=[];
@@ -3897,21 +4061,23 @@ function fluxStatsFlush(){
         fluxRunStartedAt=Date.now();
         if(!(+localStorage.fluxRunsPlayed>0) && localStorage.fluxStatFirstRun!=='1'){ localStorage.fluxStatFirstRun='1'; fluxTrack('first_run'); }
       }catch(x){}
-      return newGame0.apply(this,arguments);
+      const r=newGame0.apply(this,arguments);
+      try{ fluxNetNote(); }catch(x){}   // FREE PLAN: the offline note never shows during a run
+      return r;
     };
     const endGame0=endGame;
     endGame=function(){
       try{ fluxTrack('run_end',{sec:fluxRunStartedAt?Math.round((Date.now()-fluxRunStartedAt)/1000):0,lvl:level,diff:difficulty}); fluxRunStartedAt=0; }catch(x){}
-      const r=endGame0.apply(this,arguments);
-      fluxStatsFlush();
-      return r;
+      return endGame0.apply(this,arguments);   // FREE PLAN: the stats go with the score upload at game over (uploadOrAskName)
     };
     const finishLevelUp0=finishLevelUp;
     finishLevelUp=function(){ const r=finishLevelUp0.apply(this,arguments); fluxTrack('level_up',{lvl:level,diff:difficulty}); return r; };
     const sb=document.getElementById('shareBtn'); const share0=sb && sb.onclick;
-    if(sb) sb.onclick=function(){ fluxTrack('share'); fluxStatsFlush(); return typeof share0==='function' ? share0.apply(this,arguments) : undefined; };
-    document.onvisibilitychange=function(){ if(document.hidden) fluxStatsFlush(); };
-    setTimeout(fluxStatsFlush,8000);   // the app-open event, even if no run is played
+    if(sb) sb.onclick=function(){ fluxTrack('share'); return typeof share0==='function' ? share0.apply(this,arguments) : undefined; };   // FREE PLAN: rides with the next upload
+    // FREE PLAN: no timer. The app-open event rides with the first run's upload;
+    // if the app is hidden first, whatever is waiting goes ONCE per page load.
+    let hideSent=false;
+    document.onvisibilitychange=function(){ if(document.hidden && !hideSent && fluxStatsQueue.length && !(typeof fluxNetHeld==='function' && fluxNetHeld())){ hideSent=true; fluxStatsFlush(); } };
   }catch(x){}
 })();
 </script>

@@ -27,6 +27,12 @@ for(const f of ['bestRun','recordBestRun','loadQueue','saveQueue','buildSubmissi
   eval('globalThis.'+f+' = '+grabLast(f).replace('function '+f+'(','function ('));
 eval('globalThis.postSubmission = async '+grabLast('postSubmission').replace('function postSubmission(','function ('));
 eval('globalThis.flushSubmitQueue = async '+grabLast('flushSubmitQueue').replace('function flushSubmitQueue(','function ('));
+// FREE PLAN: the queue's helpers for the server's daily limit, the stats that
+// ride inside an upload, and the record of the best the server already has.
+Object.assign(globalThis,{FLUX_NET_PAUSE_KEY:'fluxNetPause',FLUX_NET_PAUSE_MAX_MS:3600000,fluxNetDown:false,FLUX_ACK_KEY:'fluxUploadedBest'});
+for(const f of ['fluxNetPausedFor','fluxNetHeld','fluxNetPause','fluxNetOk','fluxNetNote','fluxMergeStats','fluxAckGet','fluxAckSet','fluxAlreadyUploaded'])
+  eval('globalThis.'+f+' = '+grabLast(f).replace('function '+f+'(','function ('));
+eval('globalThis.fluxEdgeKind = async '+grabLast('fluxEdgeKind').replace('function fluxEdgeKind(','function ('));
 let mode='ok', calls=0, bodies=[];
 globalThis.fetch=async(u,o)=>{calls++; bodies.push(JSON.parse(o.body));
   if(mode==='offline') throw new Error('offline');

@@ -66,6 +66,12 @@
   .guide h3{font-size:13px;letter-spacing:.08em;margin:18px 0 6px;color:var(--cyan)}
   .guide p,.guide li{font-size:13px;line-height:1.6;color:var(--text)}
   .guide ol,.guide ul{padding-left:20px}
+  .usageAlert{background:rgba(255,79,152,.12);border:1px solid var(--pink);color:#ffd1e4;border-radius:12px;padding:12px 14px;font-size:14px;line-height:1.5;margin:10px 0}
+  .usageAlert b{color:var(--pink)}
+  .hidden{display:none}
+  .meter{margin:12px 0}.meter .lbl{display:flex;justify-content:space-between;gap:10px;font-size:13px;margin-bottom:6px}
+  .meter .lbl span{color:var(--dim)}.meter .bar{height:10px;background:var(--panel2);border:1px solid var(--line);border-radius:99px;overflow:hidden}
+  .meter .fill{height:100%;background:var(--cyan);border-radius:99px}.meter.hot .fill{background:var(--pink)}.meter.warm .fill{background:var(--amber)}
   .logrow{color:var(--dim);font-size:12px;line-height:1.5;padding:6px 0;border-top:1px solid var(--line);white-space:pre-line}
 </style>
 </head>
@@ -76,6 +82,11 @@
 
   <input id="token" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Admin password">
   <div id="status" role="status" aria-live="polite"></div>
+
+  <h2>FREE PLAN USAGE · TODAY (UTC)</h2>
+  <div id="usageAlert" class="usageAlert hidden" role="alert"></div>
+  <div class="row"><button id="usageLoad" class="ghost" style="flex:1">CHECK REQUESTS TODAY</button></div>
+  <div id="usage"></div>
 
   <h2>EXCEPTIONS NEEDING ATTENTION</h2>
   <div class="row"><button id="loadEx" class="ghost" style="flex:1">CHECK EXCEPTIONS</button></div>
@@ -220,6 +231,7 @@
     var box = $('exceptions'); box.textContent = '';
     say('Checking…');
     var d = await call('exceptions');
+    loadUsage(true).catch(function () {});   // FREE PLAN: the usage alert shows with the exceptions
     var flags = d.flags || [], delivery = d.delivery || [];
     if (!flags.length && !delivery.length) { box.appendChild(el('div', 'empty', 'Nothing needs attention.')); say(''); renderBans(d.nameBans || []); renderRestoreLog(d.restoreLog || []); return; }
     delivery.forEach(function (x) {
@@ -457,6 +469,39 @@
     say('');
   }
 
+  /* ---------------- FREE PLAN usage ----------------
+     Today's server requests against Cloudflare's free daily limits (reset at
+     00:00 UTC). Counted by the server itself, approximately (a lower bound);
+     the Cloudflare dashboard is exact. An alert shows from 80% of any limit. */
+  function meter(label, n, limit, note) {
+    var p = limit ? 100 * n / limit : 0, m = el('div', 'meter' + (p >= 80 ? ' hot' : p >= 50 ? ' warm' : ''));
+    var l = el('div', 'lbl'); l.appendChild(el('b', null, label)); l.appendChild(el('span', null, fmt(n) + ' / ' + fmt(limit) + ' · ' + Math.round(p) + '%'));
+    var b = el('div', 'bar'), f = el('div', 'fill'); f.style.width = Math.min(100, Math.max(p > 0 ? 1 : 0, p)) + '%'; b.appendChild(f);
+    m.appendChild(l); m.appendChild(b); if (note) m.appendChild(el('div', 'note', note)); return m;
+  }
+  function renderUsage(d) {
+    var box = $('usage'), al = $('usageAlert'); box.textContent = '';
+    var u = d.usage || {}, L = d.limits || {};
+    box.appendChild(meter('Worker requests', u.workerRequests || 0, L.workerRequests, 'Game and site pages are free static files; only /api/ calls count.'));
+    box.appendChild(meter('Durable Object requests', u.doRequests || 0, L.doRequests));
+    box.appendChild(meter('Storage rows written (estimate)', u.rowsWritten || 0, L.rowsWritten));
+    var peak = Math.max(d.pct.workerRequests || 0, d.pct.doRequests || 0, d.pct.rowsWritten || 0);
+    if (d.alert) {
+      al.textContent = '';
+      al.appendChild(el('b', null, 'ALERT · ' + Math.round(peak) + '% of a free daily limit used. '));
+      al.appendChild(document.createTextNode('At 100%, score uploads and leaderboards pause until 00:00 UTC. The game keeps working offline and queued scores upload after the reset. Check the Cloudflare dashboard.'));
+      al.classList.remove('hidden');
+    } else al.classList.add('hidden');
+    box.appendChild(el('p', 'note', 'At this pace: about ' + fmt(d.projectedPct) + '% by the end of the day. Resets ' + when(Date.parse(d.resetsAt)) + '. ' +
+      'Approximate: counted by the server itself and never above the real number; the Cloudflare dashboard is exact.'));
+    box.appendChild(table(['Date (UTC)', 'Worker', 'Durable Obj.', 'Rows written'], (d.days || []).slice().reverse().map(function (x) { return [x.date, fmt(x.w), fmt(x.d), fmt(x.rw)]; })));
+  }
+  async function loadUsage(quiet) {
+    if (!quiet) say('Checking usage…');
+    renderUsage(await call('usage'));
+    if (!quiet) say('');
+  }
+
   /* ---------------- season 0 archive (read-only) ---------------- */
   async function loadSeason0() {
     var box = $('season0'); box.textContent = '';
@@ -477,6 +522,7 @@
   function guard(fn) { return function () { fn().catch(function (e) { say(e.message, 'err'); }); }; }
   $('stLoad').onclick = guard(loadStats);
   $('s0Load').onclick = guard(loadSeason0);
+  $('usageLoad').onclick = guard(function () { return loadUsage(false); });
   $('loadEx').onclick = guard(loadExceptions);
   $('find').onclick = guard(find);
   $('q').addEventListener('keydown', function (e) { if (e.key === 'Enter') guard(find)(); });

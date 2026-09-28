@@ -14,9 +14,12 @@
 //   S9 a flood from one pilot is capped per day.
 // Game (REAL page, harness vm):
 //   C1 app open (Home Screen or not) and the first-touch ?src= tag, kept;
-//   C2 first run once, run finished (length, level, difficulty), sent in ONE
-//      background request at game over with the pilot ID, country and src;
-//   C3 level-ups and shares are counted (the share link's ?src=share tag is set by the share card);
+//   C2 first run once, run finished (length, level, difficulty), sent at game
+//      over INSIDE the run's one score upload (FREE PLAN: one request per run)
+//      with the pilot ID, country and src; with no score to upload, alone;
+//   C3 level-ups and shares are counted (the share link's ?src=share tag is set
+//      by the share card); a share waits for the next upload, or goes when the
+//      app is hidden -- once per page load, no timer;
 //   C4 if stats cannot be sent (no sendBeacon, or it throws) the game carries
 //      on and nothing waits;
 //   C5 same-origin only, and no name is ever sent.
@@ -114,11 +117,14 @@ async function suite({ gameHtml, workerMod, quiet = false }) {
     const GAME = scriptsOf(gameHtml);
     const bootGame = (init, search = '', standalone = false) => {
       const { store, mem } = makeStore(Object.assign({ fluxPlayerId: 'p-stats-1', fluxCallsign: 'TITAN', fluxCountry: 'PH', fluxProfileComplete: '1' }, init));
-      const fetched = [];
-      const g = boot(GAME, { origin: ORIGIN, path: '/play/', search, store, standalone, fetchImpl: (u) => { fetched.push(String(u)); return Promise.resolve(new Response('{"ok":true}', { status: 200 })); } });
+      const fetched = [], posts = [], timers = [];
+      const g = boot(GAME, { origin: ORIGIN, path: '/play/', search, store, standalone, fetchImpl: (u, o) => { fetched.push(String(u)); if (o && o.body) posts.push({ u: String(u), body: JSON.parse(o.body) }); return Promise.resolve(new Response('{"ok":true}', { status: 200, headers: { 'Content-Type': 'application/json' } })); } });
       g.ctx.Blob = Blob; const beacons = []; g.win.navigator.sendBeacon = (u, b) => { beacons.push({ u, b }); return true; };
       g.ctx.fluxIsStandalone = () => standalone;
-      return { g, mem, run: (c) => vm.runInContext(c, g.ctx), beacons, fetched };
+      g.ctx.setTimeout = (f, ms) => { timers.push({ f, ms }); return timers.length; };
+      // game over: endGame() and then its 420 ms game-over step (records the best, uploads)
+      const gameOver = async () => { g.ctx.endGame(); timers.splice(0).filter((t) => t.ms === 420).forEach((t) => t.f()); for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r)); };
+      return { g, mem, run: (c) => vm.runInContext(c, g.ctx), beacons, fetched, posts, gameOver };
     };
     const a = bootGame({}, '?src=TikTok');
     const q0 = a.run('JSON.stringify(fluxStatsQueue)');
@@ -126,23 +132,29 @@ async function suite({ gameHtml, workerMod, quiet = false }) {
     const a2 = bootGame(a.mem, '?src=facebook', true);
     ck('C1 ...a Home Screen launch is marked, and a later ?src= never replaces where the pilot first came from', /"home":true/.test(a2.run('JSON.stringify(fluxStatsQueue)')) && a2.mem.fluxSrc === 'tiktok');
     const n = bootGame({ fluxRunsPlayed: '0' });
-    n.g.ctx.newGame(); n.run('level=3; difficulty="hard"; score=1200;'); n.g.ctx.endGame();
-    const sent = n.beacons.map((x) => x.b);
-    ck('C2 one background request at game over, to our own server', n.beacons.length === 1 && n.beacons[0].u === '/api/events', n.beacons.map((x) => x.u).join(','));
-    let body = {}; try { body = JSON.parse(await sent[0].text()); } catch (e) {}
+    n.g.ctx.newGame(); n.run('level=3; difficulty="hard"; score=1200;'); await n.gameOver();
+    const up = n.posts.filter((x) => x.u === '/api/submit-score');
+    ck('C2 one request at game over, to our own server: the score upload carries the stats (no separate stats request)', up.length === 1 && n.beacons.length === 0 && !n.fetched.some((u) => u.includes('/api/events')), n.fetched.join(',') + ' beacons=' + n.beacons.length);
+    const body = Object.assign({ pid: up[0] && up[0].body.playerId, country: up[0] && up[0].body.country }, (up[0] && up[0].body.stats) || {});
     const ev = (body.events || []).map((e) => e.e).join(',');
     ck('C2 it carries the pilot ID, country, src, and open + first run + run finished (level 3, hard, length)',
       body.pid === 'p-stats-1' && body.country === 'PH' && body.src === 'direct' && ev === 'open,first_run,run_end' && body.events[2].lvl === 3 && body.events[2].diff === 'hard' && typeof body.events[2].sec === 'number', JSON.stringify(body).slice(0, 200));
     ck('C2 ...the queue is empty afterwards, and "first run" is sent only once', n.run('fluxStatsQueue.length') === 0 && (n.g.ctx.newGame(), n.run('fluxStatsQueue.length')) === 0);
-    ck('C5 no name is ever sent', !JSON.stringify(body).includes('TITAN'));
+    const z = bootGame({ fluxRunsPlayed: '3' }); z.g.ctx.newGame(); z.run('score=0;'); await z.gameOver();
+    let zb = {}; try { zb = JSON.parse(await z.beacons[0].b.text()); } catch (e) {}
+    ck('C2 ...with no score to upload, the run\'s stats go alone: one request', z.beacons.length === 1 && z.beacons[0].u === '/api/events' && (zb.events || []).some((e) => e.e === 'run_end') && !z.posts.length, z.beacons.length + ' ' + z.posts.length);
+    ck('C5 no name is ever sent with the stats', !JSON.stringify(body).includes('TITAN') && !JSON.stringify(zb).includes('TITAN') && zb.pid === 'p-stats-1');
     const s = bootGame({ fluxRunsPlayed: '4' }); s.run('fluxStatsQueue=[];'); s.g.ctx.newGame(); s.run('pendingLevel=level+1;'); s.g.ctx.finishLevelUp();
     ck('C3 a level-up is counted with its level and difficulty', /"e":"level_up","lvl":2/.test(s.run('JSON.stringify(fluxStatsQueue)')), s.run('JSON.stringify(fluxStatsQueue)'));
     s.run('shareInfo=null;'); s.g.win.document.getElementById('shareBtn').onclick();
-    ck('C3 a share tap is counted (and sent straight away)', s.beacons.some((x) => true) && s.run('fluxStatsQueue.length') === 0);
-    const x = bootGame({}); delete x.g.win.navigator.sendBeacon; x.g.ctx.newGame(); x.g.ctx.endGame();
+    const qs = s.run('JSON.stringify(fluxStatsQueue)');
+    ck('C3 a share tap is counted (it waits for the next upload, no request of its own)', /"e":"share"/.test(qs) && s.beacons.length === 0, qs);
+    s.run('Object.defineProperty(document,"hidden",{value:true,configurable:true})'); s.g.win.document.onvisibilitychange(); s.run('fluxTrack("share")'); s.g.win.document.onvisibilitychange();
+    ck('C3 ...hiding the app sends what waits, ONCE per page load', s.beacons.length === 1, String(s.beacons.length));
+    const x = bootGame({}); delete x.g.win.navigator.sendBeacon; x.g.ctx.newGame(); await x.gameOver();
     ck('C4 no sendBeacon: nothing is sent, nothing waits, the game carries on', x.fetched.every((u) => !u.includes('/api/events')) && x.run('fluxStatsQueue.length') === 0 && x.run('playing') === false);
     const y = bootGame({}); y.g.win.navigator.sendBeacon = () => { throw new Error('blocked'); };
-    let threw = false; try { y.g.ctx.newGame(); y.g.ctx.endGame(); } catch (e) { threw = true; }
+    let threw = false; try { y.g.ctx.newGame(); y.run('score=0;'); await y.gameOver(); } catch (e) { threw = true; }
     ck('C4 a failing send never breaks the game', !threw && y.run('playing') === false);
     ck('C5 stats go only to our own server (same origin), no third-party tracker', /const FLUX_STATS_URL='\/api\/events';/.test(gameHtml) && !/google-analytics|googletagmanager|facebook\.net|segment\.com|mixpanel|amplitude|firebase/i.test(gameHtml));
   } catch (e) { ck('game section ran', false, String(e.stack || e).slice(0, 300)); }
