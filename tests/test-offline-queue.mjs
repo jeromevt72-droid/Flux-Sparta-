@@ -30,7 +30,7 @@ globalThis.difficulty=difficulty; globalThis.playerId=playerId; globalThis.calls
 Object.assign(globalThis,{SUBMIT_BACKOFF_MS:[5000,15000,45000,120000,300000,600000],SUBMIT_COOLDOWN_WAIT_MS:11000,
   _flushing:null,_retryTimer:null,_flushAgain:false,lastUploadResult:null,document:{getElementById:()=>null},
   FLUX_SEASON:1});   // SEASON 1: the page constant the extracted queue functions read
-for(const f of ['loadQueue','saveQueue','buildSubmission','enqueueSubmission','dequeueSubmission','recordSubmitFailure','clearSubmitFailure','submitScore','updateUploadStatus','scheduleFlush'])
+for(const f of ['fluxRandomId','loadQueue','saveQueue','buildSubmission','enqueueSubmission','dequeueSubmission','recordSubmitFailure','clearSubmitFailure','submitScore','updateUploadStatus','scheduleFlush'])
   eval(grab(f).replace('function '+f+'(', 'globalThis.'+f+'=function('));
 // grab() finds 'function X(' — for async fns the slice starts at 'function',
 // dropping the async keyword. Re-attach it.

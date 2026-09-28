@@ -1408,7 +1408,7 @@ async function reconcilePayments(env) {
    The loop always runs over the longer string, so the time depends only on the
    length the caller sent -- never on how many characters of the secret match. */
 function timingSafeEqual(a, b) {
-  if (typeof a !== "string" || typeof b !== "string") return false;
+  if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false;
   const n = Math.max(a.length, b.length);
   let diff = a.length ^ b.length;
   for (let i = 0; i < n; i++) diff |= (a.charCodeAt(i) | 0) ^ (b.charCodeAt(i) | 0);   // past the end: NaN | 0 = 0

@@ -36,18 +36,33 @@ class FakeStorage {
   async get(k) { return this.map.has(k) ? structuredClone(this.map.get(k)) : undefined; }
   async put(k, v) { if (typeof k === 'object') { for (const [kk, vv] of Object.entries(k)) this.map.set(kk, structuredClone(vv)); } else this.map.set(k, structuredClone(v)); }
   async delete(k) { for (const x of [].concat(k)) this.map.delete(x); }
+  async list(o = {}) {   // what the backups store needs (same as test-backup-restore.mjs)
+    let keys = [...this.map.keys()].sort();
+    if (o.prefix) keys = keys.filter((k) => k.startsWith(o.prefix));
+    if (o.start !== undefined) keys = keys.filter((k) => k >= o.start);
+    if (o.startAfter !== undefined) keys = keys.filter((k) => k > o.startAfter);
+    if (o.end !== undefined) keys = keys.filter((k) => k < o.end);
+    if (o.limit) keys = keys.slice(0, o.limit);
+    return new Map(keys.map((k) => [k, structuredClone(this.map.get(k))]));
+  }
+  async transaction(fn) { const before = new Map(this.map); try { return await fn(this); } catch (e) { this.map = before; throw e; } }
 }
+// #35's per-address admin rate limit (30 a minute, real clock) is not what most sections test:
+// a request with no explicit address gets a fresh one.
+let ipSeq = 0; const freshIp = () => '100.64.' + ((++ipSeq >> 8) & 255) + '.' + (ipSeq & 255);
 function makeKV() {
   const m = new Map();
   return { _m: m, async get(k) { return m.has(k) ? m.get(k) : null; }, async put(k, v) { m.set(k, v); }, async delete(k) { m.delete(k); },
     async list({ prefix = '' } = {}) { return { keys: [...m.keys()].filter((k) => k.startsWith(prefix)).map((name) => ({ name })) }; } };
 }
 function makeEnv(LeaderboardDO, clock, extra = {}) {
-  const instances = new Map(); let chain = Promise.resolve();
-  return { ADMIN_TOKEN: PW, LEADERBOARD: makeKV(), ...extra, LEADERBOARD_DO: { idFromName: (n) => n, _instances: instances, get(id) {
-    if (!instances.has(id)) { const o = new LeaderboardDO({ storage: new FakeStorage(), blockConcurrencyWhile: (fn) => fn() }); o.nowMs = () => clock.now; instances.set(id, o); }
+  const instances = new Map();
+  const env = { ADMIN_TOKEN: PW, LEADERBOARD: makeKV(), ...extra, LEADERBOARD_DO: { idFromName: (n) => n, _instances: instances, get(id) {
+    if (!instances.has(id)) { const o = new LeaderboardDO({ storage: new FakeStorage(), blockConcurrencyWhile: (fn) => fn() }, env); o.nowMs = () => clock.now; instances.set(id, o); }
     const o = instances.get(id);
-    return { fetch(url, init) { const run = () => o.fetch(new Request(url, init)); const r = chain.then(run, run); chain = r.then(() => {}, () => {}); return r; } }; } } };
+    // one request at a time PER INSTANCE (the backups instance calls the leaderboard instance)
+    return { fetch(url, init) { const run = () => o.fetch(new Request(url, init)); const r = (o._chain || Promise.resolve()).then(run, run); o._chain = r.then(() => {}, () => {}); return r; } }; } } };
+  return env;
 }
 function allStorage(env) {   // everything every DO instance and the KV hold, as text
   let out = '';
@@ -63,7 +78,7 @@ async function suite({ adminHtml, workerMod, swSrc, manifestSrc, quiet = false }
   const ck = (l, c, x = '') => { if (!quiet) console.log((c ? '  PASS  ' : '  FAIL  ') + l + (x !== '' ? '  [' + x + ']' : '')); if (!c) { F++; failed.push(l); } };
   const worker = workerMod.default;
   const fresh = (extra) => { const clock = { now: Date.now() }; return { clock, env: makeEnv(workerMod.LeaderboardDO, clock, extra) }; };
-  const req = async (env, p, { body, headers = {}, cookie, ip = '203.0.113.7', csrf = true, method = 'POST' } = {}) => {
+  const req = async (env, p, { body, headers = {}, cookie, ip = freshIp(), csrf = true, method = 'POST' } = {}) => {
     const h = { 'Content-Type': 'application/json', 'CF-Connecting-IP': ip, ...headers };
     if (csrf) h['X-FLUX-Admin'] = '1';
     if (cookie) h.Cookie = 'flux_admin=' + cookie;
@@ -132,7 +147,7 @@ async function suite({ adminHtml, workerMod, swSrc, manifestSrc, quiet = false }
     const back = await login(env, PW, { ip: A });
     ck('K3 after 15 minutes the locked client can log in again', back.status === 200, back.status);
     const dump = allStorage(env);
-    ck('K4 no raw IP and no typed password is ever stored', ![A, B, C].some((ip) => dump.includes(ip)) && !/guess-\d/.test(dump) && !dump.includes(PW));
+    ck('K4 no raw IP and no typed password is ever stored', ![A, B, C, '100.64.0.'].some((ip) => dump.includes(ip)) && !/guess-\d/.test(dump) && !dump.includes(PW));
     const hdr = []; for (let i = 0; i < 5; i++) hdr.push(await req(env, '/api/admin/find-player', { ip: C, csrf: false, headers: { 'x-admin-token': 'bad-' + i }, body: { query: 'X' } }));
     const hdrOk = await req(env, '/api/admin/find-player', { ip: C, csrf: false, headers: { 'x-admin-token': PW }, body: { query: 'X' } });
     ck('K5 x-admin-token guesses count too: 5 wrong -> that client is locked, even with the right header', hdr[4].status === 429 && hdrOk.status === 429, hdr.map((r) => r.status).join(',') + ' -> ' + hdrOk.status);
@@ -168,6 +183,21 @@ async function suite({ adminHtml, workerMod, swSrc, manifestSrc, quiet = false }
       s ? s.failed24h + ' / ' + JSON.stringify(s.recent[0]) : 'none');
   } catch (e) { ck('global section ran', false, String(e.stack || e).slice(0, 300)); }
 
+  /* ---------------- Q: #35's admin rate limit runs first and never feeds the lockout ---------------- */
+  try {
+    const { env } = fresh();
+    const Z = '192.0.2.99', realNow = Date.now;
+    const st = [];
+    for (let i = 0; i < 4; i++) st.push((await login(env, 'bad-' + i, { ip: Z })).status);
+    for (let i = 0; i < 26; i++) st.push((await req(env, '/api/admin/session', { ip: Z })).status);
+    const flood = []; for (let i = 0; i < 10; i++) flood.push(await login(env, 'flood-' + i, { ip: Z }));
+    let after;
+    try { Date.now = () => realNow() + 61000; after = await login(env, PW, { ip: Z }); } finally { Date.now = realNow; }
+    ck('Q1 the per-address rate limit answers first (429, at most 60 s, not "Locked") and its refusals never count as wrong passwords',
+      st.slice(0, 4).every((x) => x === 401) && flood.every((r) => r.status === 429 && r.data.rateLimited === true && !r.data.locked && Number(r.headers.get('retry-after')) <= 60) &&
+      after.status === 200, st.slice(0, 5).join(',') + ' flood ' + flood.map((r) => r.status).join(',') + ' -> ' + (after && after.status));
+  } catch (e) { ck('Q1 rate limit + lockout', false, String(e.stack || e).slice(0, 300)); }
+
   /* ---------------- T: constant-time comparison ---------------- */
   try {
     const src = workerMod.__src || WORKER_SRC;
@@ -191,12 +221,17 @@ async function suite({ adminHtml, workerMod, swSrc, manifestSrc, quiet = false }
       const fake = await req(env, r, { cookie: 'A'.repeat(43), body: {} });
       if (none.status !== 401 || fake.status !== 401) bad.push(r + ':' + none.status + '/' + fake.status);
     }
-    ck('R1 every /api/admin/* route refuses a request with no session and no password (401), and a made-up cookie (401)', routes.length >= 19 && bad.length === 0, routes.length + ' routes ' + bad.join(' '));
+    ck('R1 every /api/admin/* route refuses a request with no session and no password (401), and a made-up cookie (401)', routes.length >= 25 && ['backups', 'backup-now', 'backup-dry-run', 'backup-restore', 'backup-download', 'backup-import'].every((r) => routes.includes('/api/admin/' + r)) && bad.length === 0, routes.length + ' routes ' + bad.join(' '));
     const accepted = [];
-    for (const r of ['/api/admin/exceptions', '/api/admin/analytics', '/api/admin/season-archive', '/api/admin/summary', '/api/admin/session', '/api/admin/find-player', '/api/admin/import-kv']) {
+    for (const r of ['/api/admin/exceptions', '/api/admin/analytics', '/api/admin/season-archive', '/api/admin/summary', '/api/admin/session', '/api/admin/find-player', '/api/admin/import-kv',
+                     '/api/admin/backups', '/api/admin/backup-now', '/api/admin/backup-dry-run', '/api/admin/backup-restore', '/api/admin/backup-download', '/api/admin/backup-import']) {
       const x = await req(env, r, { cookie: tok, body: { query: 'X' } }); if (x.status === 401 || x.status === 403) accepted.push(r + ':' + x.status);
     }
-    ck('R2 a valid session is accepted on the admin routes (import-kv included)', accepted.length === 0, accepted.join(' '));
+    ck('R2 a valid session is accepted on the admin routes (import-kv and every backup route included)', accepted.length === 0, accepted.join(' '));
+    const bkNow = await req(env, '/api/admin/backup-now', { cookie: tok }), bkId = bkNow.data && bkNow.data.snapshot && bkNow.data.snapshot.id;
+    const dl = await req(env, '/api/admin/backup-download', { cookie: tok, body: { id: bkId } }), dlNoCsrf = await req(env, '/api/admin/backup-download', { cookie: tok, csrf: false, body: { id: bkId } });
+    ck('R4 backups with the session: BACK UP NOW works, the download comes back never-cached, and needs the CSRF header',
+      bkNow.status === 200 && !!bkId && dl.status === 200 && /no-store/.test(dl.headers.get('cache-control') || '') && dlNoCsrf.status === 403, [bkNow.status, dl.status, dlNoCsrf.status].join('/'));
     const noCache = await req(env, '/api/admin/summary', { cookie: tok }), noCache401 = await req(env, '/api/admin/summary', {});
     ck('R3 admin responses are never cached (no-store), refusals included', /no-store/.test(noCache.headers.get('cache-control') || '') && /no-store/.test(noCache401.headers.get('cache-control') || ''));
   } catch (e) { ck('route section ran', false, String(e.stack || e).slice(0, 300)); }
@@ -222,6 +257,11 @@ async function suite({ adminHtml, workerMod, swSrc, manifestSrc, quiet = false }
     ck('M2 summary: exceptions = the CHECK EXCEPTIONS list (1 flag + 1 delivery), purchases today 1, failed logins 1',
       d.exceptions && d.exceptions.total === 2 && d.exceptions.total === (ex.flags || []).length + (ex.delivery || []).length && d.purchases && d.purchases.today === 1 && d.security && d.security.failed24h === 1,
       JSON.stringify([d.exceptions, d.purchases, d.security && d.security.failed24h]));
+    const b0 = d.backup;
+    const w = []; await worker.scheduled({}, env, { waitUntil: (p) => w.push(p) }); await Promise.all(w);   // the daily backup (cron)
+    const b1 = ((await req(env, '/api/admin/summary', { cookie: tok })).data || {}).backup;
+    ck('M5 summary shows the last backup status (none yet -> not OK; after the daily backup -> OK with its time)',
+      b0 && b0.ok === false && b0.lastDailyAt === null && b1 && b1.ok === true && typeof b1.lastDailyAt === 'number' && b1.lastError === null, JSON.stringify([b0, b1]));
     const noAuth = await req(env, '/api/admin/summary', {}), wrong = await req(env, '/api/admin/summary', { csrf: false, headers: { 'x-admin-token': 'nope' } });
     ck('M3 summary needs the session or the password', noAuth.status === 401 && wrong.status === 401 && !JSON.stringify(noAuth.data).includes('active'), noAuth.status + '/' + wrong.status);
     ck('M4 the admin page loads it in ONE request after login and on REFRESH', (scriptsOf(adminHtml).join('\n').match(/call\('summary'\)/g) || []).length === 1);
@@ -313,6 +353,8 @@ async function suite({ adminHtml, workerMod, swSrc, manifestSrc, quiet = false }
     const n = sent.length; E.logout.onclick(); await until(() => E.login.hidden === false && sent.length > n);
     await until(() => E.loginMsg.textContent === 'Logged out.');
     ck('U8 LOG OUT: the server session ends, the page clears what it showed and typed, back to login', /\/logout$/.test(sent[n].url) && jar.v === null && E.q.value === '' && E.app.hidden === true && E.loginMsg.textContent === 'Logged out.', E.loginMsg.textContent);
+    const A = scriptsOf(adminHtml).join('\n'), dlFn = A.slice(A.indexOf('async function download('), A.indexOf('async function loadBackups('));
+    ck('U10 the backup download uses the session cookie and the CSRF header, never the password', /credentials: 'same-origin'/.test(dlFn) && /headers: HDR/.test(dlFn) && !/x-admin-token|tokenEl/.test(dlFn) && !/x-admin-token/.test(A));
     ck('U9 no player storage, no innerHTML, script parses', !/localStorage|sessionStorage|indexedDB|innerHTML/.test(scriptsOf(adminHtml).join('\n')) && g.errors.length === 0);
   } catch (e) { ck('admin page section ran', false, String(e.stack || e).slice(0, 300)); }
 
@@ -402,7 +444,11 @@ await control('session route without the password', 'R1', { worker: rep('async f
 await control('summary share rate per player instead of per run', 'M1', { worker: rep('shareRate: g.runs ? (g.shares || 0) / g.runs : null', 'shareRate: g.active ? (g.shares || 0) / g.active : null') });
 await control('summary exceptions miss payment deliveries', 'M2', { worker: rep('total: (flags || 0) + (del || 0)', 'total: flags || 0') });
 await control('admin responses cacheable again', 'R3', { worker: rep('  r.headers.set("Cache-Control", "no-store");\n  return r;', '  return r;') });
+await control('rate limit runs after the login (refusals feed the lockout)', 'Q1', { worker: reps(['          const limited = await adminRateLimit(request, env);\n          if (limited) return adminOut(limited);\n', ''], ['          const gated = await commandGate(request, env);', '          const limited = await adminRateLimit(request, env);\n          if (limited) return adminOut(limited);\n          const gated = await commandGate(request, env);']) });
+await control('summary without the backup status', 'M5', { worker: rep('    backup: bk && bk.ok ? {', '    backupX: bk && bk.ok ? {') });
+await control('backup routes lose the session (header only)', 'R2', { worker: rep('  if (COMMAND_AUTHED.has(request)) return null;', '  if (COMMAND_AUTHED.has(request) && !/backup/.test(new URL(request.url).pathname)) return null;') });
 // admin.html
+await control('backup download sends the password header again', 'U10', { admin: rep("fetch('/api/admin/backup-download', { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: HDR,", "fetch('/api/admin/backup-download', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-token': tokenEl.value },") });
 await control('page stops sending the CSRF header', 'U4', { admin: rep("'X-FLUX-Admin': '1' }", "'X-Other': '1' }") });
 await control('page keeps the password in the field after login', 'U4', { admin: rep("if (r.ok) { tokenEl.value = ''; loginSay('');", "if (r.ok) { loginSay('');") });
 await control('page wipes typed data on a 401', 'U6', { admin: rep('function sessionEnded() { if', 'function sessionEnded() { wipe(); if') });
