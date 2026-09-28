@@ -28,7 +28,11 @@ function suite(files, quiet = false) {
   const tm = files['public/terms.html'], wt = files['public/welcome/terms.html'];
   ck('P1 the policy is finished: no "not ready" note, no placeholder, an effective date', !/Not yet ready|OWNER INPUT|class="todo"|\[[A-Z ]+:/.test(pv) && /Effective date: <strong>[A-Z][a-z]+ \d{1,2}, 20\d\d<\/strong>/.test(pv));
   ck('P1 the retired /welcome/ copy (still reachable) is the same finished policy', wv === pv);
-  const hits = Object.entries(files).filter(([f, s]) => !/privacy\.html$/.test(f) && TRACKERS.test(s)).map(([f, s]) => f + ': ' + s.match(TRACKERS)[0]);
+  // FLUX COMMAND: the one cookie allowed is the OWNER's admin login -- set only by commandCookie(), only after the
+  // admin password, HttpOnly and scoped to /api/admin, so it never reaches a player. Any other Set-Cookie still fails.
+  const ownerOnly = (f, s) => f === 'worker.js' && /function commandCookie\(token, maxAgeSec\) \{\n  return COMMAND_COOKIE \+ "=" \+ token \+ "; Path=\/api\/admin; HttpOnly;/.test(s)
+    ? s.replace(/\{ "Set-Cookie": commandCookie\(/g, '{ commandCookie(') : s;
+  const hits = Object.entries(files).map(([f, s]) => [f, ownerOnly(f, s)]).filter(([f, s]) => !/privacy\.html$/.test(f) && TRACKERS.test(s)).map(([f, s]) => f + ': ' + s.match(TRACKERS)[0]);
   ck('P2 no third-party analytics, advertising, tracking pixels or cookies anywhere the site serves (as the policy says)', hits.length === 0 && /no third-party analytics, no advertising, no tracking pixels, and no\s*cookies for players/.test(pv) && /only cookie is a <strong>security cookie for the owner's admin login<\/strong>[\s\S]{0,200}never set for players/.test(pv) && !/and no\s*cookies<\/strong>/.test(pv), hits.slice(0, 3).join(' | '));
   ck('P2 ads are switched off in the game (the revive is free)', /const ADS_ENABLED = false;/.test(game));
   const rule = /if \(!\/\^\[A-Z0-9\]\+\$\/\.test\(s\) \|\| s\.length > TYPED_NAME_MAX\)/;
@@ -80,6 +84,8 @@ const edit = (file, a, b) => (fl) => { if (!fl[file].includes(a)) throw new Erro
 control('Google Analytics added to the game', 'P2', edit('public/play/index.html', '</head>', '<script async src="https://www.googletagmanager.com/gtag/js?id=G-X"></script></head>'));
 control('ads switched on', 'P2', edit('public/play/index.html', 'const ADS_ENABLED = false;', 'const ADS_ENABLED = true;'));
 control('a cookie set by the Gateway', 'P2', edit('public/index.html', '</body>', '<script>document.cookie="v=1"</script></body>'));
+control('a cookie set on a player API response', 'P2', edit('worker.js', 'return withCors(await submitScore(request, env));', 'return withCors(json({ ok: true }, 200, { "Set-Cookie": "pid=1" }));'));
+control('the admin cookie opened to the whole site', 'P2', edit('worker.js', '"; Path=/api/admin; HttpOnly;', '"; Path=/; HttpOnly;'));
 control('placeholder left in the retired copy', 'P1', edit('public/welcome/privacy.html', 'Effective date:', 'Effective date: [OWNER INPUT REQUIRED: date]'));
 control('"not ready" note back', 'P1', edit('public/privacy.html', '<h1>Privacy Policy</h1>', '<h1>Privacy Policy</h1><div class="todo">Not yet ready for publication.</div>'));
 control('auto names go back to PILOT-XXXX without the policy', 'P3', edit('public/play/index.html', "callsign = randomPresetName();", "callsign = 'PILOT-' + t;"));

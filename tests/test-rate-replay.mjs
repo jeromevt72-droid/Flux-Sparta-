@@ -312,7 +312,8 @@ await control('no per-address upload limit', 'R6', { worker: rep('submit:  { ip:
 await control('429 without Retry-After', 'R6', { worker: rep('429, { "Retry-After": String(sec) });', '429);') });
 await control('windows never reset', 'R6 ...and the address is served again', { worker: rep('const w = Math.floor(now / RL_WINDOW_MS) * RL_WINDOW_MS;', 'const w = 0;') });
 await control('no per-pilot upload limit', 'R7', { worker: rep('submit:  { ip: 60,  player: 30 },', 'submit:  { ip: 60 },') });
-await control('admin not limited', 'R8 admin', { worker: rep('if (admin) return withCors((await adminRateLimit(request, env)) || await admin());', 'if (admin) return withCors(await admin());') });
+// FLUX COMMAND: the admin limit now runs once, first, for every /api/admin/* POST (login included).
+await control('admin not limited', 'R8 admin', { worker: rep('          const limited = await adminRateLimit(request, env);\n          if (limited) return adminOut(limited);\n', '') });
 await control('restore check not limited', 'R8 restore', { worker: rep('const limited = await rateLimit(env, "global", "restore", request, await pidHash(playerId));', 'const limited = null;') });
 await control('per-address limit too tight for a school', 'R9', { worker: rep('submit:  { ip: 60,  player: 30 },', 'submit:  { ip: 20,  player: 30 },') });
 await control('counters never swept', 'R10 counters live', { worker: rep('for (const [k, e] of rl) if (e.w !== w) rl.delete(k);', '') });

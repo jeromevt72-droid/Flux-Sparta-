@@ -1,0 +1,17 @@
+{
+  "name": "FLUX COMMAND",
+  "short_name": "FLUX COMMAND",
+  "description": "FLUX owner admin. Needs the admin password and a connection.",
+  "id": "/admin.html",
+  "start_url": "/admin.html",
+  "scope": "/admin",
+  "display": "standalone",
+  "background_color": "#07091d",
+  "theme_color": "#07091d",
+  "orientation": "any",
+  "icons": [
+    { "src": "/admin-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/admin-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/admin-icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
