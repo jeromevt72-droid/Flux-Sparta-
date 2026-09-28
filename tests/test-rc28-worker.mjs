@@ -104,7 +104,7 @@ await (async () => { try {
   ck("Hard board keeps the player's Hard 2,000", hard.data.top.some(r=>r.name===N.TITAN && r.score===2000), hard.raw.slice(0,120));
   ck("Easy board keeps the player's Easy 3,000", easy.data.top.some(r=>r.name===N.TITAN && r.score===3000));
   const all = await call(env, "/api/leaderboard");
-  ck("overall board lists the player ONCE, at their single best WEIGHTED score (Hard 2,000 beats Easy 3,000 x0.03)", all.data.top.filter(r=>r.name===N.TITAN).length===1 && all.data.top.find(r=>r.name===N.TITAN)?.score===2000 && all.data.top.find(r=>r.name===N.TITAN)?.difficulty==="hard");
+  ck("overall board lists the player ONCE, at their single best WEIGHTED score (Hard 2,000 beats Easy 3,000 x0.09)", all.data.top.filter(r=>r.name===N.TITAN).length===1 && all.data.top.find(r=>r.name===N.TITAN)?.score===2000 && all.data.top.find(r=>r.name===N.TITAN)?.difficulty==="hard");
   const us = all.data.countries.find(c=>c.country==="US");
   ck("country counts the single best weighted (2,000), not the sum", us && us.totalScore===2000 && us.playerCount===1, JSON.stringify(us));
   inst(env).lastSubmit = {};

@@ -88,12 +88,12 @@ async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = fals
     const b = bootGame({ fluxPlayerId: 'lv-1', fluxCallsign: 'TITAN', fluxProfileComplete: '1', fluxDifficulty: 'medium' });
     const T = b.run('JSON.stringify(LEVEL_SCORE_THRESHOLDS)'), M = b.run('JSON.stringify(LEVEL_SCORE_MULT)');
     ck('L1 Medium thresholds for levels 2-9 are 2500 6000 10000 15000 21000 28000 36000 45000', T === '[2500,6000,10000,15000,21000,28000,36000,45000]', T);
-    ck('L1 Easy x1.9 (FULL POINTS: Easy runs are longer), Medium x1, Hard x1.35', M === '{"easy":1.9,"medium":1,"hard":1.35}', M);
+    ck('L1 Easy x1.5 (FULL POINTS: Easy runs are longer), Medium x1, Hard x0.55 (level 3 in most casual Hard runs)', M === '{"easy":1.5,"medium":1,"hard":0.55}', M);
     const lf = (s, d) => b.g.ctx.levelForScore(s, d);
     ck('L1 edges: Medium 2499->1, 2500->2, 44999->8, 45000->9, 10M->9', lf(2499, 'medium') === 1 && lf(2500, 'medium') === 2 && lf(44999, 'medium') === 8 && lf(45000, 'medium') === 9 && lf(1e7, 'medium') === 9);
-    ck('L1 edges: Easy 4749->1, 4750->2, 85499->8, 85500->9; Hard 3374->1, 3375->2, 60750->9',
-      lf(4749, 'easy') === 1 && lf(4750, 'easy') === 2 && lf(85499, 'easy') === 8 && lf(85500, 'easy') === 9 && lf(3374, 'hard') === 1 && lf(3375, 'hard') === 2 && lf(60750, 'hard') === 9);
-    ck('L1 the game uses the same table as the server fixtures (level-rule.mjs)', [0, 749, 750, 1874, 1875, 2500, 4750, 13500, 9999, 26423, 44999, 45000, 60750, 85500, 99999].every((s) => ['easy', 'medium', 'hard'].every((d) => lf(s, d) === levelFor(s, d))));
+    ck('L1 edges: Easy 3749->1, 3750->2, 67499->8, 67500->9; Hard 1374->1, 1375->2, 24750->9',
+      lf(3749, 'easy') === 1 && lf(3750, 'easy') === 2 && lf(67499, 'easy') === 8 && lf(67500, 'easy') === 9 && lf(1374, 'hard') === 1 && lf(1375, 'hard') === 2 && lf(24750, 'hard') === 9);
+    ck('L1 the game uses the same table as the server fixtures (level-rule.mjs)', [0, 749, 750, 1374, 1375, 1874, 1875, 2500, 3750, 13500, 24750, 67500, 9999, 26423, 44999, 45000, 60750, 85500, 99999].every((s) => ['easy', 'medium', 'hard'].every((d) => lf(s, d) === levelFor(s, d))));
 
     b.g.ctx.newGame(); b.flush();
     let ticks = 0, levelUps = 0; b.g.ctx.playTick = () => { ticks++; }; b.g.ctx.playLevelUp = () => { levelUps++; };
@@ -153,8 +153,8 @@ async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = fals
     ck('S1 a real run at its own level is accepted (Medium 26,423 at 6)', (await submit(w, env, { score: 26423, level: 6, difficulty: 'medium' })) === 200);
     ck('S1 one level either side is allowed (5 and 7)', (await submit(w, env, { score: 26423, level: 5, difficulty: 'medium' })) === 200 && (await submit(w, env, { score: 26423, level: 7, difficulty: 'medium' })) === 200);
     ck('S2 two levels off is refused (4 and 8)', (await submit(w, env, { score: 26423, level: 4, difficulty: 'medium' })) === 422 && (await submit(w, env, { score: 26423, level: 8, difficulty: 'medium' })) === 422);
-    ck('S3 the difficulty scales it: 33,750 is level 5 on Easy (x1.9), level 7 on Hard',
-      (await submit(w, env, { score: 33750, level: 5, difficulty: 'easy' })) === 200 && (await submit(w, env, { score: 33750, level: 9, difficulty: 'easy' })) === 422 && (await submit(w, env, { score: 33750, level: 9, difficulty: 'hard' })) === 422 && (await submit(w, env, { score: 33750, level: 7, difficulty: 'hard' })) === 200);
+    ck('S3 the difficulty scales it: 33,750 is level 6 on Easy (x1.5), level 9 on Hard (x0.55)',
+      (await submit(w, env, { score: 33750, level: 6, difficulty: 'easy' })) === 200 && (await submit(w, env, { score: 33750, level: 9, difficulty: 'easy' })) === 422 && (await submit(w, env, { score: 33750, level: 9, difficulty: 'hard' })) === 200 && (await submit(w, env, { score: 33750, level: 7, difficulty: 'hard' })) === 422);
     ck('S4 the old attack shape (huge score at a low level) is refused', (await submit(w, env, { score: 4999999, level: 1, difficulty: 'hard' })) === 422);
     ck('S5 other checks kept: level 10 -> 400, score above MAX -> 400, bad id -> 400',
       (await submit(w, env, { score: 60000, level: 10, difficulty: 'medium' })) === 400 && (await submit(w, env, { score: 5000001, level: 9, difficulty: 'medium' })) === 400 &&
@@ -167,7 +167,7 @@ async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = fals
     const pid = 'rc287-cool'; await submit(w, env, { playerId: pid, score: 100, level: 1 }); skew -= 19000;
     ck('S5 ...and the submit cooldown', (await submit(w, env, { playerId: pid, score: 200, level: 1 })) === 429);
     const wt = (workerSrc.match(/const LEVEL_SCORE_THRESHOLDS = (\[[^\]]*\])/) || [])[1];
-    ck('S6 server and game use the same thresholds and multipliers', wt && JSON.stringify(JSON.parse(wt)) === JSON.stringify(RULE_T) && /LEVEL_SCORE_MULT = \{ easy: 1\.9, medium: 1, hard: 1\.35 \}/.test(workerSrc) && JSON.stringify(RULE_M) === '{"easy":1.9,"medium":1,"hard":1.35}');
+    ck('S6 server and game use the same thresholds and multipliers', wt && JSON.stringify(JSON.parse(wt)) === JSON.stringify(RULE_T) && /LEVEL_SCORE_MULT = \{ easy: 1\.5, medium: 1, hard: 0\.55 \}/.test(workerSrc) && JSON.stringify(RULE_M) === '{"easy":1.5,"medium":1,"hard":0.55}');
   } catch (e) { ck('D-51 section ran', false, String(e.stack || e).slice(0, 300)); }
 
   /* ================= D-52 ================= */
@@ -269,21 +269,21 @@ async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = fals
   try {
     const go = gameHtml.slice(gameHtml.indexOf('<div id="gameover"'), gameHtml.indexOf('<div class="gameoverModes">'));
     ck('G1 the three headlines are gone (FLUX OVERLOAD / THE FLOW BROKE / FLUX COLLAPSE)', !/OVERLOAD|THE FLOW BROKE|FLUX COLLAPSE|<h1/.test(go) && /class="goScore" id="finalScore"/.test(go) && (go.match(/class="goLine"/g) || []).length === 1);
-    // DIFFICULTY WEIGHT: the country counts each pilot's best WEIGHTED score (Hard x1, Medium x0.18, Easy x0.03).
-    // Playing Hard (weight 1); the counted best is the Medium 22,222 (= 4,000 weighted).
+    // DIFFICULTY WEIGHT: the country counts each pilot's best WEIGHTED score (Hard x1, Medium x0.21, Easy x0.09).
+    // Playing Hard (weight 1); the counted best is the Medium 19,048 (= 4,000 weighted).
     const b = bootGame({ fluxPlayerId: 'go-1', fluxCallsign: 'MARIA', fluxProfileComplete: '1', fluxCountry: 'PH', fluxDifficulty: 'hard',
       fluxBest_hard: '3000', fluxBestRun_hard: JSON.stringify({ score: 3000, level: 1, difficulty: 'hard', playerId: 'go-1', at: 1 }),
-      fluxBest_medium: '22222', fluxBestRun_medium: JSON.stringify({ score: 22222, level: 6, difficulty: 'medium', playerId: 'go-1', at: 1 }) });
+      fluxBest_medium: '19048', fluxBestRun_medium: JSON.stringify({ score: 19048, level: 5, difficulty: 'medium', playerId: 'go-1', at: 1 }) });
     const L = (a, p, o) => { const r = b.g.ctx.gameOverLine(a, p, o); return r.first + ' · ' + r.second; };
     ck('G2 new best that raises the country total: "NEW BEST! · 🇵🇭 +1,000 for Philippines"', L(5000, 3000, 4000) === 'NEW BEST! · 🇵🇭 +1,000 for Philippines', L(5000, 3000, 4000));
     ck('G3 new best that does not beat the pilot\'s counted best: "Beat 8,000 to add to 🇵🇭"', L(5000, 3000, 8000) === 'NEW BEST! · Beat 8,000 to add to 🇵🇭', L(5000, 3000, 8000));
     ck('G4 not a best: "<n> from your best"', L(2500, 3000, 4000) === '500 from your best · Beat 4,000 to add to 🇵🇭', L(2500, 3000, 4000));
     b.g.ctx.newGame(); b.run('score=5000;'); b.g.ctx.endGame(); b.flush();
     const html = String(b.el('goLine').innerHTML);
-    ck('G5 a real game over shows it (counted best is the Medium 22,222 = 4,000 weighted -> +1,000)', /NEW BEST!/.test(html) && html.includes('🇵🇭 +1,000 for Philippines') && String(b.el('finalScore').textContent) === (5000).toLocaleString(), html);
+    ck('G5 a real game over shows it (counted best is the Medium 19,048 = 4,000 weighted -> +1,000)', /NEW BEST!/.test(html) && html.includes('🇵🇭 +1,000 for Philippines') && String(b.el('finalScore').textContent) === (5000).toLocaleString(), html);
     const m = bootGame({ fluxPlayerId: 'go-2', fluxCallsign: 'MARIA', fluxProfileComplete: '1', fluxCountry: 'PH', fluxDifficulty: 'medium' });
     const Lm = (a, p, o) => { const r = m.g.ctx.gameOverLine(a, p, o); return r.first + ' · ' + r.second; };
-    ck('G6 weighted on Medium (x0.18): 27,778 (= 5,000 weighted) over a counted 4,000 adds +1,000; 15,000 must beat 22,223', Lm(27778, 3000, 4000) === 'NEW BEST! · 🇵🇭 +1,000 for Philippines' && Lm(15000, 3000, 4000) === 'NEW BEST! · Beat 22,223 to add to 🇵🇭', Lm(27778, 3000, 4000) + ' | ' + Lm(15000, 3000, 4000));
+    ck('G6 weighted on Medium (x0.21): 23,810 (= 5,000 weighted) over a counted 4,000 adds +1,000; 15,000 must beat 19,048', Lm(23810, 3000, 4000) === 'NEW BEST! · 🇵🇭 +1,000 for Philippines' && Lm(15000, 3000, 4000) === 'NEW BEST! · Beat 19,048 to add to 🇵🇭', Lm(23810, 3000, 4000) + ' | ' + Lm(15000, 3000, 4000));
   } catch (e) { ck('D-57 section ran', false, String(e.stack || e).slice(0, 300)); }
 
   /* ================= D-58 ================= */

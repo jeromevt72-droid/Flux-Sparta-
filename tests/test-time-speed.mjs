@@ -4,7 +4,7 @@
 //   T2  one speed step per interval of run time: Easy 40 s, Medium 30 s, Hard 22 s,
 //       up to the top (Easy 5 steps, Medium 7, Hard 8), never two steps closer;
 //   T3  crossing time (seconds for the ball to cross the play area, measured from
-//       real frames) at the start and at the top: Easy 1.6 -> 1.2, Medium 1.4 -> 0.9,
+//       real frames) at the start and at the top: Easy 1.5 -> 1.15, Medium 1.4 -> 0.9,
 //       Hard 1.1 -> 0.7, the same on iPhone and iPad sizes; every step is +4% to +8%;
 //   T4  every step is announced first: SPEED UP 3-2-1 in the LEVEL box and the HUD
 //       strip (a level-up that brings the level-2 step counts SPEED UP 5-4-3-2-1);
@@ -33,7 +33,11 @@
 //       balls are sent at game over (difficulty and step only, no name);
 //   T17 run time stops during countdowns, the miss notice and pauses;
 //   T18 SKILL LADDER: 4 colours at levels 1-2, the 5th (star) and FLUX MODE at 3,
-//       growing orbs from 4, hint ring from 5.
+//       growing orbs from 4, hint ring from 5;
+//   T19 EASY OVERTIME: after 5 minutes of run time Easy keeps stepping (announced, 4-8%
+//       each) up to Medium's top speed and never beyond; not before 300 s; not on Medium/Hard;
+//   T20 RUN POINTS CAP: points stop at 300,000 on every difficulty with one MAX SCORE notice,
+//       play goes on, and a capped run's level (9) passes the server's level check.
 // Ends with negative controls.
 import fs from 'fs'; import path from 'path'; import vm from 'vm';
 import { fileURLToPath } from 'url';
@@ -42,7 +46,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const GAME_HTML = fs.readFileSync(path.join(__dirname, 'FLUX-Sparta', 'public', 'play', 'index.html'), 'utf8');
 const scriptsOf = (h) => [...h.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
 function seeded(seed) { let s = seed >>> 0; return () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
-const WANT = { easy: { start: 1.6, top: 1.2, every: 40, steps: 5 }, medium: { start: 1.4, top: 0.9, every: 30, steps: 7 }, hard: { start: 1.1, top: 0.7, every: 22, steps: 8 } };
+const WANT = { easy: { start: 1.5, top: 1.15, every: 40, steps: 5 }, medium: { start: 1.4, top: 0.9, every: 30, steps: 7 }, hard: { start: 1.1, top: 0.7, every: 22, steps: 8 } };
 const DIFFS = ['easy', 'medium', 'hard'];
 
 function suite(gameHtml, quiet = false, only = '') {
@@ -114,12 +118,12 @@ function suite(gameHtml, quiet = false, only = '') {
         const c0 = measured(b); b.run('speedStep=speedShown=speedCurve().steps;'); const cT = measured(b);
         if (Math.abs(c0 - W0.start) > W0.start * 0.02 || Math.abs(cT - W0.top) > W0.top * 0.02) bad.push(d + ' ' + w + 'x' + h + ': ' + c0.toFixed(3) + ' -> ' + cT.toFixed(3));
       }
-      ck('T3 crossing time (measured in real frames) at the start and the top: Easy 1.6 -> 1.2 s, Medium 1.4 -> 0.9 s, Hard 1.1 -> 0.7 s, on iPhone, iPad and iPad mini sizes', bad.length === 0, bad.join(' | '));
+      ck('T3 crossing time (measured in real frames) at the start and the top: Easy 1.5 -> 1.15 s, Medium 1.4 -> 0.9 s, Hard 1.1 -> 0.7 s, on iPhone, iPad and iPad mini sizes', bad.length === 0, bad.join(' | '));
       const steps = []; let stepOk = true;
-      for (const d of DIFFS) { const b = bootGame(d); const n = WANT[d].steps; const r = [];
+      for (const d of DIFFS) { const b = bootGame(d); const n = b.run('lastStep()'); const r = [];
         for (let k = 0; k < n; k++) { const q = b.run('crossingTimeAt(' + k + ')/crossingTimeAt(' + (k + 1) + ')'); r.push(q); if (q < 1.04 - 1e-9 || q > 1.08 + 1e-9) stepOk = false; }
         steps.push(d + ' +' + r.map((q) => ((q - 1) * 100).toFixed(1)).join('/+') + '%'); }
-      ck('T3 every step raises the speed by 4% to 8%', stepOk, steps.join(' | ')); }
+      ck('T3 every step raises the speed by 4% to 8% (Easy\'s overtime steps too)', stepOk, steps.join(' | ')); }
     /* T5 + T6 never above the top; FLUX */
     if (on('T5', 'T6')) { const bad = [];
       for (const d of DIFFS) { const b = bootGame(d);
@@ -243,6 +247,25 @@ function suite(gameHtml, quiet = false, only = '') {
       const grow = (lv) => { b.run('level=' + lv + '; targets=[]; growTimer=0; playing=true;'); b.g.ctx.update(1 / 60); return b.run('targets.some(t=>t.growing)'); };
       const g3 = grow(3), g4 = grow(4);
       ck('T18 SKILL LADDER: 4 colours at levels 1-2, the 5th (star) from 3; growing orbs from level 4, not at 3; hint ring from 5', cols.join(',') === '4,4,5,5,5' && !g3 && g4 && /if\(\(level>=5 \|\| colorHintLeft>0\) && ball\)\{/.test(code), cols.join(',') + ' grow ' + g3 + '/' + g4); }
+    /* T19 Easy overtime */
+    if (on('T19')) {
+      const b = bootGame('easy'); b.run('var __mx=0;'); let before = true, counts = 0, lastCd = false, cdOk = true; const at = [];
+      for (let f = 1; f <= 60 * 620; f++) { calm(b); const cd = b.run('speedCountdown') > 0; if (cd && !lastCd) counts++; lastCd = cd;
+        const st = b.run('speedStep'); if (st > 5 && b.run('runClock') < 300 - 1e-6) before = false;
+        if (at.length < st) at.push(b.run('runClock')); b.run('__mx=Math.max(__mx,normalMaxSpeed()/topSpeed());'); }
+      const n = b.run('speedStep'), cEnd = b.run('crossingTimeAt(speedStep)'), med = bootGame('medium').run('speedCurve().top');
+      const others = ['medium', 'hard'].map((d) => { const x = bootGame(d); return x.run('lastStep()===speedCurve().steps'); });
+      ck('T19 Easy overtime: after 300 s of run time 5 more announced steps up to Medium\'s top (0.9 s) and never faster; none before 300 s; none on Medium or Hard',
+        before && n === 10 && counts === 10 && Math.abs(cEnd - med) < 1e-9 && b.run('__mx') <= 1 + 1e-9 && at[5] >= 300 && others.every(Boolean), [before, n, counts, cEnd.toFixed(3), at.map((x) => x.toFixed(0)).join('/')].join(' ')); }
+    /* T20 run points cap */
+    if (on('T20')) {
+      const res = DIFFS.map((d) => { const b = bootGame(d); b.run('texts=[]; score=RUN_SCORE_CAP-10;'); b.run('targets=[]; addTarget(ball.color,ball.x,ball.y,20);'); b.g.ctx.fuse(b.run('targets[0]')); calm(b);
+        const s1 = b.run('score'), n1 = b.run('texts.filter(t=>t.s==="MAX SCORE").length'); b.run('targets=[]; addTarget(ball.color,ball.x,ball.y,20);'); b.g.ctx.fuse(b.run('targets[0]')); calm(b);
+        return { d, s1, s2: b.run('score'), n: b.run('texts.filter(t=>t.s==="MAX SCORE").length'), n1, playing: b.run('playing'), lv: b.run('levelForScore(RUN_SCORE_CAP,difficulty)') }; });
+      ck('T20 points stop at 300,000 on every difficulty with one MAX SCORE notice; play goes on; a capped run is level 9 (passes the server check)',
+        res.every((r) => r.s1 === 300000 && r.s2 === 300000 && r.n1 === 1 && r.n === 1 && r.playing && r.lv === 9) && /const RUN_SCORE_CAP=300000;/.test(code), JSON.stringify(res));
+      const e = bootGame('medium'); e.run('score=RUN_SCORE_CAP+5000;'); e.g.ctx.endGame();
+      ck('T20 ...a run never ends above the cap (checked again at game over)', e.run('score') === 300000); }
   } catch (e) { ck('time speed section ran', false, String(e.stack || e).slice(0, 400)); }
   finally { Math.random = realRandom; }
   return { F, failed };
@@ -260,16 +283,16 @@ function control(label, expect, mutate) {
 }
 const rep = (a, b) => (s) => (s.includes(a) ? s.replace(a, b) : s);
 control('speed from the score again', 'T1', rep('crossingSpeed(crossingTimeAt(speedShown)*fieldSlow())', 'crossingSpeed(crossingTimeAt(Math.min(9,score/1000))*fieldSlow())'));
-control('Easy steps twice as often', 'T2', rep('easy:  {start:1.6,top:1.2, every:40,', 'easy:  {start:1.6,top:1.2, every:20,'));
+control('Easy steps twice as often', 'T2', rep('easy:  {start:1.5,top:1.15,every:40,', 'easy:  {start:1.5,top:1.15,every:20,'));
 control('steps may come back to back (no step hold)', 'T13', rep('  return runClock-lastStepClock>=c.every;', '  return Math.floor(runClock/c.every)>speedStep;'));
-control('Easy starts at Medium\'s speed', 'T3', rep('easy:  {start:1.6,top:1.2,', 'easy:  {start:1.4,top:1.2,'));
+control('Easy starts at Medium\'s speed', 'T3', rep('easy:  {start:1.5,top:1.15,', 'easy:  {start:1.3,top:1.15,'));
 control('big speed steps (Hard in 4 steps of ~12%)', 'T3', rep('hard:  {start:1.1,top:.7, every:22,steps:8,', 'hard:  {start:1.1,top:.7, every:22,steps:4,'));
 control('speed from the play-area width (different on iPad)', 'T3', rep('function crossingSpeed(sec){ return playAreaHeight()/sec/60; }', 'function crossingSpeed(sec){ return W*1.6/sec/60; }'));
 control('step without a countdown', 'T4', rep('function startSpeedCountdown(){ speedCountdown=SPEED_COUNTDOWN_S;', 'function startSpeedCountdown(){ applySpeedStep(); return; speedCountdown=SPEED_COUNTDOWN_S;'));
 control('Hard FLUX burst above the top', 'T5', rep('Math.min(topSpeed(),s*c.fluxBurst)', 's*c.fluxBurst'));
 control('Hard orb-hit kick uncapped', 'T5', rep('return Math.min(top,17.5,sp*1.045+0.18+speedLevel*.025);', 'return Math.min(17.5,sp*1.045+0.18+speedLevel*.025);'));
 control('big orb-hit kick on Easy', 'T5', rep('kick:1.015,kickCap:1.04,', 'kick:1.045,kickCap:1.2,'));
-control('FLUX MODE speeds the ball up on Easy', 'T6', rep('easy:  {start:1.6,top:1.2, every:40,steps:5,kick:1.015,kickCap:1.04,fluxBurst:1}', 'easy:  {start:1.6,top:1.2, every:40,steps:5,kick:1.015,kickCap:1.04,fluxBurst:1.2}'));
+control('FLUX MODE speeds the ball up on Easy', 'T6', rep('kick:1.015,kickCap:1.04,fluxBurst:1,overAt:300', 'kick:1.015,kickCap:1.04,fluxBurst:1.2,overAt:300'));
 control('FLUX MODE from level 1 again', 'T7', rep('function fluxModeAllowed(){ return level>=FLUX_FROM_LEVEL; }', 'function fluxModeAllowed(){ return true; }'));
 control('combo back to x1 when it breaks', 'T8', rep('combo=Math.max(1,Math.floor(combo/2));', 'combo=1;'));
 control('no difficulty in the HUD', 'T9', rep(" document.getElementById('hudDiff').textContent=String(difficulty).toUpperCase();", ''));
@@ -278,13 +301,18 @@ control('Reduce Motion ignored by the flash', 'T10', rep(' if(reduceMotion) v=Ma
 control('flash limiter removed (strobing)', 'T11', rep('if(now-flashLastAt<FLASH_GAP_MS)', 'if(false)'));
 control('a 5 Hz pulse', 'T11', rep('const pulse=.75+.25*Math.sin(performance.now()*.012+t.phase);', 'const pulse=.75+.25*Math.sin(performance.now()*.032+t.phase);'));
 control('no recovery after a lost ball', 'T12', rep('SPEED_HELPS.push(recoverFactor);', ''));
-control('no lost-ball hold for the next step', 'T13', rep('if(speedStep>=c.steps || lostBallHold>0 || runClock<fieldHoldUntil) return false;', 'if(speedStep>=c.steps || runClock<fieldHoldUntil) return false;'));
+control('no lost-ball hold for the next step', 'T13', rep(' || lostBallHold>0 || runClock<fieldHoldUntil) return false;', ' || runClock<fieldHoldUntil) return false;'));
 control('a level-up that adds orbs also brings the speed step', 'T14', rep(' if(fieldGrowsAt(level)) fieldHoldUntil=runClock+FIELD_HOLD_S;   // DIFFICULTY BUDGET: more orbs/spawns now, so no speed step now or for FIELD_HOLD_S\n else if(speedDue()) applySpeedStep();', ' if(speedDue()) applySpeedStep();'));
 control('orbs and spawns at the same level (extra spawns back at level 5)', 'T14', rep('STAR_LEVEL=3, GROWING_LEVEL=4, SPAWN_MORE_LEVEL=6;', 'STAR_LEVEL=3, GROWING_LEVEL=4, SPAWN_MORE_LEVEL=5;'));
 control('first-run slow start back', 'T15', rep('SPEED_HELPS.push(recoverFactor);', "SPEED_HELPS.push(recoverFactor); SPEED_HELPS.push(function(){ try{ return (+localStorage.getItem('fluxRunsPlayed')||0)===0?.92:1; }catch(e){ return 1; } });"));
 control('generous catch pays points', 'T15', rep('const paddlePoints=marginCatch?0:', 'const paddlePoints=marginCatch?2:'));
 control('lost balls not counted in the stats', 'T16', rep(" playCount('lost',1);   // GAMEPLAY STATS\n", ''));
 control('run time counts during countdowns', 'T17', rep('  if(pendingLevel || fluxCountdown>0 || missNotice>0) return;   // countdowns and the miss notice are not run time\n', ''));
+control('Easy overtime removed (Easy never ends for a steady player)', 'T19', rep('fluxBurst:1,overAt:300,overTop:.9,overSteps:5},', 'fluxBurst:1},'));
+control('Easy overtime faster than Medium\'s top', 'T19', rep('overAt:300,overTop:.9,overSteps:5', 'overAt:300,overTop:.8,overSteps:5'));
+control('Easy overtime from the start (no 5-minute wait)', 'T19', rep('overAt:300,', 'overAt:0,'));
+control('no run points cap', 'T20', rep('function capScore(){ if(score<RUN_SCORE_CAP) return;', 'function capScore(){ return;'));
+control('cap above the server ceiling', 'T20', rep('const RUN_SCORE_CAP=300000;', 'const RUN_SCORE_CAP=500000;'));
 control('star colour back at level 2', 'T18', rep('function coloursInPlay(){ return Math.min(colors.length,level>=STAR_LEVEL?5:4); }', 'function coloursInPlay(){ return Math.min(colors.length,4+Math.floor(level/2)); }'));
 const total = main.F + NC;
 console.log('\n' + (total ? 'TIME SPEED FAILED: ' + main.F + ' check(s), ' + NC + ' uncaught control(s)' : 'TIME SPEED PASSED: all checks and all negative controls'));

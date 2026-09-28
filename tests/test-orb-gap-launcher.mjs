@@ -51,10 +51,10 @@ function suite(gameHtml, quiet = false) {
       for (let f = 0; f < 12000; f++) { if (f % 2500 === 0) run('misses=0;');
         // The paddle is steered 8px off-centre (a slow wobble): with dead-centre catches a seeded ball can settle
         // into a straight up-and-down path past the orbs and never level up (first seen on Easy at x0.4 points;
-        // since TIME SPEED's slower, steadier ball, on every difficulty). Hard wobbles 2px: with 8px it plays on to
-        // level 6-7, where a crowded phone corner of 30px orbs can close the gap below 10px -- a known limit of
-        // keepOrbGap that main has too (reproduced on main at Hard level 6), reported with this PR, not fixed here.
-        run('paddle.x=Math.max(paddle.w/2+8,Math.min(W-paddle.w/2-8,ball.x+Math.sin(' + f + '*.05)*' + (diff === 'hard' ? 2 : 8) + ')); if(!playing){playing=true;paused=false;}'); g.ctx.update(1 / 60);
+        // since TIME SPEED's slower, steadier ball, on every difficulty). At higher levels (Hard reaches 9 here) crowded
+        // corners of 30px orbs are common; keepOrbGap now puts orbs back inside the field BEFORE spacing them (it
+        // used to do it after, which could leave a pinned orb on its neighbour -- also on main).
+        run('paddle.x=Math.max(paddle.w/2+8,Math.min(W-paddle.w/2-8,ball.x+Math.sin(' + f + '*.05)*8)); if(!playing){playing=true;paused=false;}'); g.ctx.update(1 / 60);
         if (run('playing')) { worst = Math.min(worst, minGap(run)); frames++; } lvMax = Math.max(lvMax, run('level')); }
       Math.random = realRandom;
       ck('G1 ' + diff + ': ' + frames + ' frames to level ' + lvMax + ', orbs never closer than ' + GAP + 'px edge to edge', GAP >= 8 && worst >= GAP - 0.5 && lvMax >= (diff === 'easy' ? 2 : 3), 'closest ' + worst.toFixed(1) + 'px');
@@ -108,6 +108,7 @@ function control(label, expect, mutate) {
 const rep = (a, b) => (s) => (s.includes(a) ? s.replace(a, b) : s);
 control('orbs allowed to overlap while drifting', 'G2', rep(' if(playing) keepOrbGap();', ' ;'));
 control('gap too small (orbs touch)', 'G1', rep('const ORB_GAP=10;', 'const ORB_GAP=0;'));
+control('orbs put back inside the field after spacing again (a pinned orb can sit on its neighbour)', 'G1', (s) => s.replace('    for(const t of targets) orbInField(t);   // stay inside the orb field -- first, so putting an orb back inside can never leave it on another\n', '').replace('      orbInField(a); orbInField(b);\n      const left=need-Math.hypot(b.x-a.x,b.y-a.y);\n      if(left>1e-6){ b.x+=ux*left; b.y+=uy*left; orbInField(b); const l2=need-Math.hypot(b.x-a.x,b.y-a.y); if(l2>1e-6){ a.x-=ux*l2; a.y-=uy*l2; orbInField(a); } }\n', '').replace('    if(!moved) break;\n  }\n}', '    for(const t of targets) orbInField(t);\n    if(!moved) break;\n  }\n}'));
 control('gap also forced during the game-over collapse', 'G4', rep(' if(playing) keepOrbGap();', ' keepOrbGap();'));
 control('launcher back to the first orb colour', 'L1', rep(' const paddleCol = launcherColour();', " const paddleCol = colors[0]||'#62eaff';"));
 control('Solar launcher too close to an orb (cream)', 'L2', rep("launcher:'#ff7a18'", "launcher:'#fff4e0'"));

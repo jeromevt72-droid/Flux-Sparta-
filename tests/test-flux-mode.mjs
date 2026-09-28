@@ -123,7 +123,7 @@ function suite(gameHtml, quiet = false) {
       ck('X5 every difficulty: reaching level 3 with a full meter announces FLUX MODE, then it starts after the 3-2-1', res.every((r) => r.ok), res.map((r) => r.info).join(' | ')); }
     // X6: FLUX MODE's own effects in the code.
     ck('X6 FLUX MODE effects: no speed on Easy/Medium (fluxBurst 1), Hard x1.15 capped at the top, orb x1.15, fusion +60, overload +100, 6 s, +250, filter',
-      /easy:\s*\{[^}]*fluxBurst:1\}/.test(code) && /medium:\{[^}]*fluxBurst:1\}/.test(code) && /hard:\s*\{[^}]*fluxBurst:1\.15\}/.test(code)
+      /easy:\s*\{[^}]*fluxBurst:1[,}]/.test(code) && /medium:\{[^}]*fluxBurst:1\}/.test(code) && /hard:\s*\{[^}]*fluxBurst:1\.15\}/.test(code)
       && code.includes('return (fluxMode>6-FLUX_BURST_S && c.fluxBurst>1) ? Math.min(topSpeed(),s*c.fluxBurst) : s;') && !/18\.5/.test(code)
       && code.includes('*(fluxMode>0?1.15:1));') && code.includes('120+combo*10+(fluxMode>0?60:0)') && code.includes('200+combo*15+(fluxMode>0?100:0)')
       && /flux=0;fluxMode=6;score\+=250;/.test(code) && code.includes("if(fluxMode>0){fluxMode-=dt;document.getElementById('app').style.filter='brightness(1.18) saturate(1.35)';"));

@@ -29,7 +29,7 @@ const VALID_SKUS = new Set(["toxic", "cosmic", "solar"]);
 // per-level score ceiling (score <= level * 50,000 + 5,000). MUST stay
 // identical to LEVEL_SCORE_THRESHOLDS / LEVEL_SCORE_MULT in play/index.html.
 const LEVEL_SCORE_THRESHOLDS = [2500, 6000, 10000, 15000, 21000, 28000, 36000, 45000];   // Medium, levels 2..9
-const LEVEL_SCORE_MULT = { easy: 1.9, medium: 1, hard: 1.35 };   // FULL POINTS: every difficulty pays the same points; the multipliers set the level pace
+const LEVEL_SCORE_MULT = { easy: 1.5, medium: 1, hard: 0.55 };   // FULL POINTS: every difficulty pays the same points; the multipliers set the level pace
 /* DIFFICULTY WEIGHT (owner): the per-difficulty boards show real points. Where
    difficulties are compared -- the ALL board and the country totals -- each
    best counts at its difficulty's weight (Hard most, Easy least), worked out
@@ -37,7 +37,7 @@ const LEVEL_SCORE_MULT = { easy: 1.9, medium: 1, hard: 1.35 };   // FULL POINTS:
    rewritten). A player's ALL-board score is their best weighted score across
    difficulties; a country's total adds each player's once. MUST stay
    identical to DIFF_WEIGHT in play/index.html. */
-const DIFF_WEIGHT = { easy: 0.03, medium: 0.18, hard: 1 };
+const DIFF_WEIGHT = { easy: 0.09, medium: 0.21, hard: 1 };
 function weightedScore(score, difficulty) { return Math.round((Number(score) || 0) * (DIFF_WEIGHT[difficulty] || 1)); }
 const LEVEL_TOLERANCE = 1;
 // RC2.8.7: a hard ceiling kept IN ADDITION to D-51. The level rule alone lets

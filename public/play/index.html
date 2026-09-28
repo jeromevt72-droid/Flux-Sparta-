@@ -535,13 +535,13 @@ const countryFlags={AF:'🇦🇫',AL:'🇦🇱',DZ:'🇩🇿',AD:'🇦🇩',AO:'
    level pace (see the PR's numbers). MUST stay identical to
    LEVEL_SCORE_THRESHOLDS / LEVEL_SCORE_MULT in worker.js (D-51 checks it). */
 const LEVEL_SCORE_THRESHOLDS=[2500,6000,10000,15000,21000,28000,36000,45000];
-const LEVEL_SCORE_MULT={easy:1.9,medium:1,hard:1.35};
+const LEVEL_SCORE_MULT={easy:1.5,medium:1,hard:.55};
 /* DIFFICULTY WEIGHT (owner): where difficulties are compared -- the ALL board
    and the country totals -- a score counts at its difficulty's weight (Hard
    most, Easy least). The server applies it when it ranks; stored scores are
    the real points. The game uses it only to say what a run adds to the
    country. MUST stay identical to DIFF_WEIGHT in worker.js. */
-const DIFF_WEIGHT={easy:.03,medium:.18,hard:1};
+const DIFF_WEIGHT={easy:.09,medium:.21,hard:1};
 function weighted(sc,d){ return Math.round((+sc||0)*(DIFF_WEIGHT[d]||1)); }
 const FLUX_COUNTDOWN_S=3, FLUX_FROM_LEVEL=3;   // FLUX MODE: 3 s announce countdown; it starts from level 3 on every difficulty (SKILL LADDER)
 const LEVEL_COUNTDOWN_S=5, LEVEL_RAMP_S=1;   // level-up: 5 s SPEED UP countdown, then ~1 s difficulty ramp
@@ -987,7 +987,7 @@ var runActive=false;
 function newGame(){
  try{ window.parent.postMessage({type:'flux-playing'}, '*'); }catch(e){}
  pendingLevel=0;levelCountdown=0;levelTickAt=0;speedLevel=1;fluxCountdown=0;fluxTickAt=0;
- runClock=0;speedStep=0;speedShown=0;speedCountdown=0;speedTickAt=0;lastStepClock=0;fieldHoldUntil=0;lostBallHold=0;recoverLeft=0;playStats=[];   // TIME SPEED: every run starts at the first speed
+ scoreCapped=false;runClock=0;speedStep=0;speedShown=0;speedCountdown=0;speedTickAt=0;lastStepClock=0;fieldHoldUntil=0;lostBallHold=0;recoverLeft=0;playStats=[];   // TIME SPEED: every run starts at the first speed
  score=0;combo=1;level=1;streak=0;flux=0;fluxMode=0;misses=0;revivesUsedThisRun=0;missFragments=[];particles=[];texts=[];shake=0;targets=[];comboTimer=0;levelBanner=0;missNotice=0;colorHintLeft=0;perfectFlash=0;bonusTimer=rand(5,9);growTimer=rand(9,14);
  refreshHudRects(); // pauseBtn just became visible -- make sure the exclusion zone reflects that now, not the pre-game state
  applyCelestialBackground(level);
@@ -1133,10 +1133,13 @@ function spawnGrowingOrb(){
    unchanged. Deterministic, so seeded games stay repeatable. Runs at the end
    of each frame, so an orb spawned after a hit is spaced before it is drawn. */
 const ORB_GAP=10;
+function orbInField(t){ const topBound=maxHudBottom()+t.r, botBound=Math.max(topBound+60,H*.79)-t.r;
+  t.x=Math.max(t.r+16,Math.min(W-t.r-16,t.x)); t.y=Math.max(topBound,Math.min(botBound,t.y)); }
 function keepOrbGap(){
   const n=targets.length; if(n<2) return;
-  for(let pass=0;pass<8;pass++){   // repeat until nothing is too close (walls and chains of orbs need a few passes)
+  for(let pass=0;pass<40;pass++){   // repeat until nothing is too close (walls and chains of orbs need a few passes)
     let moved=false;
+    for(const t of targets) orbInField(t);   // stay inside the orb field -- first, so putting an orb back inside can never leave it on another
     for(let i=0;i<n;i++) for(let j=i+1;j<n;j++){
       const a=targets[i], b=targets[j];
       let dx=b.x-a.x, dy=b.y-a.y, d=Math.hypot(dx,dy);
@@ -1144,12 +1147,13 @@ function keepOrbGap(){
       if(d<1e-6){ dx=(i%2?-1:1); dy=0; d=1; }
       const ux=dx/d, uy=dy/d, push=(need-d)/2; moved=true;
       a.x-=ux*push; a.y-=uy*push; b.x+=ux*push; b.y+=uy*push;
+      // A wall or the HUD line can stop one orb: then the other one takes the rest of the push
+      // (an orb pinned in a corner used to keep a big orb next to it too close).
+      orbInField(a); orbInField(b);
+      const left=need-Math.hypot(b.x-a.x,b.y-a.y);
+      if(left>1e-6){ b.x+=ux*left; b.y+=uy*left; orbInField(b); const l2=need-Math.hypot(b.x-a.x,b.y-a.y); if(l2>1e-6){ a.x-=ux*l2; a.y-=uy*l2; orbInField(a); } }
       const closing=(b.vx-a.vx)*ux+(b.vy-a.vy)*uy;
       if(closing<0){ a.vx+=ux*closing/2; a.vy+=uy*closing/2; b.vx-=ux*closing/2; b.vy-=uy*closing/2; }
-    }
-    for(const t of targets){   // stay inside the orb field
-      const topBound=maxHudBottom()+t.r, botBound=Math.max(topBound+60,H*.79)-t.r;
-      t.x=Math.max(t.r+16,Math.min(W-t.r-16,t.x)); t.y=Math.max(topBound,Math.min(botBound,t.y));
     }
     if(!moved) break;
   }
@@ -1262,6 +1266,13 @@ function tickFluxCountdown(dt){
 }
 function startFluxMode(){fluxCountdown=0;fluxTickAt=0;flux=0;fluxMode=6;score+=250;popup(W/2,120,'FLUX MODE','#62eaff');burst(W/2,120,'#62eaff',30);haptic(50);playFlux();flash(.22);shake=Math.min(14,shake+6);updateHud();}
 const MISS_NOTICE_S=2.2, COMBO_TIME_S=2.6;
+/* RUN POINTS CAP (owner): a safety net well below the server's 455,000
+   ceiling. Points stop at RUN_SCORE_CAP on every difficulty, with a short
+   MAX SCORE notice once; play goes on. 300,000 reaches level 9 on every
+   difficulty, so a capped run's level passes the server check. */
+const RUN_SCORE_CAP=300000;
+let scoreCapped=false;
+function capScore(){ if(score<RUN_SCORE_CAP) return; score=RUN_SCORE_CAP; if(!scoreCapped){ scoreCapped=true; popup(W/2,170,'MAX SCORE','#ffd45c'); } }
 function registerMiss(){
  misses++;missFragments.push({x:rand(25,W-25),y:H-24,r:rand(7,12),life:1});
  playCount('lost',1);   // GAMEPLAY STATS
@@ -1496,7 +1507,7 @@ function flash(v){
  el.style.opacity=v; setTimeout(()=>{ flashOn=0; el.style.opacity=0; },reduceMotion?FLASH_ON_CALM_MS:FLASH_ON_MS);
 }
 function updateHud(){
- document.getElementById('score').textContent=score;
+ document.getElementById('score').textContent=Math.min(score,RUN_SCORE_CAP);
  document.getElementById('hudDiff').textContent=String(difficulty).toUpperCase();   // HUD: EASY / MEDIUM / HARD during play
  document.getElementById('combo').textContent='x'+combo;
  // D-50: the LEVEL box becomes the SPEED UP countdown while a level-up is pending.
@@ -1528,6 +1539,7 @@ function updateHud(){
 }
 function endGame(){
  const runNo=(+localStorage.fluxRunsPlayed||0)+1;   // D-60: counted before the wrapper below increments it
+ capScore();   // RUN POINTS CAP
  playing=false; runActive=false;
  document.getElementById('pauseBtn').classList.add('hidden');
  document.getElementById('pauseOverlay')?.classList.add('hidden');
@@ -1581,7 +1593,7 @@ function speedHelp(){ let k=1; for(let i=0;i<SPEED_HELPS.length;i++) k*=SPEED_HE
    step is announced first: the LEVEL box turns amber and counts SPEED UP
    3-2-1 (one countdown at a time with the level-up and FLUX countdowns);
    then the speed rises over ~1 s. Top: Easy after 5 steps (3.3 min of run
-   time), Medium after 7 (3.5 min), Hard after 8 (~3 min).
+   time; then EASY OVERTIME, below), Medium after 7 (3.5 min), Hard after 8 (~3 min).
    SKILL LADDER: reaching level 2 brings the first step if time has not yet
    (never more than that one step ahead of time).
    HOLDS: never two steps closer than `every`; none within LOST_BALL_HOLD_S of
@@ -1594,9 +1606,13 @@ function speedHelp(){ let k=1; for(let i=0;i<SPEED_HELPS.length;i++) k*=SPEED_HE
    lower for 5 s (the last second eases back). It never adds points.
    The kick after an orb hit is small on Easy and Medium; Hard keeps its
    kick. FLUX MODE adds no speed on Easy and Medium; on Hard a short burst.
-   Nothing is ever above the top speed. */
+   Nothing is ever above the top speed.
+   EASY OVERTIME (owner): after 5 minutes of run time Easy keeps getting a
+   little harder past its normal top -- 5 more announced steps of ~5%, up to
+   Medium's top (0.9 s) and never beyond -- so long Easy runs end naturally
+   and good players feel pushed toward Medium. */
 const SPEED_CURVE={
-  easy:  {start:1.6,top:1.2, every:40,steps:5,kick:1.015,kickCap:1.04,fluxBurst:1},
+  easy:  {start:1.5,top:1.15,every:40,steps:5,kick:1.015,kickCap:1.04,fluxBurst:1,overAt:300,overTop:.9,overSteps:5},
   medium:{start:1.4,top:.9, every:30,steps:7,kick:1.025,kickCap:1.08,fluxBurst:1},
   hard:  {start:1.1,top:.7, every:22,steps:8,kick:0,    kickCap:0,   fluxBurst:1.15}
 };
@@ -1609,19 +1625,22 @@ function playCount(k,n){ const s=playStats[speedStep]||(playStats[speedStep]={se
 function coloursInPlay(){ return Math.min(colors.length,level>=STAR_LEVEL?5:4); }
 function speedCurve(){ return SPEED_CURVE[difficulty]||SPEED_CURVE.medium; }
 function playAreaHeight(){ return Math.max(200,paddle.y-maxHudBottom()); }
-function crossingTimeAt(step){ const c=speedCurve(), k=Math.max(0,Math.min(c.steps,step))/c.steps; return c.start*Math.pow(c.top/c.start,k); }
+function lastStep(){ const c=speedCurve(); return c.steps+(c.overSteps||0); }
+function crossingTimeAt(step){ const c=speedCurve(); step=Math.max(0,Math.min(lastStep(),step));
+  if(step<=c.steps) return c.start*Math.pow(c.top/c.start,step/c.steps);
+  return c.top*Math.pow(c.overTop/c.top,(step-c.steps)/c.overSteps); }   // EASY OVERTIME: past the normal top
 function crossingSpeed(sec){ return playAreaHeight()/sec/60; }   // px per frame: the ball moves by v*dt*60
-function topSpeed(){ return crossingSpeed(speedCurve().top); }
+function topSpeed(){ const c=speedCurve(); return crossingSpeed(c.overTop||c.top); }   // the ceiling: Easy's overtime top is Medium's top
 function fieldGrowsAt(lv){ return lv===GROWING_LEVEL || lv===SPAWN_MORE_LEVEL || fieldCapAt(lv)>fieldCapAt(lv-1); }   // more orbs or more spawns at this level
 function fieldSlow(){ return 1+FIELD_ORB_SLOW*Math.max(0,fieldCapAt(level)-fieldCapAt(1)); }
 function speedDue(lv){
   const c=speedCurve(); lv=lv||level;
-  if(speedStep>=c.steps || lostBallHold>0 || runClock<fieldHoldUntil) return false;
+  if(speedStep>=(c.overSteps && runClock>=c.overAt ? lastStep() : c.steps) || lostBallHold>0 || runClock<fieldHoldUntil) return false;   // EASY OVERTIME: more steps after overAt s of run time
   if(speedStep===0 && lv>=SPEED_STEP_LEVEL) return true;   // level 2: a little faster (no earlier step to hold for)
   return runClock-lastStepClock>=c.every;
 }
 function levelUpBringsSpeed(lv){ return !fieldGrowsAt(lv) && speedDue(lv); }
-function applySpeedStep(){ speedStep=Math.min(speedCurve().steps,speedStep+1); lastStepClock=runClock; }
+function applySpeedStep(){ speedStep=Math.min(lastStep(),speedStep+1); lastStepClock=runClock; }
 // The ball's normal top speed: the current step (ramped), a fuller field a little slower, Hard's short FLUX burst; never above the top.
 function normalMaxSpeed(){ const c=speedCurve(), s=Math.min(topSpeed(),crossingSpeed(crossingTimeAt(speedShown)*fieldSlow())); return (fluxMode>6-FLUX_BURST_S && c.fluxBurst>1) ? Math.min(topSpeed(),s*c.fluxBurst) : s; }
 function launchSpeed(v){ return Math.min(v,normalMaxSpeed()*speedHelp()); }   // a new ball never starts faster than the step allows
@@ -1779,6 +1798,7 @@ function update(dt){
  if(gripPulse>0) gripPulse=Math.max(0,gripPulse-dt);
  shake*=.9;
  ensureBallColourTarget();   // ball colour rule: never leave the ball with nothing to hit
+ capScore();   // RUN POINTS CAP
  if(playing) keepOrbGap();   // ORB GAP, last, after this frame's drift and any new orb (not during the game-over collapse, which pulls the field together on purpose)
  updatePressureBadge();
 }

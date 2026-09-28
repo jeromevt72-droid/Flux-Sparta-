@@ -10,7 +10,7 @@
 //      Easy (fusion, danger, bonus, overload, FLUX MODE, perfect and plain
 //      catch; the x0.85 and the per-difficulty perfect-catch factor are gone),
 //      the popups show those points; Medium and Hard thresholds are the table
-//      x1 and x1.35, page = server;
+//      x1 and x0.55 (Hard lowered so casual players reach level 3), page = server;
 //   M5 Hard keeps empty space: 5 orbs on phones and 6 on iPad at every level,
 //      never more than before or than Medium; seeded Hard (and Easy) games are
 //      frame-for-frame the same as without the Medium code.
@@ -124,7 +124,7 @@ function suite(gameHtml, quiet = false) {
     const pp = ['easy', 'medium', 'hard'].map(perfectPts);
     ck('M4 a perfect paddle hit pays 5 x combo on every difficulty (' + pp.join(' / ') + ')', pp.every((x) => x === 20));
     const tbl = (src) => (src.match(/LEVEL_SCORE_MULT\s*=\s*\{[^}]*\}/) || [''])[0].replace(/\s|0(?=\.)/g, '');
-    ck('M4 Medium and Hard level thresholds are the table x1 and x1.35 (as before), page = server (' + tbl(gameHtml) + ')', /medium:1,hard:1\.35\}$/.test(tbl(gameHtml)) && tbl(WORKER) === tbl(gameHtml) && /const SCORE_CEILING = 455_000;/.test(WORKER));
+    ck('M4 Medium and Hard level thresholds are the table x1 (as before) and x0.55, page = server (' + tbl(gameHtml) + ')', /medium:1,hard:\.55\}$/.test(tbl(gameHtml)) && tbl(WORKER) === tbl(gameHtml) && /const SCORE_CEILING = 455_000;/.test(WORKER));
     /* M5 Hard unchanged (and Easy untouched by the Medium code) */
     const capBad = [];
     for (const d of ['hard']) for (const [w, h] of SIZES) for (let lv = 1; lv <= 9; lv++) {
@@ -169,7 +169,7 @@ control('orb gap off (orbs may touch)', 'M3', rep('const ORB_GAP=10;', 'const OR
 control('Medium points cut again (x0.85)', 'M4', rep(' const points=Math.round((orbValue + combo*2)*(t.r>23?1.15:1)*(fluxMode>0?1.15:1));', " const points=Math.round((orbValue + combo*2)*(t.r>23?1.15:1)*(fluxMode>0?1.15:1)*(difficulty==='medium'?.85:1));"));
 control('perfect paddle points scaled by difficulty again', 'M4', rep('Math.max(2,Math.round(5*combo))', 'Math.max(2,Math.round(5*combo*DIFFICULTY[difficulty].mult))'));
 control('fusion popup differs from the points', 'M4', rep("popup(t.x,t.y,'+'+points,colors[t.color]);", "popup(t.x,t.y,'+'+Math.round(points*.85),colors[t.color]);"));
-control('Medium level table changed', 'M4', rep('medium:1,hard:1.35};', 'medium:.85,hard:1.35};'));
+control('Medium level table changed', 'M4', rep('medium:1,hard:.55};', 'medium:.85,hard:.55};'));
 control('Hard grows with level again', 'M5', rep("if(difficulty==='hard') return isPhone()?d.capPhone:d.capPad;", ''));
 control('Hard back to 7 orbs on iPad', 'M5', rep('DIFFICULTY.hard.capPad=6;', 'DIFFICULTY.hard.capPad=7;'));
 control('Hard given more orbs too', 'M5', rep('DIFFICULTY.medium.capPhone=5;', 'DIFFICULTY.medium.capPhone=5;DIFFICULTY.hard.capPhone=6;'));
