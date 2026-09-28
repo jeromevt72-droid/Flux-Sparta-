@@ -166,9 +166,12 @@ that lookup only.</p>
   <li><strong>Stripe</strong> — payment processing</li>
 </ul>
 <p>FLUX contains <strong>no third-party analytics, no advertising, no tracking pixels, and no
-cookies</strong>. This was verified against the source: there is no Google
+cookies for players</strong>. This was verified against the source: there is no Google
 Analytics, no tag manager, no social pixel, no advertising ID, and no
 <code>document.cookie</code> usage anywhere in the game or the Gateway.</p>
+<p>The only cookie is a <strong>security cookie for the owner's admin login</strong>. It
+is set only when the owner signs in to the private admin page, keeps that
+sign-in secure, expires within 12 hours, and is never set for players.</p>
 <h3 id="stats">Anonymous gameplay statistics (in-house)</h3>
 <div class="review"><strong>For lawyer review before launch.</strong> This
 section describes how FLUX is built. It has not yet been reviewed by a lawyer.</div>
@@ -278,7 +281,8 @@ the game:</p>
   never for advertising or tracking.</li>
   <li>FLUX uses only a country, never a precise location (section 2).</li>
   <li>FLUX contains no advertising, no third-party analytics or trackers, no
-  advertising ID and no cookies (section 9). Gameplay statistics are anonymous,
+  advertising ID and no cookies for players; the only cookie is the owner's
+  admin login security cookie (section 9). Gameplay statistics are anonymous,
   counted in-house only, and kept individually for 90 days at most. We do not
   sell or share information with anyone for marketing.</li>
   <li>The store is closed. This policy will be updated before it opens.</li>
