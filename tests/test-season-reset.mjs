@@ -12,7 +12,10 @@
 //      never a playerId; a privacy deletion also removes the pilot from the archive; admin.html section + guide;
 //   C1 the page clears the saved easy/medium/hard bests once (share-card/menu best too) and keeps everything else;
 //   C2 every upload carries season:1; a queued pre-season upload is dropped, never sent; a 409 drops quietly;
-//   C3 the message is shown once, only to players who had played before; never during a run.
+//   C3 the message is shown once, only to players who had played before; never during a run;
+//   S8 a pilot who owns Solar Inferno (or every skin, or bought without a score) still owns it after the reset,
+//      through /api/entitlements and the restore code (/api/restore-check), also after a restart;
+//   C4 the phone of a Solar Inferno owner keeps the skin, its purchase record and the pilot.
 // Ends with negative controls: each defect re-inserted into the source MUST be caught.
 import fs from 'fs'; import path from 'path'; import vm from 'vm';
 import { fileURLToPath, pathToFileURL } from 'url';
@@ -188,6 +191,32 @@ async function suite({ gameHtml, workerMod, adminHtml, quiet = false }) {
     ck('S2 a large archive is chunked: several values, each well under the 128 KiB limit, nothing lost', ab.meta.chunks > 1 && sizes.every((s) => s <= 64 * 1024) && ab.meta.scores === 9000 + 4 && ab.players.length === 3002, ab.meta.chunks + ' chunks, max ' + Math.max(...sizes));
     } catch (e) { ck('S2 a large archive is chunked: several values, each well under the 128 KiB limit, nothing lost', false, String(e).slice(0, 120)); }
 
+    if (!quiet) console.log('== server: skins, purchases and restore codes survive ==');
+    // A pilot who bought Solar Inferno (and has bests), a pilot who owns every skin,
+    // and a buyer who never posted a score. Read back through the real public
+    // routes the game uses, right after the reset and again after a DO restart.
+    const ss = seedSeason0();
+    ss.set('entitlements', { [P(4)]: ['solar'], [P(5)]: ['toxic', 'cosmic', 'solar'], [P(9)]: ['solar'] });
+    ss.set('seenSessions', { cs_solar_1: 1, cs_all_1: 1 });
+    const SS = mk(new FakeStorage(ss));
+    const ent = async (id) => (await SS.call('/api/entitlements?playerId=' + encodeURIComponent(id), null, {}, 'GET')).data;
+    const rc = async (id) => (await SS.call('/api/restore-check', { playerId: id })).data;
+    const sb = await SS.board();
+    const e4 = await ent(P(4)), e5 = await ent(P(5)), e9 = await ent(P(9));
+    ck('S8 the reset ran (boards empty) before the skins are read', sb.top.length === 0 && (await SS.storage.get('season')) === 1);
+    ck('S8 a pilot who owns Solar Inferno still owns it after the reset (/api/entitlements)', e4 && JSON.stringify(e4.skus) === '["solar"]', JSON.stringify(e4));
+    ck('S8 a pilot who owns every skin keeps all three (/api/entitlements)', e5 && JSON.stringify(e5.skus) === '["toxic","cosmic","solar"]', JSON.stringify(e5));
+    ck('S8 a buyer who never posted a score keeps Solar Inferno (/api/entitlements)', e9 && JSON.stringify(e9.skus) === '["solar"]', JSON.stringify(e9));
+    const r4 = await rc(P(4)), r9 = await rc(P(9));
+    ck('S8 the Solar Inferno pilot\'s restore code still works: found, same name and country, Solar Inferno, no old bests', r4 && r4.found === true && r4.name === 'PILOT4' && r4.country === 'BR' && JSON.stringify(r4.skus) === '["solar"]' && Object.keys(r4.bests || {}).length === 0 && /^[0-9A-Z]{7}$/.test(r4.tag || ''), JSON.stringify(r4));
+    ck('S8 the buyer-only pilot\'s restore code still works and brings Solar Inferno', r9 && r9.found === true && JSON.stringify(r9.skus) === '["solar"]', JSON.stringify(r9));
+    const post = await SS.submit(P(4), 2500, 'hard');
+    ck('S8 the Solar Inferno pilot can post a Season 1 score with the same identity', post.status === 200 && post.data && post.data.tag === r4.tag, post.status + ' ' + JSON.stringify(post.data));
+    SS.env.restart();
+    const e4b = await ent(P(4)), r4b = await rc(P(4));
+    ck('S8 after a restart Solar Inferno is still owned and restorable, with the Season 1 score', e4b && JSON.stringify(e4b.skus) === '["solar"]' && r4b && JSON.stringify(r4b.skus) === '["solar"]' && r4b.bests && r4b.bests.hard && r4b.bests.hard.score === 2500);
+    ck('S8 purchase records (seen checkout sessions) untouched', JSON.stringify(await SS.storage.get('seenSessions')) === JSON.stringify({ cs_solar_1: 1, cs_all_1: 1 }));
+
     if (!quiet) console.log('== server: old pages refused ==');
     const O = mk(new FakeStorage(seedSeason0()));
     await O.board();
@@ -311,6 +340,13 @@ async function suite({ gameHtml, workerMod, adminHtml, quiet = false }) {
     if (t) t.onclick = function () { hidden = true; return onc.apply(this, arguments); };
     try { r.g.els.startBtn.onclick(); } catch (e) {}
     ck('C3 starting a run closes the message (it never covers play)', hidden && !('fluxSeasonNotice' in r.mem));
+    // The phone of a pilot who bought Solar Inferno and is wearing it.
+    const solarKeep = { fluxPlayerId: 'player-8', fluxCallsign: 'BLAZE', fluxCountry: 'US', fluxProfileComplete: '1', fluxSkin: 'solar',
+      fluxEntitlementsV1: JSON.stringify({ v: 1, source: 'server', playerId: 'player-8', skus: ['solar'], verifiedAt: 1 }), fluxOwned_solar: '1', fluxRunsPlayed: '5' };
+    const sp = bootGame({ ...solarKeep, fluxBest_hard: '15000', fluxBestLevel_hard: '5' });
+    await drain();
+    const lost = Object.keys(solarKeep).filter((k) => sp.mem[k] !== solarKeep[k]);
+    ck('C4 a Solar Inferno owner\'s phone keeps the skin, its purchase record and the pilot (restore code) after the season clear', lost.length === 0 && !('fluxBest_hard' in sp.mem) && sp.mem.fluxSeason === '1', lost.join(','));
     const src = GAME.join('\n');
     ck('C3 the message uses the existing notice toast, auto-hides, and adds no listener', /fluxNameToast\(FLUX_SEASON_MSG, \d{4,5},/.test(src) && (gameHtml.match(/addEventListener\(/g) || []).length === 17);
   } catch (e) { ck('client section ran', false, String(e.stack || e).slice(0, 400)); }
@@ -342,6 +378,11 @@ await control('archive drops the date', 'S2 the archive holds', { worker: rep('b
 await control('archive in one huge value', 'S2 a large archive', { worker: rep('const SEASON_ARCHIVE_CHUNK_BYTES = 64 * 1024;', 'const SEASON_ARCHIVE_CHUNK_BYTES = 64 * 1024 * 1024;') });
 await control('reset rebuilds records and loses names', 'S3 every pilot kept', { worker: rep('cleared[id] = Object.assign(Object.create(null), this.players[id], { bests: Object.create(null) });', 'cleared[id] = { playerId: id, bests: Object.create(null) };') });
 await control('reset also clears purchases', 'S3 skins', { worker: rep('await this.state.storage.put({ players: cleared, countries: {}, [SEASON_ARCHIVE_KEY]: meta, season: SEASON });', 'await this.state.storage.put({ players: cleared, countries: {}, entitlements: {}, [SEASON_ARCHIVE_KEY]: meta, season: SEASON });') });
+await control('reset wipes the stored purchases table', 'S8 after a restart Solar Inferno', { worker: rep('await this.state.storage.put({ players: cleared, countries: {}, [SEASON_ARCHIVE_KEY]: meta, season: SEASON });', 'await this.state.storage.put({ players: cleared, countries: {}, entitlements: {}, [SEASON_ARCHIVE_KEY]: meta, season: SEASON });') });
+await control('reset drops skins in memory only', 'S8 a pilot who owns Solar Inferno', { worker: rep('    this.players = cleared;\n    this.invalidateTags();', '    this.players = cleared;\n    this.entitlements = Object.create(null);\n    this.invalidateTags();') });
+await control('reset removes only Solar Inferno', 'S8 a pilot who owns Solar Inferno', { worker: rep('    this.players = cleared;\n    this.invalidateTags();', '    this.players = cleared;\n    for (const k of Object.keys(this.entitlements)) this.entitlements[k] = this.entitlements[k].filter((x) => x !== "solar");\n    this.invalidateTags();') });
+await control('reset deletes pilots who have a best (restore code dead)', 'S8 the Solar Inferno pilot\'s restore code', { worker: rep('for (const id of Object.keys(this.players)) cleared[id] = Object.assign(Object.create(null), this.players[id], { bests: Object.create(null) });', 'for (const id of Object.keys(this.players)) if (!Object.keys(this.players[id].bests || {}).length) cleared[id] = Object.assign(Object.create(null), this.players[id], { bests: Object.create(null) });') });
+await control('page clears the Solar Inferno purchase', 'C4 a Solar Inferno owner', { game: rep("if(had) localStorage.setItem('fluxSeasonNotice','1');", "if(had) localStorage.setItem('fluxSeasonNotice','1'); localStorage.removeItem('fluxOwned_solar');") });
 await control('country figures not recomputed', 'S4 country figures', { worker: (s) => rep('await this.state.storage.put({ players: cleared, countries: {}, [SEASON_ARCHIVE_KEY]: meta, season: SEASON });\n    this.players = cleared;\n    this.invalidateTags();\n    await this.recomputeCountries();', 'await this.state.storage.put({ players: cleared, [SEASON_ARCHIVE_KEY]: meta, season: SEASON });\n    this.players = cleared;\n    this.invalidateTags();')(s) });
 await control('marker written before the archive (a failure loses scores)', 'S5 a failed reset', { worker: rep('  async startSeason() {\n', '  async startSeason() {\n    await this.state.storage.put({ season: SEASON });\n') });
 await control('old pages not refused', 'S6 a score without season', { worker: rep('if (!(Number.isFinite(body.season) && body.season >= SEASON)) {', 'if (false) {') });
