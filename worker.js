@@ -29,7 +29,16 @@ const VALID_SKUS = new Set(["toxic", "cosmic", "solar"]);
 // per-level score ceiling (score <= level * 50,000 + 5,000). MUST stay
 // identical to LEVEL_SCORE_THRESHOLDS / LEVEL_SCORE_MULT in play/index.html.
 const LEVEL_SCORE_THRESHOLDS = [2500, 6000, 10000, 15000, 21000, 28000, 36000, 45000];   // Medium, levels 2..9
-const LEVEL_SCORE_MULT = { easy: 0.3, medium: 1, hard: 1.35 };   // Easy 0.3: Easy points are x0.4 (EASY_POINTS in play/index.html), thresholds follow
+const LEVEL_SCORE_MULT = { easy: 1.5, medium: 1, hard: 0.55 };   // FULL POINTS: every difficulty pays the same points; the multipliers set the level pace
+/* DIFFICULTY WEIGHT (owner): the per-difficulty boards show real points. Where
+   difficulties are compared -- the ALL board and the country totals -- each
+   best counts at its difficulty's weight (Hard most, Easy least), worked out
+   here when ranking, from the stored real points (stored scores are never
+   rewritten). A player's ALL-board score is their best weighted score across
+   difficulties; a country's total adds each player's once. MUST stay
+   identical to DIFF_WEIGHT in play/index.html. */
+const DIFF_WEIGHT = { easy: 0.09, medium: 0.21, hard: 1 };
+function weightedScore(score, difficulty) { return Math.round((Number(score) || 0) * (DIFF_WEIGHT[difficulty] || 1)); }
 const LEVEL_TOLERANCE = 1;
 // RC2.8.7: a hard ceiling kept IN ADDITION to D-51. The level rule alone lets
 // any score through once level 9 is claimed; nothing above the RC2.8.5
@@ -187,8 +196,16 @@ async function forwardToDO(request, env, path, init) {
    into daily / monthly totals and retention-by-start-date totals as it
    arrives. Raw events are kept 90 days, then only the totals remain. It
    runs in its own Durable Object instance ("analytics"), so the
-   leaderboard is never slowed down, and the game never waits for it. */
-const AN_EVENTS = new Set(["open", "first_run", "run_end", "level_up", "share"]);
+   leaderboard is never slowed down, and the game never waits for it.
+   GAMEPLAY: at the end of a run the game also sends, for each speed step of
+   the ball it reached, one "play" event: difficulty, step, seconds played at
+   that step, orb hits, wrong-colour hits and balls lost. They are added into
+   day totals keyed only by difficulty and step ("p:<difficulty>:<step>"),
+   never by country or source; numbers are clamped, the difficulty must be
+   one of the three, the step is capped at AN_MAX_STEP. */
+const AN_EVENTS = new Set(["open", "first_run", "run_end", "level_up", "share", "play"]);
+const AN_MAX_STEP = 8;
+function anInt(v, lo, hi) { const n = Math.floor(Number(v)); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : lo; }
 const AN_SRC = /^[a-z0-9_-]{1,24}$/;
 const AN_KEEP_DAYS = 90;
 const AN_MAX_BATCH = 40;
@@ -210,6 +227,11 @@ function cleanEvent(e) {
     out.diff = VALID_DIFFICULTIES.has(e.diff) ? e.diff : "medium";
   }
   if (e.e === "run_end") { const sec = Math.floor(Number(e.sec)); out.sec = sec >= 0 && sec <= 7200 ? sec : 0; }
+  if (e.e === "play") {   // GAMEPLAY: one run's time at one speed step
+    if (!VALID_DIFFICULTIES.has(e.diff)) return null;
+    out.diff = e.diff; out.st = anInt(e.st, 0, AN_MAX_STEP); out.sec = anInt(e.sec, 0, 7200);
+    out.hit = anInt(e.hit, 0, 5000); out.wrong = anInt(e.wrong, 0, 5000); out.lost = anInt(e.lost, 0, 4);
+  }
   return out;
 }
 async function ingestEvents(request, env) {
@@ -1178,6 +1200,8 @@ export class LeaderboardDO {
       const rl = await this.state.storage.get("restoreLog");
       this.restoreLog = Array.isArray(rl) ? rl : [];
       if (!(await this.state.storage.get("nameRulesV1"))) await this.migrateNames();   // PILOT NAMES, once
+      // DIFFICULTY WEIGHT: country totals stored under other weights (or none) are rebuilt once from the real points.
+      if ((await this.state.storage.get("countriesWeights")) !== JSON.stringify(DIFF_WEIGHT)) await this.recomputeCountries();
       if (!((await this.state.storage.get("season")) >= SEASON)) await this.startSeason();   // SEASON 1, once
       this.ready = true;
     });
@@ -1384,6 +1408,10 @@ export class LeaderboardDO {
       else if (e.e === "level_up") anAdd(day, groups, "levelups", 1);
       else if (e.e === "share") anAdd(day, groups, "shares", 1);
       else if (e.e === "run_end") { anAdd(day, groups, "runs", 1); anAdd(day, groups, "sec", e.sec || 0); anAdd(day, groups, "lvl", e.lvl || 1); }
+      else if (e.e === "play") {   // GAMEPLAY: by difficulty and speed step only
+        const pg = ["p:" + e.diff + ":" + e.st];
+        anAdd(day, pg, "runs", 1); anAdd(day, pg, "sec", e.sec); anAdd(day, pg, "hit", e.hit); anAdd(day, pg, "wrong", e.wrong); anAdd(day, pg, "lost", e.lost);
+      }
     }
     // Raw events for 90 days, in small chunks.
     const n = (await st.get("an:evn:" + today)) || 0, ck = "an:ev:" + today + ":" + Math.max(0, n - 1);
@@ -1428,14 +1456,15 @@ export class LeaderboardDO {
     return json({ ok: true, from: anDayStr(from), to: anDayStr(to), today: anDayStr(today), keepDays: AN_KEEP_DAYS, rawDays, days, months, cohorts });
   }
 
-  /* Public rows for one board. No difficulty = each player's single best. */
+  /* Public rows for one board: real points. No difficulty = the ALL board:
+     each player's best WEIGHTED score across difficulties (DIFF_WEIGHT). */
   async publicRows(difficulty) {
     const rows = [];
     for (const r of Object.values(this.players)) {
       if (await this.isRestricted(r.playerId)) continue;       // moderation exclusion
-      const b = difficulty ? r.bests[difficulty] : bestOf(r);
+      const b = difficulty ? r.bests[difficulty] : weightedBestOf(r);
       if (!b) continue;
-      rows.push({ r, score: b.score, level: b.level, difficulty: difficulty || b.difficulty, updatedAt: b.updatedAt || r.updatedAt || 0 });
+      rows.push({ r, score: difficulty ? b.score : b.weighted, points: b.score, level: b.level, difficulty: difficulty || b.difficulty, updatedAt: b.updatedAt || r.updatedAt || 0 });
     }
     rows.sort((a, b) => b.score - a.score || a.updatedAt - b.updatedAt);
     return rows;
@@ -1489,7 +1518,8 @@ export class LeaderboardDO {
       tag: o.tag,
       name: this.displayName(o.it.r),
       country: o.it.r.country,
-      score: o.it.score,
+      score: o.it.score,                           // real points on a difficulty board; weighted on ALL
+      points: o.it.points,                         // the real points behind it
       level: o.it.level,
       difficulty: o.it.difficulty,
     }));
@@ -1500,14 +1530,15 @@ export class LeaderboardDO {
       countries.push({ ...c, topTag: leaderId ? await this.tagFor(leaderId) : "" });
     }
     countries.sort((a, b) => b.totalScore - a.totalScore);
-    return json({ top, countries, leadingCountry: countries[0] || null, difficulty });
+    return json({ top, countries, leadingCountry: countries[0] || null, difficulty, weighted: !difficulty, weights: { ...DIFF_WEIGHT } });
   }
 
   /* D-25: country figures are rebuilt from the player records every time
      something changes, so totals, counts, top scores and displayed leaders can
      never drift apart. RC2.7 subtracted a departing player's score but kept
      their name and top score as the country's leader. Each player counts once,
-     at their single best public score; restricted players are excluded. */
+     at their single best public WEIGHTED score (DIFF_WEIGHT); restricted
+     players are excluded. */
   async recomputeCountries() {
     const totals = Object.create(null);   // D-29
     const leaders = Object.create(null);
@@ -1523,7 +1554,7 @@ export class LeaderboardDO {
       totals[cc].topName = this.displayName(x.r);
       totals[cc].leaderId = x.r.playerId;           // internal only: stripped from every response
     }
-    await this.state.storage.put({ countries: totals });
+    await this.state.storage.put({ countries: totals, countriesWeights: JSON.stringify(DIFF_WEIGHT) });
     this.countries = totals;
   }
 
@@ -2314,6 +2345,14 @@ function normaliseRecord(r, id) {
   const bests = Object.create(null);
   if (r && Number.isFinite(r.score)) bests[d] = { score: r.score, level: r.level || 1, updatedAt: r.updatedAt || 0 };
   return { playerId: (r && r.playerId) || id, name: r && r.name, country: r && r.country, updatedAt: (r && r.updatedAt) || 0, bests };
+}
+function weightedBestOf(r) {
+  let best = null;
+  for (const [d, b] of Object.entries((r && r.bests) || {})) {
+    const w = b ? weightedScore(b.score, d) : -1;
+    if (b && (!best || w > best.weighted)) best = { ...b, difficulty: d, weighted: w };
+  }
+  return best;
 }
 function bestOf(r) {
   let best = null;
