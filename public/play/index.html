@@ -530,13 +530,19 @@ if(callsign && !isAllowedName(callsign)){ callsign=presetNameForId(playerId); tr
 const countryFlags={AF:'🇦🇫',AL:'🇦🇱',DZ:'🇩🇿',AD:'🇦🇩',AO:'🇦🇴',AG:'🇦🇬',AR:'🇦🇷',AM:'🇦🇲',AU:'🇦🇺',AT:'🇦🇹',AZ:'🇦🇿',BS:'🇧🇸',BH:'🇧🇭',BD:'🇧🇩',BB:'🇧🇧',BY:'🇧🇾',BE:'🇧🇪',BZ:'🇧🇿',BJ:'🇧🇯',BT:'🇧🇹',BO:'🇧🇴',BA:'🇧🇦',BW:'🇧🇼',BR:'🇧🇷',BN:'🇧🇳',BG:'🇧🇬',BF:'🇧🇫',BI:'🇧🇮',CV:'🇨🇻',KH:'🇰🇭',CM:'🇨🇲',CA:'🇨🇦',CF:'🇨🇫',TD:'🇹🇩',CL:'🇨🇱',CN:'🇨🇳',CO:'🇨🇴',KM:'🇰🇲',CG:'🇨🇬',CD:'🇨🇩',CR:'🇨🇷',CI:'🇨🇮',HR:'🇭🇷',CU:'🇨🇺',CY:'🇨🇾',CZ:'🇨🇿',DK:'🇩🇰',DJ:'🇩🇯',DM:'🇩🇲',DO:'🇩🇴',EC:'🇪🇨',EG:'🇪🇬',SV:'🇸🇻',GQ:'🇬🇶',ER:'🇪🇷',EE:'🇪🇪',SZ:'🇸🇿',ET:'🇪🇹',FJ:'🇫🇯',FI:'🇫🇮',FR:'🇫🇷',GA:'🇬🇦',GM:'🇬🇲',GE:'🇬🇪',DE:'🇩🇪',GH:'🇬🇭',GR:'🇬🇷',GD:'🇬🇩',GT:'🇬🇹',GN:'🇬🇳',GW:'🇬🇼',GY:'🇬🇾',HT:'🇭🇹',HN:'🇭🇳',HU:'🇭🇺',IS:'🇮🇸',IN:'🇮🇳',ID:'🇮🇩',IR:'🇮🇷',IQ:'🇮🇶',IE:'🇮🇪',IL:'🇮🇱',IT:'🇮🇹',JM:'🇯🇲',JP:'🇯🇵',JO:'🇯🇴',KZ:'🇰🇿',KE:'🇰🇪',KI:'🇰🇮',KW:'🇰🇼',KG:'🇰🇬',LA:'🇱🇦',LV:'🇱🇻',LB:'🇱🇧',LS:'🇱🇸',LR:'🇱🇷',LY:'🇱🇾',LI:'🇱🇮',LT:'🇱🇹',LU:'🇱🇺',MG:'🇲🇬',MW:'🇲🇼',MY:'🇲🇾',MV:'🇲🇻',ML:'🇲🇱',MT:'🇲🇹',MH:'🇲🇭',MR:'🇲🇷',MU:'🇲🇺',MX:'🇲🇽',FM:'🇫🇲',MD:'🇲🇩',MC:'🇲🇨',MN:'🇲🇳',ME:'🇲🇪',MA:'🇲🇦',MZ:'🇲🇿',MM:'🇲🇲',NA:'🇳🇦',NR:'🇳🇷',NP:'🇳🇵',NL:'🇳🇱',NZ:'🇳🇿',NI:'🇳🇮',NE:'🇳🇪',NG:'🇳🇬',KP:'🇰🇵',MK:'🇲🇰',NO:'🇳🇴',OM:'🇴🇲',PK:'🇵🇰',PW:'🇵🇼',PS:'🇵🇸',PA:'🇵🇦',PG:'🇵🇬',PY:'🇵🇾',PE:'🇵🇪',PH:'🇵🇭',PL:'🇵🇱',PT:'🇵🇹',QA:'🇶🇦',RO:'🇷🇴',RU:'🇷🇺',RW:'🇷🇼',KN:'🇰🇳',LC:'🇱🇨',VC:'🇻🇨',WS:'🇼🇸',SM:'🇸🇲',ST:'🇸🇹',SA:'🇸🇦',SN:'🇸🇳',RS:'🇷🇸',SC:'🇸🇨',SL:'🇸🇱',SG:'🇸🇬',SK:'🇸🇰',SI:'🇸🇮',SB:'🇸🇧',SO:'🇸🇴',ZA:'🇿🇦',KR:'🇰🇷',SS:'🇸🇸',ES:'🇪🇸',LK:'🇱🇰',SD:'🇸🇩',SR:'🇸🇷',SE:'🇸🇪',CH:'🇨🇭',SY:'🇸🇾',TW:'🇹🇼',TJ:'🇹🇯',TZ:'🇹🇿',TH:'🇹🇭',TL:'🇹🇱',TG:'🇹🇬',TO:'🇹🇴',TT:'🇹🇹',TN:'🇹🇳',TR:'🇹🇷',TM:'🇹🇲',TV:'🇹🇻',UG:'🇺🇬',UA:'🇺🇦',AE:'🇦🇪',GB:'🇬🇧',US:'🇺🇸',UY:'🇺🇾',UZ:'🇺🇿',VU:'🇻🇺',VA:'🇻🇦',VE:'🇻🇪',VN:'🇻🇳',YE:'🇾🇪',ZM:'🇿🇲',ZW:'🇿🇼',OTHER:'🌎'};
 /* D-50 (RC2.8.7) SCORE-BASED LEVELS. A level is reached by SCORE. Perfect
    catches still score, but no longer drive the level. Base thresholds for
-   levels 2..9; Hard x1.35. Easy and Medium thresholds follow their point
-   rates (as EASY SCORING did): Easy .75 x EASY_POINTS = .0225, Medium
-   MEDIUM_POINTS / .85 = .235 (TIME SPEED cut both rates), so their levels
-   still come at the same pace per point. MUST stay identical to
+   levels 2..9, times each difficulty's multiplier. FULL POINTS (owner): every
+   difficulty pays the same points per event, so the multipliers only set the
+   level pace (see the PR's numbers). MUST stay identical to
    LEVEL_SCORE_THRESHOLDS / LEVEL_SCORE_MULT in worker.js (D-51 checks it). */
 const LEVEL_SCORE_THRESHOLDS=[2500,6000,10000,15000,21000,28000,36000,45000];
-const LEVEL_SCORE_MULT={easy:.0225,medium:.235,hard:1.35};
+const LEVEL_SCORE_MULT={easy:1.9,medium:1,hard:1.35};
+/* DIFFICULTY WEIGHT (owner): where difficulties are compared -- the ALL board
+   and the country totals -- a score counts at its difficulty's weight (Hard
+   most, Easy least). The server applies it when it ranks; stored scores are
+   the real points. The game uses it only to say what a run adds to the
+   country. MUST stay identical to DIFF_WEIGHT in worker.js. */
+const DIFF_WEIGHT={easy:.03,medium:.18,hard:1};
+function weighted(sc,d){ return Math.round((+sc||0)*(DIFF_WEIGHT[d]||1)); }
 const FLUX_COUNTDOWN_S=3, FLUX_FROM_LEVEL=3;   // FLUX MODE: 3 s announce countdown; it starts from level 3 on every difficulty (SKILL LADDER)
 const LEVEL_COUNTDOWN_S=5, LEVEL_RAMP_S=1;   // level-up: 5 s SPEED UP countdown, then ~1 s difficulty ramp
 function levelScoreAt(lv,d){   // score needed to reach level lv (lv 1 = 0)
@@ -596,18 +602,10 @@ const FLUX_SEASON=1;
         if(changed) localStorage.setItem('fluxPendingSubmits',JSON.stringify(q)); } }
   }catch(e){}
 })();
-/* EASY SCORING: every point won on Easy is scaled by EASY_POINTS (Medium and
-   Hard are untouched). Easy keeps the player alive longer, so without this the
-   same player scored more on Easy than on Medium or Hard, and the leaderboard
-   keeps each player's best across difficulties. Easy's level thresholds
-   (LEVEL_SCORE_MULT.easy = .75 x EASY_POINTS) are scaled the same way, so
-   Easy levels still come at the same pace.
-   TIME SPEED: the ball's speed now follows run time and Easy's is slow, so
-   runs are much longer; x0.4 became x0.03 to keep the same simulated player
-   scoring less on Easy than on Medium and Hard (240 seeded runs each; most
-   Easy events now pay 1 point). */
-const EASY_POINTS=.03;
-function scorePoints(n){ return difficulty==='easy' ? Math.max(1,Math.round(n*EASY_POINTS)) : n; }
+/* FULL POINTS (owner): every difficulty pays the same points per event again
+   (Easy x0.4, Medium x0.85 and the per-difficulty perfect-catch multiplier
+   are gone). Easy < Medium < Hard is kept where difficulties are compared,
+   by DIFF_WEIGHT (above). */
 const DIFFICULTY={easy:{capPhone:3,capPad:5,speed:.82,accel:.82,level:.82,mult:.75},medium:{capPhone:4,capPad:6,speed:1,accel:1,level:1,mult:1},hard:{capPhone:5,capPad:7,speed:1.16,accel:1.12,level:1.16,mult:1.35}};
 function bestKey(){return 'fluxBest_'+difficulty}
 /* MEDIUM ORBS (owner): Medium starts with 5 orbs on phones (was 4), in the
@@ -615,23 +613,6 @@ function bestKey(){return 'fluxBest_'+difficulty}
    one every 4 levels up to the phone limit of 6. iPad already starts with 6
    and is unchanged. Easy and Hard are not touched here. */
 DIFFICULTY.medium.capPhone=5;
-/* MEDIUM POINTS: the points earned on Medium (fusions, danger clears, bonus
-   and growing orbs, perfect paddle hits) are scaled by MEDIUM_POINTS so the
-   same player still scores less on Medium than on Hard with the fuller Medium
-   field (the leaderboard keeps each player's best across difficulties).
-   Simulated players (240 seeded runs each): 0.85 is the largest step of 0.05
-   that keeps Medium below Hard. On Medium an ordinary catch (+2) is not scaled.
-   Levels still come from the score by the table above, checked the same way
-   by the server. Easy and Hard points
-   are not scaled by MEDIUM_POINTS (Easy has its own EASY_POINTS, above).
-   TIME SPEED: Medium runs are now about 3 times longer than Hard runs for
-   the same simulated player, so x0.85 became x0.2, the FLUX MODE bonus is
-   scaled too (+250 would be worth about 40 orb hits), and Medium's level
-   thresholds follow (LEVEL_SCORE_MULT.medium = MEDIUM_POINTS / .85): without
-   that, fewer levels made Medium easier and runs longer, and no rate kept
-   Medium below Hard. An ordinary catch stays +2. */
-const MEDIUM_POINTS=.2;
-function mediumPoints(p){ return difficulty==='medium'?Math.round(p*MEDIUM_POINTS):p; }
 // ---------------------------------------------------------------------------
 // D-09 — BEST-RUN RECORD
 // The score and the level submitted to the leaderboard must come from the SAME
@@ -1279,7 +1260,7 @@ function tickFluxCountdown(dt){
  if(shown>=1 && shown<fluxTickAt){ fluxTickAt=shown; playTick(); }
  if(fluxCountdown<=0) startFluxMode();
 }
-function startFluxMode(){fluxCountdown=0;fluxTickAt=0;flux=0;fluxMode=6;score+=mediumPoints(scorePoints(250));popup(W/2,120,'FLUX MODE','#62eaff');burst(W/2,120,'#62eaff',30);haptic(50);playFlux();flash(.22);shake=Math.min(14,shake+6);updateHud();}
+function startFluxMode(){fluxCountdown=0;fluxTickAt=0;flux=0;fluxMode=6;score+=250;popup(W/2,120,'FLUX MODE','#62eaff');burst(W/2,120,'#62eaff',30);haptic(50);playFlux();flash(.22);shake=Math.min(14,shake+6);updateHud();}
 const MISS_NOTICE_S=2.2, COMBO_TIME_S=2.6;
 function registerMiss(){
  misses++;missFragments.push({x:rand(25,W-25),y:H-24,r:rand(7,12),life:1});
@@ -1388,21 +1369,21 @@ function fuse(t){
  playCount('hit',1);   // GAMEPLAY STATS
  comboTimer=COMBO_TIME_S;
  // Orb value grows only from PERFECT paddle control. Fusions score, but do not inflate the level run.
- const points=scorePoints(Math.round((orbValue + combo*2)*(t.r>23?1.15:1)*(fluxMode>0?1.15:1)));   // EASY SCORING (x0.4 on Easy only)
- score+=mediumPoints(points);   // MEDIUM POINTS (x0.85 on Medium only)
+ const points=Math.round((orbValue + combo*2)*(t.r>23?1.15:1)*(fluxMode>0?1.15:1));
+ score+=points;
  addFlux(8+combo*1.5);
  haptic(14+Math.min(32,combo*2));
  playFusion(combo);
  // Clearing a danger orb (now visibly marked, see draw()) pays a small bonus —
  // rewards playing the field instead of just tracking colors, without touching
  // the level-progress math you tuned.
- if(t.danger){const dp=mediumPoints(scorePoints(15));score+=dp;addFlux(4);burst(t.x,t.y,'#ff4f68',10);popup(t.x,t.y-14,'CLEARED •'+dp,'#ff8fae');}
+ if(t.danger){const dp=15;score+=dp;addFlux(4);burst(t.x,t.y,'#ff4f68',10);popup(t.x,t.y-14,'CLEARED •'+dp,'#ff8fae');}
 
  // The orb changes color after a successful fusion. This creates a deliberate chain:
  // hit the matching color, then immediately hunt the newly required color.
  ball.color=newColor;
  burst(t.x,t.y,colors[t.color],28);
- popup(t.x,t.y,'+'+mediumPoints(points),colors[t.color]);
+ popup(t.x,t.y,'+'+points,colors[t.color]);
  targets.splice(idx,1);
  if(!(difficulty==='easy' && t.growing && easyFieldFull())) addTarget(newColor,t.x+rand(-36,36),t.y+rand(-36,36),Math.min(30,t.r+3));   // EASY ORBS: a fused growing orb is not replaced when the Easy field already has its 5-6 orbs
  // Higher levels create more meaningful choices instead of a single obvious cluster.
@@ -1419,7 +1400,7 @@ function fuse(t){
 // straight reward for going out of your way to grab it before it despawns.
 function popBonus(t){
  const idx=targets.indexOf(t); if(idx<0)return;
- const points=mediumPoints(scorePoints(Math.round(120+combo*10+(fluxMode>0?60:0))));
+ const points=Math.round(120+combo*10+(fluxMode>0?60:0));
  score+=points;
  addFlux(10);
  haptic(30);
@@ -1435,7 +1416,7 @@ function popBonus(t){
 // strong deflection, not a random one, so a skilled player can aim the kick.
 function burstGrowing(t,maxSpeed){
  const idx=targets.indexOf(t); if(idx<0)return;
- const points=mediumPoints(scorePoints(Math.round(200+combo*15+(fluxMode>0?100:0))));
+ const points=Math.round(200+combo*15+(fluxMode>0?100:0));
  score+=points;
  addFlux(18);
  haptic(60);
@@ -1599,7 +1580,7 @@ function speedHelp(){ let k=1; for(let i=0;i<SPEED_HELPS.length;i++) k*=SPEED_HE
    level-up, SPEED UP or FLUX countdown and while a miss notice shows. Every
    step is announced first: the LEVEL box turns amber and counts SPEED UP
    3-2-1 (one countdown at a time with the level-up and FLUX countdowns);
-   then the speed rises over ~1 s. Top: Easy after 6 steps (4.5 min of run
+   then the speed rises over ~1 s. Top: Easy after 5 steps (3.3 min of run
    time), Medium after 7 (3.5 min), Hard after 8 (~3 min).
    SKILL LADDER: reaching level 2 brings the first step if time has not yet
    (never more than that one step ahead of time).
@@ -1615,7 +1596,7 @@ function speedHelp(){ let k=1; for(let i=0;i<SPEED_HELPS.length;i++) k*=SPEED_HE
    kick. FLUX MODE adds no speed on Easy and Medium; on Hard a short burst.
    Nothing is ever above the top speed. */
 const SPEED_CURVE={
-  easy:  {start:2.0,top:1.4,every:45,steps:6,kick:1.015,kickCap:1.04,fluxBurst:1},
+  easy:  {start:1.6,top:1.2, every:40,steps:5,kick:1.015,kickCap:1.04,fluxBurst:1},
   medium:{start:1.4,top:.9, every:30,steps:7,kick:1.025,kickCap:1.08,fluxBurst:1},
   hard:  {start:1.1,top:.7, every:22,steps:8,kick:0,    kickCap:0,   fluxBurst:1.15}
 };
@@ -1765,14 +1746,15 @@ function update(dt){
  } else if(targets.some(t=>t.hint)) targets.forEach(t=>t.hint=false);   // the first-run hint ended below level 5
  // paddle collision: angle determined by hit position
  if(ball.vy>0 && ball.y+ball.r>=paddle.y-paddle.h/2 && ball.y<paddle.y+18 &&
-    ball.x>paddle.x-paddle.w/2-ball.r && ball.x<paddle.x+paddle.w/2+ball.r){
+    ball.x>paddle.x-paddle.w/2-ball.r-catchMargin() && ball.x<paddle.x+paddle.w/2+ball.r+catchMargin()){   // catchMargin() is 0 except a player's first 3 runs
    ball.y=paddle.y-paddle.h/2-ball.r;
-   const hit=(ball.x-paddle.x)/(paddle.w/2);
+   const marginCatch=Math.abs(ball.x-paddle.x)>paddle.w/2+ball.r;   // GENEROUS CATCH: saved by the margin -- no points, never perfect
+   const hit=clampCatchHit((ball.x-paddle.x)/(paddle.w/2));
    const speed=Math.min(maxSpeed,Math.max(7*DIFFICULTY[difficulty].speed,Math.hypot(ball.vx,ball.vy)*1.035));
    const angle= -Math.PI/2 + hit*1.05;
    ball.vx=Math.cos(angle)*speed;ball.vy=Math.sin(angle)*speed;
-   const perfect=Math.abs(hit)<.14;
-   const paddlePoints=scorePoints(perfect?Math.max(2,mediumPoints(Math.round(5*combo*DIFFICULTY[difficulty].mult))):2);   // MEDIUM POINTS: an ordinary catch stays +2 on Medium
+   const perfect=!marginCatch && Math.abs(hit)<.14;
+   const paddlePoints=marginCatch?0:(perfect?Math.max(2,Math.round(5*combo)):2);   // FULL POINTS: the same on every difficulty
    score+=paddlePoints;
    // Paddle hit-feedback: every single contact gets a quick squash + flash,
    // scaled up on a perfect hit. This is the single most frequent moment in
@@ -1783,9 +1765,9 @@ function update(dt){
      comboTimer=Math.max(comboTimer,1.2);
      orbValue=Math.min(42,orbValue + 1);
      burst(ball.x,ball.y,'#ffffff',12);juiceBurst(ball.x,ball.y,colors[ball.color],22);popup(ball.x,ball.y,'PERFECT • ORB +'+orbValue,'#ffffff');flash(.055);shake=Math.min(10,shake+2);haptic(18+Math.min(20,combo));
-   }else{burst(ball.x,ball.y,'#65efff',7);popup(ball.x,ball.y,'+ '+paddlePoints,'#65efff');}
+   }else{burst(ball.x,ball.y,'#65efff',7);if(paddlePoints)popup(ball.x,ball.y,'+ '+paddlePoints,'#65efff');}
    impactHaptic(speed);playPaddleHit((speed-6)/12);
-   addFlux(3+Math.min(5,combo));
+   if(!marginCatch) addFlux(3+Math.min(5,combo));   // a margin catch adds nothing (the FLUX meter leads to points)
    if(targets.length<targetCap())spawnTarget();
    updateHud();
  }
@@ -2570,12 +2552,13 @@ function openLeaderboard(){
     if(data.leadingCountry){
       html+='<div class="lbLeading">'+(countryFlags[data.leadingCountry.country]||'🌎')+' <b>'+data.leadingCountry.country+'</b> is leading with '+data.leadingCountry.playerCount+' pilot'+(data.leadingCountry.playerCount===1?'':'s')+'</div>';
     }
+    if(data.weighted) html+='<div class="lbSectionLabel">ALL DIFFICULTIES \u00b7 WEIGHTED: HARD x1, MEDIUM x'+DIFF_WEIGHT.medium+', EASY x'+DIFF_WEIGHT.easy+'</div>';   // DIFFICULTY WEIGHT
     html+='<div class="lbList">'+data.top.map((r,i)=>{
       const mine=!!myPid && r.pid===myPid;   // A-1: compare hashes, never ids
       return '<div class="lbRow'+(mine?' lbMine':'')+'"><span class="lbRank">#'+(i+1)+'</span><span class="lbFlag">'+(countryFlags[r.country]||'🌎')+'</span><span class="lbName">'+escapeHtml(r.name)+(r.tag?'<small class="lbTag"> #'+escapeHtml(r.tag)+'</small>':'')+'</span><span class="lbScore">'+r.score.toLocaleString()+'</span></div>';
     }).join('')+'</div>';
     if(data.countries&&data.countries.length>1){
-      html+='<div class="lbSectionLabel">TOP COUNTRIES</div><div class="lbList">'+data.countries.slice(0,8).map(c=>{
+      html+='<div class="lbSectionLabel">TOP COUNTRIES (WEIGHTED)</div><div class="lbList">'+data.countries.slice(0,8).map(c=>{
         return '<div class="lbRow"><span class="lbFlag">'+(countryFlags[c.country]||'🌎')+'</span><span class="lbName">'+c.country+'</span><span class="lbScore">'+c.totalScore.toLocaleString()+'</span></div>';
       }).join('')+'</div>';
     }
@@ -3119,11 +3102,14 @@ function storedBestScore(d){
   try{ const r=JSON.parse(localStorage['fluxBestRun_'+d]||'null'); if(r && Number.isFinite(r.score)) return r.score; }catch(e){}
   return +localStorage['fluxBest_'+d]||0;
 }
-// A country's total counts each pilot ONCE, at their single best score across
-// all difficulties (worker.js recomputeCountries). Only beating THAT adds to it.
+// A country's total counts each pilot ONCE, at their single best WEIGHTED score
+// across all difficulties (worker.js recomputeCountries, DIFF_WEIGHT). Only
+// beating THAT adds to it.
 function overallBestScore(){
-  return Math.max(0, ...['easy','medium','hard'].map(storedBestScore));
+  return Math.max(0, ...['easy','medium','hard'].map(function(d){ return weighted(storedBestScore(d),d); }));
 }
+// What this run adds to the country (weighted), 0 if nothing.
+function runAdds(sc,prevOverall){ const w=weighted(sc,difficulty); return (profileComplete && sc>0 && w>prevOverall) ? w-prevOverall : 0; }
 /* D-57: the score is the headline; ONE line says what it meant. */
 function gameOverLine(sc,prevBest,prevOverall){
   const c=countryLabel(country);
@@ -3131,8 +3117,8 @@ function gameOverLine(sc,prevBest,prevOverall){
   const first=isNew ? 'NEW BEST!' : (sc===prevBest ? 'Tied your best' : (prevBest-sc).toLocaleString()+' from your best');
   let second;
   if(!profileComplete) second='Add your name to count for '+c.flag;
-  else if(sc>0 && sc>prevOverall) second=c.flag+' +'+(sc-prevOverall).toLocaleString()+' for '+c.name;
-  else second='Beat '+Math.max(prevOverall,sc).toLocaleString()+' to add to '+c.flag;
+  else if(runAdds(sc,prevOverall)>0) second=c.flag+' +'+runAdds(sc,prevOverall).toLocaleString()+' for '+c.name;   // weighted, as in the country total
+  else second='Beat '+Math.max(sc,Math.ceil(prevOverall/(DIFF_WEIGHT[difficulty]||1))).toLocaleString()+' to add to '+c.flag;   // in this difficulty's real points
   return { isNew:isNew, first:first, second:second };
 }
 function showGameOverLine(sc,prevBest,prevOverall){
@@ -3464,11 +3450,27 @@ async function openRestoreConfirm(id,info){
 }
 
 /* SAME RULES FOR EVERY PLAYER (owner): every run posts to the leaderboard,
-   so nothing in speed, catching or scoring depends on a player's history or
-   past performance. The generous catch (first 3 runs), the first-run slow
-   start and the comeback ease were removed; the fixed in-run RECOVERY after a
-   lost ball (see TIME SPEED) is the same for everyone. Teaching hints (the
-   first-run colour hint, "Slide anywhere") stay: they change nothing in play. */
+   so nothing in speed or scoring depends on a player's history or past
+   performance. The first-run slow start and the comeback ease were removed;
+   the fixed in-run RECOVERY after a lost ball (see TIME SPEED) is the same for
+   everyone. Teaching hints (the first-run colour hint, "Slide anywhere") stay.
+   GENEROUS CATCH (the one exception, owner): in a player's first 3 runs, on
+   every difficulty, the launcher also catches the ball up to 8px beyond each
+   end. Such a catch bounces like an edge hit, is never a perfect catch and
+   adds nothing: no points, no FLUX meter. It never changes speed. */
+const CATCH_MARGIN_PX=8, CATCH_FIRST_RUNS=3;
+let generousCatchOn=false;
+function catchMargin(){ return generousCatchOn ? CATCH_MARGIN_PX : 0; }
+function clampCatchHit(h){ if(!generousCatchOn) return h; const m=1+ball.r/(paddle.w/2); return Math.max(-m,Math.min(m,h)); }   // margin catches bounce like the launcher's end
+function generousCatchFor(runsDone){ return runsDone<CATCH_FIRST_RUNS; }
+(function(){
+  const newGame0=newGame;
+  newGame=function(){
+    let runsDone=0; try{ runsDone=+localStorage.getItem('fluxRunsPlayed')||0; }catch(e){}
+    generousCatchOn=generousCatchFor(runsDone);
+    return newGame0.apply(this,arguments);
+  };
+})();
 
 /* D-36 (RC2.8.3): the restore code lives inside EDIT, not in the main menu.
    The link under the name editor has two jobs:
@@ -3723,7 +3725,7 @@ function drawShareCard(info){
 }
 function prepareShare(sc,prevOverall){
   shareFile=null;
-  shareInfo={ score:sc, added:(profileComplete && sc>0 && sc>prevOverall) ? sc-prevOverall : 0, country:country };
+  shareInfo={ score:sc, added:runAdds(sc,prevOverall), country:country };
   const btn=document.getElementById('shareBtn'); if(btn){ btn.textContent='📤 SHARE MY SCORE'; btn.classList.toggle('hidden', !(sc>0)); }
   try{ const cv=drawShareCard(shareInfo); shareCanvas=cv;   // kept until encoded, so it cannot be garbage-collected mid-encode
     if(cv.toBlob) cv.toBlob(function(b){ shareCanvas=null; try{ if(b) shareFile=new File([b],'flux-score.jpg',{type:'image/jpeg'}); }catch(e){} },'image/jpeg',.9); }catch(e){}   // JPEG: several times faster to encode than PNG
@@ -3749,7 +3751,7 @@ function copyShare(t,btn){
   endGame=function(){ try{ prepareShare(score,overallBestScore()); }catch(e){} return endGame0.apply(this,arguments); };
   // ...and make sure it matches the numbers the game-over line uses.
   const show0=showGameOverLine;
-  showGameOverLine=function(sc,prevBest,prevOverall){ const r=show0.apply(this,arguments); if(!shareInfo || shareInfo.score!==sc || shareInfo.country!==country || shareInfo.added!==((profileComplete && sc>0 && sc>prevOverall) ? sc-prevOverall : 0)) prepareShare(sc,prevOverall); return r; };
+  showGameOverLine=function(sc,prevBest,prevOverall){ const r=show0.apply(this,arguments); if(!shareInfo || shareInfo.score!==sc || shareInfo.country!==country || shareInfo.added!==runAdds(sc,prevOverall)) prepareShare(sc,prevOverall); return r; };
 })();
 
 /* D-49: iPhone keeps Safari and the Home Screen app in separate storage, so a

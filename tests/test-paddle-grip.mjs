@@ -93,7 +93,7 @@ function suite(html, quiet = false) {
 
   try {
     const b = bootGame(); b.g.ctx.newGame();
-    ck('K1 catch width, catch test and scoring unchanged', b.run('paddle.w') === 132 && /ball\.x>paddle\.x-paddle\.w\/2-ball\.r/.test(html) && /function paddleWidthFor\(lv\)\{ return Math\.max\(isPhone\(\)\?96:112,\(isPhone\(\)\?132:150\)-\(lv-1\)\*4\); \}/.test(html) && /const perfect=Math\.abs\(hit\)<\.14;/.test(html));
+    ck('K1 catch width, catch test and scoring unchanged', b.run('paddle.w') === 132 && /ball\.x>paddle\.x-paddle\.w\/2-ball\.r/.test(html) && /function paddleWidthFor\(lv\)\{ return Math\.max\(isPhone\(\)\?96:112,\(isPhone\(\)\?132:150\)-\(lv-1\)\*4\); \}/.test(html) && /const perfect=(?:!marginCatch && )?Math\.abs\(hit\)<\.14;/.test(html));
     b.run('playing=true; texts=[]; popup(W/2,150,"COMBO HALVED","#8da0c8"); texts[0].y=40;');
     const rec = record(b); b.g.ctx.draw();
     const t = rec.texts.find((x) => x.t === 'COMBO HALVED'), top = b.run('maxHudBottom()');

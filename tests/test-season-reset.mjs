@@ -144,7 +144,7 @@ async function suite({ gameHtml, workerMod, adminHtml, quiet = false }) {
     ck('S3 every pilot kept: same ids, names, countries, dates', same && Object.keys(stored).length === ids.length);
 
     ck('S4 country figures recomputed: none left after the reset', Array.isArray(all.countries) && all.countries.length === 0 && Object.keys(await storage.get('countries')).length === 0, JSON.stringify(all.countries));
-    const s1 = await S.submit(P(1), 3000, 'medium');
+    const s1 = await S.submit(P(1), 3000, 'hard')   // Hard: weight 1, so the ALL board and country show the real 3,000;
     const after = await S.board();
     const us = after.countries.find((c) => c.country === 'US');
     ck('S4 a Season 1 score counts alone (country total = that score, one player)', s1.status === 200 && after.countries.length === 1 && us && us.totalScore === 3000 && us.playerCount === 1, JSON.stringify(after.countries));
@@ -155,7 +155,7 @@ async function suite({ gameHtml, workerMod, adminHtml, quiet = false }) {
     const inst = S.env.LEADERBOARD_DO._instances.get('global'); inst.ready = false;       // second load of the same object
     const again = await S.board();
     S.env.restart();                                                                    // DO restart: new object, same storage
-    const again2 = await S.board('medium');
+    const again2 = await S.board('hard');
     const a2 = await archiveOf(storage);
     ck('S5 a second load and a restart do not wipe Season 1 scores', again.top.length === 1 && again.top[0].score === 3000 && again2.top.length === 1 && again2.top[0].score === 3000);
     ck('S5 ...and never archive again (archive unchanged, no extra writes)', a2.meta.archivedAt === archivedAt && a2.players.length === players.length && storage.puts === puts, (storage.puts - puts) + ' writes');

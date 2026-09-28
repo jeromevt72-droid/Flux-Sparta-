@@ -20,7 +20,7 @@ const scriptsOf = (h) => [...h.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)]
 async function suite(gameHtml, quiet = false) {
   let F = 0; const failed = [];
   const ck = (l, c, x = '') => { if (!quiet) console.log((c ? '  PASS  ' : '  FAIL  ') + l + (x !== '' ? '  [' + x + ']' : '')); if (!c) { F++; failed.push(l); } };
-  const bootGame = (extra = {}) => { const { store } = makeStore(Object.assign({ fluxPlayerId: 'pid-SECRET-123', fluxCallsign: 'MARIA', fluxProfileComplete: '1', fluxCountry: 'PH' }, extra));
+  const bootGame = (extra = {}) => { const { store } = makeStore(Object.assign({ fluxPlayerId: 'pid-SECRET-123', fluxCallsign: 'MARIA', fluxProfileComplete: '1', fluxCountry: 'PH', fluxDifficulty: 'hard' }, extra));   // Hard: weight 1, so 'added' is in real points (DIFFICULTY WEIGHT)
     const g = boot(scriptsOf(gameHtml), { origin: 'https://flux.example', path: '/play/', store }); return { g, run: (c) => vm.runInContext(c, g.ctx) }; };
   try {
     { const { g, run } = bootGame();

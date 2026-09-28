@@ -6,12 +6,11 @@
 //   M3 long seeded Medium games on small phones, iPhone and iPad: the 10px orb
 //      gap holds, orbs stay above the launcher area, the ball always has a
 //      matching orb;
-//   M4 Medium points are scaled by 0.2 (TIME SPEED; was 0.85: fusion, danger,
-//      bonus, overload, perfect paddle hit and now the FLUX MODE bonus; an
-//      ordinary catch stays +2) and the popups show the scaled value; Hard
-//      points and thresholds are unchanged; Medium's thresholds follow its
-//      point rate (x0.235 = 0.2/0.85), page = server; the factor never
-//      applies on Easy or Hard;
+//   M4 FULL POINTS (owner): Medium pays the same points per event as Hard and
+//      Easy (fusion, danger, bonus, overload, FLUX MODE, perfect and plain
+//      catch; the x0.85 and the per-difficulty perfect-catch factor are gone),
+//      the popups show those points; Medium and Hard thresholds are the table
+//      x1 and x1.35, page = server;
 //   M5 Hard keeps empty space: 5 orbs on phones and 6 on iPad at every level,
 //      never more than before or than Medium; seeded Hard (and Easy) games are
 //      frame-for-frame the same as without the Medium code.
@@ -112,24 +111,20 @@ function suite(gameHtml, quiet = false) {
       run('fluxMode=0; flux=100;'); s0 = run('score'); g.ctx.startFluxMode(); o.flux = run('score') - s0;   // FLUX MODE +250: scaled on Medium (TIME SPEED)
       Math.random = realRandom; return o;
     };
-    const pm = pts('medium'), ph = pts('hard');
-    const run0 = (c) => bootGame('medium', 80).run(c);
-    // Raw points (no difficulty factor): fusion (40+4*2)=48 (combo 3 -> 4 on the hit) + danger 15, bonus 120+2*10=140, overload 200+2*15=230, FLUX MODE 250.
+    const pm = pts('medium'), ph = pts('hard'), pe = pts('easy');
+    // Raw points: fusion (40+4*2)=48 (combo 3 -> 4 on the hit) + danger 15, bonus 120+2*10=140, overload 200+2*15=230, FLUX MODE 250.
     const raw = { fuse: 48 + 15, bonus: 140, grow: 230, flux: 250 };
-    const scaled = { fuse: Math.round(48 * .2) + Math.round(15 * .2), bonus: Math.round(140 * .2), grow: Math.round(230 * .2), flux: Math.round(250 * .2) };
-    ck('M4 Medium points are x0.2 (FLUX MODE +250 too): ' + JSON.stringify(pm).replace(/"popups":"[^"]*",?/, ''), pm.fuse === scaled.fuse && pm.bonus === scaled.bonus && pm.grow === scaled.grow && pm.flux === scaled.flux);
-    ck('M4 ...the fusion and danger popups show the scaled points (' + pm.popups + ')', pm.popups.includes('+' + Math.round(48 * .2)) && pm.popups.includes('CLEARED •' + Math.round(15 * .2)));
-    ck('M4 Hard points are unchanged', ['fuse', 'bonus', 'grow', 'flux'].every((k) => ph[k] === raw[k]) && ph.popups.includes('+48') && ph.popups.includes('CLEARED •15'));
-    // Easy's points belong to Easy's own scoring (a separate change); here only: the Medium factor never touches Easy.
-    ck('M4 the Medium factor does not apply on Easy', run0("typeof mediumPoints==='function'") && bootGame('easy', 79).run('mediumPoints(1000)') === 1000 && bootGame('hard', 79).run('mediumPoints(1000)') === 1000 && bootGame('medium', 79).run('mediumPoints(1000)') === 200);
+    ck('M4 Medium, Hard and Easy pay the same full points: ' + JSON.stringify(pm).replace(/"popups":"[^"]*",?/, ''), ['fuse', 'bonus', 'grow', 'flux'].every((k) => pm[k] === raw[k] && ph[k] === raw[k] && pe[k] === raw[k]));
+    ck('M4 ...the fusion and danger popups show those points (' + pm.popups + ')', pm.popups.includes('+48') && pm.popups.includes('CLEARED •15'));
+    ck('M4 no per-difficulty point factor is left in the code', !/function mediumPoints|function scorePoints|MEDIUM_POINTS|EASY_POINTS|DIFFICULTY\[difficulty\]\.mult/.test(gameHtml));
     const perfectPts = (d) => { const { g, run } = bootGame(d, 78); g.ctx.newGame();
       run('combo=4; comboTimer=5; targets=[]; ball.vx=0; ball.vy=6; ball.x=paddle.x; ball.y=paddle.y-ball.r-2;'); const s0 = run('score');
       for (let i = 0; i < 3 && run('score') === s0; i++) g.ctx.update(1 / 60);
       const r = run('score') - s0; Math.random = realRandom; return r; };
-    const ppm = perfectPts('medium'), pph = perfectPts('hard');
-    ck('M4 a perfect paddle hit: Medium ' + ppm + ' (x0.2 of 20), Hard ' + pph + ' (unchanged 5*4*1.35)', ppm === Math.round(20 * .2) && pph === Math.round(5 * 4 * 1.35));
+    const pp = ['easy', 'medium', 'hard'].map(perfectPts);
+    ck('M4 a perfect paddle hit pays 5 x combo on every difficulty (' + pp.join(' / ') + ')', pp.every((x) => x === 20));
     const tbl = (src) => (src.match(/LEVEL_SCORE_MULT\s*=\s*\{[^}]*\}/) || [''])[0].replace(/\s|0(?=\.)/g, '');
-    ck('M4 Hard level thresholds unchanged, Medium\'s follow its point rate (x0.235), page = server (' + tbl(gameHtml) + ')', /medium:\.235,hard:1\.35\}$/.test(tbl(gameHtml)) && /const MEDIUM_POINTS=\.2;/.test(gameHtml) && tbl(WORKER) === tbl(gameHtml) && /const SCORE_CEILING = 455_000;/.test(WORKER));
+    ck('M4 Medium and Hard level thresholds are the table x1 and x1.35 (as before), page = server (' + tbl(gameHtml) + ')', /medium:1,hard:1\.35\}$/.test(tbl(gameHtml)) && tbl(WORKER) === tbl(gameHtml) && /const SCORE_CEILING = 455_000;/.test(WORKER));
     /* M5 Hard unchanged (and Easy untouched by the Medium code) */
     const capBad = [];
     for (const d of ['hard']) for (const [w, h] of SIZES) for (let lv = 1; lv <= 9; lv++) {
@@ -171,15 +166,13 @@ control('Medium iPad cut to 5 (fewer than before)', 'M1', rep('DIFFICULTY.medium
 control('an extra colour on the Medium start field', 'M2', rep('   const color=i%coloursInPlay();\n   // Deliberately', '   const color=i===4?4:i%coloursInPlay();\n   // Deliberately'));
 control('an extra colour after a miss', 'M2', rep(' for(let i=0;i<targetCap();i++){\n   const [x,y]=safeSpawnPoint(isPhone()?18:22);\n   const color=i%coloursInPlay();', ' for(let i=0;i<targetCap();i++){\n   const [x,y]=safeSpawnPoint(isPhone()?18:22);\n   const color=i===1?colors.length-1:i%coloursInPlay();'));
 control('orb gap off (orbs may touch)', 'M3', rep('const ORB_GAP=10;', 'const ORB_GAP=0;'));
-control('Medium points not scaled', 'M4', rep('const MEDIUM_POINTS=.2;', 'const MEDIUM_POINTS=1;'));
-control('Medium FLUX MODE bonus unscaled again', 'M4', rep('score+=mediumPoints(scorePoints(250));', 'score+=scorePoints(250);'));
-control('fusion popup shows the unscaled points', 'M4', rep("popup(t.x,t.y,'+'+mediumPoints(points),colors[t.color]);", "popup(t.x,t.y,'+'+points,colors[t.color]);"));
-control('perfect paddle points not scaled', 'M4', rep('Math.max(2,mediumPoints(Math.round(5*combo*DIFFICULTY[difficulty].mult)))', 'Math.max(2,Math.round(5*combo*DIFFICULTY[difficulty].mult))'));
-control('Medium level table no longer follows its point rate', 'M4', rep('medium:.235,hard:1.35};', 'medium:1,hard:1.35};'));
+control('Medium points cut again (x0.85)', 'M4', rep(' const points=Math.round((orbValue + combo*2)*(t.r>23?1.15:1)*(fluxMode>0?1.15:1));', " const points=Math.round((orbValue + combo*2)*(t.r>23?1.15:1)*(fluxMode>0?1.15:1)*(difficulty==='medium'?.85:1));"));
+control('perfect paddle points scaled by difficulty again', 'M4', rep('Math.max(2,Math.round(5*combo))', 'Math.max(2,Math.round(5*combo*DIFFICULTY[difficulty].mult))'));
+control('fusion popup differs from the points', 'M4', rep("popup(t.x,t.y,'+'+points,colors[t.color]);", "popup(t.x,t.y,'+'+Math.round(points*.85),colors[t.color]);"));
+control('Medium level table changed', 'M4', rep('medium:1,hard:1.35};', 'medium:.85,hard:1.35};'));
 control('Hard grows with level again', 'M5', rep("if(difficulty==='hard') return isPhone()?d.capPhone:d.capPad;", ''));
 control('Hard back to 7 orbs on iPad', 'M5', rep('DIFFICULTY.hard.capPad=6;', 'DIFFICULTY.hard.capPad=7;'));
 control('Hard given more orbs too', 'M5', rep('DIFFICULTY.medium.capPhone=5;', 'DIFFICULTY.medium.capPhone=5;DIFFICULTY.hard.capPhone=6;'));
-control('Hard points scaled too', 'M5', rep("return difficulty==='medium'?Math.round(p*MEDIUM_POINTS):p;", "return difficulty!=='easy'?Math.round(p*MEDIUM_POINTS):p;"));
 const total = main.F + NC;
 console.log('\n' + (total ? 'MEDIUM ORBS FAILED: ' + main.F + ' check(s), ' + NC + ' uncaught control(s)' : 'MEDIUM ORBS PASSED: all checks and all negative controls'));
 process.exit(total ? 1 : 0);

@@ -93,7 +93,7 @@ async function suite(gameHtml, quiet = false) {
     no.classList = { add: (c) => { if (c === 'hidden') noVis = false; }, remove: (c) => { if (c === 'hidden') noVis = true; }, contains: () => false, toggle() {} };
     b.g.ctx.refreshInstallButtons();
     ck('N1 brand-new player: nothing offered before playing', b.vis.btn === false && b.mem.fluxInstallOffers === undefined);
-    b.endRun(50, 1);   // Easy level 2 is 56 points (TIME SPEED Easy rate), so 50 is level 1
+    b.endRun(700, 1);
     ck('N2 a first run that is not a good run (level 1, no earlier best): no offer, not used up', b.vis.btn === false && b.mem.fluxInstallOffers === undefined);
     b.g.ctx.newGame(); b.endRun(0, 1);
     ck('N6 a zero-point run: no offer', b.vis.btn === false && b.mem.fluxInstallOffers === undefined);
@@ -108,11 +108,11 @@ async function suite(gameHtml, quiet = false) {
     ck('N4 ...the next run takes it away', b.vis.btn === false);
     b.endRun(12000, 3);
     ck('N4 ...and never a third time', b.vis.btn === false && b.mem.fluxInstallOffers === '2');
-    const pb = bootGame({ fluxRunsPlayed: '2', fluxBestRun_easy: JSON.stringify({ score: 40, level: 1 }) }, { ios: true });
-    pb.endRun(50, 1);   // Easy level 2 is 56 (TIME SPEED Easy rate), so 50 is still level 1
+    const pb = bootGame({ fluxRunsPlayed: '2', fluxBestRun_easy: JSON.stringify({ score: 500, level: 1 }) }, { ios: true });
+    pb.endRun(700, 1);   // Easy level 2 is 4,750 (FULL POINTS thresholds), so 700 is still level 1
     ck('N5 a new personal best over an earlier one counts as a good run', pb.vis.btn === true);
-    const nb = bootGame({ fluxRunsPlayed: '2', fluxBestRun_easy: JSON.stringify({ score: 53, level: 1 }) }, { ios: true });
-    nb.endRun(50, 1);
+    const nb = bootGame({ fluxRunsPlayed: '2', fluxBestRun_easy: JSON.stringify({ score: 740, level: 1 }) }, { ios: true });
+    nb.endRun(700, 1);
     ck('N5 ...a run below the best at level 1 does not', nb.vis.btn === false);
     const st = bootGame({ fluxRunsPlayed: '3' }, { ios: true, standalone: true }); st.endRun(9000, 3);
     ck('N7 already installed: never offered, not used up', st.vis.btn === false && st.mem.fluxInstallOffers === undefined);

@@ -1,7 +1,7 @@
 // AUDIT FIXES A-1..A-4 — runs the REAL worker.js end to end, and the REAL game
 // page for the "your row" hash, and checks the two implementations agree.
 import worker, { LeaderboardDO } from "./FLUX-Sparta/worker.js";
-import { levelFor } from './level-rule.mjs';   // RC2.8.7: D-51 fixture levels
+import { levelFor, weighted } from './level-rule.mjs';   // RC2.8.7: D-51 fixture levels
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -137,7 +137,7 @@ console.log("\n== A-3: FLUX IDs are cleaned and filtered on the server ==");
     const pid = "33333333-aaaa-4bbb-8ccc-" + String(100000000000 + (i++)).slice(-12);
     await submit(env, pid, input, 1000 + i);
     const lb = await call(env, "/api/leaderboard?limit=100");
-    const row = lb.data.top.find(r => r.score === 1000 + i);
+    const row = lb.data.top.find(r => r.points === 1000 + i);
     ck(label, row && row.name === (want === PRESET ? presetNameForId(pid) : want), row && row.name);
   }
   // Innocent one-word names that a careless filter would block.
@@ -148,14 +148,14 @@ console.log("\n== A-3: FLUX IDs are cleaned and filtered on the server ==");
     const pid = "44444444-aaaa-4bbb-8ccc-" + String(200000000000 + (i++)).slice(-12);
     await submit(env, pid, nm, 2000 + i);
     const lb = await call(env, "/api/leaderboard?limit=100");
-    const row = lb.data.top.find(r => r.score === 2000 + i);
+    const row = lb.data.top.find(r => r.points === 2000 + i);
     if (!row || row.name !== nm) blocked.push(nm + "->" + (row && row.name));
   }
   ck("innocent names are NOT blocked ("+innocent.length+" checked)", blocked.length===0, blocked.join(", "));
-  ck("a blocked name still records the score (shown as PILOT)", (await call(env,"/api/leaderboard?limit=100")).data.top.some(r=>r.name==="PILOT" && r.score>1000));
+  ck("a blocked name still records the score (shown as PILOT)", (await call(env,"/api/leaderboard?limit=100")).data.top.some(r=>r.name==="PILOT" && r.points>1000));
   const pre = "55555555-aaaa-4bbb-8ccc-000000000001";
   await submit(env, pre, "swift comet 42", 3001);
-  ck("a valid preset sent by the player is kept as chosen (typed in lower case)", (await call(env,"/api/leaderboard?limit=100")).data.top.some(r=>r.name==="SWIFT COMET 42" && r.score===3001));
+  ck("a valid preset sent by the player is kept as chosen (typed in lower case)", (await call(env,"/api/leaderboard?limit=100")).data.top.some(r=>r.name==="SWIFT COMET 42" && r.points===3001));
 }
 
 console.log("\n== A-3: entries stored BEFORE the filter are cleaned on the way out ==");
@@ -191,7 +191,7 @@ console.log("\n== PILOT NAMES: old name text that breaks the rules is erased fro
   ck("a stored name that breaks the rules is erased from storage (player record and review note)", !raw.includes("JOHN SMITH") && raw.includes(presetNameForId(PID_B)), raw.slice(0, 120));
   ck("a stored name that follows the rules is kept", raw.includes("NOVA7"));
   const lb = await call(env, "/api/leaderboard?limit=25");
-  ck("the board shows the switched pilot's preset", lb.data.top.some(r => r.name === presetNameForId(PID_B) && r.score === 9999));
+  ck("the board shows the switched pilot's preset", lb.data.top.some(r => r.name === presetNameForId(PID_B) && r.points === 9999));
 }
 
 console.log("\n== A-2: admin actions -- locked without the password ==");
@@ -223,7 +223,7 @@ console.log("\n== A-2: admin actions -- find and remove, keeping the privacy pro
   ck("find by partial FLUX ID works", found.status===200 && found.data.matches.length===1 && found.data.matches[0].name===TN);
   ck("find never returns a playerId", !found.raw.includes(PID_A) && !("playerId" in found.data.matches[0]));
   const before = (await call(env, "/api/leaderboard")).data.countries.find(c=>c.country==="PH");
-  ck("before: PH has 2 players, 7000 points", before.playerCount===2 && before.totalScore===7000);
+  ck("before: PH has 2 players, 7000 points (Medium, weighted)", before.playerCount===2 && before.totalScore===weighted(4000)+weighted(3000));
 
   const bad = await call(env, "/api/admin/remove-score", { method:"POST", body:{ pid:"not-a-hash" }, headers:H });
   ck("malformed entry id -> 400", bad.status===400);
@@ -234,9 +234,9 @@ console.log("\n== A-2: admin actions -- find and remove, keeping the privacy pro
   ck("remove succeeds", out.status===200 && out.data.removed.name===TN);
   const after = await call(env, "/api/leaderboard");
   ck("the removed pilot is gone from the leaderboard", !after.data.top.some(r=>r.name===TN));
-  ck("the other pilot is untouched", after.data.top.some(r=>r.name===NV && r.score===3000));
+  ck("the other pilot is untouched", after.data.top.some(r=>r.name===NV && r.points===3000));
   const ph = after.data.countries.find(c=>c.country==="PH");
-  ck("country totals rebuilt: PH now 1 player, 3000 points", ph.playerCount===1 && ph.totalScore===3000, JSON.stringify(ph));
+  ck("country totals rebuilt: PH now 1 player, 3000 points (Medium, weighted)", ph.playerCount===1 && ph.totalScore===weighted(3000), JSON.stringify(ph));
   const ent = await call(env, "/api/entitlements?playerId="+PID_A);
   ck("purchases KEPT by default (skins not taken away)", ent.data.skus.includes("solar"));
 

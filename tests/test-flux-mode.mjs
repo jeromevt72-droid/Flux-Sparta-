@@ -4,8 +4,8 @@
 //      and only then does FLUX MODE start;
 //   X2 during the countdown nothing speeds up and points are normal: no FLUX
 //      speed limit, no +250, no screen filter, a fusion scores like normal play;
-//   X3 once it starts: 6 s, the +250 bonus once (x0.03 on Easy, x0.2 on Medium:
-//      their point rates), screen filter, meter back to 0; FLUX MODE is a reward,
+//   X3 once it starts: 6 s, the +250 bonus once (every difficulty: FULL POINTS),
+//      screen filter, meter back to 0; FLUX MODE is a reward,
 //      not a speed-up (TIME SPEED): no extra ball speed on Easy and Medium, a
 //      short burst on Hard (x1.15, never above Hard's top speed);
 //   X4 every difficulty below level 3 (SKILL LADDER): the meter fills and stays
@@ -94,7 +94,7 @@ function suite(gameHtml, quiet = false) {
       x2.push({ diff, ok: limOk && filterOk && scoreOk && modeDuring === 0 && nb.run('fluxCountdown') > 0 && gainCd === gainRef, info: diff + ': limit same ' + limOk + ', filter off ' + filterOk + ', score same ' + scoreOk + ', fusion ' + gainCd + ' vs ' + gainRef });
       // X3: once running.
       const lim1 = b.run('normalMaxSpeed()'), top = b.run('topSpeed()'), mode = b.run('fluxMode'), gain = b.run('score') - s0, fl = b.run('flux'), filt = b.run("String(document.getElementById('app').style.filter)");
-      const limWant = diff === 'hard' ? Math.min(top, lim0 * 1.15) : lim0, bonus = { easy: 8, medium: 50, hard: 250 }[diff];
+      const limWant = diff === 'hard' ? Math.min(top, lim0 * 1.15) : lim0, bonus = 250;   // FULL POINTS: the same on every difficulty
       frame(b); const filt2 = b.run("String(document.getElementById('app').style.filter)");
       let dur = 0; for (let i = 0; i < 600 && b.run('fluxMode') > 0; i++) { frame(b); dur += 1 / 60; }
       x3.push({ diff, ok: mode > 6 - 1.5 / 60 && mode <= 6 && gain === bonus && Math.abs(lim1 - limWant) < 1e-9 && lim1 <= top + 1e-9 && fl === 0 && filt2 === 'brightness(1.18) saturate(1.35)' && Math.abs(dur + 1 / 60 - 6) < .03, info: diff + ': ' + [mode.toFixed(3), '+' + gain, 'limit ' + (lim1 / lim0).toFixed(3) + 'x', 'meter ' + fl, filt2, dur.toFixed(2) + ' s'].join(', ') });
@@ -102,7 +102,7 @@ function suite(gameHtml, quiet = false) {
     }
     ck('X1 every difficulty: a full meter announces "FLUX MODE" with STARTS IN 3-2-1 (a tick each second) before it starts', x1.every((r) => r.ok), x1.map((r) => r.info).join(' | '));
     ck('X2 during the countdown nothing speeds up, no filter, no +250, a fusion scores like normal play', x2.every((r) => r.ok), x2.map((r) => r.info).join(' | '));
-    ck('X3 once started: 6 s, the +250 bonus once (8 on Easy, 50 on Medium: their point rates), screen filter, meter back to 0; no extra ball speed on Easy and Medium, a x1.15 burst on Hard never above its top', x3.every((r) => r.ok), x3.map((r) => r.info).join(' | '));
+    ck('X3 once started: 6 s, the +250 bonus once (every difficulty), screen filter, meter back to 0; no extra ball speed on Easy and Medium, a x1.15 burst on Hard never above its top', x3.every((r) => r.ok), x3.map((r) => r.info).join(' | '));
     // X4: every difficulty, levels 1 and 2: the meter fills and stays full; no FLUX MODE for 20 s (run clock held: no speed step either).
     { const res = [];
       for (const diff of ['easy', 'medium', 'hard']) for (const lv of [1, 2]) { const b = bootGame(diff); b.run('playing=true;' + atLv(lv)); frame(b); const lim0 = b.run('normalMaxSpeed()');
@@ -122,11 +122,11 @@ function suite(gameHtml, quiet = false) {
           info: diff + ': level-up pending ' + lvCd + ', level 3 at ' + (tLevel / 60).toFixed(2) + ' s, announce at ' + (tAnnounce / 60).toFixed(2) + ' s, start at ' + (tStart / 60).toFixed(2) + ' s' }); }
       ck('X5 every difficulty: reaching level 3 with a full meter announces FLUX MODE, then it starts after the 3-2-1', res.every((r) => r.ok), res.map((r) => r.info).join(' | ')); }
     // X6: FLUX MODE's own effects in the code.
-    ck('X6 FLUX MODE effects: no speed on Easy/Medium (fluxBurst 1), Hard x1.15 capped at the top, orb x1.15, fusion +60, overload +100, 6 s, +250 at the difficulty\'s rate, filter',
+    ck('X6 FLUX MODE effects: no speed on Easy/Medium (fluxBurst 1), Hard x1.15 capped at the top, orb x1.15, fusion +60, overload +100, 6 s, +250, filter',
       /easy:\s*\{[^}]*fluxBurst:1\}/.test(code) && /medium:\{[^}]*fluxBurst:1\}/.test(code) && /hard:\s*\{[^}]*fluxBurst:1\.15\}/.test(code)
       && code.includes('return (fluxMode>6-FLUX_BURST_S && c.fluxBurst>1) ? Math.min(topSpeed(),s*c.fluxBurst) : s;') && !/18\.5/.test(code)
-      && code.includes('*(fluxMode>0?1.15:1)));') && code.includes('120+combo*10+(fluxMode>0?60:0)') && code.includes('200+combo*15+(fluxMode>0?100:0)')
-      && /flux=0;fluxMode=6;score\+=mediumPoints\(scorePoints\(250\)\);/.test(code) && code.includes("if(fluxMode>0){fluxMode-=dt;document.getElementById('app').style.filter='brightness(1.18) saturate(1.35)';"));
+      && code.includes('*(fluxMode>0?1.15:1));') && code.includes('120+combo*10+(fluxMode>0?60:0)') && code.includes('200+combo*15+(fluxMode>0?100:0)')
+      && /flux=0;fluxMode=6;score\+=250;/.test(code) && code.includes("if(fluxMode>0){fluxMode-=dt;document.getElementById('app').style.filter='brightness(1.18) saturate(1.35)';"));
     // X7: one countdown at a time. (Level 4 adds spawns, so it is set 15 s after the last speed step: DIFFICULTY BUDGET.)
     { const a = bootGame('medium'); a.run('playing=true;' + atLv(3) + 'lastStepClock=runClock-15;score=levelScoreAt(4,difficulty);'); frame(a); const lvPending = a.run('pendingLevel');
       a.run('addFlux(100);'); let fluxDuringLevel = false; for (let i = 0; i < 400 && a.run('pendingLevel'); i++) { frame(a); if (a.run('pendingLevel') && (a.run('fluxCountdown') > 0 || a.run('fluxMode') > 0)) fluxDuringLevel = true; }
@@ -179,8 +179,8 @@ control('old behaviour: FLUX MODE starts the moment the meter is full', 'X1', re
 control('countdown with no announcement on screen', 'X1', rep('else if(fluxCountdown>0){', 'else if(false){'));
 control('countdown too short (1 s)', 'X1', rep('const FLUX_COUNTDOWN_S=3,', 'const FLUX_COUNTDOWN_S=1,'));
 control('ball speeds up during the countdown (Hard burst early)', 'X2', rep('return (fluxMode>6-FLUX_BURST_S && c.fluxBurst>1)', 'return ((fluxMode>6-FLUX_BURST_S||fluxCountdown>0) && c.fluxBurst>1)'));
-control('FLUX bonus points during the countdown', 'X2', rep('*(fluxMode>0?1.15:1)));', '*((fluxMode>0||fluxCountdown>0)?1.15:1)));'));
-control('FLUX MODE shorter once running', 'X3', rep('flux=0;fluxMode=6;score+=mediumPoints(scorePoints(250));', 'flux=0;fluxMode=5;score+=mediumPoints(scorePoints(250));'));
+control('FLUX bonus points during the countdown', 'X2', rep('*(fluxMode>0?1.15:1));', '*((fluxMode>0||fluxCountdown>0)?1.15:1));'));
+control('FLUX MODE shorter once running', 'X3', rep('flux=0;fluxMode=6;score+=250;', 'flux=0;fluxMode=5;score+=250;'));
 control('FLUX MODE speeds the ball up on Medium again', 'X3', rep('medium:{start:1.4,top:.9, every:30,steps:7,kick:1.025,kickCap:1.08,fluxBurst:1}', 'medium:{start:1.4,top:.9, every:30,steps:7,kick:1.025,kickCap:1.08,fluxBurst:1.15}'));
 control('FLUX MODE old top speed 18.5 back', 'X3', rep('return (fluxMode>6-FLUX_BURST_S && c.fluxBurst>1) ? Math.min(topSpeed(),s*c.fluxBurst) : s;', 'return fluxMode>0 ? 18.5 : s;'));
 control('level-3 rule removed (FLUX MODE from level 1)', 'X4', rep('function fluxModeAllowed(){ return level>=FLUX_FROM_LEVEL; }', 'function fluxModeAllowed(){ return true; }'));

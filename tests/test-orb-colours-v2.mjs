@@ -80,7 +80,7 @@ function suite(gameHtml, quiet = false) {
   const pins = ['if(dist(ball,t)<ball.r+t.r){', 'ball.x>paddle.x-paddle.w/2-ball.r && ball.x<paddle.x+paddle.w/2+ball.r){', 'ball={x:W/2,y:paddle.y-28,r:13,', 'const perfect=Math.abs(hit)<.14;',
     "addTarget(color,x,y,isPhone()?16+Math.random()*5:18+Math.random()*6);", 'function paddleWidthFor(lv){ return Math.max(isPhone()?96:112,(isPhone()?132:150)-(lv-1)*4); }'];
   // The generous catch for new players (separate PR) adds catchMargin() to the launcher test; it is 0 outside a player's first runs.
-  const norm = code.split('-catchMargin() && ').join(' && ').split('+catchMargin()){').join('){').split('clampCatchHit((ball.x-paddle.x)/(paddle.w/2))').join('(ball.x-paddle.x)/(paddle.w/2)');
+  const norm = code.split('-catchMargin() && ').join(' && ').split('+catchMargin()){').join('){').split('clampCatchHit((ball.x-paddle.x)/(paddle.w/2))').join('(ball.x-paddle.x)/(paddle.w/2)').split('const perfect=!marginCatch && ').join('const perfect=');   // a margin catch is never perfect
   const missing = pins.filter((p) => !norm.includes(p));
   ck('V6 hit areas and physics unchanged (collision tests, radii, launcher width, perfect zone)', missing.length === 0, missing.join(' | ').slice(0, 160));
   return { F, failed };

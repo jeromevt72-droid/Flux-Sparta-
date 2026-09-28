@@ -88,12 +88,12 @@ async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = fals
     const b = bootGame({ fluxPlayerId: 'lv-1', fluxCallsign: 'TITAN', fluxProfileComplete: '1', fluxDifficulty: 'medium' });
     const T = b.run('JSON.stringify(LEVEL_SCORE_THRESHOLDS)'), M = b.run('JSON.stringify(LEVEL_SCORE_MULT)');
     ck('L1 Medium thresholds for levels 2-9 are 2500 6000 10000 15000 21000 28000 36000 45000', T === '[2500,6000,10000,15000,21000,28000,36000,45000]', T);
-    ck('L1 Easy x0.0225 and Medium x0.235 (their point rates, TIME SPEED), Hard x1.35', M === '{"easy":0.0225,"medium":0.235,"hard":1.35}', M);
+    ck('L1 Easy x1.9 (FULL POINTS: Easy runs are longer), Medium x1, Hard x1.35', M === '{"easy":1.9,"medium":1,"hard":1.35}', M);
     const lf = (s, d) => b.g.ctx.levelForScore(s, d);
-    ck('L1 edges: Medium 587->1, 588->2, 10574->8, 10575->9, 10M->9', lf(587, 'medium') === 1 && lf(588, 'medium') === 2 && lf(10574, 'medium') === 8 && lf(10575, 'medium') === 9 && lf(1e7, 'medium') === 9);
-    ck('L1 edges: Easy 55->1, 56->2, 1012->8, 1013->9; Hard 3374->1, 3375->2, 60750->9',
-      lf(55, 'easy') === 1 && lf(56, 'easy') === 2 && lf(1012, 'easy') === 8 && lf(1013, 'easy') === 9 && lf(3374, 'hard') === 1 && lf(3375, 'hard') === 2 && lf(60750, 'hard') === 9);
-    ck('L1 the game uses the same table as the server fixtures (level-rule.mjs)', [0, 55, 56, 587, 588, 749, 750, 1013, 1874, 1875, 2500, 6209, 10575, 13500, 9999, 26423, 44999, 45000, 60750, 99999].every((s) => ['easy', 'medium', 'hard'].every((d) => lf(s, d) === levelFor(s, d))));
+    ck('L1 edges: Medium 2499->1, 2500->2, 44999->8, 45000->9, 10M->9', lf(2499, 'medium') === 1 && lf(2500, 'medium') === 2 && lf(44999, 'medium') === 8 && lf(45000, 'medium') === 9 && lf(1e7, 'medium') === 9);
+    ck('L1 edges: Easy 4749->1, 4750->2, 85499->8, 85500->9; Hard 3374->1, 3375->2, 60750->9',
+      lf(4749, 'easy') === 1 && lf(4750, 'easy') === 2 && lf(85499, 'easy') === 8 && lf(85500, 'easy') === 9 && lf(3374, 'hard') === 1 && lf(3375, 'hard') === 2 && lf(60750, 'hard') === 9);
+    ck('L1 the game uses the same table as the server fixtures (level-rule.mjs)', [0, 749, 750, 1874, 1875, 2500, 4750, 13500, 9999, 26423, 44999, 45000, 60750, 85500, 99999].every((s) => ['easy', 'medium', 'hard'].every((d) => lf(s, d) === levelFor(s, d))));
 
     b.g.ctx.newGame(); b.flush();
     let ticks = 0, levelUps = 0; b.g.ctx.playTick = () => { ticks++; }; b.g.ctx.playLevelUp = () => { levelUps++; };
@@ -105,11 +105,11 @@ async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = fals
       const before = b.run('score'); b.g.ctx.update(0.016); if (b.run('score') > before && b.run('ball.vy') < 0) perfects++;
     }
     ck('L2 perfect catches still score', perfects === 20 && b.run('score') > 0, perfects + ' catches, score ' + b.run('score'));
-    ck('L2 ...but no longer drive the level', b.run('level') === 1 && b.run('pendingLevel') === 0 && b.run('score') < 588 && !/levelPoints/.test(CODE));
-    b.run('score=580;');
+    ck('L2 ...but no longer drive the level', b.run('level') === 1 && b.run('pendingLevel') === 0 && b.run('score') < 2500 && !/levelPoints/.test(CODE));
+    b.run('score=2400;');
     b.g.ctx.checkScoreLevel();
     ck('L2 below the threshold: still level 1, no countdown', b.run('level') === 1 && b.run('pendingLevel') === 0);
-    b.run('score=588;'); b.g.ctx.checkScoreLevel();
+    b.run('score=2500;'); b.g.ctx.checkScoreLevel();
     ck('L3 at the threshold: level-up starts (banner + sound), level not yet changed', b.run('pendingLevel') === 2 && b.run('level') === 1 && b.run('levelBanner') > 0 && levelUps === 1);
     // banner draws NEXT LEVEL: 2
     const texts = []; b.run('ctx').fillText = (t) => { texts.push(String(t)); };
@@ -126,8 +126,8 @@ async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = fals
     const sp0 = b.run('speedLevel'); b.g.ctx.tickLevelUp(0.5); const sp1 = b.run('speedLevel'); b.g.ctx.tickLevelUp(0.5); const sp2 = b.run('speedLevel');
     ck('L5 speed rises smoothly over ~1 s (1 -> 1.5 -> 2), never in one jump', sp0 === 1 && Math.abs(sp1 - 1.5) < 1e-9 && sp2 === 2, [sp0, sp1, sp2].join(' -> '));
     ck('L5 the ball\'s speed limit follows run time (TIME SPEED), not the level or this ramp', /function normalMaxSpeed\(\)\{[^\n]*crossingTimeAt\(speedShown\)\*fieldSlow\(\)/.test(CODE) && !/function normalMaxSpeed\(\)\{[^\n]*(speedLevel|level)[^\n]*\n/.test(CODE));
-    b.run('score=999;'); b.g.ctx.updateHud();
-    ck('L6 the LEVEL bar shows progress to the next level (999 of 588..1,410 = 50%)', String(b.el('levelProgress').style.width) === '50%', b.el('levelProgress').style.width);
+    b.run('score=4250;'); b.g.ctx.updateHud();
+    ck('L6 the LEVEL bar shows progress to the next level (4,250 of 2,500..6,000 = 50%)', String(b.el('levelProgress').style.width) === '50%', b.el('levelProgress').style.width);
     b.run('runClock=lastStepClock+15;');   // level 4 adds spawns, so it waits 10 s of run time after a speed step (DIFFICULTY BUDGET): run time is set 15 s past the last step (no new step due)
     b.run('score=50000;'); b.g.ctx.checkScoreLevel();
     ck('L7 a big jump still goes one level at a time', b.run('pendingLevel') === 3);
@@ -135,26 +135,26 @@ async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = fals
     ck('L7 ...then the next countdown starts', b.run('level') === 3 && b.run('pendingLevel') === 4);
     // recorded + uploaded level = the level the score reaches
     const r = bootGame({ fluxPlayerId: 'lv-2', fluxCallsign: 'TITAN', fluxProfileComplete: '1', fluxDifficulty: 'medium' });
-    r.g.ctx.newGame(); r.run('score=6209; level=2;'); r.g.ctx.endGame(); r.flush(); await new Promise((ok) => setTimeout(ok, 30));
+    r.g.ctx.newGame(); r.run('score=26423; level=2;'); r.g.ctx.endGame(); r.flush(); await new Promise((ok) => setTimeout(ok, 30));
     const rec = JSON.parse(r.mem.fluxBestRun_medium || '{}');
-    ck('L8 the saved best carries the level its score reaches (6,209 -> 6)', rec.score === 6209 && rec.level === 6, JSON.stringify(rec));
+    ck('L8 the saved best carries the level its score reaches (26,423 -> 6)', rec.score === 26423 && rec.level === 6, JSON.stringify(rec));
     ck('L8 ...and that is what is uploaded', r.bodies.length > 0 && r.bodies.at(-1).level === 6, JSON.stringify(r.bodies.at(-1) || {}));
     const o = bootGame({ fluxPlayerId: 'lv-3', fluxCallsign: 'OLD', fluxProfileComplete: '1',
-      fluxBest_medium: '6209', fluxBestLevel_medium: '2', fluxBestRun_medium: JSON.stringify({ score: 6209, level: 2, difficulty: 'medium', playerId: 'lv-3', at: 1 }),
-      fluxPendingSubmits: JSON.stringify([{ id: 'q', playerId: 'lv-3', name: 'OLD', score: 6209, level: 2, difficulty: 'medium', attempts: 0 }]) });
+      fluxBest_medium: '26423', fluxBestLevel_medium: '2', fluxBestRun_medium: JSON.stringify({ score: 26423, level: 2, difficulty: 'medium', playerId: 'lv-3', at: 1 }),
+      fluxPendingSubmits: JSON.stringify([{ id: 'q', playerId: 'lv-3', name: 'OLD', score: 26423, level: 2, difficulty: 'medium', attempts: 0 }]) });
     ck('L9 bests saved by older versions get the level their score reaches (so the server accepts them)', JSON.parse(o.mem.fluxBestRun_medium).level === 6 && o.mem.fluxBestLevel_medium === '6' && JSON.parse(o.mem.fluxPendingSubmits)[0].level === 6);
-    ck('L9 ...and the scores themselves are untouched', JSON.parse(o.mem.fluxBestRun_medium).score === 6209 && o.mem.fluxBest_medium === '6209');
+    ck('L9 ...and the scores themselves are untouched', JSON.parse(o.mem.fluxBestRun_medium).score === 26423 && o.mem.fluxBest_medium === '26423');
   } catch (e) { ck('D-50 section ran', false, String(e.stack || e).slice(0, 300)); }
 
   /* ================= D-51 ================= */
   sec('D-51: the server checks level against score');
   try {
     const w = workerMod.default, env = makeEnv(workerMod.LeaderboardDO);
-    ck('S1 a real run at its own level is accepted (Medium 6,209 at 6)', (await submit(w, env, { score: 6209, level: 6, difficulty: 'medium' })) === 200);
-    ck('S1 one level either side is allowed (5 and 7)', (await submit(w, env, { score: 6209, level: 5, difficulty: 'medium' })) === 200 && (await submit(w, env, { score: 6209, level: 7, difficulty: 'medium' })) === 200);
-    ck('S2 two levels off is refused (4 and 8)', (await submit(w, env, { score: 6209, level: 4, difficulty: 'medium' })) === 422 && (await submit(w, env, { score: 6209, level: 8, difficulty: 'medium' })) === 422);
-    ck('S3 the difficulty scales it: Easy 33,750 is level 9, Hard 33,750 is level 7',
-      (await submit(w, env, { score: 33750, level: 9, difficulty: 'easy' })) === 200 && (await submit(w, env, { score: 33750, level: 9, difficulty: 'hard' })) === 422 && (await submit(w, env, { score: 33750, level: 7, difficulty: 'hard' })) === 200);
+    ck('S1 a real run at its own level is accepted (Medium 26,423 at 6)', (await submit(w, env, { score: 26423, level: 6, difficulty: 'medium' })) === 200);
+    ck('S1 one level either side is allowed (5 and 7)', (await submit(w, env, { score: 26423, level: 5, difficulty: 'medium' })) === 200 && (await submit(w, env, { score: 26423, level: 7, difficulty: 'medium' })) === 200);
+    ck('S2 two levels off is refused (4 and 8)', (await submit(w, env, { score: 26423, level: 4, difficulty: 'medium' })) === 422 && (await submit(w, env, { score: 26423, level: 8, difficulty: 'medium' })) === 422);
+    ck('S3 the difficulty scales it: 33,750 is level 5 on Easy (x1.9), level 7 on Hard',
+      (await submit(w, env, { score: 33750, level: 5, difficulty: 'easy' })) === 200 && (await submit(w, env, { score: 33750, level: 9, difficulty: 'easy' })) === 422 && (await submit(w, env, { score: 33750, level: 9, difficulty: 'hard' })) === 422 && (await submit(w, env, { score: 33750, level: 7, difficulty: 'hard' })) === 200);
     ck('S4 the old attack shape (huge score at a low level) is refused', (await submit(w, env, { score: 4999999, level: 1, difficulty: 'hard' })) === 422);
     ck('S5 other checks kept: level 10 -> 400, score above MAX -> 400, bad id -> 400',
       (await submit(w, env, { score: 60000, level: 10, difficulty: 'medium' })) === 400 && (await submit(w, env, { score: 5000001, level: 9, difficulty: 'medium' })) === 400 &&
@@ -167,7 +167,7 @@ async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = fals
     const pid = 'rc287-cool'; await submit(w, env, { playerId: pid, score: 100, level: 1 }); skew -= 19000;
     ck('S5 ...and the submit cooldown', (await submit(w, env, { playerId: pid, score: 200, level: 1 })) === 429);
     const wt = (workerSrc.match(/const LEVEL_SCORE_THRESHOLDS = (\[[^\]]*\])/) || [])[1];
-    ck('S6 server and game use the same thresholds and multipliers', wt && JSON.stringify(JSON.parse(wt)) === JSON.stringify(RULE_T) && /LEVEL_SCORE_MULT = \{ easy: 0\.0225, medium: 0\.235, hard: 1\.35 \}/.test(workerSrc) && JSON.stringify(RULE_M) === '{"easy":0.0225,"medium":0.235,"hard":1.35}');
+    ck('S6 server and game use the same thresholds and multipliers', wt && JSON.stringify(JSON.parse(wt)) === JSON.stringify(RULE_T) && /LEVEL_SCORE_MULT = \{ easy: 1\.9, medium: 1, hard: 1\.35 \}/.test(workerSrc) && JSON.stringify(RULE_M) === '{"easy":1.9,"medium":1,"hard":1.35}');
   } catch (e) { ck('D-51 section ran', false, String(e.stack || e).slice(0, 300)); }
 
   /* ================= D-52 ================= */
@@ -269,16 +269,21 @@ async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = fals
   try {
     const go = gameHtml.slice(gameHtml.indexOf('<div id="gameover"'), gameHtml.indexOf('<div class="gameoverModes">'));
     ck('G1 the three headlines are gone (FLUX OVERLOAD / THE FLOW BROKE / FLUX COLLAPSE)', !/OVERLOAD|THE FLOW BROKE|FLUX COLLAPSE|<h1/.test(go) && /class="goScore" id="finalScore"/.test(go) && (go.match(/class="goLine"/g) || []).length === 1);
-    const b = bootGame({ fluxPlayerId: 'go-1', fluxCallsign: 'MARIA', fluxProfileComplete: '1', fluxCountry: 'PH', fluxDifficulty: 'medium',
-      fluxBest_medium: '3000', fluxBestRun_medium: JSON.stringify({ score: 3000, level: 2, difficulty: 'medium', playerId: 'go-1', at: 1 }),
-      fluxBest_easy: '4000', fluxBestRun_easy: JSON.stringify({ score: 4000, level: 4, difficulty: 'easy', playerId: 'go-1', at: 1 }) });
+    // DIFFICULTY WEIGHT: the country counts each pilot's best WEIGHTED score (Hard x1, Medium x0.18, Easy x0.03).
+    // Playing Hard (weight 1); the counted best is the Medium 22,222 (= 4,000 weighted).
+    const b = bootGame({ fluxPlayerId: 'go-1', fluxCallsign: 'MARIA', fluxProfileComplete: '1', fluxCountry: 'PH', fluxDifficulty: 'hard',
+      fluxBest_hard: '3000', fluxBestRun_hard: JSON.stringify({ score: 3000, level: 1, difficulty: 'hard', playerId: 'go-1', at: 1 }),
+      fluxBest_medium: '22222', fluxBestRun_medium: JSON.stringify({ score: 22222, level: 6, difficulty: 'medium', playerId: 'go-1', at: 1 }) });
     const L = (a, p, o) => { const r = b.g.ctx.gameOverLine(a, p, o); return r.first + ' · ' + r.second; };
     ck('G2 new best that raises the country total: "NEW BEST! · 🇵🇭 +1,000 for Philippines"', L(5000, 3000, 4000) === 'NEW BEST! · 🇵🇭 +1,000 for Philippines', L(5000, 3000, 4000));
     ck('G3 new best that does not beat the pilot\'s counted best: "Beat 8,000 to add to 🇵🇭"', L(5000, 3000, 8000) === 'NEW BEST! · Beat 8,000 to add to 🇵🇭', L(5000, 3000, 8000));
     ck('G4 not a best: "<n> from your best"', L(2500, 3000, 4000) === '500 from your best · Beat 4,000 to add to 🇵🇭', L(2500, 3000, 4000));
     b.g.ctx.newGame(); b.run('score=5000;'); b.g.ctx.endGame(); b.flush();
     const html = String(b.el('goLine').innerHTML);
-    ck('G5 a real game over shows it (counted best is the Easy 4,000 -> +1,000)', /NEW BEST!/.test(html) && html.includes('🇵🇭 +1,000 for Philippines') && String(b.el('finalScore').textContent) === (5000).toLocaleString(), html);
+    ck('G5 a real game over shows it (counted best is the Medium 22,222 = 4,000 weighted -> +1,000)', /NEW BEST!/.test(html) && html.includes('🇵🇭 +1,000 for Philippines') && String(b.el('finalScore').textContent) === (5000).toLocaleString(), html);
+    const m = bootGame({ fluxPlayerId: 'go-2', fluxCallsign: 'MARIA', fluxProfileComplete: '1', fluxCountry: 'PH', fluxDifficulty: 'medium' });
+    const Lm = (a, p, o) => { const r = m.g.ctx.gameOverLine(a, p, o); return r.first + ' · ' + r.second; };
+    ck('G6 weighted on Medium (x0.18): 27,778 (= 5,000 weighted) over a counted 4,000 adds +1,000; 15,000 must beat 22,223', Lm(27778, 3000, 4000) === 'NEW BEST! · 🇵🇭 +1,000 for Philippines' && Lm(15000, 3000, 4000) === 'NEW BEST! · Beat 22,223 to add to 🇵🇭', Lm(27778, 3000, 4000) + ' | ' + Lm(15000, 3000, 4000));
   } catch (e) { ck('D-57 section ran', false, String(e.stack || e).slice(0, 300)); }
 
   /* ================= D-58 ================= */
@@ -422,7 +427,8 @@ await control('v2 faint orb symbols again', { expect: 'K6', game: rep("function 
 await control('v2 ball without its symbol', { expect: 'K7', game: rep("orbSymbol(ball.x,ball.y,ball.r*1.2,colors[ball.color],glyphs[ball.color%glyphs.length]);}", "}") });
 // D-57
 await control('D-57 old headlines back', { expect: 'G1', game: rep('  <div class="goScore" id="finalScore">0</div>', '  <h1 style="font-size:38px">FLUX<br>OVERLOAD</h1>\n  <div class="goScore" id="finalScore">0</div>') });
-await control('D-57 country gain counted against this difficulty only', { expect: 'G', game: rep('else if(sc>0 && sc>prevOverall) second=c.flag+\' +\'+(sc-prevOverall).toLocaleString()', 'else if(sc>0 && sc>prevBest) second=c.flag+\' +\'+(sc-prevBest).toLocaleString()') });
+await control('D-57 country gain counted against this difficulty only', { expect: 'G', game: rep("else if(runAdds(sc,prevOverall)>0) second=c.flag+' +'+runAdds(sc,prevOverall).toLocaleString()", "else if(sc>0 && sc>prevBest) second=c.flag+' +'+(sc-prevBest).toLocaleString()") });
+await control('D-57 country gain not weighted', { expect: 'G6', game: rep('function weighted(sc,d){ return Math.round((+sc||0)*(DIFF_WEIGHT[d]||1)); }', 'function weighted(sc,d){ return Math.round(+sc||0); }') });
 await control('D-57 no "from your best"', { expect: 'G4', game: rep("(prevBest-sc).toLocaleString()+' from your best'", "'GAME OVER'") });
 // D-58
 await control('D-58 Playing-for line never shown', { expect: 'F1', game: rep("  b.classList.remove('hidden');\n}\ndocument.getElementById('playingFor').onclick", "}\ndocument.getElementById('playingFor').onclick") });
