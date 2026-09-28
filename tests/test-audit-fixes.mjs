@@ -275,7 +275,8 @@ console.log("\n== admin page is safe on its own ==");
   const a = fs.readFileSync(path.join(__dirname,"FLUX-Sparta","public","admin.html"),"utf8");
   const js = [...a.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map(m=>m[1]).join("\n");
   ck("noindex", /<meta name="robots" content="noindex,nofollow">/.test(a));
-  ck("no manifest (not part of the app)", !/<link rel="manifest"/.test(a));
+  // FLUX COMMAND: the admin page installs as its OWN Home Screen app -- never with the player game's manifest.
+  ck("only its own manifest (FLUX COMMAND), never the game's", /<link rel="manifest" href="\/admin\.webmanifest">/.test(a) && (a.match(/<link rel="manifest"/g) || []).length === 1 && !/manifest\.webmanifest/.test(a));
   ck("no service worker registration", !/serviceWorker/.test(js));
   ck("never touches player storage", !/localStorage|sessionStorage|indexedDB/.test(js));
   ck("never writes data with innerHTML", !/innerHTML/.test(js));

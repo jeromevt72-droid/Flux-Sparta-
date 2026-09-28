@@ -108,6 +108,12 @@ export default {
           return withCors(await verifySession(request, env));
         }
         if (request.method === "POST" && path.startsWith("/api/admin/")) {
+          // FLUX COMMAND: login/logout have their own checks; every other admin
+          // route first passes the gate (lockout + session), then requireAdmin.
+          if (path === "/api/admin/login") return adminOut(await commandLogin(request, env));
+          if (path === "/api/admin/logout") return adminOut(await commandLogout(request, env));
+          const gated = await commandGate(request, env);
+          if (gated) return adminOut(gated);
           const admin = {
             "/api/admin/find-player":       () => adminFind(request, env),
             "/api/admin/remove-score":      () => adminPidAction(request, env, "/admin-remove-score"),
@@ -125,11 +131,11 @@ export default {
             "/api/admin/issue-restore-code": () => adminIssueRestore(request, env),   // D-37
             "/api/admin/analytics":          () => adminAnalytics(request, env),     // STATS dashboard data
             "/api/admin/season-archive":     () => adminDO(request, env, "/admin-season-archive", {}),   // SEASON 1: archived Season 0 scores, read-only
+            "/api/admin/session":            () => adminSession(request, env),       // FLUX COMMAND: "am I still logged in?"
+            "/api/admin/summary":            () => adminSummary(request, env),       // FLUX COMMAND: owner summary, one request
           }[path];
-          if (admin) return withCors(await admin());
-        }
-        if (path === "/api/admin/import-kv" && request.method === "POST") {
-          return withCors(await importFromKV(request, env));
+          if (admin) return adminOut(await admin());
+          if (path === "/api/admin/import-kv") return adminOut(await importFromKV(request, env));
         }
         if (path === "/api/stripe-webhook" && request.method === "POST") {
           // No CORS: Stripe calls this server-to-server.
@@ -339,16 +345,10 @@ const IMPORT_BATCH = 200;
  * POST /api/admin/import-kv          -> imports
  * POST /api/admin/import-kv?dryRun=1 -> reports what it would do
  *
- * Requires header: x-admin-token: <ADMIN_TOKEN secret>
+ * Requires header: x-admin-token: <ADMIN_TOKEN secret> (or a FLUX COMMAND login session)
  */
 async function importFromKV(request, env) {
-  if (!env.ADMIN_TOKEN) {
-    return json({ error: "ADMIN_TOKEN is not configured" }, 500);
-  }
-  const supplied = request.headers.get("x-admin-token") || "";
-  if (!timingSafeEqual(supplied, env.ADMIN_TOKEN)) {
-    return json({ error: "Unauthorized" }, 401);
-  }
+  const denied = requireAdmin(request, env); if (denied) return denied;   // FLUX COMMAND: the header or a login session
   if (!env.LEADERBOARD) {
     return json({ error: "Old KV namespace (LEADERBOARD) is not bound — nothing to import from" }, 400);
   }
@@ -846,9 +846,181 @@ function cleanName(raw) {
    never sees a playerId. */
 function requireAdmin(request, env) {
   if (!env.ADMIN_TOKEN) return json({ error: "ADMIN_TOKEN is not configured" }, 500);
+  if (COMMAND_AUTHED.has(request)) return null;   // FLUX COMMAND: a valid login session, checked by commandGate
   const supplied = request.headers.get("x-admin-token") || "";
   if (!timingSafeEqual(supplied, env.ADMIN_TOKEN)) return json({ error: "Unauthorized" }, 401);
   return null;
+}
+/* ------------------------------------------------------------------ */
+/* FLUX COMMAND: admin login session, lockout, owner summary           */
+/* ------------------------------------------------------------------ */
+/* The admin page (installable as the "FLUX COMMAND" Home Screen app) used to
+   send the password with every request. It now logs in once:
+   POST /api/admin/login checks the password (constant time) and returns a
+   random session token (256 bits from crypto.getRandomValues) in a cookie that
+   is HttpOnly (page scripts cannot read it), Secure, SameSite=Strict (never sent
+   from another site) and Path=/api/admin (never sent anywhere else). Only the
+   token's SHA-256 is stored, in its own Durable Object instance ("admin-auth"),
+   so a copy of that storage cannot be replayed as a login.
+   EXPIRY: 30 minutes without an admin request (idle) and 12 hours after login
+   at most (absolute) -- an evening of admin work without logging in again, but
+   a lost phone or a shared laptop is not an open door for long.
+   CSRF: SameSite=Strict, plus every cookie request must carry X-FLUX-Admin: 1,
+   a header another site cannot add without a CORS preflight, which this API
+   never allows for that header.
+   The x-admin-token header still works (owner tools, the import script, the
+   tests). It is a custom header already, so it needs no X-FLUX-Admin, but its
+   wrong guesses count towards the same lockout.
+   LOCKOUT: 5 wrong passwords from one client within 15 minutes lock that client
+   for 15 minutes (429 + Retry-After). A client is a SHA-256 of CF-Connecting-IP
+   mixed with the secret; the raw IP is never stored.
+   GLOBAL SAFETY: 50 wrong passwords from all clients within 15 minutes switch
+   on a 15-minute safety mode in which ONE wrong password locks a client. Other
+   people's guesses never lock the owner out: a client that has not failed can
+   still log in, and sessions already logged in keep working.
+   RECOVERY: wait 15 minutes; or change ADMIN_TOKEN in the Cloudflare dashboard
+   (Workers & Pages > flux-sparta-3 > Settings > Variables and Secrets). Every
+   session and lock is tied to a fingerprint of the current secret, so a new
+   secret ends all sessions and clears all locks at once. The failed-login log
+   (time and a short client code; never a password or an IP) is kept. */
+const COMMAND_COOKIE = "flux_admin";
+const COMMAND_IDLE_MS = 30 * 60 * 1000;
+const COMMAND_MAX_MS = 12 * 3600 * 1000;
+const COMMAND_LOCK_MS = 15 * 60 * 1000;          // lockout window AND lock length
+const COMMAND_CLIENT_FAILS = 5;
+const COMMAND_GLOBAL_FAILS = 50;
+const COMMAND_MAX_SESSIONS = 20;
+const COMMAND_ALERTS_KEPT = 200;
+const COMMAND_AUTHED = new WeakMap();            // request -> session info, set only by commandGate
+async function sha256Hex(s) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(s)));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+async function commandDO(env, path, body) {
+  const stub = env.LEADERBOARD_DO.get(env.LEADERBOARD_DO.idFromName("admin-auth"));
+  const r = await stub.fetch("https://do.internal" + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  return (await r.json().catch(() => null)) || { ok: false, error: "auth unavailable" };
+}
+async function commandIds(request, env) {
+  const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+  return {
+    fp: (await sha256Hex("flux-command-fp:" + env.ADMIN_TOKEN)).slice(0, 16),
+    client: (await sha256Hex("flux-command-client:" + env.ADMIN_TOKEN + ":" + ip)).slice(0, 32),   // never the raw IP
+  };
+}
+function readCookie(request, name) {
+  for (const part of (request.headers.get("Cookie") || "").split(";")) {
+    const i = part.indexOf("=");
+    if (i > 0 && part.slice(0, i).trim() === name) return part.slice(i + 1).trim();
+  }
+  return "";
+}
+function newCommandToken() {
+  const b = new Uint8Array(32);
+  crypto.getRandomValues(b);                     // 256 bits
+  return btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function commandCookie(token, maxAgeSec) {
+  return COMMAND_COOKIE + "=" + token + "; Path=/api/admin; HttpOnly; Secure; SameSite=Strict; Max-Age=" + maxAgeSec;
+}
+const commandCsrfOk = (request) => request.headers.get("X-FLUX-Admin") === "1";
+function commandLocked(r) {
+  const sec = Math.max(1, Math.ceil(Number(r.retryAfter) || COMMAND_LOCK_MS / 1000)), min = Math.ceil(sec / 60);
+  return json({ error: "Too many wrong passwords. Locked for " + min + " min.", locked: true, retryAfter: sec, minutes: min },
+    429, { "Retry-After": String(sec) });
+}
+const commandUnavailable = () => json({ error: "Login is unavailable right now. Try again in a minute." }, 503);
+
+async function commandLogin(request, env) {
+  if (!commandCsrfOk(request)) return json({ error: "Missing X-FLUX-Admin header" }, 403);
+  if (!env.ADMIN_TOKEN) return json({ error: "ADMIN_TOKEN is not configured" }, 500);
+  if (!env.LEADERBOARD_DO) return json({ error: "Login storage is not configured (missing LEADERBOARD_DO binding)" }, 500);
+  const b = (await readJsonObject(request)) || {};
+  const password = typeof b.password === "string" ? b.password.slice(0, 512) : "";
+  const ok = password !== "" && timingSafeEqual(password, env.ADMIN_TOKEN);
+  const { fp, client } = await commandIds(request, env);
+  const token = ok ? newCommandToken() : "";
+  const r = await commandDO(env, "/auth-attempt", { fp, client, ok, hash: ok ? await sha256Hex(token) : "" });
+  if (r.locked) return commandLocked(r);
+  if (r.error) return commandUnavailable();
+  if (!r.ok) return json({ error: "Wrong password.", attemptsLeft: r.attemptsLeft }, 401);
+  return json({ ok: true, idleMinutes: COMMAND_IDLE_MS / 60000, expiresAt: r.expiresAt, maxAt: r.maxAt }, 200,
+    { "Set-Cookie": commandCookie(token, COMMAND_MAX_MS / 1000) });
+}
+async function commandLogout(request, env) {
+  if (!commandCsrfOk(request)) return json({ error: "Missing X-FLUX-Admin header" }, 403);
+  const tok = readCookie(request, COMMAND_COOKIE);
+  if (tok && env.ADMIN_TOKEN && env.LEADERBOARD_DO) {
+    const { fp } = await commandIds(request, env);
+    await commandDO(env, "/auth-logout", { fp, hash: await sha256Hex(tok) });
+  }
+  return json({ ok: true }, 200, { "Set-Cookie": commandCookie("", 0) });
+}
+/* Runs before every other /api/admin/* route. It never lets a request through
+   on its own: requireAdmin, in each admin function, still decides. It only
+   (a) counts x-admin-token guesses towards the lockout and refuses locked
+   clients, and (b) turns a valid session cookie into COMMAND_AUTHED. */
+async function commandGate(request, env) {
+  if (!env.ADMIN_TOKEN || !env.LEADERBOARD_DO) return null;   // requireAdmin answers
+  const supplied = request.headers.get("x-admin-token");
+  const tok = readCookie(request, COMMAND_COOKIE);
+  if (!supplied && !tok) return null;                            // requireAdmin answers 401
+  const { fp, client } = await commandIds(request, env);
+  if (supplied) {
+    const r = await commandDO(env, "/auth-attempt", { fp, client, ok: timingSafeEqual(supplied, env.ADMIN_TOKEN) });
+    if (r.locked) return commandLocked(r);
+    if (r.error) return commandUnavailable();
+    if (!r.ok) return json({ error: "Unauthorized", attemptsLeft: r.attemptsLeft }, 401);
+    return null;
+  }
+  if (!commandCsrfOk(request)) return json({ error: "Missing X-FLUX-Admin header" }, 403);
+  const r = await commandDO(env, "/auth-check", { fp, hash: await sha256Hex(tok) });
+  if (r.error) return commandUnavailable();
+  if (!r.ok) return json({ error: "Session expired. Log in again.", expired: true }, 401, { "Set-Cookie": commandCookie("", 0) });
+  COMMAND_AUTHED.set(request, { expiresAt: r.expiresAt, maxAt: r.maxAt });
+  return null;
+}
+async function adminSession(request, env) {
+  const denied = requireAdmin(request, env); if (denied) return denied;
+  const s = COMMAND_AUTHED.get(request);
+  return json({ ok: true, via: s ? "session" : "token", idleMinutes: COMMAND_IDLE_MS / 60000, expiresAt: s ? s.expiresAt : null, maxAt: s ? s.maxAt : null });
+}
+/* The owner's first screen, in one request, from data the server already has:
+   today's PLAYER STATS totals (UTC day), the exceptions count (same sources as
+   CHECK EXCEPTIONS), purchases delivered today (purchase records; amounts live
+   in Stripe) and the failed-login log. Each part is optional: one failing
+   source shows as "unavailable" instead of failing the whole summary. */
+async function adminSummary(request, env) {
+  const denied = requireAdmin(request, env); if (denied) return denied;
+  const safe = (p) => Promise.resolve(p).then((v) => v, () => null);
+  const body = (p) => safe(Promise.resolve(p).then((r) => (r && r.ok ? r.json() : null)));
+  const [rep, lb, delivery, sec] = await Promise.all([
+    body(analyticsDO(env, "/an-report?today=1")),
+    body(forwardToDO(request, env, "/admin-summary", { method: "POST" })),
+    safe(listDeliveryExceptions(env)),
+    env.LEADERBOARD_DO ? safe(commandIds(request, env).then(({ fp }) => commandDO(env, "/auth-report", { fp }))) : null,
+  ]);
+  const day = rep && (rep.days || []).find((d) => d.date === rep.today);
+  const g = (day && day.groups && day.groups.all) || {};
+  const players = rep ? {
+    date: rep.today, active: g.active || 0, newPlayers: g.new || 0, runs: g.runs || 0,
+    avgRunSec: g.runs ? Math.round((g.sec || 0) / g.runs) : null, shareRate: g.runs ? (g.shares || 0) / g.runs : null,
+    homeOpens: g.home || 0, opens: g.opens || 0,
+  } : null;
+  const flags = lb ? lb.flags : null, del = Array.isArray(delivery) ? delivery.length : null;
+  return json({
+    ok: true, at: Date.now(), players,
+    exceptions: flags === null && del === null ? null : { flags, delivery: del, total: (flags || 0) + (del || 0) },
+    purchases: lb ? { today: lb.purchasesToday, restrictedCount: lb.restrictedCount } : null,
+    security: sec && sec.ok ? { failed24h: sec.failed24h, lastFailedAt: sec.lastFailedAt, lockedClients: sec.lockedClients,
+      safetyUntil: sec.safetyUntil, recent: sec.recent, sessions: sec.sessions } : null,
+  });
+}
+/* Every admin response: CORS as before, never cached anywhere. */
+function adminOut(resp) {
+  const r = withCors(resp);
+  r.headers.set("Cache-Control", "no-store");
+  return r;
 }
 const PID_RE = /^[0-9a-f]{16}$/;
 async function adminDO(request, env, doPath, payload) {
@@ -1077,10 +1249,14 @@ async function reconcilePayments(env) {
   return { checked, delivered, exceptions, pages, windowHours: RECONCILE_WINDOW_SEC / 3600 };
 }
 
+/* Constant time: no early exit, not even on a length mismatch (FLUX COMMAND).
+   The loop always runs over the longer string, so the time depends only on the
+   length the caller sent -- never on how many characters of the secret match. */
 function timingSafeEqual(a, b) {
-  if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  if (typeof a !== "string" || typeof b !== "string") return false;
+  const n = Math.max(a.length, b.length);
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < n; i++) diff |= (a.charCodeAt(i) | 0) ^ (b.charCodeAt(i) | 0);   // past the end: NaN | 0 = 0
   return diff === 0;
 }
 
@@ -1264,6 +1440,7 @@ export class LeaderboardDO {
   async fetch(request) {
     const url0 = new URL(request.url);
     if (url0.pathname.startsWith("/an-")) return this.handleAnalytics(request, url0);   // STATS instance: never loads the leaderboard
+    if (url0.pathname.startsWith("/auth-")) return this.handleCommandAuth(request, url0);   // FLUX COMMAND instance: never loads the leaderboard
     await this.load();
     const url = new URL(request.url);
     const route = {
@@ -1286,8 +1463,43 @@ export class LeaderboardDO {
       "/admin-dismiss-flag": () => this.handleAdminDismissFlag(request),
       "/admin-issue-restore": () => this.handleAdminIssueRestore(request),
       "/admin-season-archive": () => this.handleAdminSeasonArchive(),
+      "/admin-summary": () => this.handleAdminSummary(),
     }[url.pathname];
     return route ? route() : json({ error: "Not found" }, 404);
+  }
+
+  /* FLUX COMMAND (see the note at COMMAND_COOKIE). Its own instance
+     ("admin-auth"), ONE storage key, one request at a time, in order:
+       s: sessions   sha256(token) -> { c: created, l: last used }
+       k: clients    sha256(secret + IP) -> { f: [failure times in the window], u: locked until }
+       g: global     { f: [failure times in the window], u: safety mode until }
+       a: failed-login log [{ at, c: 6-character client code, lock, g }] -- no passwords, no IPs
+       fp: fingerprint of the secret these belong to (a new secret starts afresh; the log is kept) */
+  handleCommandAuth(request, url) {
+    const run = async () => {
+      try {
+        const b = (await request.json()) || {};
+        const now = this.nowMs ? this.nowMs() : Date.now();
+        const st = await this.cmdLoad(String(b.fp || ""));
+        cmdPrune(st, now);
+        let out;
+        if (url.pathname === "/auth-attempt") out = cmdAttempt(st, b, now);
+        else if (url.pathname === "/auth-check") out = cmdCheck(st, b, now);
+        else if (url.pathname === "/auth-logout") { if (CMD_HASH.test(b.hash || "") && st.s[b.hash]) { delete st.s[b.hash]; st.dirty = 1; } out = { ok: true }; }
+        else if (url.pathname === "/auth-report") out = cmdReport(st, now);
+        else return json({ error: "Not found" }, 404);
+        if (st.dirty) { delete st.dirty; await this.state.storage.put("cmd:auth", st); }
+        return json(out);
+      } catch (e) { console.error("command auth:", e && e.message); return json({ ok: false, error: "auth failed" }, 500); }
+    };
+    const p = (this.cmdChain || Promise.resolve()).then(run, run);
+    this.cmdChain = p.then(() => {}, () => {});
+    return p;
+  }
+  async cmdLoad(fp) {
+    const saved = await this.state.storage.get("cmd:auth");
+    if (saved && typeof saved === "object" && saved.fp === fp) return saved;
+    return { fp, s: {}, k: {}, g: { f: [], u: 0 }, a: (saved && Array.isArray(saved.a)) ? saved.a : [], dirty: 1 };
   }
 
   /* STATS (see the note at AN_EVENTS). One request at a time, in order. */
@@ -1372,6 +1584,7 @@ export class LeaderboardDO {
     let to = anDayNum(url.searchParams.get("to")), from = anDayNum(url.searchParams.get("from"));
     if (!Number.isFinite(to)) to = today;
     if (!Number.isFinite(from)) from = to - 29;
+    if (url.searchParams.get("today") === "1") from = to = today;   // FLUX COMMAND summary: today only
     from = Math.max(from, to - 400);
     const days = [], cohorts = [], months = [];
     for (let d = from; d <= to; d++) {
@@ -1744,6 +1957,15 @@ export class LeaderboardDO {
     return json({ ok: true, name: key, banned: on });
   }
 
+  /* FLUX COMMAND summary: counts only. Purchases today = sessions delivered
+     since 00:00 UTC (the purchase records keep the delivery time, not amounts). */
+  handleAdminSummary() {
+    const now = Date.now(), dayStart = Math.floor(now / AN_DAY_MS) * AN_DAY_MS;
+    let purchasesToday = 0;
+    for (const k of Object.keys(this.seenSessions)) { const t = this.seenSessions[k]; if (typeof t === "number" && t >= dayStart) purchasesToday++; }
+    return json({ ok: true, flags: pruneFlags(this.flags, now).length, restrictedCount: Object.keys(this.restricted).length, purchasesToday });
+  }
+
   async handleAdminOverview() {
     const now = Date.now();
     return json({
@@ -1781,6 +2003,65 @@ export class LeaderboardDO {
 }
 
 /* Records: legacy single-score -> per-difficulty bests. */
+/* FLUX COMMAND auth state helpers (the state object is described at handleCommandAuth). */
+const CMD_HASH = /^[0-9a-f]{64}$/, CMD_CLIENT = /^[0-9a-f]{32}$/;
+function cmdPrune(st, now) {
+  const recent = (arr) => (Array.isArray(arr) ? arr : []).filter((t) => now - t < COMMAND_LOCK_MS);
+  for (const h of Object.keys(st.s)) {
+    const x = st.s[h];
+    if (!x || now - x.l >= COMMAND_IDLE_MS || now - x.c >= COMMAND_MAX_MS) { delete st.s[h]; st.dirty = 1; }
+  }
+  for (const c of Object.keys(st.k)) {
+    let x = st.k[c];
+    const f = recent(x && x.f);
+    if (!x || f.length !== x.f.length) { st.k[c] = x = { f, u: (x && x.u) || 0 }; st.dirty = 1; }
+    if (!f.length && !(x.u > now)) { delete st.k[c]; st.dirty = 1; }
+  }
+  const gf = recent(st.g.f);
+  if (gf.length !== st.g.f.length) { st.g.f = gf; st.dirty = 1; }
+}
+function cmdAttempt(st, b, now) {
+  const client = CMD_CLIENT.test(b.client || "") ? b.client : "0".repeat(32);
+  const k = st.k[client] || { f: [], u: 0 };
+  if (k.u > now) return { ok: false, locked: true, retryAfter: Math.ceil((k.u - now) / 1000) };   // locked: the password is not even looked at
+  if (b.ok === true) {
+    if (st.k[client]) { delete st.k[client]; st.dirty = 1; }
+    if (!CMD_HASH.test(b.hash || "")) return { ok: true };                                         // x-admin-token: no session
+    st.s[b.hash] = { c: now, l: now };
+    const oldest = Object.keys(st.s).sort((x, y) => st.s[x].c - st.s[y].c);
+    while (oldest.length > COMMAND_MAX_SESSIONS) delete st.s[oldest.shift()];
+    st.dirty = 1;
+    return { ok: true, expiresAt: now + COMMAND_IDLE_MS, maxAt: now + COMMAND_MAX_MS };
+  }
+  const safety = st.g.u > now, limit = safety ? 1 : COMMAND_CLIENT_FAILS;
+  k.f.push(now);
+  st.g.f.push(now);
+  if (st.g.f.length > 500) st.g.f = st.g.f.slice(-500);
+  let locked = false, safetyOn = false;
+  if (k.f.length >= limit) { k.u = now + COMMAND_LOCK_MS; k.f = []; locked = true; }
+  st.k[client] = k;
+  if (!safety && st.g.f.length >= COMMAND_GLOBAL_FAILS) { st.g.u = now + COMMAND_LOCK_MS; safetyOn = true; }
+  st.a.push({ at: now, c: client.slice(0, 6), lock: locked ? 1 : 0, g: safetyOn ? 1 : 0 });
+  if (st.a.length > COMMAND_ALERTS_KEPT) st.a = st.a.slice(-COMMAND_ALERTS_KEPT);
+  st.dirty = 1;
+  if (locked) return { ok: false, locked: true, retryAfter: COMMAND_LOCK_MS / 1000 };
+  return { ok: false, attemptsLeft: limit - k.f.length };
+}
+function cmdCheck(st, b, now) {
+  const x = CMD_HASH.test(b.hash || "") ? st.s[b.hash] : null;
+  if (!x) return { ok: false };
+  x.l = now; st.dirty = 1;                                                                           // idle timer restarts
+  return { ok: true, expiresAt: Math.min(now + COMMAND_IDLE_MS, x.c + COMMAND_MAX_MS), maxAt: x.c + COMMAND_MAX_MS };
+}
+function cmdReport(st, now) {
+  const day = st.a.filter((e) => now - e.at < AN_DAY_MS);
+  return {
+    ok: true, failed24h: day.length, lastFailedAt: st.a.length ? st.a[st.a.length - 1].at : null,
+    lockedClients: Object.keys(st.k).filter((c) => st.k[c].u > now).length,
+    safetyUntil: st.g.u > now ? st.g.u : null, recent: st.a.slice(-5).reverse(), sessions: Object.keys(st.s).length,
+  };
+}
+
 function normaliseRecord(r, id) {
   if (r && r.bests && typeof r.bests === "object") return { ...r, bests: NP(r.bests), playerId: r.playerId || id };
   const d = VALID_DIFFICULTIES.has(r && r.difficulty) ? r.difficulty : "medium";

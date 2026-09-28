@@ -185,7 +185,9 @@ await control('code returned before the log is saved',{ expect:'A7', workerSrc:r
 await control('log leaks the code',{ expect:'A6', workerSrc:rep("const entry = { at: Date.now(), pid, tag, name,","const entry = { at: Date.now(), pid, tag, name, code: await restoreCodeFor(id),") });
 await control('server checksum differs from the game',{ expect:'A5', workerSrc:rep('encode("flux-restore:" + playerId)','encode("flux-restore-v2:" + playerId)') });
 await control('privacy deletion leaves the log untouched',{ expect:'A9', workerSrc:rep("const nextLog = this.restoreLog.map((e) => (e.pid === pid ?","const nextLog = this.restoreLog.map((e) => (false ?") });
-await control('response cacheable',{ expect:'A4 never cached', workerSrc:(s)=>{ const i=s.indexOf('async function adminIssueRestore'); const j=s.indexOf('headers.set("Cache-Control", "no-store");',i); return i<0||j<0?s:s.slice(0,j)+s.slice(j+'headers.set("Cache-Control", "no-store");'.length); } });
+// FLUX COMMAND: every admin response is also marked no-store by adminOut(), so both layers are removed.
+await control('response cacheable (both layers)',{ expect:'A4 never cached', workerSrc:(s)=>{ const i=s.indexOf('async function adminIssueRestore'); const j=s.indexOf('headers.set("Cache-Control", "no-store");',i); s=i<0||j<0?s:s.slice(0,j)+s.slice(j+'headers.set("Cache-Control", "no-store");'.length);
+  return s.replace('function adminOut(resp) {\n  const r = withCors(resp);\n  r.headers.set("Cache-Control", "no-store");','function adminOut(resp) {\n  const r = withCors(resp);'); } });
 await control('admin page never asks for a reason',{ expect:'P2', admin:rep("if (reason.trim().length < 3) { say('Write how you verified this player.', 'err'); return; }","") });
 
 const total=main.F+NC;

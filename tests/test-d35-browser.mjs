@@ -107,7 +107,7 @@ try {
   /* ---- admin: ISSUE RESTORE CODE, then a fresh device uses it ---- */
   const adm=await browser.newContext({ viewport:{width:1024,height:1366} });
   const a=await adm.newPage(); a.on('pageerror',e=>errors.push(String(e)));
-  await a.goto(BASE+'/admin.html'); await a.fill('#token','test-admin'); await a.fill('#q','TITAN'); await a.click('#find'); await a.waitForTimeout(400);
+  await a.goto(BASE+'/admin.html'); await a.fill('#token','test-admin'); await a.click('#loginBtn'); await a.waitForSelector('#app:not([hidden])'); await a.fill('#q','TITAN');   // FLUX COMMAND: log in first await a.click('#find'); await a.waitForTimeout(400);
   let asked='';
   a.once('dialog', async d=>{ asked=d.message(); await d.accept('Stripe receipt matched (browser test)'); });
   await a.click('text=ISSUE RESTORE CODE'); await a.waitForTimeout(500);
