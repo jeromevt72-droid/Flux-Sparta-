@@ -1,5 +1,5 @@
 import worker, { LeaderboardDO } from "./FLUX-Sparta/worker.js";
-import { levelFor } from './level-rule.mjs';   // RC2.8.7: D-51 fixture levels
+import { levelFor, weighted } from './level-rule.mjs';   // RC2.8.7: D-51 fixture levels; weighted: ALL board and country totals
 import { presetNameForId } from './preset-names.mjs';   // PILOT NAMES
 
 // AUDIT A-1: the leaderboard now carries a one-way hash (pid), never the
@@ -130,11 +130,11 @@ section("3. Real import");
 
   const board = await lb(env);
   check("top capped at limit", board.top.length === 100);
-  check("highest score first", board.top[0].score === 25000, JSON.stringify(board.top[0]));
-  check("names preserved", board.top[0].name === "OLD249");
+  check("highest score first (ALL board: best weighted -- the top Hard record, 24,900)", board.top[0].score === 24900 && board.top[0].points === 24900 && board.top[0].difficulty === "hard", JSON.stringify(board.top[0]));
+  check("names preserved", board.top[0].name === "OLD248");
 
   const total = board.countries.reduce((a, c) => a + c.totalScore, 0);
-  const expected = Array.from({ length: 250 }, (_, i) => (i + 1) * 100).reduce((a, b) => a + b, 0);
+  const expected = Array.from({ length: 250 }, (_, i) => weighted((i + 1) * 100, ["easy", "medium", "hard"][i % 3])).reduce((a, b) => a + b, 0);
   check("country totals exact", total === expected, `got ${total}, expected ${expected}`);
   const players = board.countries.reduce((a, c) => a + c.playerCount, 0);
   check("every player counted once", players === 250, `got ${players}`);
@@ -171,12 +171,12 @@ section("5. Import does not clobber better live scores");
   await imp(env);
   const board = await lb(env);
   const row = board.top.find(t => t.pid === PID["old0"]);
-  check("better live score kept", row.score === 99000, JSON.stringify(row));
+  check("better live score kept", row.points === 99000, JSON.stringify(row));
   check("live country kept", row.country === "PH", JSON.stringify(row));
 
   // PH legitimately holds old1 (200) + old6 (700) + the live old0 (99000)
   const ph = board.countries.find(c => c.country === "PH");
-  check("PH total counts live score once, plus its two native rows", ph.totalScore === 99900, JSON.stringify(ph));
+  check("PH total counts live score once, plus its two native rows", ph.totalScore === 99000 + weighted(200, "medium") + weighted(700, "easy"), JSON.stringify(ph));
   check("old0 no longer counted under US", !(board.countries.find(c => c.country === "US") || {}).playerCount || board.countries.find(c => c.country === "US").playerCount === 1);
   const players = board.countries.reduce((a, c) => a + c.playerCount, 0);
   check("10 players total, not 11", players === 10, `got ${players}`);
@@ -225,7 +225,7 @@ section("7. Fallback to meta:top when player keys are gone");
   check("fallback source used", r.source === "meta:top", r.source);
   check("3 salvaged", r.imported === 3, `got ${r.imported}`);
   const board = await lb(env);
-  check("BR total correct", board.countries.find(c => c.country === "BR").totalScore === 6000);
+  check("BR total correct", board.countries.find(c => c.country === "BR").totalScore === weighted(5000) + weighted(1000));
   check("levels defaulted to 1", board.top.every(t => t.level === 1));
 }
 

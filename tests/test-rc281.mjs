@@ -114,7 +114,7 @@ await section("D-29: prototype-name player IDs never crash the server", async()=
     if (r.status===200) {
       ck(id+": treated as a NEW player (no inherited record)", r.data.isNewBest===true && r.data.best===1234, r.raw.slice(0,80));
       const lb=await call(env,"/api/leaderboard");
-      ck(id+": appears exactly once with the right score", lb.data.top.filter(x=>x.name===N_PROTO&&x.score===1234).length===1);
+      ck(id+": appears exactly once with the right score", lb.data.top.filter(x=>x.name===N_PROTO&&x.points===1234).length===1);
     }
     const e=await call(env,"/api/entitlements?playerId="+encodeURIComponent(id));
     ck(id+": entitlements lookup is not 5xx and owns nothing", e.status<500 && (!e.data.skus || (Array.isArray(e.data.skus) && e.data.skus.length===0)), e.status+" "+e.raw.slice(0,60));

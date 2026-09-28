@@ -109,7 +109,7 @@ async function suite(gameHtml, quiet = false) {
     b.endRun(12000, 3);
     ck('N4 ...and never a third time', b.vis.btn === false && b.mem.fluxInstallOffers === '2');
     const pb = bootGame({ fluxRunsPlayed: '2', fluxBestRun_easy: JSON.stringify({ score: 500, level: 1 }) }, { ios: true });
-    pb.endRun(700, 1);   // Easy level 2 is 750 (EASY SCORING), so 700 is still level 1
+    pb.endRun(700, 1);   // Easy level 2 is 4,750 (FULL POINTS thresholds), so 700 is still level 1
     ck('N5 a new personal best over an earlier one counts as a good run', pb.vis.btn === true);
     const nb = bootGame({ fluxRunsPlayed: '2', fluxBestRun_easy: JSON.stringify({ score: 740, level: 1 }) }, { ios: true });
     nb.endRun(700, 1);

@@ -21,11 +21,11 @@ function seeded(seed) { let s = seed >>> 0; return () => { s = (s + 0x6D2B79F5) 
 const COLOUR = '(t=>!t.bonus&&!(t.growing&&t.matured))';
 const MATCHES = `targets.filter(t=>${COLOUR}(t)&&t.color===ball.color).length`;
 const NORMAL = 'targets.filter(t=>!t.bonus&&!t.growing).length';
-const IN_PLAY = 'Math.min(colors.length,4+Math.floor(level/2))';
+const IN_PLAY = 'coloursInPlay()';   // SKILL LADDER: 4 colours, the 5th (star) from level 3
 const GAPMIN = '(function(){let m=Infinity;for(let i=0;i<targets.length;i++)for(let j=i+1;j<targets.length;j++){const a=targets[i],b=targets[j];m=Math.min(m,Math.hypot(a.x-b.x,a.y-b.y)-a.r-b.r);}return m;})()';
 // Medium/Hard orb counts without the Easy code (phone cap, pad cap, +1 every 4 levels up to +2).
 // Medium starts with 5 on phones (was 4) since the Medium-orbs change (test-medium-orbs.mjs M1).
-const OLD_CAP = { medium: [5, 6], hard: [5, 7] };
+const OLD_CAP = { medium: [5, 6], hard: [5, 6] };   // Hard: 5 / 6 at every level (HARD KEEPS EMPTY SPACE, test-medium-orbs.mjs M5)
 const SIZES = [[390, 844, 6], [430, 932, 6], [375, 667, 5], [360, 640, 5], [360, 800, 5], [820, 1180, 6], [744, 1133, 6]];
 
 function suite(gameHtml, quiet = false) {
@@ -75,13 +75,14 @@ function suite(gameHtml, quiet = false) {
         run('if(!playing){ playing=true; paused=false; }');
         g.ctx.update(1 / 60); frames++;
         const lv = run('level'); if (lv > lastLevel) { levelUps += lv - lastLevel; lastLevel = lv; }
-        const sc = run('score'); if (sc > lastScore + 15) fusions++; lastScore = sc;
+        void lastScore;
         if (!run('playing')) continue;
         const m = run(MATCHES); if (m < 2 && miss.length < 4) miss.push(w + 'x' + h + ' frame ' + f + ' L' + lv + ': ' + m + ' match, field ' + run('JSON.stringify(targets.map(t=>t.color))'));
         const n = run(NORMAL); maxNormal = Math.max(maxNormal, n); minNormal = Math.min(minNormal, n); played++; if (n >= 5 && n <= 6) inRange++;
         if (run(`targets.some(t=>t.color>=${IN_PLAY})`) && extra.length < 4) extra.push(w + 'x' + h + ' frame ' + f);
         const gm = run(GAPMIN); worstGap = Math.min(worstGap, gm); if (gm < 9.5) shortGap++;
       }
+      fusions += run('playStats.reduce(function(a,s){return a+(s?s.hit:0);},0)');   // orb hits (an Easy hit now scores 1-2 points, so score jumps no longer show them)
       Math.random = realRandom;
     }
     ck('E3 long seeded Easy games: the ball always has at least 2 matching orbs (' + frames + ' frames, ' + levelUps + ' level-ups, ' + fusions + ' hits, ' + forced + ' forced misses)',
@@ -94,7 +95,7 @@ function suite(gameHtml, quiet = false) {
     const capBad = [];
     for (const d of ['medium', 'hard']) for (const [w, h] of SIZES) for (let lv = 1; lv <= 9; lv++) {
       const { run } = bootGame(d, 7, w, h); run(`level=${lv};`);
-      const [p, pad] = OLD_CAP[d], g = Math.min(2, Math.floor((lv - 1) / 4)), want = w <= 700 ? Math.min(6, p + g) : Math.min(9, pad + g);
+      const [p, pad] = OLD_CAP[d], g = d === 'hard' ? 0 : Math.min(2, Math.floor((lv - 1) / 4)), want = w <= 700 ? Math.min(6, p + g) : Math.min(9, pad + g);
       if (run('targetCap()') !== want) capBad.push(d + ' ' + w + 'x' + h + ' L' + lv + ': ' + run('targetCap()') + ' want ' + want);
     }
     Math.random = realRandom;
@@ -125,14 +126,14 @@ function control(label, expect, mutate) {
   if (!ok) NC++;
 }
 const rep = (a, b) => (s) => (s.includes(a) ? s.replace(a, b) : s);
-control('Easy back to the old 3 orbs', 'E1', rep("function targetCap(){if(difficulty==='easy')return easyOrbCount();", 'function targetCap(){'));
+control('Easy back to the old 3 orbs', 'E1', rep("function fieldCapAt(lv){ if(difficulty==='easy') return easyOrbCount();", 'function fieldCapAt(lv){'));
 control('6 orbs on small phones too', 'E1', rep('return (W<=380||H<=700)?5:6;', 'return 6;'));
-control('an extra colour on the Easy field', 'E2', rep(' for(let i=0;i<targetCap();i++){\n   const [x,y]=safeSpawnPoint(isPhone()?18:22);\n   const color=i%Math.min(5,3+level);', ' for(let i=0;i<targetCap();i++){\n   const [x,y]=safeSpawnPoint(isPhone()?18:22);\n   const color=i===1?colors.length-1:i%Math.min(5,3+level);'));
+control('an extra colour on the Easy field', 'E2', rep(' for(let i=0;i<targetCap();i++){\n   const [x,y]=safeSpawnPoint(isPhone()?18:22);\n   const color=i%coloursInPlay();', ' for(let i=0;i<targetCap();i++){\n   const [x,y]=safeSpawnPoint(isPhone()?18:22);\n   const color=i===1?colors.length-1:i%coloursInPlay();'));
 control('a fused growing orb still replaced on a full Easy field (7 orbs)', 'E1', rep("if(!(difficulty==='easy' && t.growing && easyFieldFull())) addTarget(", 'if(true) addTarget('));
 control('no 2-match guarantee during play', 'E3', rep("  if(difficulty==='easy' && playing) easyTopUpMatches();\n", ''));
 control('no 2-match guarantee for a new ball after a miss', 'E3', rep(" if(ball && difficulty==='easy'){ ball.color=easyPickColour(ball.color); easyTopUpMatches(); }", ''));
 control('guarantee only 1 match', 'E3', rep('const EASY_MATCH_MIN=2;', 'const EASY_MATCH_MIN=1;'));
-control('Medium given more orbs too', 'E4', rep("function targetCap(){if(difficulty==='easy')return easyOrbCount();", "function targetCap(){if(difficulty!=='hard')return easyOrbCount();"));
+control('Medium given more orbs too', 'E4', rep("function fieldCapAt(lv){ if(difficulty==='easy') return easyOrbCount();", "function fieldCapAt(lv){ if(difficulty!=='hard') return easyOrbCount();"));
 control('guarantee applied on Medium too', 'E4', (s) => s.replace("function easyTopUpMatches(){\n  if(!ball || difficulty!=='easy') return;", 'function easyTopUpMatches(){\n  if(!ball) return;').replace("  if(difficulty==='easy' && playing) easyTopUpMatches();", '  if(playing) easyTopUpMatches();'));
 control('orb gap off (orbs may touch)', 'E5', rep('const ORB_GAP=10;', 'const ORB_GAP=0;'));
 const total = main.F + NC;

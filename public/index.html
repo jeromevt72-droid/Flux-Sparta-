@@ -639,7 +639,7 @@ footer{position:relative;z-index:3;padding:40px 7vw 50px;color:#777;font-size:12
 <section class="grid" id="grid">
   <div class="kicker">GLOBAL GRID <span class="liveTag">● LIVE</span></div>
   <h2>The world is the scoreboard.</h2>
-  <p>Real totals, grouped by country. Each pilot's best score counts for their country — beat your best and your flag climbs.</p>
+  <p>Real totals, grouped by country. Each pilot's best score counts for their country — beat your best and your flag climbs. Scores are weighted by difficulty: Hard x1, Medium x0.21, Easy x0.09.</p>
   <div class="gridLayout">
     <div id="gridRankArea">
       <div class="gridState" id="gridLoading"><div class="spinner"></div>Loading the Global Grid…</div>
@@ -648,7 +648,7 @@ footer{position:relative;z-index:3;padding:40px 7vw 50px;color:#777;font-size:12
   </div>
   <div class="scorersBlock">
     <div class="kicker" style="margin-top:0">TOP SCORERS</div>
-    <p class="scorersSub">The individual pilots currently leading FLUX worldwide.</p>
+    <p class="scorersSub">The individual pilots currently leading FLUX worldwide (weighted scores, all difficulties).</p>
     <div id="gridScorersArea"></div>
   </div>
 </section>
@@ -958,7 +958,7 @@ try{
       } else {
         var mine = countries[idx];
         var rankLine = meta2.flag+' <b>'+window.escapeHtml2(meta2.name.toUpperCase())+' — GLOBAL #'+(idx+1)+'</b>';
-        var statsLine = window.fmtScore(mine.totalScore)+' points · '+mine.playerCount.toLocaleString('en-US')+' pilot'+(mine.playerCount===1?'':'s')
+        var statsLine = window.fmtScore(mine.totalScore)+' weighted points · '+mine.playerCount.toLocaleString('en-US')+' pilot'+(mine.playerCount===1?'':'s')
           + (mine.topName ? (' · Local hero: <b>'+window.escapeHtml2(mine.topName)+(mine.topTag?' <small style="opacity:.55">#'+window.escapeHtml2(mine.topTag)+'</small>':'')+'</b> ('+window.fmtScore(mine.topScore)+' pts)') : '');
         if(idx===0){
           var second = countries.length>1 ? countries[1] : null;

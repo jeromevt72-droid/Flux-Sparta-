@@ -124,7 +124,7 @@ console.log("\n=== same-player race ===");
   const results = await Promise.all(Array.from({ length: 20 }, () =>
     call(env, "/api/submit-score", {
       method: "POST", cf: { country: "US" },
-      body: { playerId: "racer", name: "R", score: 30000, level: levelFor(30000), difficulty: "medium" },
+      body: { playerId: "racer", name: "R", score: 30000, level: levelFor(30000, "hard"), difficulty: "hard" },   // Hard: weight 1, so the country total is the real score
     })
   ));
   const accepted = results.filter(r => r.status === 200).length;

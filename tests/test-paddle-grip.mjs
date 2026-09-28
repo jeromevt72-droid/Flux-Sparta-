@@ -9,7 +9,7 @@
 //   D3 touching again puts it under the new finger; a second finger does not take it over;
 //   H1 "Slide anywhere ↔" on the first run only, gone once the player slides;
 //   K1 catch width, catch test and scoring unchanged;
-//   T1 popups such as COMBO LOST never rise into the HUD / FLUX meter row.
+//   T1 popups such as COMBO HALVED never rise into the HUD / FLUX meter row.
 // Ends with negative controls.
 import fs from 'fs'; import path from 'path'; import vm from 'vm';
 import { fileURLToPath } from 'url';
@@ -93,11 +93,11 @@ function suite(html, quiet = false) {
 
   try {
     const b = bootGame(); b.g.ctx.newGame();
-    ck('K1 catch width, catch test and scoring unchanged', b.run('paddle.w') === 132 && /ball\.x>paddle\.x-paddle\.w\/2-ball\.r/.test(html) && /function paddleWidthFor\(lv\)\{ return Math\.max\(isPhone\(\)\?96:112,\(isPhone\(\)\?132:150\)-\(lv-1\)\*4\); \}/.test(html) && /const perfect=Math\.abs\(hit\)<\.14;/.test(html));
-    b.run('playing=true; texts=[]; popup(W/2,150,"COMBO LOST","#8da0c8"); texts[0].y=40;');
+    ck('K1 catch width, catch test and scoring unchanged', b.run('paddle.w') === 132 && /ball\.x>paddle\.x-paddle\.w\/2-ball\.r/.test(html) && /function paddleWidthFor\(lv\)\{ return Math\.max\(isPhone\(\)\?96:112,\(isPhone\(\)\?132:150\)-\(lv-1\)\*4\); \}/.test(html) && /const perfect=(?:!marginCatch && )?Math\.abs\(hit\)<\.14;/.test(html));
+    b.run('playing=true; texts=[]; popup(W/2,150,"COMBO HALVED","#8da0c8"); texts[0].y=40;');
     const rec = record(b); b.g.ctx.draw();
-    const t = rec.texts.find((x) => x.t === 'COMBO LOST'), top = b.run('maxHudBottom()');
-    ck('T1 COMBO LOST (and every popup) stays below the HUD / FLUX meter row', !!t && t.y >= top + 14, t && t.y + ' vs HUD bottom ' + top);
+    const t = rec.texts.find((x) => x.t === 'COMBO HALVED'), top = b.run('maxHudBottom()');
+    ck('T1 COMBO HALVED (and every popup) stays below the HUD / FLUX meter row', !!t && t.y >= top + 14, t && t.y + ' vs HUD bottom ' + top);
   } catch (e) { ck('K/T section ran', false, String(e.stack || e).slice(0, 300)); }
   return { F, failed };
 }
