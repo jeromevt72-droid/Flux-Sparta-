@@ -11,7 +11,7 @@
 //   R10 counters expire: memory is swept each window and capped; nothing is written to storage by the limiter;
 //   R11 no raw IP address anywhere (storage or counters);
 //   R12 run ids per pilot are bounded (200 entries, 7 days) and compact;
-//   R13 a privacy deletion erases the pilot's run ids;
+//   R13 backups copy run ids with the scores; a privacy deletion erases the pilot's run ids, live and in every backup;
 //   C1 the game gives each upload a random run id from crypto.getRandomValues;
 //   C2 every retry of the same upload sends the same run id; a new run gets a new id;
 //   C3 a 429 keeps the upload queued (same run id) and waits at least Retry-After;
@@ -37,14 +37,16 @@ class FakeStorage {
   async get(k) { return this.map.has(k) ? structuredClone(this.map.get(k)) : undefined; }
   async put(k, v) { const o = typeof k === 'object' ? k : { [k]: v }; this.puts++; for (const [kk, vv] of Object.entries(o)) this.map.set(kk, structuredClone(vv)); }
   async delete(k) { for (const x of [].concat(k)) this.map.delete(x); }
+  async list(o = {}) { let ks = [...this.map.keys()].sort(); if (o.startAfter !== undefined) ks = ks.filter((k) => k > o.startAfter); if (o.limit) ks = ks.slice(0, o.limit); return new Map(ks.map((k) => [k, structuredClone(this.map.get(k))])); }
 }
 class FakeState { constructor(s) { this.storage = s; this.lock = Promise.resolve(); } blockConcurrencyWhile(fn) { const r = this.lock.then(fn); this.lock = r.then(() => {}, () => {}); return r; } }
 function makeEnv(DO) {
-  const instances = new Map(); let chain = Promise.resolve();
-  return { ADMIN_TOKEN: 'pw', LEADERBOARD_DO: { idFromName: (n) => n, _instances: instances, get(id) {
-    if (!instances.has(id)) instances.set(id, new DO(new FakeState(new FakeStorage())));
+  const instances = new Map();
+  const env = { ADMIN_TOKEN: 'pw', LEADERBOARD_DO: { idFromName: (n) => n, _instances: instances, get(id) {
+    if (!instances.has(id)) instances.set(id, new DO(new FakeState(new FakeStorage()), env));   // "backups" calls "global" from inside its own request
     const o = instances.get(id);
-    return { fetch(url, init) { const run = () => o.fetch(new Request(url, init)); const r = chain.then(run, run); chain = r.then(() => {}, () => {}); return r; } }; } } };
+    return { fetch: (url, init) => o.fetch(new Request(url, init)) }; } } };
+  return env;
 }
 const T0 = Date.UTC(2026, 8, 28, 12, 0, 0) + 1000;   // one second into a minute: windows are predictable
 
@@ -204,8 +206,15 @@ async function suite({ gameHtml, workerMod, quiet = false }) {
     ck('R12 run ids older than 7 days are dropped', oldReplay.data.duplicate === true && rv2.split(',').length === 1, rv2.split(',').length);
     const find = await B.call('/api/admin/find-player', { query: 'NOVA' }, H);
     const pid = find.data && find.data.matches && find.data.matches[0] && find.data.matches[0].pid;
+    const bk = await B.call('/api/admin/backup-now', {}, H);
+    const bid = bk.data && bk.data.snapshot && bk.data.snapshot.id;
+    const dl1 = await B.call('/api/admin/backup-download', { id: bid }, H);
+    const inBackup = (d) => !!(d && d.snapshot && Array.isArray(d.snapshot.entries) && d.snapshot.entries.some((e) => e[0] === rk));
+    ck('R13 backups copy the run ids with the scores (a restore brings them back together)', bk.status === 200 && inBackup(dl1.data), bk.status + '/' + dl1.status);
     const del = await B.call('/api/admin/privacy-delete', { pid }, H);
     ck('R13 a privacy deletion erases the pilot\'s run ids', del.status === 200 && ![...B.stor('global').keys()].some((k) => k.startsWith('runs:')), del.status);
+    const dl2 = await B.call('/api/admin/backup-download', { id: bid }, H);
+    ck('R13 ...from every backup copy too', dl2.status === 200 && dl2.data.snapshot && !inBackup(dl2.data) && del.data.backups && del.data.backups.ok === true, dl2.status + ' ' + JSON.stringify(del.data && del.data.backups));
   } catch (e) { ck('server section ran', false, String(e.stack || e).slice(0, 400)); }
   finally { console.error = realErr; }
 
@@ -311,7 +320,7 @@ await control('counters uncapped', 'R10 the counters are capped', { worker: rep(
 await control('raw IP used as the key', 'R11', { worker: rep('if (!ip) return null;                  // Cloudflare', 'if (ip) return ip;                  // Cloudflare') });
 await control('run ids unbounded', 'R12 at most 200', { worker: rep('runs.concat([entry]).slice(-RUN_IDS_MAX).join(",")', 'runs.concat([entry]).join(",")') });
 await control('run ids never age out', 'R12 run ids older', { worker: rep('.filter((e) => parseInt(e.split(".")[1], 36) >= cut);', ';') });
-await control('privacy deletion keeps run ids', 'R13', { worker: rep('await this.state.storage.delete("runs:" + pid);', '{}') });
+await control('privacy deletion keeps run ids', 'R13 a privacy deletion erases', { worker: rep('await this.state.storage.delete("runs:" + pid);', '{}') });
 await control('upload sent without its run id', 'C1', { game: rep('        runId:item.runId,\n', '') });
 await control('run id from Math.random only', 'C1', { game: rep('const u=new Uint8Array(16); crypto.getRandomValues(u); for(let i=0;i<u.length;i++) a.push(u[i]);', 'for(let i=0;i<16;i++) a.push(Math.floor(Math.random()*256));') });
 await control('new run id on every retry', 'C2 the retry', { game: rep('        runId:item.runId,\n', '        runId:fluxRandomId(),\n') });

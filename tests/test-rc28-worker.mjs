@@ -2,7 +2,7 @@
 // and purchase tools. Written FIRST and run against RC2.7, where each defect
 // test must FAIL. Runs the REAL worker.js; Stripe and KV are local stand-ins.
 import worker, { LeaderboardDO } from "./FLUX-Sparta/worker.js";
-import { levelFor } from './level-rule.mjs';
+import { levelFor, weighted } from './level-rule.mjs';   // weighted: ALL board and country totals (DIFFICULTY WEIGHT)
 import { P as PN } from './preset-names.mjs';   // PRESET NAMES: pilots can only carry preset names
 const N = Object.fromEntries(["TITAN", "CHEATER", "BIGSHOT", "ROCKET", "NOVA", "HONEST", "ALPHA", "LEAVER", "FAKER", "SMUGGLER", "STEADY", "BRAVO"].map(k=>[k, PN(k)]));   // RC2.8.7: D-51 fixture levels
 let F=0; const ck=(l,c,x='')=>{console.log((c?'  PASS  ':'  FAIL  ')+l+(x?'  ['+x+']':''));if(!c)F++;};
@@ -104,9 +104,9 @@ await (async () => { try {
   ck("Hard board keeps the player's Hard 2,000", hard.data.top.some(r=>r.name===N.TITAN && r.score===2000), hard.raw.slice(0,120));
   ck("Easy board keeps the player's Easy 3,000", easy.data.top.some(r=>r.name===N.TITAN && r.score===3000));
   const all = await call(env, "/api/leaderboard");
-  ck("overall board lists the player ONCE, at their single best", all.data.top.filter(r=>r.name===N.TITAN).length===1 && all.data.top.find(r=>r.name===N.TITAN)?.score===3000);
+  ck("overall board lists the player ONCE, at their single best WEIGHTED score (Hard 2,000 beats Easy 3,000 x0.09)", all.data.top.filter(r=>r.name===N.TITAN).length===1 && all.data.top.find(r=>r.name===N.TITAN)?.score===2000 && all.data.top.find(r=>r.name===N.TITAN)?.difficulty==="hard");
   const us = all.data.countries.find(c=>c.country==="US");
-  ck("country counts the single best (3,000), not the sum (5,000)", us && us.totalScore===3000 && us.playerCount===1, JSON.stringify(us));
+  ck("country counts the single best weighted (2,000), not the sum", us && us.totalScore===2000 && us.playerCount===1, JSON.stringify(us));
   inst(env).lastSubmit = {};
   await submit(env, P(1), N.TITAN, 1500, "hard");       // lower -> must not overwrite
   const hard2 = await call(env, "/api/leaderboard?difficulty=hard");
@@ -123,8 +123,8 @@ await (async () => { try {
   await submit(env, P(1), N.BIGSHOT, 10, "medium", "PH"); // moves country (best stays 455,000)
   const lb = await call(env, "/api/leaderboard");
   const us = lb.data.countries.find(c=>c.country==="US"), ph = lb.data.countries.find(c=>c.country==="PH");
-  ck("former country total = remaining players (3,500 from 2)", us?.totalScore===3500 && us.playerCount===2, JSON.stringify(us));
-  ck("former country's leader is no longer the departed player", us?.topName===N.ALPHA && us.topScore===2000, us?.topName+" "+us?.topScore);
+  ck("former country total = remaining players (2,000 + 1,500 Medium, weighted, from 2)", us?.totalScore===weighted(2000)+weighted(1500) && us.playerCount===2, JSON.stringify(us));
+  ck("former country's leader is no longer the departed player", us?.topName===N.ALPHA && us.topScore===weighted(2000), us?.topName+" "+us?.topScore);
   ck("new country carries the mover", ph && ph.topName===N.BIGSHOT && ph.playerCount===1);
 } catch (e) { ck("section completed without crashing", false, String(e).slice(0,90)); } })();
 
@@ -140,7 +140,7 @@ await (async () => { try {
   const lb = await call(env, "/api/leaderboard");
   ck("restricted player gone from the leaderboard", !lb.data.top.some(x=>x.name===N.CHEATER));
   const us = lb.data.countries.find(c=>c.country==="US");
-  ck("restricted player excluded from country totals and leader", us?.totalScore===2000 && us?.topName===N.HONEST, JSON.stringify(us));
+  ck("restricted player excluded from country totals and leader", us?.totalScore===weighted(2000) && us?.topName===N.HONEST, JSON.stringify(us));
   inst(env).lastSubmit = {};
   const again = await submit(env, P(1), N.CHEATER, 455000, "medium", "US", 9);
   ck("a restricted player can still submit (plays locally, no error)", again.status===200);
@@ -189,7 +189,7 @@ await (async () => { try {
   ck("name-ban succeeds", b.status===200, b.raw);
   const lb = await call(env, "/api/leaderboard");
   const row = lb.data.top[0] || {};
-  ck("banned name is shown as PILOT", row.name==="PILOT" && row.score===3000, JSON.stringify(row));
+  ck("banned name is shown as PILOT", row.name==="PILOT" && row.points===3000, JSON.stringify(row));
   ck("the stored best is not destroyed", inst(env).players[P(1)] && JSON.stringify(inst(env).players[P(1)]).includes("3000"));
   await call(env, "/api/admin/name-unban", { method:"POST", body:{ name:N.SMUGGLER }, headers:ADMIN });
   ck("unban restores the name", (await call(env, "/api/leaderboard")).data.top[0]?.name===N.SMUGGLER);

@@ -1,5 +1,5 @@
 import worker, { LeaderboardDO } from "./FLUX-Sparta/worker.js";
-import { levelFor } from './level-rule.mjs';   // RC2.8.7: D-51 fixture levels
+import { levelFor, weighted } from './level-rule.mjs';   // weighted: the ALL board and country totals count a best at its difficulty's weight   // RC2.8.7: D-51 fixture levels
 
 /* ---------------- fake Durable Object runtime ---------------- */
 
@@ -112,8 +112,8 @@ async function run() {
     check("name uppercased", (await asJson(await call(env, "/api/leaderboard"))).body.top[0].name === "JEROME");
 
     const lb = await asJson(await call(env, "/api/leaderboard"));
-    check("appears on leaderboard", lb.body.top.length === 1 && lb.body.top[0].score === 40000);
-    check("country total recorded", lb.body.countries[0].totalScore === 40000);
+    check("appears on leaderboard (ALL board: weighted Medium score)", lb.body.top.length === 1 && lb.body.top[0].score === weighted(40000) && lb.body.top[0].points === 40000);
+    check("country total recorded", lb.body.countries[0].totalScore === weighted(40000));
     check("leadingCountry set", lb.body.leadingCountry.country === "US");
   }
 
@@ -130,12 +130,12 @@ async function run() {
     ));
     const lb = await asJson(await call(env, "/api/leaderboard", {}));
     const total = lb.body.countries.find(c => c.country === "US").totalScore;
-    const expected = Array.from({ length: N }, (_, i) => 1000 + i).reduce((a, b) => a + b, 0);
+    const expected = Array.from({ length: N }, (_, i) => weighted(1000 + i)).reduce((a, b) => a + b, 0);
     check(`all ${N} players counted`, lb.body.countries[0].playerCount === N, `got ${lb.body.countries[0].playerCount}`);
     check("country total is exact (no lost updates)", total === expected, `got ${total}, expected ${expected}`);
     const top = await asJson(await call(env, "/api/leaderboard?limit=100"));
     check("all players on board", top.body.top.length === N, `got ${top.body.top.length}`);
-    check("sorted descending", top.body.top[0].score === 1049);
+    check("sorted descending", top.body.top[0].score === weighted(1049) && top.body.top.every((r, i, a) => !i || a[i - 1].score >= r.score));
   }
 
   /* ---- 3. country picker is honored ---- */
@@ -266,7 +266,7 @@ async function run() {
 
     const lb = await asJson(await call(env, "/api/leaderboard"));
     check("name updated to latest", lb.body.top[0].name === "NEWNAME");
-    check("country total not inflated", lb.body.countries[0].totalScore === 80000, `got ${lb.body.countries[0].totalScore}`);
+    check("country total not inflated", lb.body.countries[0].totalScore === weighted(80000), `got ${lb.body.countries[0].totalScore}`);
     check("player counted once", lb.body.countries[0].playerCount === 1, `got ${lb.body.countries[0].playerCount}`);
   }
 
@@ -288,7 +288,7 @@ async function run() {
     const us = lb.body.countries.find(c => c.country === "US");
     const ph = lb.body.countries.find(c => c.country === "PH");
     check("US entry removed", !us, JSON.stringify(lb.body.countries));
-    check("PH has the score once", ph && ph.totalScore === 60000, JSON.stringify(ph));
+    check("PH has the score once", ph && ph.totalScore === weighted(60000), JSON.stringify(ph));
     check("PH player count is 1", ph && ph.playerCount === 1);
   }
 

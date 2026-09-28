@@ -29,7 +29,16 @@ const VALID_SKUS = new Set(["toxic", "cosmic", "solar"]);
 // per-level score ceiling (score <= level * 50,000 + 5,000). MUST stay
 // identical to LEVEL_SCORE_THRESHOLDS / LEVEL_SCORE_MULT in play/index.html.
 const LEVEL_SCORE_THRESHOLDS = [2500, 6000, 10000, 15000, 21000, 28000, 36000, 45000];   // Medium, levels 2..9
-const LEVEL_SCORE_MULT = { easy: 0.3, medium: 1, hard: 1.35 };   // Easy 0.3: Easy points are x0.4 (EASY_POINTS in play/index.html), thresholds follow
+const LEVEL_SCORE_MULT = { easy: 1.5, medium: 1, hard: 0.55 };   // FULL POINTS: every difficulty pays the same points; the multipliers set the level pace
+/* DIFFICULTY WEIGHT (owner): the per-difficulty boards show real points. Where
+   difficulties are compared -- the ALL board and the country totals -- each
+   best counts at its difficulty's weight (Hard most, Easy least), worked out
+   here when ranking, from the stored real points (stored scores are never
+   rewritten). A player's ALL-board score is their best weighted score across
+   difficulties; a country's total adds each player's once. MUST stay
+   identical to DIFF_WEIGHT in play/index.html. */
+const DIFF_WEIGHT = { easy: 0.09, medium: 0.21, hard: 1 };
+function weightedScore(score, difficulty) { return Math.round((Number(score) || 0) * (DIFF_WEIGHT[difficulty] || 1)); }
 const LEVEL_TOLERANCE = 1;
 // RC2.8.7: a hard ceiling kept IN ADDITION to D-51. The level rule alone lets
 // any score through once level 9 is claimed; nothing above the RC2.8.5
@@ -113,6 +122,10 @@ export default {
   async scheduled(event, env, ctx) {
     ctx.waitUntil(reconcilePayments(env).catch((e) => console.error("reconcile:", e && e.message)));
     ctx.waitUntil(analyticsDO(env, "/an-purge", { method: "POST" }).catch(() => {}));   // STATS: raw events older than 90 days -> totals only
+    // BACKUPS: the first run of each UTC day takes the daily leaderboard backup; later runs that day do nothing.
+    if (env.LEADERBOARD_DO) ctx.waitUntil(backupDO(env, "/daily", { method: "POST" })
+      .then(async (r) => { if (!r.ok) console.error("backup: daily failed:", (await r.text()).slice(0, 300)); })
+      .catch((e) => console.error("backup: daily failed:", e && e.message)));
   },
 
   async fetch(request, env) {
@@ -154,7 +167,7 @@ export default {
             "/api/admin/remove-score":      () => adminPidAction(request, env, "/admin-remove-score"),
             "/api/admin/restrict":          () => adminPidAction(request, env, "/admin-restrict", (b) => ({ reason: b.reason })),
             "/api/admin/unrestrict":        () => adminPidAction(request, env, "/admin-unrestrict"),
-            "/api/admin/privacy-delete":    () => adminPidAction(request, env, "/admin-privacy-delete", (b) => ({ removePurchases: !!b.removePurchases })),
+            "/api/admin/privacy-delete":    () => adminPrivacyDelete(request, env),   // BACKUPS: also erases the pilot from every backup
             "/api/admin/name-ban":          () => adminNameBan(request, env, true),
             "/api/admin/name-unban":        () => adminNameBan(request, env, false),
             "/api/admin/exceptions":        () => adminExceptions(request, env),
@@ -166,6 +179,12 @@ export default {
             "/api/admin/issue-restore-code": () => adminIssueRestore(request, env),   // D-37
             "/api/admin/analytics":          () => adminAnalytics(request, env),     // STATS dashboard data
             "/api/admin/season-archive":     () => adminDO(request, env, "/admin-season-archive", {}),   // SEASON 1: archived Season 0 scores, read-only
+            "/api/admin/backups":            () => adminBackup(request, env, "/list"),        // BACKUPS: list + last status
+            "/api/admin/backup-now":         () => adminBackup(request, env, "/snapshot"),    // BACKUPS: manual backup
+            "/api/admin/backup-dry-run":     () => adminBackup(request, env, "/dry-run"),     // BACKUPS: what a restore would change; writes nothing
+            "/api/admin/backup-restore":     () => adminBackup(request, env, "/restore"),     // BACKUPS: real restore, typed confirmation only
+            "/api/admin/backup-download":    () => adminBackup(request, env, "/export"),      // BACKUPS: the snapshot as a JSON file
+            "/api/admin/backup-import":      () => adminBackup(request, env, "/import"),      // BACKUPS: a downloaded file back in, as a snapshot
           }[path];
           if (admin) return withCors((await adminRateLimit(request, env)) || await admin());
         }
@@ -244,8 +263,16 @@ function adminRateLimit(request, env) { return rateLimit(env, "global", "admin",
    into daily / monthly totals and retention-by-start-date totals as it
    arrives. Raw events are kept 90 days, then only the totals remain. It
    runs in its own Durable Object instance ("analytics"), so the
-   leaderboard is never slowed down, and the game never waits for it. */
-const AN_EVENTS = new Set(["open", "first_run", "run_end", "level_up", "share"]);
+   leaderboard is never slowed down, and the game never waits for it.
+   GAMEPLAY: at the end of a run the game also sends, for each speed step of
+   the ball it reached, one "play" event: difficulty, step, seconds played at
+   that step, orb hits, wrong-colour hits and balls lost. They are added into
+   day totals keyed only by difficulty and step ("p:<difficulty>:<step>"),
+   never by country or source; numbers are clamped, the difficulty must be
+   one of the three, the step is capped at AN_MAX_STEP. */
+const AN_EVENTS = new Set(["open", "first_run", "run_end", "level_up", "share", "play"]);
+const AN_MAX_STEP = 8;
+function anInt(v, lo, hi) { const n = Math.floor(Number(v)); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : lo; }
 const AN_SRC = /^[a-z0-9_-]{1,24}$/;
 const AN_KEEP_DAYS = 90;
 const AN_MAX_BATCH = 40;
@@ -267,6 +294,11 @@ function cleanEvent(e) {
     out.diff = VALID_DIFFICULTIES.has(e.diff) ? e.diff : "medium";
   }
   if (e.e === "run_end") { const sec = Math.floor(Number(e.sec)); out.sec = sec >= 0 && sec <= 7200 ? sec : 0; }
+  if (e.e === "play") {   // GAMEPLAY: one run's time at one speed step
+    if (!VALID_DIFFICULTIES.has(e.diff)) return null;
+    out.diff = e.diff; out.st = anInt(e.st, 0, AN_MAX_STEP); out.sec = anInt(e.sec, 0, 7200);
+    out.hit = anInt(e.hit, 0, 5000); out.wrong = anInt(e.wrong, 0, 5000); out.lost = anInt(e.lost, 0, 4);
+  }
   return out;
 }
 async function ingestEvents(request, env) {
@@ -946,6 +978,36 @@ async function adminPidAction(request, env, doPath, extra = (b) => ({})) {
   if (!(typeof b.pid === "string" && PID_RE.test(b.pid))) return json({ error: "Invalid entry" }, 400);
   return adminDO(request, env, doPath, { pid: b.pid, ...extra(b) });
 }
+/* A privacy deletion erases the pilot from the live leaderboard AND from every
+   stored backup (BACKUPS), so a restore can never bring them back and no copy on
+   the server outlives the request. */
+async function adminPrivacyDelete(request, env) {
+  const denied = requireAdmin(request, env); if (denied) return denied;
+  const b = await adminBody(request);
+  if (!(typeof b.pid === "string" && PID_RE.test(b.pid))) return json({ error: "Invalid entry" }, 400);
+  const payload = { pid: b.pid, removePurchases: !!b.removePurchases };
+  const live = await adminDO(request, env, "/admin-privacy-delete", payload);
+  if (!env.LEADERBOARD_DO) return live;
+  let backups;
+  try {
+    const r = await backupDO(env, "/purge-player", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    backups = await r.json();
+    if (!r.ok) backups = { ok: false, error: backups.error || "backup clean-up failed" };
+  } catch (e) { backups = { ok: false, error: "backup clean-up failed: " + (e && e.message) }; }
+  const out = await live.json().catch(() => ({}));
+  if (live.status === 404 && backups.ok && backups.changed > 0) return json({ ok: true, liveFound: false, purchasesRemoved: 0, restrictionKept: false, backups });
+  return json({ ...out, backups }, live.status);
+}
+/* BACKUPS: every backup route needs the admin password, like every admin action. */
+async function adminBackup(request, env, doPath) {
+  const denied = requireAdmin(request, env); if (denied) return denied;
+  if (!env.LEADERBOARD_DO) return json({ error: "Backups are not set up on this server (no LEADERBOARD_DO binding)." }, 500);
+  const b = await adminBody(request);
+  const resp = await backupDO(env, doPath, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) });
+  const headers = new Headers(resp.headers);
+  headers.set("Cache-Control", "no-store");
+  return new Response(resp.body, { status: resp.status, headers });
+}
 async function adminFind(request, env) {
   const denied = requireAdmin(request, env); if (denied) return denied;
   const b = await adminBody(request);
@@ -1196,8 +1258,9 @@ export class LeaderboardDO {
      restricted[pidHash] = {at, reason}      moderation, keyed by the public hash
      nameBans[normalisedName] = {at}         exact-name bans, display only
      flags[]                                  unusual submissions, informational */
-  constructor(state) {
+  constructor(state, env) {
     this.state = state;
+    this.env = env || {};
     this.ready = false;
     this.pidCache = new Map();
   }
@@ -1220,6 +1283,8 @@ export class LeaderboardDO {
       const rl = await this.state.storage.get("restoreLog");
       this.restoreLog = Array.isArray(rl) ? rl : [];
       if (!(await this.state.storage.get("nameRulesV1"))) await this.migrateNames();   // PILOT NAMES, once
+      // DIFFICULTY WEIGHT: country totals stored under other weights (or none) are rebuilt once from the real points.
+      if ((await this.state.storage.get("countriesWeights")) !== JSON.stringify(DIFF_WEIGHT)) await this.recomputeCountries();
       if (!((await this.state.storage.get("season")) >= SEASON)) await this.startSeason();   // SEASON 1, once
       this.ready = true;
     });
@@ -1347,6 +1412,10 @@ export class LeaderboardDO {
     const url0 = new URL(request.url);
     if (url0.pathname === "/rl") return this.handleRateLimit(request);                 // memory only, any instance
     if (url0.pathname.startsWith("/an-")) return this.handleAnalytics(request, url0);   // STATS instance: never loads the leaderboard
+    if (url0.pathname.startsWith("/bk/")) return this.handleBackups(request, url0);    // BACKUPS instance: never loads the leaderboard
+    // BACKUPS: the "backups" instance never serves leaderboard routes.
+    if (this.role === undefined) this.role = (await this.state.storage.get(BACKUP_ROLE_KEY)) || "";
+    if (this.role) return json({ error: "Not found" }, 404);
     await this.load();
     const url = new URL(request.url);
     const route = {
@@ -1369,6 +1438,8 @@ export class LeaderboardDO {
       "/admin-dismiss-flag": () => this.handleAdminDismissFlag(request),
       "/admin-issue-restore": () => this.handleAdminIssueRestore(request),
       "/admin-season-archive": () => this.handleAdminSeasonArchive(),
+      "/backup-dump": () => this.handleBackupDump(),            // BACKUPS (internal: the worker never forwards these)
+      "/backup-restore": () => this.handleBackupRestore(request),
     }[url.pathname];
     return route ? route() : json({ error: "Not found" }, 404);
   }
@@ -1410,6 +1481,23 @@ export class LeaderboardDO {
     const raw = await this.state.storage.get("runs:" + pid);
     const cut = Math.floor((now - RUN_IDS_MAX_AGE_MS) / 1000);
     return (typeof raw === "string" && raw ? raw.split(",") : []).filter((e) => parseInt(e.split(".")[1], 36) >= cut);
+  }
+
+  /* BACKUPS (see BackupStore). Runs only on the "backups" instance: the worker
+     marks its calls with a header, and an instance holding leaderboard data
+     ("players" / "season") refuses, so backup code can never write into the
+     leaderboard's own storage. The first call marks the instance as the backup
+     store; from then on it refuses every leaderboard route. */
+  async handleBackups(request, url) {
+    if (request.headers.get(BACKUP_INSTANCE_HEADER) !== "backups") return json({ error: "Not found" }, 404);
+    if (!this.bk) {
+      const st = this.state.storage;
+      if ((await st.get("players")) !== undefined || (await st.get("season")) !== undefined) return json({ error: "Backups never run on the leaderboard instance." }, 409);
+      if ((await st.get(BACKUP_ROLE_KEY)) !== "backups") await st.put(BACKUP_ROLE_KEY, "backups");
+      this.role = "backups";
+      this.bk = new BackupStore(this.state, this.env);
+    }
+    return this.bk.fetch(request, url.pathname.slice(3));
   }
 
   /* STATS (see the note at AN_EVENTS). One request at a time, in order. */
@@ -1468,6 +1556,10 @@ export class LeaderboardDO {
       else if (e.e === "level_up") anAdd(day, groups, "levelups", 1);
       else if (e.e === "share") anAdd(day, groups, "shares", 1);
       else if (e.e === "run_end") { anAdd(day, groups, "runs", 1); anAdd(day, groups, "sec", e.sec || 0); anAdd(day, groups, "lvl", e.lvl || 1); }
+      else if (e.e === "play") {   // GAMEPLAY: by difficulty and speed step only
+        const pg = ["p:" + e.diff + ":" + e.st];
+        anAdd(day, pg, "runs", 1); anAdd(day, pg, "sec", e.sec); anAdd(day, pg, "hit", e.hit); anAdd(day, pg, "wrong", e.wrong); anAdd(day, pg, "lost", e.lost);
+      }
     }
     // Raw events for 90 days, in small chunks.
     const n = (await st.get("an:evn:" + today)) || 0, ck = "an:ev:" + today + ":" + Math.max(0, n - 1);
@@ -1512,14 +1604,15 @@ export class LeaderboardDO {
     return json({ ok: true, from: anDayStr(from), to: anDayStr(to), today: anDayStr(today), keepDays: AN_KEEP_DAYS, rawDays, days, months, cohorts });
   }
 
-  /* Public rows for one board. No difficulty = each player's single best. */
+  /* Public rows for one board: real points. No difficulty = the ALL board:
+     each player's best WEIGHTED score across difficulties (DIFF_WEIGHT). */
   async publicRows(difficulty) {
     const rows = [];
     for (const r of Object.values(this.players)) {
       if (await this.isRestricted(r.playerId)) continue;       // moderation exclusion
-      const b = difficulty ? r.bests[difficulty] : bestOf(r);
+      const b = difficulty ? r.bests[difficulty] : weightedBestOf(r);
       if (!b) continue;
-      rows.push({ r, score: b.score, level: b.level, difficulty: difficulty || b.difficulty, updatedAt: b.updatedAt || r.updatedAt || 0 });
+      rows.push({ r, score: difficulty ? b.score : b.weighted, points: b.score, level: b.level, difficulty: difficulty || b.difficulty, updatedAt: b.updatedAt || r.updatedAt || 0 });
     }
     rows.sort((a, b) => b.score - a.score || a.updatedAt - b.updatedAt);
     return rows;
@@ -1573,7 +1666,8 @@ export class LeaderboardDO {
       tag: o.tag,
       name: this.displayName(o.it.r),
       country: o.it.r.country,
-      score: o.it.score,
+      score: o.it.score,                           // real points on a difficulty board; weighted on ALL
+      points: o.it.points,                         // the real points behind it
       level: o.it.level,
       difficulty: o.it.difficulty,
     }));
@@ -1584,14 +1678,15 @@ export class LeaderboardDO {
       countries.push({ ...c, topTag: leaderId ? await this.tagFor(leaderId) : "" });
     }
     countries.sort((a, b) => b.totalScore - a.totalScore);
-    return json({ top, countries, leadingCountry: countries[0] || null, difficulty });
+    return json({ top, countries, leadingCountry: countries[0] || null, difficulty, weighted: !difficulty, weights: { ...DIFF_WEIGHT } });
   }
 
   /* D-25: country figures are rebuilt from the player records every time
      something changes, so totals, counts, top scores and displayed leaders can
      never drift apart. RC2.7 subtracted a departing player's score but kept
      their name and top score as the country's leader. Each player counts once,
-     at their single best public score; restricted players are excluded. */
+     at their single best public WEIGHTED score (DIFF_WEIGHT); restricted
+     players are excluded. */
   async recomputeCountries() {
     const totals = Object.create(null);   // D-29
     const leaders = Object.create(null);
@@ -1607,7 +1702,7 @@ export class LeaderboardDO {
       totals[cc].topName = this.displayName(x.r);
       totals[cc].leaderId = x.r.playerId;           // internal only: stripped from every response
     }
-    await this.state.storage.put({ countries: totals });
+    await this.state.storage.put({ countries: totals, countriesWeights: JSON.stringify(DIFF_WEIGHT) });
     this.countries = totals;
   }
 
@@ -1929,6 +2024,499 @@ export class LeaderboardDO {
     this.flags = next;
     return json({ ok: true });
   }
+
+  /* ----------------------------- backups ----------------------------- */
+  /* BACKUPS: the whole storage of this instance, every key (listed page by page,
+     never a fixed key list), as one canonical text. Nothing else runs while it
+     is read, so the copy is one consistent moment. Refused if any value could
+     not be copied exactly. */
+  async handleBackupDump() {
+    let text = "";
+    await this.state.blockConcurrencyWhile(async () => {
+      const entries = await bkListAll(this.state.storage);
+      text = bkEncode(entries);
+      if (!bkSameEntries(bkDecode(text), entries)) throw new Error("a stored value cannot be copied exactly");
+    });
+    return new Response(text, { headers: { "Content-Type": "application/json" } });
+  }
+  /* BACKUPS: replace the whole storage with a snapshot (called only by
+     BackupStore.restore, which checks the admin's typed confirmation and takes a
+     safety backup first). Keys that are not in the snapshot are deleted, every
+     snapshot key is written, in one transaction where the runtime has one; then
+     memory is reloaded from storage. */
+  async handleBackupRestore(request) {
+    let entries;
+    try { entries = bkDecode(await request.text()); } catch (e) { return json({ error: "Not a FLUX backup" }, 400); }
+    const want = new Set(entries.map((e) => e[0]));
+    await this.state.blockConcurrencyWhile(async () => {
+      const apply = async (st) => {
+        const gone = (await bkListAll(st)).map((e) => e[0]).filter((k) => !want.has(k));
+        for (let i = 0; i < gone.length; i += BACKUP_PUT_KEYS) await st.delete(gone.slice(i, i + BACKUP_PUT_KEYS));
+        for (let i = 0; i < entries.length; i += BACKUP_PUT_KEYS) {
+          const puts = Object.create(null);
+          for (const [k, v] of entries.slice(i, i + BACKUP_PUT_KEYS)) puts[k] = v;
+          await st.put(puts);
+        }
+      };
+      const st = this.state.storage;
+      if (typeof st.transaction === "function") await st.transaction(apply); else await apply(st);
+      this.ready = false; this.tagCache = null; this.pidCache = new Map();
+    });
+    await this.load();
+    return json({ ok: true, keys: entries.length });
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* BACKUPS                                                             */
+/* ------------------------------------------------------------------ */
+/* The leaderboard ("global" LeaderboardDO instance) is copied into a separate
+   instance of the SAME class, "backups" (like "analytics"): it has its own
+   storage, and needs no new binding, class, migration, bucket or namespace --
+   nothing to set up in Cloudflare, nothing that can fail a deploy. Its requests
+   use the /bk/ paths (LeaderboardDO.handleBackups -> BackupStore).
+     - A snapshot is EVERY key and value of the leaderboard's storage (players and
+       bests, purchases, seen sessions, restore log, name bans, restrictions,
+       flags, countries, season marker, Season 0 archive chunks, anything added
+       later), as one canonical text, stored in chunks well under the per-value
+       limit, with a manifest: time, key count, size, SHA-256 of every chunk and
+       of the whole, schema and season, and the counts the admin page shows.
+     - Every snapshot is read back and checked (checksums, size, key count) right
+       after it is written; the result is stored with it (verified yes/no).
+     - Daily: the first cron run of each UTC day takes one (the 30-minute cron is
+       reused; later runs that day do nothing; a failure is retried on the next
+       run, at most BACKUP_DAILY_ATTEMPTS times a day, and shown on the admin page).
+       The same run re-checks every stored snapshot.
+     - Kept: the newest 14 daily snapshots, plus up to 4 weekly ones (the first
+       daily of each week) while they are at most 28 days old; manual, safety and
+       uploaded snapshots for at most 28 days (newest 10). A privacy deletion also
+       erases the pilot from every snapshot (adminPrivacyDelete).
+     - Restore (admin only): a dry run reports exactly what would change and writes
+       nothing; the real restore needs "RESTORE <snapshot id>" typed by the owner,
+       first takes a safety snapshot of the current state, then writes, then reads
+       the leaderboard back and compares it with the snapshot. Nothing automatic
+       ever restores.
+   The analytics instance is NOT backed up: it is anonymous totals that rebuild
+   themselves, and the leaderboard is what cannot be recreated. */
+const BACKUP_SCHEMA = 1;
+const BACKUP_INSTANCE_HEADER = "x-flux-instance";
+const BACKUP_ROLE_KEY = "bk:role";         // stored only in the "backups" instance
+const BACKUP_LIST_PAGE = 500;
+const BACKUP_PUT_KEYS = 100;               // a DO put / delete takes at most 128 keys
+const BACKUP_CHUNK_CHARS = 30000;          // <= 90 KB of UTF-8 per value: well under the 128 KiB limit
+const BACKUP_KEEP_DAILY = 14;
+const BACKUP_KEEP_WEEKLY = 4;
+const BACKUP_KEEP_OTHER = 10;              // manual, safety, uploaded
+const BACKUP_KEEP_FAILED = 3;
+const BACKUP_MAX_AGE_DAYS = 28;            // weekly / manual / safety / uploaded; the privacy promise is 30 days
+const BACKUP_DAILY_ATTEMPTS = 4;
+const BACKUP_LOG_MAX = 60;
+const BACKUP_DAY_MS = 86400000;
+const BACKUP_KINDS = new Set(["daily", "manual", "safety", "imported"]);
+const BACKUP_ID = /^\d{8}-\d{6}-(daily|manual|safety|imported)(-\d+)?$/;
+const BK_MARK = "\u0000flux";              // marks a stored undefined / NaN / Infinity, which plain JSON would lose
+
+function backupDO(env, path, init) {
+  const headers = new Headers((init && init.headers) || {});
+  headers.set(BACKUP_INSTANCE_HEADER, "backups");
+  return env.LEADERBOARD_DO.get(env.LEADERBOARD_DO.idFromName("backups")).fetch("https://do.internal/bk" + path, { ...(init || {}), headers });
+}
+async function bkListAll(st) {
+  const entries = [];
+  let after;
+  for (;;) {
+    const page = await st.list(after === undefined ? { limit: BACKUP_LIST_PAGE } : { startAfter: after, limit: BACKUP_LIST_PAGE });
+    let n = 0;
+    for (const [k, v] of page) { entries.push([k, v]); after = k; n++; }
+    if (n < BACKUP_LIST_PAGE) return entries;
+  }
+}
+function bkEncode(entries) {
+  return JSON.stringify({ v: BACKUP_SCHEMA, entries }, function (k, v) {
+    if (v === undefined) return { [BK_MARK]: "undefined" };
+    if (typeof v === "number" && !Number.isFinite(v)) return { [BK_MARK]: String(v) };
+    return v;
+  });
+}
+function bkRevive(x) {
+  if (!x || typeof x !== "object") return x;
+  const ks = Object.keys(x);
+  if (!Array.isArray(x) && ks.length === 1 && ks[0] === BK_MARK) return x[BK_MARK] === "undefined" ? undefined : Number(x[BK_MARK]);
+  for (const k of ks) Object.defineProperty(x, k, { value: bkRevive(x[k]), writable: true, enumerable: true, configurable: true });
+  return x;
+}
+function bkDecode(text) {
+  const o = JSON.parse(text);
+  if (!o || o.v !== BACKUP_SCHEMA || !Array.isArray(o.entries) || !o.entries.every((e) => Array.isArray(e) && e.length === 2 && typeof e[0] === "string")) throw new Error("not a FLUX backup");
+  return bkRevive(o.entries);
+}
+function bkPlain(o) { const p = Object.getPrototypeOf(o); return Array.isArray(o) || p === Object.prototype || p === null; }
+function bkSame(a, b) {
+  if (a === b) return true;
+  if (typeof a === "number" && typeof b === "number") return Number.isNaN(a) && Number.isNaN(b);
+  if (!a || !b || typeof a !== "object" || typeof b !== "object" || Array.isArray(a) !== Array.isArray(b) || !bkPlain(a) || !bkPlain(b)) return false;
+  const ka = Object.keys(a), kb = Object.keys(b);
+  if (ka.length !== kb.length) return false;
+  for (const k of ka) if (!Object.prototype.hasOwnProperty.call(b, k) || !bkSame(a[k], b[k])) return false;
+  return true;
+}
+function bkSameEntries(a, b) {
+  if (a.length !== b.length) return false;
+  const m = new Map(b);
+  return m.size === b.length && a.every(([k, v]) => m.has(k) && bkSame(v, m.get(k)));
+}
+function bkSplit(text) {
+  const out = [];
+  for (let i = 0; i < text.length;) {
+    let j = Math.min(text.length, i + BACKUP_CHUNK_CHARS);
+    if (j < text.length) { const c = text.charCodeAt(j - 1); if (c >= 0xd800 && c <= 0xdbff) j--; }   // never split a surrogate pair
+    out.push(text.slice(i, j)); i = j;
+  }
+  return out.length ? out : [""];
+}
+async function bkSha(text) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+const bkBytes = (text) => new TextEncoder().encode(text).length;
+const bkDay = (t) => new Date(t).toISOString().slice(0, 10);
+const bkWeek = (t) => Math.floor((Math.floor(t / BACKUP_DAY_MS) + 3) / 7);   // weeks start on Monday (UTC)
+function bkIdFor(t, kind) {
+  const iso = new Date(t).toISOString();
+  return iso.slice(0, 10).replace(/-/g, "") + "-" + iso.slice(11, 19).replace(/:/g, "") + "-" + kind;
+}
+/* The counts the admin page shows for a snapshot (and before / after a restore). */
+function bkSummary(entries) {
+  const m = new Map(entries), obj = (k) => { const v = m.get(k); return v && typeof v === "object" ? v : {}; };
+  const players = obj("players"), ent = obj("entitlements");
+  const s = { keys: entries.length, players: 0, bests: { easy: 0, medium: 0, hard: 0 }, purchasePilots: 0, skins: { toxic: 0, cosmic: 0, solar: 0 },
+    purchaseSessions: Object.keys(obj("seenSessions")).length, restoreLog: Array.isArray(m.get("restoreLog")) ? m.get("restoreLog").length : 0,
+    nameBans: Object.keys(obj("nameBans")).length, restricted: Object.keys(obj("restricted")).length,
+    flags: Array.isArray(m.get("flags")) ? m.get("flags").length : 0, countries: Object.keys(obj("countries")).length,
+    season: m.has("season") ? m.get("season") : null, season0Scores: obj(SEASON_ARCHIVE_KEY).scores || 0 };
+  for (const id of Object.keys(players)) {
+    s.players++;
+    const r = normaliseRecord(players[id] || {}, id);
+    for (const d of VALID_DIFFICULTIES) if (r.bests[d]) s.bests[d]++;
+  }
+  for (const id of Object.keys(ent)) {
+    const skus = Array.isArray(ent[id]) ? ent[id] : [];
+    if (skus.length) s.purchasePilots++;
+    for (const k of skus) if (k in s.skins) s.skins[k]++;
+  }
+  return s;
+}
+/* Dry run: exactly what restoring `snap` over `live` would change. */
+function bkDiff(live, snap) {
+  const L = new Map(live), S = new Map(snap), cap = (a) => a.slice(0, 200);
+  const added = [], removed = [], changed = [];
+  for (const [k, v] of snap) { if (!L.has(k)) added.push(k); else if (!bkSame(L.get(k), v)) changed.push(k); }
+  for (const [k] of live) if (!S.has(k)) removed.push(k);
+  const byId = (m, key) => { const o = m.get(key); return o && typeof o === "object" ? o : {}; };
+  const cmp = (a, b) => {
+    const out = { added: 0, removed: 0, changed: 0 };
+    for (const id of Object.keys(b)) { if (!Object.prototype.hasOwnProperty.call(a, id)) out.added++; else if (!bkSame(a[id], b[id])) out.changed++; }
+    for (const id of Object.keys(a)) if (!Object.prototype.hasOwnProperty.call(b, id)) out.removed++;
+    return out;
+  };
+  return { keysAdded: cap(added), keysRemoved: cap(removed), keysChanged: cap(changed), counts: { added: added.length, removed: removed.length, changed: changed.length, unchanged: snap.length - added.length - changed.length },
+    players: cmp(byId(L, "players"), byId(S, "players")), purchases: cmp(byId(L, "entitlements"), byId(S, "entitlements")) };
+}
+/* Erases one pilot from a snapshot with the SAME code as the live privacy
+   deletion: a throw-away LeaderboardDO over an in-memory copy of the snapshot. */
+class BkMemStorage {
+  constructor(entries) { this.map = new Map(entries.map(([k, v]) => [k, structuredClone(v)])); }
+  async get(k) { return this.map.has(k) ? structuredClone(this.map.get(k)) : undefined; }
+  async put(k, v) { const o = typeof k === "object" ? k : { [k]: v }; for (const kk of Object.keys(o)) this.map.set(kk, structuredClone(o[kk])); }
+  async delete(k) { for (const x of [].concat(k)) this.map.delete(x); }
+  async list() { return new Map([...this.map.entries()].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))); }
+  entries() { return [...this.map.entries()].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)); }
+}
+async function bkErasePilot(entries, pid, removePurchases) {
+  const mem = new BkMemStorage(entries);
+  const lb = new LeaderboardDO({ storage: mem, blockConcurrencyWhile: (fn) => fn() });
+  const r = await lb.fetch(new Request("https://do.internal/admin-privacy-delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pid, removePurchases }) }));
+  if (r.ok) return mem.entries();
+  if (r.status !== 404) throw new Error("erase failed (" + r.status + ")");
+  // Not a player in this snapshot: still erase the name and reason from its restore log, and its flags.
+  let touched = false;
+  const kept = entries.filter(([k]) => k !== "runs:" + pid);   // REPLAY PROTECTION: its accepted run ids go too
+  if (kept.length !== entries.length) touched = true;
+  const out = kept.map(([k, v]) => {
+    if (k === "restoreLog" && Array.isArray(v) && v.some((e) => e && e.pid === pid && (e.name || e.reason !== "(erased on privacy request)"))) {
+      touched = true; return [k, v.map((e) => (e && e.pid === pid ? { at: e.at, pid: e.pid, tag: e.tag, name: "", reason: "(erased on privacy request)" } : e))];
+    }
+    if (k === "flags" && Array.isArray(v) && v.some((f) => f && f.pid === pid)) { touched = true; return [k, v.filter((f) => !(f && f.pid === pid))]; }
+    return [k, v];
+  });
+  return touched ? out : null;
+}
+
+class BackupStore {
+  constructor(state, env) {
+    this.state = state;
+    this.env = env || {};
+    this.chain = Promise.resolve();
+  }
+
+  /* One request at a time, in order (cron and admin never interleave). */
+  fetch(request, path) {
+    const run = async () => {
+      try { return await this.route(path, request); }
+      catch (e) { console.error("backup:", e && e.message); return json({ ok: false, error: "Backup error: " + ((e && e.message) || e) }, 500); }
+    };
+    const p = this.chain.then(run, run);
+    this.chain = p.then(() => {}, () => {});
+    return p;
+  }
+  async route(path, request) {
+    let body = {};
+    try { const t = await request.text(); if (t) body = JSON.parse(t) || {}; } catch (e) { body = {}; }
+    const id = typeof body.id === "string" && BACKUP_ID.test(body.id) ? body.id : "";
+    switch (path) {
+      case "/list": return this.list();
+      case "/daily": return this.daily();
+      case "/snapshot": return this.manual();
+      case "/dry-run": return this.dryRun(id);
+      case "/restore": return this.restore(id, body.confirm);
+      case "/export": return this.exportFile(id);
+      case "/import": return this.importFile(body);
+      case "/purge-player": return this.purgePlayer(String(body.pid || ""), !!body.removePurchases);
+    }
+    return json({ error: "Not found" }, 404);
+  }
+
+  /* ---------- storage of snapshots ---------- */
+  async lb(path, init) {
+    const ns = this.env.LEADERBOARD_DO;
+    if (!ns) throw new Error("the leaderboard is not configured (no LEADERBOARD_DO binding)");
+    return ns.get(ns.idFromName("global")).fetch("https://do.internal" + path, init);
+  }
+  async dumpLive() {
+    const r = await this.lb("/backup-dump", { method: "POST" });
+    const text = await r.text();
+    if (!r.ok) throw new Error("could not read the leaderboard (" + r.status + ")");
+    bkDecode(text);
+    return text;
+  }
+  async metas() {
+    const out = [];
+    for (const [, m] of await this.state.storage.list({ prefix: "m:" })) if (m && m.id) out.push(m);
+    return out.sort((a, b) => b.createdAt - a.createdAt || (a.id < b.id ? 1 : -1));
+  }
+  chunkKey(id, gen, i) { return "c:" + id + ":" + gen + ":" + i; }
+  async putMany(obj) {
+    const keys = Object.keys(obj);
+    for (let i = 0; i < keys.length; i += BACKUP_PUT_KEYS) {
+      const part = {};
+      for (const k of keys.slice(i, i + BACKUP_PUT_KEYS)) part[k] = obj[k];
+      await this.state.storage.put(part);
+    }
+  }
+  async deleteMany(keys) { for (let i = 0; i < keys.length; i += BACKUP_PUT_KEYS) await this.state.storage.delete(keys.slice(i, i + BACKUP_PUT_KEYS)); }
+  /* Chunks first (under a new generation), then the manifest, then the old
+     generation's chunks are removed: a failure part-way never leaves a manifest
+     pointing at missing or mixed chunks. */
+  async writeSnapshot(text, base) {
+    const entries = bkDecode(text), chunks = bkSplit(text), gen = (base.gen || 0) + 1;
+    const puts = {}, chunkSha = [];
+    for (let i = 0; i < chunks.length; i++) { puts[this.chunkKey(base.id, gen, i)] = chunks[i]; chunkSha.push(await bkSha(chunks[i])); }
+    await this.putMany(puts);
+    const meta = { ...base, schema: BACKUP_SCHEMA, gen, keyCount: entries.length, bytes: bkBytes(text), chunks: chunks.length, chunkSha, sha256: await bkSha(text),
+      season: new Map(entries).get("season") ?? null, summary: bkSummary(entries), verified: false, verifiedAt: 0, verifyError: "" };
+    await this.state.storage.put("m:" + base.id, meta);
+    if (base.gen) await this.deleteMany(Array.from({ length: base.chunks || 0 }, (_, i) => this.chunkKey(base.id, base.gen, i)));
+    const v = await this.verify(base.id);
+    meta.verified = v.ok; meta.verifiedAt = Date.now(); meta.verifyError = v.ok ? "" : v.error;
+    await this.state.storage.put("m:" + base.id, meta);
+    return meta;
+  }
+  /* Read back and check: every chunk present, each chunk's SHA-256, the whole
+     text's SHA-256 and size, a readable backup with the recorded key count. */
+  async verify(id) {
+    const meta = await this.state.storage.get("m:" + id);
+    if (!meta) return { ok: false, error: "no such backup", meta: null };
+    const parts = [];
+    for (let i = 0; i < meta.chunks; i++) {
+      const c = await this.state.storage.get(this.chunkKey(id, meta.gen, i));
+      if (typeof c !== "string") return { ok: false, error: "part " + (i + 1) + " of " + meta.chunks + " is missing", meta };
+      if ((await bkSha(c)) !== meta.chunkSha[i]) return { ok: false, error: "part " + (i + 1) + " of " + meta.chunks + " is damaged (checksum mismatch)", meta };
+      parts.push(c);
+    }
+    const text = parts.join("");
+    if ((await bkSha(text)) !== meta.sha256 || bkBytes(text) !== meta.bytes) return { ok: false, error: "the whole-backup checksum does not match", meta };
+    let n = -1;
+    try { n = bkDecode(text).length; } catch (e) { return { ok: false, error: "the backup cannot be read", meta }; }
+    if (n !== meta.keyCount) return { ok: false, error: "key count " + n + " does not match " + meta.keyCount, meta };
+    return { ok: true, error: "", meta, text };
+  }
+  async deleteSnapshot(m) {
+    await this.deleteMany(Array.from({ length: m.chunks || 0 }, (_, i) => this.chunkKey(m.id, m.gen, i)));
+    await this.state.storage.delete("m:" + m.id);
+  }
+  async newId(now, kind) {
+    const base = bkIdFor(now, kind);
+    let id = base;
+    for (let n = 2; await this.state.storage.get("m:" + id); n++) id = base + "-" + n;
+    return id;
+  }
+  async takeSnapshot(kind, note, text) {
+    const now = Date.now();
+    if (text === undefined) text = await this.dumpLive();
+    const id = await this.newId(now, kind);
+    return this.writeSnapshot(text, { id, kind, createdAt: now, day: bkDay(now), weekly: false, note: String(note || "").slice(0, 200) });
+  }
+  /* Newest 14 daily; up to 4 weekly while <= 28 days old; manual / safety /
+     uploaded newest 10 while <= 28 days old; newest 3 failed ones (to show). */
+  async prune() {
+    const metas = await this.metas(), keep = new Set(), now = Date.now(), young = (m) => now - m.createdAt <= BACKUP_MAX_AGE_DAYS * BACKUP_DAY_MS;
+    const take = (list, n) => list.slice(0, n).forEach((m) => keep.add(m.id));
+    take(metas.filter((m) => m.verified && m.kind === "daily"), BACKUP_KEEP_DAILY);
+    take(metas.filter((m) => m.verified && m.kind === "daily" && m.weekly && young(m)), BACKUP_KEEP_WEEKLY);
+    take(metas.filter((m) => m.verified && m.kind !== "daily" && young(m)), BACKUP_KEEP_OTHER);
+    take(metas.filter((m) => !m.verified && young(m)), BACKUP_KEEP_FAILED);
+    let removed = 0;
+    for (const m of metas) if (!keep.has(m.id)) { await this.deleteSnapshot(m); removed++; }
+    return removed;
+  }
+  async status() { return (await this.state.storage.get("status")) || { daily: null, lastOk: null, lastError: null }; }
+  async log(entry) {
+    const log = (await this.state.storage.get("log")) || [];
+    log.push({ at: Date.now(), ...entry });
+    await this.state.storage.put("log", log.slice(-BACKUP_LOG_MAX));
+  }
+
+  /* ---------- routes ---------- */
+  async list() {
+    const metas = await this.metas();
+    const snapshots = metas.map(({ chunkSha, ...m }) => m);
+    const st = await this.status();
+    const lastDaily = metas.find((m) => m.kind === "daily" && m.verified) || null;
+    return json({ ok: true, snapshots, status: st, lastDaily: lastDaily ? { id: lastDaily.id, createdAt: lastDaily.createdAt } : null,
+      stale: !lastDaily || Date.now() - lastDaily.createdAt > 36 * 3600 * 1000, log: ((await this.state.storage.get("log")) || []).slice(-20).reverse(),
+      retention: { daily: BACKUP_KEEP_DAILY, weekly: BACKUP_KEEP_WEEKLY, maxAgeDays: BACKUP_MAX_AGE_DAYS, other: BACKUP_KEEP_OTHER } });
+  }
+  /* Cron: once per UTC day. Idempotent: a day that already has its verified
+     daily snapshot does nothing; a failure is recorded and retried on the next
+     run, at most BACKUP_DAILY_ATTEMPTS times a day. */
+  async daily() {
+    const now = Date.now(), day = bkDay(now), st = await this.status();
+    const d = st.daily && st.daily.day === day ? st.daily : null;
+    if (d && (d.ok || d.attempts >= BACKUP_DAILY_ATTEMPTS)) return json({ ok: true, skipped: true, day });
+    let meta = null, error = "";
+    try {
+      meta = await this.takeSnapshot("daily", "automatic");
+      if (!meta.verified) error = "the backup failed its check: " + meta.verifyError;
+    } catch (e) { error = (e && e.message) || String(e); }
+    if (meta && meta.verified && !(await this.metas()).some((m) => m.id !== meta.id && m.weekly && bkWeek(m.createdAt) === bkWeek(meta.createdAt))) {
+      meta.weekly = true; await this.state.storage.put("m:" + meta.id, meta);
+    }
+    // Re-check every stored snapshot once a day, so a damaged one shows as failed.
+    const damaged = [];
+    for (const m of await this.metas()) {
+      if (meta && m.id === meta.id) continue;
+      const v = await this.verify(m.id);
+      if (v.ok !== m.verified) { m.verified = v.ok; m.verifiedAt = Date.now(); m.verifyError = v.error; await this.state.storage.put("m:" + m.id, m); if (!v.ok) damaged.push(m.id); }
+    }
+    const removed = error ? 0 : await this.prune();
+    const next = { ...st, daily: { day, attempts: (d ? d.attempts : 0) + 1, ok: !error, id: meta ? meta.id : "", error, at: now } };
+    if (error) next.lastError = { at: now, id: meta ? meta.id : "", error, kind: "daily" }; else next.lastOk = { at: now, id: meta.id, kind: "daily" };
+    await this.state.storage.put("status", next);
+    await this.log(error ? { event: "daily backup FAILED", id: meta ? meta.id : "", error } : { event: "daily backup ok", id: meta.id, keys: meta.keyCount, bytes: meta.bytes, removed });
+    for (const id of damaged) await this.log({ event: "stored backup failed its check", id });
+    if (error) { console.error("backup: daily failed:", error); return json({ ok: false, error, id: meta ? meta.id : "" }, 500); }
+    return json({ ok: true, id: meta.id, weekly: meta.weekly, removed, damaged });
+  }
+  async manual() {
+    const meta = await this.takeSnapshot("manual", "Back up now");
+    const st = await this.status(), now = Date.now();
+    if (meta.verified) st.lastOk = { at: now, id: meta.id, kind: "manual" }; else st.lastError = { at: now, id: meta.id, error: meta.verifyError, kind: "manual" };
+    await this.state.storage.put("status", st);
+    const removed = meta.verified ? await this.prune() : 0;
+    await this.log(meta.verified ? { event: "manual backup ok", id: meta.id, keys: meta.keyCount, bytes: meta.bytes, removed } : { event: "manual backup FAILED", id: meta.id, error: meta.verifyError });
+    const { chunkSha, ...m } = meta;
+    return json({ ok: meta.verified, snapshot: m, error: meta.verified ? "" : "The backup failed its check: " + meta.verifyError }, meta.verified ? 200 : 500);
+  }
+  async checked(id) {
+    if (!id) return { resp: json({ error: "Choose a backup." }, 400) };
+    const v = await this.verify(id);
+    if (!v.meta) return { resp: json({ error: "No such backup." }, 404) };
+    if (!v.ok) {
+      if (v.meta.verified) { v.meta.verified = false; v.meta.verifiedAt = Date.now(); v.meta.verifyError = v.error; await this.state.storage.put("m:" + id, v.meta); await this.log({ event: "backup failed its check", id, error: v.error }); }
+      return { resp: json({ ok: false, verified: false, error: "This backup failed its check (" + v.error + "). It cannot be restored or downloaded." }, 409) };
+    }
+    return { v };
+  }
+  /* Writes nothing, anywhere. */
+  async dryRun(id) {
+    const { resp, v } = await this.checked(id); if (resp) return resp;
+    const liveText = await this.dumpLive(), live = bkDecode(liveText), snap = bkDecode(v.text);
+    return json({ ok: true, dryRun: true, id, verified: true, identical: bkSameEntries(live, snap), createdAt: v.meta.createdAt,
+      before: bkSummary(live), after: bkSummary(snap), diff: bkDiff(live, snap), confirm: "RESTORE " + id });
+  }
+  async restore(id, confirm) {
+    if (!id) return json({ error: "Choose a backup." }, 400);
+    if (confirm !== "RESTORE " + id) return json({ error: 'To restore, type exactly: RESTORE ' + id }, 400);
+    const { resp, v } = await this.checked(id); if (resp) return resp;
+    const liveText = await this.dumpLive();
+    const safety = await this.takeSnapshot("safety", "before restoring " + id, liveText);
+    if (!safety.verified) {
+      await this.log({ event: "restore REFUSED: the safety backup failed its check", id, safety: safety.id });
+      return json({ ok: false, error: "The safety backup of the current leaderboard failed its check, so nothing was restored." }, 500);
+    }
+    let r;
+    try { r = await this.lb("/backup-restore", { method: "POST", headers: { "Content-Type": "application/json" }, body: v.text }); }
+    catch (e) { r = { ok: false, status: "error: " + ((e && e.message) || e) }; }
+    if (!r.ok) {
+      await this.log({ event: "restore FAILED while writing", id, safety: safety.id });
+      return json({ ok: false, error: "The restore failed while writing (" + r.status + "). The safety backup " + safety.id + " holds the state from just before.", safetyId: safety.id }, 500);
+    }
+    const after = bkDecode(await this.dumpLive()), want = bkDecode(v.text), ok = bkSameEntries(after, want);
+    await this.log(ok ? { event: "RESTORED", id, safety: safety.id } : { event: "restore written but the check FAILED", id, safety: safety.id });
+    await this.prune();
+    return json({ ok, restored: id, safetyId: safety.id, verified: ok, before: bkSummary(bkDecode(liveText)), after: bkSummary(after),
+      error: ok ? "" : "The leaderboard does not match the backup after the restore. The safety backup " + safety.id + " holds the state from just before." }, ok ? 200 : 500);
+  }
+  async exportFile(id) {
+    const { resp, v } = await this.checked(id); if (resp) return resp;
+    const { chunkSha, gen, ...manifest } = v.meta;
+    const text = '{"format":"flux-leaderboard-backup","manifest":' + JSON.stringify(manifest) + ',"snapshot":' + v.text + "}";
+    return new Response(text, { headers: { "Content-Type": "application/json", "Content-Disposition": 'attachment; filename="flux-backup-' + id + '.json"' } });
+  }
+  /* A downloaded file back in as a snapshot ("imported"), checked against its own
+     checksum; then it can be dry-run and restored like any other. */
+  async importFile(body) {
+    const f = body && body.backup;
+    if (!f || f.format !== "flux-leaderboard-backup" || !f.manifest || typeof f.manifest.sha256 !== "string" || !f.snapshot) return json({ error: "This is not a FLUX backup file." }, 400);
+    const text = JSON.stringify(f.snapshot);
+    let entries;
+    try { entries = bkDecode(text); } catch (e) { return json({ error: "This is not a FLUX backup file." }, 400); }
+    if ((await bkSha(text)) !== f.manifest.sha256 || entries.length !== f.manifest.keyCount) return json({ error: "This file does not match its own checksum; it was changed or damaged." }, 400);
+    const meta = await this.takeSnapshot("imported", "uploaded copy of " + String(f.manifest.id || "?").slice(0, 60) + " from " + (f.manifest.createdAt ? new Date(f.manifest.createdAt).toISOString() : "?"), text);
+    await this.log(meta.verified ? { event: "backup uploaded", id: meta.id, from: f.manifest.id } : { event: "upload FAILED its check", id: meta.id });
+    const { chunkSha, ...m } = meta;
+    return json({ ok: meta.verified, snapshot: m }, meta.verified ? 200 : 500);
+  }
+  /* Privacy deletion: the pilot is erased from every stored snapshot, with the
+     same code as the live deletion. A snapshot that fails its check cannot be
+     rewritten safely, so it is deleted (it could not be restored anyway). */
+  async purgePlayer(pid, removePurchases) {
+    if (!PID_RE.test(pid)) return json({ error: "Invalid entry" }, 400);
+    let changed = 0, deleted = 0, checked = 0;
+    for (const m of await this.metas()) {
+      checked++;
+      const v = await this.verify(m.id);
+      if (!v.ok) { await this.deleteSnapshot(m); deleted++; continue; }
+      const out = await bkErasePilot(bkDecode(v.text), pid, removePurchases);
+      if (!out) continue;
+      const text = bkEncode(out);
+      if (text === v.text) continue;
+      const meta = await this.writeSnapshot(text, { ...v.meta, purgedAt: Date.now() });
+      if (!meta.verified) { await this.deleteSnapshot(meta); deleted++; } else changed++;
+    }
+    await this.log({ event: "privacy deletion applied to backups", changed, deleted });
+    return json({ ok: true, checked, changed, deleted });
+  }
 }
 
 /* Records: legacy single-score -> per-difficulty bests. */
@@ -1938,6 +2526,14 @@ function normaliseRecord(r, id) {
   const bests = Object.create(null);
   if (r && Number.isFinite(r.score)) bests[d] = { score: r.score, level: r.level || 1, updatedAt: r.updatedAt || 0 };
   return { playerId: (r && r.playerId) || id, name: r && r.name, country: r && r.country, updatedAt: (r && r.updatedAt) || 0, bests };
+}
+function weightedBestOf(r) {
+  let best = null;
+  for (const [d, b] of Object.entries((r && r.bests) || {})) {
+    const w = b ? weightedScore(b.score, d) : -1;
+    if (b && (!best || w > best.weighted)) best = { ...b, difficulty: d, weighted: w };
+  }
+  return best;
 }
 function bestOf(r) {
   let best = null;

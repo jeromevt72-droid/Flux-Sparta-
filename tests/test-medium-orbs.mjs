@@ -6,13 +6,14 @@
 //   M3 long seeded Medium games on small phones, iPhone and iPad: the 10px orb
 //      gap holds, orbs stay above the launcher area, the ball always has a
 //      matching orb;
-//   M4 Medium points are scaled by 0.85 (fusion, danger, bonus, overload,
-//      perfect paddle hit; an ordinary catch stays +2, FLUX MODE stays +250)
-//      and the popups show the scaled value; Hard points and the Medium/Hard
-//      level thresholds (page = server) are unchanged; the factor never
-//      applies on Easy or Hard;
-//   M5 Hard is unchanged: same orb counts, and seeded Hard (and Easy) games
-//      are frame-for-frame the same as without the Medium code.
+//   M4 FULL POINTS (owner): Medium pays the same points per event as Hard and
+//      Easy (fusion, danger, bonus, overload, FLUX MODE, perfect and plain
+//      catch; the x0.85 and the per-difficulty perfect-catch factor are gone),
+//      the popups show those points; Medium and Hard thresholds are the table
+//      x1 and x0.55 (Hard lowered so casual players reach level 3), page = server;
+//   M5 Hard keeps empty space: 5 orbs on phones and 6 on iPad at every level,
+//      never more than before or than Medium; seeded Hard (and Easy) games are
+//      frame-for-frame the same as without the Medium code.
 // Ends with negative controls.
 import fs from 'fs'; import path from 'path'; import vm from 'vm';
 import { fileURLToPath } from 'url';
@@ -23,7 +24,7 @@ const WORKER = fs.readFileSync(path.join(__dirname, 'FLUX-Sparta', 'worker.js'),
 const scriptsOf = (h) => [...h.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
 function seeded(seed) { let s = seed >>> 0; return () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 const NORMAL = 'targets.filter(t=>!t.bonus&&!t.growing).length';
-const IN_PLAY = 'Math.min(colors.length,4+Math.floor(level/2))';
+const IN_PLAY = 'coloursInPlay()';   // SKILL LADDER: 4 colours, the 5th (star) from level 3
 const MATCHES = 'targets.filter(t=>!t.bonus&&!(t.growing&&t.matured)&&t.color===ball.color).length';
 const GAPMIN = '(function(){let m=Infinity;for(let i=0;i<targets.length;i++)for(let j=i+1;j<targets.length;j++){const a=targets[i],b=targets[j];m=Math.min(m,Math.hypot(a.x-b.x,a.y-b.y)-a.r-b.r);}return m;})()';
 // Orb counts before this change: [phone, pad] at level 1, +1 every 4 levels up to +2, phone limit 6, pad limit 9.
@@ -107,35 +108,32 @@ function suite(gameHtml, quiet = false) {
       s0 = run('score'); g.ctx.popBonus(run('targets[0]')); o.bonus = run('score') - s0;
       run('combo=2; targets=[{x:100,y:200,r:30,maxR:34,color:0,growing:true,matured:true,vx:0,vy:0,phase:0,age:0}];');
       s0 = run('score'); g.ctx.burstGrowing(run('targets[0]'), 12); o.grow = run('score') - s0;
-      run('fluxMode=0; flux=100;'); s0 = run('score'); g.ctx.startFluxMode(); o.flux = run('score') - s0;   // FLUX MODE +250: not scaled
+      run('fluxMode=0; flux=100;'); s0 = run('score'); g.ctx.startFluxMode(); o.flux = run('score') - s0;   // FLUX MODE +250: scaled on Medium (TIME SPEED)
       Math.random = realRandom; return o;
     };
-    const pm = pts('medium'), ph = pts('hard');
-    const run0 = (c) => bootGame('medium', 80).run(c);
-    // Raw points (no difficulty factor): fusion (40+4*2)=48 (combo 3 -> 4 on the hit) + danger 15, bonus 120+2*10=140, overload 200+2*15=230, FLUX MODE 250.
+    const pm = pts('medium'), ph = pts('hard'), pe = pts('easy');
+    // Raw points: fusion (40+4*2)=48 (combo 3 -> 4 on the hit) + danger 15, bonus 120+2*10=140, overload 200+2*15=230, FLUX MODE 250.
     const raw = { fuse: 48 + 15, bonus: 140, grow: 230, flux: 250 };
-    const scaled = { fuse: Math.round(48 * .85) + Math.round(15 * .85), bonus: Math.round(140 * .85), grow: Math.round(230 * .85), flux: 250 };
-    ck('M4 Medium points are x0.85 (FLUX MODE +250 unscaled): ' + JSON.stringify(pm).replace(/"popups":"[^"]*",?/, ''), pm.fuse === scaled.fuse && pm.bonus === scaled.bonus && pm.grow === scaled.grow && pm.flux === scaled.flux);
-    ck('M4 ...the fusion and danger popups show the scaled points (' + pm.popups + ')', pm.popups.includes('+' + Math.round(48 * .85)) && pm.popups.includes('CLEARED •' + Math.round(15 * .85)));
-    ck('M4 Hard points are unchanged', ['fuse', 'bonus', 'grow', 'flux'].every((k) => ph[k] === raw[k]) && ph.popups.includes('+48') && ph.popups.includes('CLEARED •15'));
-    // Easy's points belong to Easy's own scoring (a separate change); here only: the Medium factor never touches Easy.
-    ck('M4 the Medium factor does not apply on Easy', run0("typeof mediumPoints==='function'") && bootGame('easy', 79).run('mediumPoints(1000)') === 1000 && bootGame('hard', 79).run('mediumPoints(1000)') === 1000 && bootGame('medium', 79).run('mediumPoints(1000)') === 850);
+    ck('M4 Medium, Hard and Easy pay the same full points: ' + JSON.stringify(pm).replace(/"popups":"[^"]*",?/, ''), ['fuse', 'bonus', 'grow', 'flux'].every((k) => pm[k] === raw[k] && ph[k] === raw[k] && pe[k] === raw[k]));
+    ck('M4 ...the fusion and danger popups show those points (' + pm.popups + ')', pm.popups.includes('+48') && pm.popups.includes('CLEARED •15'));
+    ck('M4 no per-difficulty point factor is left in the code', !/function mediumPoints|function scorePoints|MEDIUM_POINTS|EASY_POINTS|DIFFICULTY\[difficulty\]\.mult/.test(gameHtml));
     const perfectPts = (d) => { const { g, run } = bootGame(d, 78); g.ctx.newGame();
       run('combo=4; comboTimer=5; targets=[]; ball.vx=0; ball.vy=6; ball.x=paddle.x; ball.y=paddle.y-ball.r-2;'); const s0 = run('score');
       for (let i = 0; i < 3 && run('score') === s0; i++) g.ctx.update(1 / 60);
       const r = run('score') - s0; Math.random = realRandom; return r; };
-    const ppm = perfectPts('medium'), pph = perfectPts('hard');
-    ck('M4 a perfect paddle hit: Medium ' + ppm + ' (x0.85 of 20), Hard ' + pph + ' (unchanged 5*4*1.35)', ppm === Math.round(20 * .85) && pph === Math.round(5 * 4 * 1.35));
+    const pp = ['easy', 'medium', 'hard'].map(perfectPts);
+    ck('M4 a perfect paddle hit pays 5 x combo on every difficulty (' + pp.join(' / ') + ')', pp.every((x) => x === 20));
     const tbl = (src) => (src.match(/LEVEL_SCORE_MULT\s*=\s*\{[^}]*\}/) || [''])[0].replace(/\s|0(?=\.)/g, '');
-    ck('M4 Medium and Hard level thresholds unchanged, page = server (' + tbl(gameHtml) + ')', /medium:1,hard:1\.35\}$/.test(tbl(gameHtml)) && tbl(WORKER) === tbl(gameHtml) && /const SCORE_CEILING = 455_000;/.test(WORKER));
+    ck('M4 Medium and Hard level thresholds are the table x1 (as before) and x0.55, page = server (' + tbl(gameHtml) + ')', /medium:1,hard:\.55\}$/.test(tbl(gameHtml)) && tbl(WORKER) === tbl(gameHtml) && /const SCORE_CEILING = 455_000;/.test(WORKER));
     /* M5 Hard unchanged (and Easy untouched by the Medium code) */
     const capBad = [];
     for (const d of ['hard']) for (const [w, h] of SIZES) for (let lv = 1; lv <= 9; lv++) {
       const { run } = bootGame(d, 7, w, h); run(`level=${lv};`);
-      if (run('targetCap()') !== oldCap(d, w, lv)) capBad.push(d + ' ' + w + 'x' + h + ' L' + lv + ': ' + run('targetCap()'));
+      const n = run('targetCap()'), med = WANT_MEDIUM[w <= 700 ? 'phone' : 'pad'][lv - 1];
+      if (n !== (w <= 700 ? 5 : 6) || n > oldCap(d, w, lv) || n > med) capBad.push(d + ' ' + w + 'x' + h + ' L' + lv + ': ' + n);
     }
     Math.random = realRandom;
-    ck('M5 Hard keeps its orb counts (every size, levels 1-9)', capBad.length === 0, capBad.slice(0, 4).join(' | '));
+    ck('M5 Hard keeps empty space: 5 orbs on phones, 6 on iPad, at every level (never more than before or than Medium; every size, levels 1-9)', capBad.length === 0, capBad.slice(0, 4).join(' | '));
     const trace = (html, d, w, h) => { const { g, run } = bootGame(d, 9, w, h, html); g.ctx.newGame(); const out = [];
       for (let f = 0; f < 6000; f++) { if (f % 2000 === 1999) run('ball.y=H+200; misses=0;'); else run('paddle.x=Math.max(paddle.w/2+8,Math.min(W-paddle.w/2-8,ball.x+Math.sin(' + f + '*.03)*55));');
         run('if(!playing){playing=true;paused=false;}'); g.ctx.update(1 / 60);
@@ -165,15 +163,16 @@ const rep = (a, b) => (s) => (s.includes(a) ? s.replace(a, b) : s);
 control('Medium back to 4 orbs on phones', 'M1', rep('DIFFICULTY.medium.capPhone=5;', 'DIFFICULTY.medium.capPhone=4;'));
 control('Medium starts at 6 on phones (no room to grow)', 'M1', rep('DIFFICULTY.medium.capPhone=5;', 'DIFFICULTY.medium.capPhone=6;'));
 control('Medium iPad cut to 5 (fewer than before)', 'M1', rep('DIFFICULTY.medium.capPhone=5;', 'DIFFICULTY.medium.capPhone=5;DIFFICULTY.medium.capPad=5;'));
-control('an extra colour on the Medium start field', 'M2', rep('   const color=i%Math.min(5,3+level);\n   // Deliberately', '   const color=i===4?4:i%Math.min(5,3+level);\n   // Deliberately'));
-control('an extra colour after a miss', 'M2', rep(' for(let i=0;i<targetCap();i++){\n   const [x,y]=safeSpawnPoint(isPhone()?18:22);\n   const color=i%Math.min(5,3+level);', ' for(let i=0;i<targetCap();i++){\n   const [x,y]=safeSpawnPoint(isPhone()?18:22);\n   const color=i===1?colors.length-1:i%Math.min(5,3+level);'));
+control('an extra colour on the Medium start field', 'M2', rep('   const color=i%coloursInPlay();\n   // Deliberately', '   const color=i===4?4:i%coloursInPlay();\n   // Deliberately'));
+control('an extra colour after a miss', 'M2', rep(' for(let i=0;i<targetCap();i++){\n   const [x,y]=safeSpawnPoint(isPhone()?18:22);\n   const color=i%coloursInPlay();', ' for(let i=0;i<targetCap();i++){\n   const [x,y]=safeSpawnPoint(isPhone()?18:22);\n   const color=i===1?colors.length-1:i%coloursInPlay();'));
 control('orb gap off (orbs may touch)', 'M3', rep('const ORB_GAP=10;', 'const ORB_GAP=0;'));
-control('Medium points not scaled', 'M4', rep('const MEDIUM_POINTS=.85;', 'const MEDIUM_POINTS=1;'));
-control('fusion popup shows the unscaled points', 'M4', rep("popup(t.x,t.y,'+'+mediumPoints(points),colors[t.color]);", "popup(t.x,t.y,'+'+points,colors[t.color]);"));
-control('perfect paddle points not scaled', 'M4', rep('Math.max(2,mediumPoints(Math.round(5*combo*DIFFICULTY[difficulty].mult)))', 'Math.max(2,Math.round(5*combo*DIFFICULTY[difficulty].mult))'));
-control('Medium level table changed', 'M4', rep('medium:1,hard:1.35};', 'medium:.85,hard:1.35};'));
+control('Medium points cut again (x0.85)', 'M4', rep(' const points=Math.round((orbValue + combo*2)*(t.r>23?1.15:1)*(fluxMode>0?1.15:1));', " const points=Math.round((orbValue + combo*2)*(t.r>23?1.15:1)*(fluxMode>0?1.15:1)*(difficulty==='medium'?.85:1));"));
+control('perfect paddle points scaled by difficulty again', 'M4', rep('Math.max(2,Math.round(5*combo))', 'Math.max(2,Math.round(5*combo*DIFFICULTY[difficulty].mult))'));
+control('fusion popup differs from the points', 'M4', rep("popup(t.x,t.y,'+'+points,colors[t.color]);", "popup(t.x,t.y,'+'+Math.round(points*.85),colors[t.color]);"));
+control('Medium level table changed', 'M4', rep('medium:1,hard:.55};', 'medium:.85,hard:.55};'));
+control('Hard grows with level again', 'M5', rep("if(difficulty==='hard') return isPhone()?d.capPhone:d.capPad;", ''));
+control('Hard back to 7 orbs on iPad', 'M5', rep('DIFFICULTY.hard.capPad=6;', 'DIFFICULTY.hard.capPad=7;'));
 control('Hard given more orbs too', 'M5', rep('DIFFICULTY.medium.capPhone=5;', 'DIFFICULTY.medium.capPhone=5;DIFFICULTY.hard.capPhone=6;'));
-control('Hard points scaled too', 'M5', rep("return difficulty==='medium'?Math.round(p*MEDIUM_POINTS):p;", "return difficulty!=='easy'?Math.round(p*MEDIUM_POINTS):p;"));
 const total = main.F + NC;
 console.log('\n' + (total ? 'MEDIUM ORBS FAILED: ' + main.F + ' check(s), ' + NC + ' uncaught control(s)' : 'MEDIUM ORBS PASSED: all checks and all negative controls'));
 process.exit(total ? 1 : 0);
