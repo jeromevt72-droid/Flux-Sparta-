@@ -2212,6 +2212,17 @@ function loadQueue(){
 function saveQueue(q){
   try{ localStorage[SUBMIT_QUEUE_KEY]=JSON.stringify(q.slice(-SUBMIT_QUEUE_MAX)); }catch(e){}
 }
+/* REPLAY PROTECTION: every upload gets a random run id, kept with the queued
+   item and sent again on every retry of it, so a retry whose first reply was
+   lost is recognised by the server and never counted twice. A new run (a new
+   upload) gets a new id. crypto.getRandomValues (Safari 11+); Math.random only
+   if it is missing. */
+function fluxRandomId(){
+  const a=[];
+  try{ const u=new Uint8Array(16); crypto.getRandomValues(u); for(let i=0;i<u.length;i++) a.push(u[i]); }
+  catch(e){ for(let i=0;i<16;i++) a.push(Math.floor(Math.random()*256)); }
+  return a.map(function(b){ return (b<16?'0':'')+b.toString(16); }).join('');
+}
 function buildSubmission(){
   const run=bestRun();
   if(!(run.score>0)) return null;
@@ -2224,6 +2235,7 @@ function buildSubmission(){
     difficulty:run.difficulty||difficulty,
     country:(country&&country!=='OTHER')?country:undefined,
     season:FLUX_SEASON,
+    runId:fluxRandomId(),
     at:Date.now(),
     attempts:0
   };
@@ -2265,6 +2277,7 @@ async function postSubmission(item){
       body:JSON.stringify({
         playerId:item.playerId, name:item.name, score:item.score,
         level:item.level, difficulty:item.difficulty, country:item.country,
+        runId:item.runId,
         season:item.season
       })
     });
@@ -2308,6 +2321,11 @@ function flushSubmitQueue(){
       let retryScheduled=false;
       for(const item of loadQueue()){
         if(!(item && item.season>=FLUX_SEASON)){ saveQueue(loadQueue().filter(function(x){ return x && x.season>=FLUX_SEASON; })); continue; }   // SEASON 1: an old-season upload is never sent
+        if(!item.runId){   // queued by an older page: give it its run id once, saved BEFORE it is sent
+          item.runId=fluxRandomId();
+          const cq=loadQueue(), ci=cq.findIndex(function(x){return x && x.id===item.id;});
+          if(ci>=0){ cq[ci].runId=item.runId; saveQueue(cq); }
+        }
         const r=await postSubmission(item);
         if(r.kind==='ok'){
           dequeueSubmission(item.id); clearSubmitFailure();
@@ -3882,7 +3900,7 @@ function fluxTrack(e,extra){
 function fluxStatsFlush(){
   try{
     if(!fluxStatsQueue.length || !navigator.sendBeacon) { fluxStatsQueue=[]; return; }
-    const body=JSON.stringify({pid:playerId,country:country,src:fluxStatsSrc(),events:fluxStatsQueue.slice(0,40)});
+    const body=JSON.stringify({pid:playerId,country:country,src:fluxStatsSrc(),bid:fluxRandomId(),events:fluxStatsQueue.slice(0,40)});   // bid: the server counts a batch once
     fluxStatsQueue=[];
     navigator.sendBeacon(FLUX_STATS_URL,new Blob([body],{type:'text/plain'}));   // fire and forget
   }catch(x){ fluxStatsQueue=[]; }

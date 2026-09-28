@@ -23,7 +23,7 @@ Object.assign(globalThis,{difficulty,playerId,callsign,country,best,level,
   _flushing:null,_retryTimer:null,_flushAgain:false,lastUploadResult:null,document:{getElementById:()=>null},
   FLUX_SEASON:1});   // SEASON 1: the page constant the extracted queue functions read
 globalThis.bestRunKey=()=>'fluxBestRun_'+difficulty;
-for(const f of ['bestRun','recordBestRun','loadQueue','saveQueue','buildSubmission','enqueueSubmission','dequeueSubmission','recordSubmitFailure','clearSubmitFailure','submitScore','updateUploadStatus','scheduleFlush'])
+for(const f of ['fluxRandomId','bestRun','recordBestRun','loadQueue','saveQueue','buildSubmission','enqueueSubmission','dequeueSubmission','recordSubmitFailure','clearSubmitFailure','submitScore','updateUploadStatus','scheduleFlush'])
   eval('globalThis.'+f+' = '+grabLast(f).replace('function '+f+'(','function ('));
 eval('globalThis.postSubmission = async '+grabLast('postSubmission').replace('function postSubmission(','function ('));
 eval('globalThis.flushSubmitQueue = async '+grabLast('flushSubmitQueue').replace('function flushSubmitQueue(','function ('));

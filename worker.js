@@ -58,6 +58,47 @@ const SEASON_ARCHIVE_PUT_KEYS = 100;                // a DO put takes at most 12
 // Minimum gap between two accepted submissions from one playerId.
 const SUBMIT_COOLDOWN_MS = 10_000;
 
+/* RATE LIMITS + REPLAY PROTECTION (no Cloudflare setup needed).
+   Rate limits: fixed one-minute windows counted in the MEMORY of the Durable
+   Object that serves the route ("global" for scores, restore checks and admin;
+   "analytics" for stats). Nothing is written to storage: a counter lives at most
+   one window and is swept away, and an evicted object simply starts at zero.
+   Two kinds of key, each a one-way code, never a raw value:
+     i:<route>:<hash of CF-Connecting-IP + the UTC day>   per network address
+     p:<route>:<the route's existing one-way player code>  per pilot
+   The raw IP address is hashed in the Worker and never leaves it.
+   Numbers (per minute): a whole class behind one school Wi-Fi (30 pilots) ends
+   at most ~30 runs a minute and flushes stats ~1-2 times a minute each, so
+   the per-address limits leave 2x headroom. A pilot can only get a score
+   ACCEPTED every 10 s (SUBMIT_COOLDOWN_MS, unchanged); the per-pilot limits
+   only stop loops. A refused score is never lost: the game keeps it queued and
+   retries after Retry-After. If the limiter itself fails, requests pass (fail
+   open): protection never costs a legitimate score. */
+const RL_WINDOW_MS = 60_000;
+const RL_MAX_KEYS = 50_000;               // memory bound per object; oldest counters go first
+const RATE_LIMITS = {
+  submit:  { ip: 60,  player: 30 },
+  events:  { ip: 120, player: 20 },
+  restore: { ip: 30,  player: 20 },
+  admin:   { ip: 30 },
+};
+/* Replay protection. Each finished run's upload carries a random run id
+   (runId), reused on every retry of that same upload. The leaderboard keeps the
+   last RUN_IDS_MAX accepted run ids per pilot (at most RUN_IDS_MAX_AGE_MS old)
+   under "runs:<pilot's public hash>", compactly, and answers a repeat with the
+   same success reply without changing anything. RUN_ID_REQUIRED = false: pages
+   from before run ids still upload under the existing rules (season, level
+   rule, 10 s cooldown, rate limits). Set it to true in a later release, once
+   those pages have been replaced; they then get 409, which they already treat
+   as "drop quietly". */
+const RUN_ID_RE = /^[A-Za-z0-9_-]{16,64}$/;
+const RUN_ID_KEEP_CHARS = 24;
+const RUN_IDS_MAX = 200;
+const RUN_IDS_MAX_AGE_MS = 7 * 86_400_000;
+const RUN_ID_REQUIRED = false;
+const BATCH_ID_RE = /^[A-Za-z0-9_-]{8,64}$/;
+const AN_BATCH_IDS_MAX = 32;              // per pilot, kept in the pilot's own stats record
+
 const ISO2 = /^[A-Z]{2}$/;
 // Restrictive on purpose: keeps "__proto__" and friends out of the record maps.
 const PLAYER_ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -126,10 +167,10 @@ export default {
             "/api/admin/analytics":          () => adminAnalytics(request, env),     // STATS dashboard data
             "/api/admin/season-archive":     () => adminDO(request, env, "/admin-season-archive", {}),   // SEASON 1: archived Season 0 scores, read-only
           }[path];
-          if (admin) return withCors(await admin());
+          if (admin) return withCors((await adminRateLimit(request, env)) || await admin());
         }
         if (path === "/api/admin/import-kv" && request.method === "POST") {
-          return withCors(await importFromKV(request, env));
+          return withCors((await adminRateLimit(request, env)) || await importFromKV(request, env));
         }
         if (path === "/api/stripe-webhook" && request.method === "POST") {
           // No CORS: Stripe calls this server-to-server.
@@ -164,6 +205,32 @@ async function forwardToDO(request, env, path, init) {
   }
   return stub.fetch("https://do.internal" + path, init);
 }
+
+/* RATE LIMITS (see RATE_LIMITS). The network address is reduced to a one-way
+   code here, in the Worker; only the code reaches the Durable Object. */
+async function ipCode(request) {
+  const ip = request.headers.get("CF-Connecting-IP") || "";
+  if (!ip) return null;                  // Cloudflare always sets it; absent only in local tools
+  const day = Math.floor(Date.now() / 86_400_000);
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("flux-rl:" + day + ":" + ip));
+  return Array.from(new Uint8Array(buf)).slice(0, 12).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+async function rateLimit(env, instance, route, request, playerCode) {
+  try {
+    if (!env.LEADERBOARD_DO) return null;
+    const lim = RATE_LIMITS[route], keys = [], ip = await ipCode(request);
+    if (ip && lim.ip) keys.push({ k: "i:" + route + ":" + ip, max: lim.ip });
+    if (playerCode && lim.player) keys.push({ k: "p:" + route + ":" + playerCode, max: lim.player });
+    if (!keys.length) return null;
+    const r = await env.LEADERBOARD_DO.get(env.LEADERBOARD_DO.idFromName(instance)).fetch("https://do.internal/rl", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ keys }) });
+    const d = r.ok ? await r.json() : null;
+    if (!d || !d.limited) return null;
+    const sec = Math.max(1, Math.min(60, Math.ceil(Number(d.retryAfterSec) || 60)));
+    return json({ error: "Too many requests — please wait a moment", retryAfterSec: sec, rateLimited: true }, 429, { "Retry-After": String(sec) });
+  } catch (e) { return null; }           // fail open: the limiter never costs a legitimate request
+}
+function adminRateLimit(request, env) { return rateLimit(env, "global", "admin", request, null); }
 
 /* ------------------------------------------------------------------ */
 /* STATS: in-house, anonymous gameplay counts (children may play)       */
@@ -210,11 +277,15 @@ async function ingestEvents(request, env) {
     if (!validPlayerId(playerId)) return json({ ok: false }, 400);
     const events = (Array.isArray(body.events) ? body.events : []).slice(0, AN_MAX_BATCH).map(cleanEvent).filter(Boolean);
     if (!events.length) return json({ ok: true, n: 0 });
+    const h = await analyticsCode(playerId);
+    const limited = await rateLimit(env, "analytics", "events", request, h);
+    if (limited) return limited;
+    const bid = typeof body.bid === "string" && BATCH_ID_RE.test(body.bid) ? body.bid : "";   // older pages send none
     const c = typeof body.country === "string" ? body.country.trim().toUpperCase() : "";
     const cf = (request.cf && request.cf.country) || "";
     const country = ISO2.test(c) ? c : (ISO2.test(cf) ? cf : "XX");   // country only, never a precise location
     const r = await analyticsDO(env, "/an-ingest", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ h: await analyticsCode(playerId), src: cleanSrc(body.src), country, events }) });
+      body: JSON.stringify({ h, bid, src: cleanSrc(body.src), country, events }) });
     return json({ ok: r.ok }, r.ok ? 200 : 500);
   } catch (e) { return json({ ok: false }, 500); }
 }
@@ -242,6 +313,9 @@ async function submitScore(request, env) {
     return json({ error: "Missing or invalid playerId" }, 400);
   }
 
+  const limited = await rateLimit(env, "global", "submit", request, await pidHash(playerId));
+  if (limited) return limited;
+
   const name = presetOrOwn(cleanName(body.name), playerId);   // A-3 + PRESET NAMES: only allowed names are ever stored
 
   const score = Number.isFinite(body.score) ? Math.floor(body.score) : NaN;
@@ -267,13 +341,19 @@ async function submitScore(request, env) {
   if (!(Number.isFinite(body.season) && body.season >= SEASON)) {
     return json({ error: "A new season has started. Reload FLUX to play Season " + SEASON + ".", season: SEASON, staleSeason: true }, 409);
   }
+  // REPLAY PROTECTION: the run id travels to the leaderboard beside the score
+  // record (in the internal URL) and is kept apart from the player record.
+  const runId = typeof body.runId === "string" && RUN_ID_RE.test(body.runId) ? body.runId : "";
+  if (!runId && RUN_ID_REQUIRED) {
+    return json({ error: "Reload FLUX to keep uploading scores.", season: SEASON, staleSeason: true }, 409);
+  }
 
   // Player's pick wins; cf.country is the fallback for "OTHER"/unset.
   const detected = (request.cf && request.cf.country) || "XX";
   const chosen = typeof body.country === "string" ? body.country.trim().toUpperCase() : "";
   const country = ISO2.test(chosen) ? chosen : (ISO2.test(detected) ? detected : "XX");
 
-  return forwardToDO(request, env, "/submit", {
+  return forwardToDO(request, env, "/submit" + (runId ? "?run=" + encodeURIComponent(runId) : ""), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ playerId, name, score, level, difficulty, country, detected }),
@@ -297,6 +377,8 @@ async function restoreCheck(request, env) {
   const body = await readJsonObject(request);
   const playerId = body && typeof body.playerId === "string" ? body.playerId : "";
   if (!validPlayerId(playerId)) return json({ error: "Missing or invalid playerId" }, 400, { "Cache-Control": "no-store" });
+  const limited = await rateLimit(env, "global", "restore", request, await pidHash(playerId));
+  if (limited) { limited.headers.set("Cache-Control", "no-store"); return limited; }
   const resp = await forwardToDO(request, env, "/restore-check", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -1263,6 +1345,7 @@ export class LeaderboardDO {
 
   async fetch(request) {
     const url0 = new URL(request.url);
+    if (url0.pathname === "/rl") return this.handleRateLimit(request);                 // memory only, any instance
     if (url0.pathname.startsWith("/an-")) return this.handleAnalytics(request, url0);   // STATS instance: never loads the leaderboard
     await this.load();
     const url = new URL(request.url);
@@ -1290,6 +1373,45 @@ export class LeaderboardDO {
     return route ? route() : json({ error: "Not found" }, 404);
   }
 
+  /* RATE LIMITS (see RATE_LIMITS): fixed one-minute windows in memory only.
+     Counters older than the current window are swept; the map never holds more
+     than RL_MAX_KEYS counters. All keys of one request are checked first and
+     counted only if none is over its limit. */
+  rateCheck(keys, now) {
+    const rl = this.rl || (this.rl = new Map());
+    const w = Math.floor(now / RL_WINDOW_MS) * RL_WINDOW_MS;
+    if (this.rlSweptWindow !== w) {
+      for (const [k, e] of rl) if (e.w !== w) rl.delete(k);
+      this.rlSweptWindow = w;
+    }
+    for (const { k, max } of keys) {
+      const e = rl.get(k);
+      if (e && e.w === w && e.n >= max) return { limited: true, retryAfterSec: Math.max(1, Math.ceil((w + RL_WINDOW_MS - now) / 1000)) };
+    }
+    for (const { k } of keys) {
+      const e = rl.get(k);
+      if (e && e.w === w) e.n++;
+      else { rl.delete(k); rl.set(k, { w, n: 1 }); }
+    }
+    while (rl.size > RL_MAX_KEYS) rl.delete(rl.keys().next().value);
+    return { limited: false };
+  }
+  async handleRateLimit(request) {
+    let b = null; try { b = await request.json(); } catch (e) {}
+    const keys = (b && Array.isArray(b.keys) ? b.keys : []).slice(0, 4)
+      .filter((x) => x && typeof x.k === "string" && x.k.length <= 80 && Number.isFinite(x.max) && x.max > 0);
+    return json(this.rateCheck(keys, Date.now()));
+  }
+
+  /* REPLAY PROTECTION (see RUN_ID_RE). One compact string per pilot:
+     "<runId 24 chars>.<accepted at, base-36 seconds>.<1|0 new best><e|m|h>,..."
+     newest last, at most RUN_IDS_MAX entries, none older than RUN_IDS_MAX_AGE_MS. */
+  async readRuns(pid, now) {
+    const raw = await this.state.storage.get("runs:" + pid);
+    const cut = Math.floor((now - RUN_IDS_MAX_AGE_MS) / 1000);
+    return (typeof raw === "string" && raw ? raw.split(",") : []).filter((e) => parseInt(e.split(".")[1], 36) >= cut);
+  }
+
   /* STATS (see the note at AN_EVENTS). One request at a time, in order. */
   handleAnalytics(request, url) {
     const run = async () => {
@@ -1314,7 +1436,11 @@ export class LeaderboardDO {
     let p = await st.get("an:p:" + h), isNew = false;
     if (!p) { p = { f: today, s: cleanSrc(b.src), l: -1, m: "", r: 0, k: 0, kd: today }; isNew = true; }
     if (p.kd !== today) { p.kd = today; p.k = 0; }
+    // REPLAY PROTECTION: a batch id this pilot already sent is counted once.
+    const bid = typeof b.bid === "string" && BATCH_ID_RE.test(b.bid) ? b.bid : "";
+    if (bid && Array.isArray(p.b) && p.b.includes(bid)) return json({ ok: true, duplicate: true });
     if (p.k >= 500) return json({ ok: true, capped: true });   // a flood from one pilot is ignored for the day
+    if (bid) p.b = (Array.isArray(p.b) ? p.b : []).concat([bid]).slice(-AN_BATCH_IDS_MAX);
     p.k += events.length;
     const groups = ["all", "c:" + country, "s:" + p.s];
     const day = (await st.get("an:day:" + today)) || {};
@@ -1490,6 +1616,16 @@ export class LeaderboardDO {
     const { playerId, name, score, level, difficulty, country } = body;
 
     const now = Date.now();
+    // REPLAY PROTECTION: a run id already accepted gets the same success reply
+    // again, and nothing changes -- no second count, no new best, no country or
+    // name change, no cooldown. Checked BEFORE the cooldown, so a retry whose
+    // first reply was lost on the network succeeds at once.
+    const runId = String(new URL(request.url).searchParams.get("run") || "").slice(0, RUN_ID_KEEP_CHARS);
+    const pid = await this.pid(playerId);
+    const runs = runId ? await this.readRuns(pid, now) : null;
+    const seen = runs ? runs.find((e) => e.split(".")[0] === runId) : null;
+    if (seen && ownGet(this.players, playerId)) return this.submitReply(playerId, seen.slice(-1) === "e" ? "easy" : seen.slice(-1) === "h" ? "hard" : "medium", seen.slice(-2, -1) === "1", true);
+
     const last = ownGet(this.lastSubmit, playerId) || 0;
     if (now - last < SUBMIT_COOLDOWN_MS) {
       return json({ error: "Slow down — too many submissions", retryAfterSec: Math.ceil((SUBMIT_COOLDOWN_MS - (now - last)) / 1000) }, 429,
@@ -1516,12 +1652,24 @@ export class LeaderboardDO {
     const nextPlayers = setKey(this.players, playerId, record);
     const nextLast = setKey(this.lastSubmit, playerId, now);
     const nextFlags = flag ? pruneFlags([...this.flags.filter((f) => f.id !== flag.id), flag], now) : this.flags;
-    await this.state.storage.put({ players: nextPlayers, lastSubmit: nextLast, flags: nextFlags });
+    const puts = { players: nextPlayers, lastSubmit: nextLast, flags: nextFlags };
+    if (runId) {                         // stored in the SAME write as the score: accepted <=> remembered
+      const entry = runId + "." + Math.floor(now / 1000).toString(36) + "." + (isNewBest ? "1" : "0") + difficulty[0];
+      puts["runs:" + pid] = runs.concat([entry]).slice(-RUN_IDS_MAX).join(",");
+    }
+    await this.state.storage.put(puts);
     this.players = nextPlayers; this.lastSubmit = nextLast; this.flags = nextFlags;
     this.invalidateTags();
 
     await this.recomputeCountries();
 
+    return this.submitReply(playerId, difficulty, isNewBest, false, score);
+  }
+
+  /* The success reply to an upload -- the same shape for a first upload and a
+     repeated run id (which adds duplicate: true). */
+  async submitReply(playerId, difficulty, isNewBest, duplicate, score) {
+    const record = ownGet(this.players, playerId);
     const pid = await this.pid(playerId);
     const restricted = !!ownGet(this.restricted, pid);
     let rank = null;
@@ -1530,12 +1678,14 @@ export class LeaderboardDO {
       rank = rows.findIndex((x) => x.r.playerId === playerId) + 1 || null;
     }
     const [o] = await this.tagRows([{ r: record }]);
+    const b = record && ownGet(record.bests, difficulty);
     return json({
-      ok: true, isNewBest, best: record.bests[difficulty] ? record.bests[difficulty].score : score,
-      country, difficulty,
+      ok: true, isNewBest, best: b ? b.score : score,
+      country: record ? record.country : undefined, difficulty,
       public: !restricted,       // honest: no public rank is invented for a restricted player
       rank,
       tag: o.tag,
+      ...(duplicate ? { duplicate: true } : {}),
     });
   }
 
@@ -1724,6 +1874,7 @@ export class LeaderboardDO {
     // and the written reason (which may mention an email) are erased too.
     const nextLog = this.restoreLog.map((e) => (e.pid === pid ? { at: e.at, pid: e.pid, tag: e.tag, name: "", reason: "(erased on privacy request)" } : e));
     await this.eraseFromSeasonArchive(id);   // SEASON 1: the archived Season 0 scores go too
+    if ((await this.state.storage.get("runs:" + pid)) !== undefined) await this.state.storage.delete("runs:" + pid);   // REPLAY PROTECTION: the pilot's accepted run ids go too
     await this.state.storage.put({ players: nextPlayers, lastSubmit: nextLast, flags: nextFlags, entitlements: nextEnt, restoreLog: nextLog });
     this.players = nextPlayers; this.lastSubmit = nextLast; this.flags = nextFlags; this.entitlements = nextEnt; this.restoreLog = nextLog;
     this.invalidateTags();
