@@ -98,6 +98,18 @@
   .guide h3{font-size:13px;letter-spacing:.08em;margin:18px 0 6px;color:var(--cyan)}
   .guide p,.guide li{font-size:13px;line-height:1.6;color:var(--text)}
   .guide ol,.guide ul{padding-left:20px}
+  /* OWNER SUMMARY: status + findings */
+  .ins{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 15px;margin:10px 0}
+  .ins.st-attn{border-color:var(--pink)}.ins.st-ok{border-color:var(--green)}.ins.st-wait{border-color:var(--amber)}
+  .stword{font-size:18px;font-weight:800;letter-spacing:.14em}
+  .st-attn .stword{color:var(--pink)}.st-ok .stword{color:var(--green)}.st-wait .stword{color:var(--amber)}
+  .find{border-top:1px solid var(--line);padding:11px 0 2px;margin-top:10px}
+  .find .ft{font-size:15px;font-weight:700;line-height:1.35}
+  .find p{margin:6px 0 0;font-size:13px;line-height:1.5}.find p b{color:var(--dim);font-weight:700}
+  .find .hyp{color:var(--dim)}
+  .conf{font-size:11px;letter-spacing:.12em;color:var(--dim);margin-top:6px}
+  textarea.export{width:100%;min-height:220px;background:#050a22;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px;
+       font:12px/1.45 ui-monospace,Menlo,monospace;white-space:pre-wrap;user-select:text;-webkit-user-select:text;margin:8px 0}
   .logrow{color:var(--dim);font-size:12px;line-height:1.5;padding:6px 0;border-top:1px solid var(--line);white-space:pre-line}
 </style>
 </head>
@@ -126,6 +138,9 @@
   <div id="app" hidden>
   <div id="status" role="status" aria-live="polite"></div>
 
+  <h2>HOW FLUX IS DOING</h2>
+  <div id="insights"></div>
+
   <h2>TODAY</h2>
   <div id="summary"></div>
   <div class="row"><button id="sumLoad" class="ghost" style="flex:1">REFRESH SUMMARY</button></div>
@@ -146,6 +161,7 @@
   their browser data, they return with a new tag.</p>
 
   <h2>PLAYER STATS</h2>
+  <div id="stInsights"></div>
   <p class="note">Anonymous, counted on our own server. See the guide below for what each number means.</p>
   <div class="row">
     <select id="stRange" aria-label="Period"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option><option value="365">Last 12 months</option></select>
@@ -265,6 +281,36 @@
       means that difficulty could go a little faster. Compare Easy, Medium and Hard: each should lose lives faster than the
       one before at the same step.</li>
       <li>Only totals by difficulty and step are kept here — no country, no source, nothing about a person.</li>
+    </ul>
+
+    <h3>Owner summary (status and findings)</h3>
+    <ul>
+      <li>At the top of the first screen (<b>HOW FLUX IS DOING</b>) and of PLAYER STATS. The server checks the anonymous totals
+      against <b>fixed rules</b> (no AI, nothing guessed by a program): the same numbers always give the same answer. Nothing is stored for it.</li>
+      <li><b>Status</b>: <b>NEEDS ATTENTION</b> if an operational problem exists (exceptions waiting, a backup problem, many wrong admin
+      passwords) or a high-severity rule fired with PRELIMINARY confidence or better. Otherwise <b>NOT ENOUGH DATA YET</b> if fewer than 30
+      new players have had their day 1, or fewer than 30 player-days were counted in the last 7 days. Otherwise <b>HEALTHY</b>.</li>
+      <li><b>Confidence</b> comes from the sample size: <b>INSUFFICIENT</b> under 30, <b>PRELIMINARY</b> 30–99, <b>MODERATE</b> 100–499,
+      <b>STRONG</b> 500 or more. Operational findings are direct counts. A rule is not checked below its minimum sample.</li>
+      <li>Each finding has <b>Measured</b> (the fact, with its numbers and dates) and <b>Possible reason</b> (a fixed hint tied to the rule —
+      a guess to check, never a measured fact). The top 3 are shown: high severity first, then higher confidence, then the bigger effect.</li>
+      <li>Periods are whole UTC days: last 7 days = yesterday and the 6 days before; compared with the 7 days before that.</li>
+      <li><b>The rules</b>:
+        <ul>
+          <li><b>Day-1 return low</b> (high): under 20% of players who started in the last 30 days came back the next day. Minimum 30 players.</li>
+          <li><b>A source brings players who return less</b> (medium): a source's day-1 return is 10 points or more below all other sources. Minimum 30 players in the source.</li>
+          <li><b>New players who never start a run</b> (high): under 60% of last week's new players started a first run. Minimum 30 new players.</li>
+          <li><b>Fewer runs per player</b> (medium): runs per player per day fell 20% or more from the week before. Minimum 30 player-days each week.</li>
+          <li><b>Very short runs on a difficulty</b> (medium): a difficulty's average run is under 30 s (GAMEPLAY, last 30 days). Minimum 30 runs.</li>
+          <li><b>Misses jump at a speed step</b> (medium): misses per minute at a step are 1.5× the step before and at least 2 more per minute (GAMEPLAY, last 30 days). Minimum 30 runs at both steps.</li>
+          <li><b>Share rate changed</b> (low): up or down 50% or more from the week before (and by at least 0.5 points). Minimum 100 runs each week.</li>
+          <li><b>Few Home Screen opens</b> (low): under 5% of opens in the last 30 days came from the installed app. Minimum 100 opens.</li>
+          <li><b>Exceptions waiting</b>, <b>backup problem</b> (no good daily backup in 36 hours or the latest failed), <b>wrong admin passwords</b>
+          (10 or more in 24 hours, a locked device, or safety mode): operational, always NEEDS ATTENTION.</li>
+        </ul></li>
+      <li><b>EXPORT REPORT</b> copies a plain-text report for the last 7 and last 30 days (status, findings, totals, day 1 / day 7, sources,
+      countries, GAMEPLAY by difficulty, operations). It holds no player IDs, names, tags, device codes or addresses; a source or country with
+      fewer than 5 new players is merged into "other", and "other" under 5 shows no numbers. If this device cannot copy, the text appears in a box to select.</li>
     </ul>
 
     <h3>TODAY (the first screen)</h3>
@@ -387,7 +433,7 @@
     b.disabled = false;
   }
   function wipe() {
-    ['summary', 'exceptions', 'results', 'stats', 'season0', 'purchases', 'bans'].forEach(function (id) { $(id).textContent = ''; });
+    ['insights', 'stInsights', 'summary', 'exceptions', 'results', 'stats', 'season0', 'purchases', 'bans'].forEach(function (id) { $(id).textContent = ''; });
     ['q', 'pq', 'banName'].forEach(function (id) { $(id).value = ''; });
     say('');
   }
@@ -410,6 +456,7 @@
   async function loadSummary() {
     var box = $('summary');
     var d = await call('summary');
+    renderInsights($('insights'), d.insights); renderInsights($('stInsights'), d.insights);
     box.textContent = '';
     var tiles = el('div', 'tiles');
     function tile(v, label, cls) { var t = el('div', 'tile' + (cls ? ' ' + cls : '')); t.appendChild(el('b', null, v)); t.appendChild(el('span', null, label)); tiles.appendChild(t); }
@@ -443,6 +490,54 @@
     box.appendChild(bc);
     box.appendChild(el('div', 'asof', (p ? 'Today = ' + p.date + ' (UTC)' : 'Today (UTC)') + ' · updated ' + new Date(d.at || Date.now()).toLocaleTimeString() +
       ' · purchase amounts are in Stripe'));
+  }
+  /* ---------------- owner summary: status, findings, export ----------------
+     The server works it out by fixed rules (worker.js, OWNER SUMMARY; the GUIDE
+     lists them). This only draws it, as text, and copies the export text. */
+  var ST_CLASS = { 'HEALTHY': 'st-ok', 'NEEDS ATTENTION': 'st-attn', 'NOT ENOUGH DATA YET': 'st-wait' };
+  var ST_LINE = { 'HEALTHY': 'No rule found a problem. Numbers below are for looking deeper.',
+    'NEEDS ATTENTION': 'Something below needs a look — the first finding matters most.',
+    'NOT ENOUGH DATA YET': 'Too few players so far for the rules to tell much. Findings below (if any) are early signs only.' };
+  function renderInsights(box, ins) {
+    box.textContent = '';
+    if (!ins) { box.appendChild(el('div', 'empty', 'The owner summary is unavailable right now.')); return; }
+    var c = el('div', 'ins ' + (ST_CLASS[ins.status] || ''));
+    c.appendChild(el('div', 'stword', ins.status));
+    c.appendChild(el('div', 'meta', ST_LINE[ins.status] || ''));
+    var m = ins.main || {}, d1 = m.day1Players || {}, wk = m.weekPlayerDays || {};
+    c.appendChild(el('div', 'conf', 'MAIN SAMPLES: ' + fmt(d1.n) + ' NEW PLAYERS WITH DAY 1 OVER (' + d1.confidence + ') · ' + fmt(wk.n) + ' PLAYER-DAYS, LAST 7 DAYS (' + wk.confidence + ')'));
+    (ins.findings || []).forEach(function (f, i) {
+      var x = el('div', 'find');
+      var t = el('div', 'ft', (i + 1) + '. ' + f.title);
+      t.appendChild(el('span', 'pill ' + (f.severity === 'high' ? 'pink' : 'amber'), f.severity.toUpperCase()));
+      x.appendChild(t);
+      var p1 = el('p'); p1.appendChild(el('b', null, 'Measured: ')); p1.appendChild(document.createTextNode(f.measured)); x.appendChild(p1);
+      var p2 = el('p', 'hyp'); p2.appendChild(el('b', null, 'Possible reason: ')); p2.appendChild(document.createTextNode(f.reason + ' (a guess to check, not measured)')); x.appendChild(p2);
+      x.appendChild(el('div', 'conf', f.kind === 'ops' ? 'DIRECT COUNT (NOT A SAMPLE) · OPERATIONAL' : 'SAMPLE: ' + String(f.sampleText).toUpperCase() + ' · CONFIDENCE: ' + f.confidence));
+      c.appendChild(x);
+    });
+    if (!(ins.findings || []).length) c.appendChild(el('div', 'find', 'No findings: no rule fired.'));
+    var ck = ins.checked || [], thin = ck.filter(function (r) { return !r.enough; }).length;
+    c.appendChild(el('div', 'asof', 'Checked ' + ck.length + ' fixed rules · ' + fmt(ins.firedCount) + ' fired' + (ins.firedCount > (ins.findings || []).length ? ' (top ' + ins.findings.length + ' shown)' : '') +
+      ' · ' + thin + ' need more data · last complete days up to ' + ins.today + ' (UTC). See GUIDE › Owner summary.'));
+    var out = el('div');
+    var row = el('div', 'actions'); row.appendChild(btn('EXPORT REPORT', 'ghost', function () { exportReport(ins['export'] || '', out); }));
+    c.appendChild(row); c.appendChild(out);
+    box.appendChild(c);
+  }
+  // Copies the plain-text report (last 7 and 30 days, no personal data). No clipboard: a text box to select from.
+  function exportReport(text, out) {
+    function showBox(msg) {
+      out.textContent = '';
+      out.appendChild(el('div', 'note', msg));
+      var ta = el('textarea', 'export'); ta.readOnly = true; ta.value = text; ta.setAttribute('aria-label', 'Report text');
+      out.appendChild(ta);
+      try { ta.focus(); ta.select(); ta.scrollTop = 0; } catch (e) {}
+    }
+    var cb = navigator.clipboard;
+    if (!cb || typeof cb.writeText !== 'function') { showBox('This browser cannot copy by itself. The report is selected below: copy it.'); return; }
+    cb.writeText(text).then(function () { out.textContent = ''; out.appendChild(el('div', 'note ok', 'Report copied (last 7 and 30 days, no personal data). Paste it anywhere.')); },
+      function () { showBox('Copying was blocked. The report is selected below: copy it.'); });
   }
   async function act(button, busy, fn) {
     var label = button.textContent; button.disabled = true; button.textContent = busy;
@@ -672,7 +767,7 @@
     rows.sort(function (a, b) { return PLAY_DIFFS.indexOf(a.diff) - PLAY_DIFFS.indexOf(b.diff) || a.step - b.step; });
     return { rows: rows };
   }
-  window.FLUX_ADMIN_STATS = { summarize: summarize, summarizePlay: summarizePlay };
+  window.FLUX_ADMIN_STATS = { summarize: summarize, summarizePlay: summarizePlay, renderInsights: renderInsights, exportReport: exportReport };
   function table(head, rows) {
     var w = el('div', 'stwrap'), t = el('table', 'st'), tr = el('tr');
     head.forEach(function (h) { tr.appendChild(el('th', null, h)); }); t.appendChild(tr);
@@ -686,6 +781,7 @@
     var to = new Date(), from = new Date(to.getTime() - (span - 1) * 86400000);
     say('Loading stats…');
     var rep = await call('analytics', { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) });
+    var oi = await call('insights'); renderInsights($('stInsights'), oi.insights);   // OWNER SUMMARY at the top of PLAYER STATS
     var s = summarize(rep, by);
     if (!s.groups.length || !(rep.days || []).length) { box.appendChild(el('div', 'empty', 'No stats yet for this period.')); say(''); return; }
     if (by === 'all') {
