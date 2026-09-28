@@ -60,10 +60,10 @@ function suite(gameHtml, quiet = false) {
     ck('C8 the launcher narrows with the ramp, not in one jump', p0 === w0 && p1 < p0 && p2 < p1 && p2 === run('paddleWidthFor(2)'), [p0, p1, p2].join(' -> '));
     ck('C9 orbs already on screen are only moved by the normal ramp (their motion follows speedLevel, not the level number)',
       /t\.phase \+= dt\*\(\.7\+speedLevel\*\.035\)/.test(gameHtml) && /const drift = \.45\+\.55\*Math\.max\(0,Math\.min\(1,speedLevel-4\)\)/.test(gameHtml));
-    // New orbs use the new level's settings: level 2 allows a 5th colour.
-    const r0 = Math.random; Math.random = () => 0.999;
-    try { run('targets=targets.slice(0,2);'); g.ctx.spawnTarget(); } finally { Math.random = r0; }
-    ck('C10 new orbs spawn with the new level\'s settings (level 2: a 5th colour)', run('targets[targets.length-1].color') === 4, run('targets[targets.length-1].color'));
+    // New orbs use the new level's settings (SKILL LADDER): level 2 still has 4 colours, level 3 adds the 5th (star).
+    const r0 = Math.random; Math.random = () => 0.999; let c2 = -1, c3 = -1;
+    try { run('targets=targets.slice(0,2);'); g.ctx.spawnTarget(); c2 = run('targets[targets.length-1].color'); run('level=3; targets=targets.slice(0,2);'); g.ctx.spawnTarget(); c3 = run('targets[targets.length-1].color'); run('level=2;'); } finally { Math.random = r0; }
+    ck('C10 new orbs spawn with the new level\'s settings (level 2: still 4 colours; level 3: the 5th, star)', c2 === 3 && c3 === 4, c2 + ' ' + c3);
     ck('C11 score, combo, lives and FLUX survive the ramp too', JSON.stringify(state()) === JSON.stringify(st1));
   } catch (e) { ck('continuity section ran', false, String(e.stack || e).slice(0, 300)); }
   return { F, failed };

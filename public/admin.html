@@ -161,6 +161,21 @@
       links with a tag, e.g. <code>…/play/?src=tiktok</code>.</li>
       <li>Individual events are kept 90 days, then only totals. Nothing here identifies a person.</li>
     </ul>
+
+    <h3>Reading GAMEPLAY (tuning the speed)</h3>
+    <ul>
+      <li>One row per <b>difficulty</b> and <b>speed step</b> of the ball (0 = the starting speed; the ball gets a little
+      faster at each step, by run time). It is for everyone, whatever you choose under Group.</li>
+      <li><b>Runs</b>: finished runs that reached that step. <b>Time at step</b>: total play time at that speed, and its share
+      of all play time on that difficulty. If almost all the time is at step 0-1, players rarely get far.</li>
+      <li><b>Hit rate</b>: orb hits ÷ (orb hits + wrong-colour hits). <b>Misses / min</b>: wrong-colour hits plus lost balls
+      per minute at that step. <b>Lives lost / min</b>: lost balls per minute.</li>
+      <li>How to tune: if <b>lives lost / min</b> jumps between two steps, that step is too big a jump; if a difficulty loses
+      lives quickly already at step 0, its starting speed is too fast. A steady hit rate with few lives lost at the top step
+      means that difficulty could go a little faster. Compare Easy, Medium and Hard: each should lose lives faster than the
+      one before at the same step.</li>
+      <li>Only totals by difficulty and step are kept here — no country, no source, nothing about a person.</li>
+    </ul>
   </details>
 
   <details id="advanced">
@@ -417,7 +432,28 @@
     });
     return out;
   }
-  window.FLUX_ADMIN_STATS = { summarize: summarize };
+  // GAMEPLAY: the server's "p:<difficulty>:<step>" day totals, added over the period, one row per difficulty and speed step.
+  var PLAY_DIFFS = ['easy', 'medium', 'hard'];
+  function summarizePlay(rep) {
+    var cells = {}, perDiff = {};
+    (rep.days || []).forEach(function (d) {
+      Object.keys(d.groups || {}).forEach(function (k) {
+        var m = /^p:(easy|medium|hard):(\d)$/.exec(k); if (!m) return;
+        var v = d.groups[k] || {}, c = cells[k] || (cells[k] = { diff: m[1], step: +m[2], runs: 0, sec: 0, hit: 0, wrong: 0, lost: 0 });
+        ['runs', 'sec', 'hit', 'wrong', 'lost'].forEach(function (f) { c[f] += +v[f] || 0; });
+        perDiff[m[1]] = (perDiff[m[1]] || 0) + (+v.sec || 0);
+      });
+    });
+    var rows = Object.keys(cells).map(function (k) { var c = cells[k], min = c.sec / 60;
+      c.hitRate = (c.hit + c.wrong) ? c.hit / (c.hit + c.wrong) : NaN;
+      c.missesPerMin = min ? (c.wrong + c.lost) / min : NaN;
+      c.livesPerMin = min ? c.lost / min : NaN;
+      c.timeShare = perDiff[c.diff] ? c.sec / perDiff[c.diff] : NaN;
+      return c; });
+    rows.sort(function (a, b) { return PLAY_DIFFS.indexOf(a.diff) - PLAY_DIFFS.indexOf(b.diff) || a.step - b.step; });
+    return { rows: rows };
+  }
+  window.FLUX_ADMIN_STATS = { summarize: summarize, summarizePlay: summarizePlay };
   function table(head, rows) {
     var w = el('div', 'stwrap'), t = el('table', 'st'), tr = el('tr');
     head.forEach(function (h) { tr.appendChild(el('th', null, h)); }); t.appendChild(tr);
@@ -453,6 +489,11 @@
       box.appendChild(table([by === 'src' ? 'Source' : 'Country', 'New', 'Active/day', 'Runs/player', 'Avg run', 'Avg level', 'Share', 'Day 1', 'Day 7', 'Day 30'],
         s.groups.map(function (g) { return [g.label, fmt(g.newPlayers), num(g.avgDaily), num(g.runsPerPlayer), mins(g.avgRunSec), num(g.avgLevel), rate(g.shareRate), rate(g.day1), rate(g.day7), rate(g.day30)]; })));
     }
+    var play = summarizePlay(rep).rows;
+    box.appendChild(el('h2', null, 'GAMEPLAY'));
+    if (!play.length) box.appendChild(el('div', 'empty', 'No gameplay measurements yet for this period.'));
+    else box.appendChild(table(['Difficulty', 'Speed step', 'Runs', 'Time at step', 'Hit rate', 'Misses / min', 'Lives lost / min'],
+      play.map(function (c) { return [c.diff.toUpperCase(), c.step === 0 ? '0 (start)' : String(c.step), fmt(c.runs), mins(c.sec) + ' (' + rate(c.timeShare) + ')', rate(c.hitRate), num(c.missesPerMin), num(c.livesPerMin)]; })));
     box.appendChild(el('p', 'note', 'From ' + rep.from + ' to ' + rep.to + ' (UTC). Individual events are kept ' + rep.keepDays + ' days, then only totals.'));
     say('');
   }

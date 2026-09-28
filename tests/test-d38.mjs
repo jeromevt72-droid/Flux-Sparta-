@@ -102,7 +102,7 @@ async function suite({ gw, game, admin, robots, sitemap, workerMod, quiet = fals
   try {
     const w = workerMod.default, env = makeEnv(workerMod.LeaderboardDO);
     for (const [id, n] of [['aaaa1111-0000-4000-8000-000000000001', 'SOLAR FOX 21'], ['aaaa1111-0000-4000-8000-000000000002', 'BRAVE OTTER 37'], ['aaaa1111-0000-4000-8000-000000000003', 'SOLAR FOX 22']]) {   // PRESET NAMES
-      skew += 20000; await post(w, env, '/api/submit-score', { playerId: id, name: n, score: 1000, level: 1, difficulty: 'easy', country: 'US', season: 1 });   // SEASON 1
+      skew += 20000; await post(w, env, '/api/submit-score', { playerId: id, name: n, score: 50, level: 1, difficulty: 'easy', country: 'US', season: 1 });   // SEASON 1 (50 is level 1 on Easy: TIME SPEED rates)
     }
     const all = await post(w, env, '/api/admin/find-player', { query: 'SOLAR FOX' }, 'tok');
     const flux = all.data.matches.find((m) => m.name === 'SOLAR FOX 21');

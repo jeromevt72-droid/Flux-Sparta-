@@ -29,7 +29,7 @@ const VALID_SKUS = new Set(["toxic", "cosmic", "solar"]);
 // per-level score ceiling (score <= level * 50,000 + 5,000). MUST stay
 // identical to LEVEL_SCORE_THRESHOLDS / LEVEL_SCORE_MULT in play/index.html.
 const LEVEL_SCORE_THRESHOLDS = [2500, 6000, 10000, 15000, 21000, 28000, 36000, 45000];   // Medium, levels 2..9
-const LEVEL_SCORE_MULT = { easy: 0.3, medium: 1, hard: 1.35 };   // Easy 0.3: Easy points are x0.4 (EASY_POINTS in play/index.html), thresholds follow
+const LEVEL_SCORE_MULT = { easy: 0.0225, medium: 0.235, hard: 1.35 };   // TIME SPEED: Easy points x0.03 (EASY_POINTS), Medium x0.2 (MEDIUM_POINTS) in play/index.html; their thresholds follow
 const LEVEL_TOLERANCE = 1;
 // RC2.8.7: a hard ceiling kept IN ADDITION to D-51. The level rule alone lets
 // any score through once level 9 is claimed; nothing above the RC2.8.5
@@ -177,8 +177,16 @@ async function forwardToDO(request, env, path, init) {
    into daily / monthly totals and retention-by-start-date totals as it
    arrives. Raw events are kept 90 days, then only the totals remain. It
    runs in its own Durable Object instance ("analytics"), so the
-   leaderboard is never slowed down, and the game never waits for it. */
-const AN_EVENTS = new Set(["open", "first_run", "run_end", "level_up", "share"]);
+   leaderboard is never slowed down, and the game never waits for it.
+   GAMEPLAY: at the end of a run the game also sends, for each speed step of
+   the ball it reached, one "play" event: difficulty, step, seconds played at
+   that step, orb hits, wrong-colour hits and balls lost. They are added into
+   day totals keyed only by difficulty and step ("p:<difficulty>:<step>"),
+   never by country or source; numbers are clamped, the difficulty must be
+   one of the three, the step is capped at AN_MAX_STEP. */
+const AN_EVENTS = new Set(["open", "first_run", "run_end", "level_up", "share", "play"]);
+const AN_MAX_STEP = 8;
+function anInt(v, lo, hi) { const n = Math.floor(Number(v)); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : lo; }
 const AN_SRC = /^[a-z0-9_-]{1,24}$/;
 const AN_KEEP_DAYS = 90;
 const AN_MAX_BATCH = 40;
@@ -200,6 +208,11 @@ function cleanEvent(e) {
     out.diff = VALID_DIFFICULTIES.has(e.diff) ? e.diff : "medium";
   }
   if (e.e === "run_end") { const sec = Math.floor(Number(e.sec)); out.sec = sec >= 0 && sec <= 7200 ? sec : 0; }
+  if (e.e === "play") {   // GAMEPLAY: one run's time at one speed step
+    if (!VALID_DIFFICULTIES.has(e.diff)) return null;
+    out.diff = e.diff; out.st = anInt(e.st, 0, AN_MAX_STEP); out.sec = anInt(e.sec, 0, 7200);
+    out.hit = anInt(e.hit, 0, 5000); out.wrong = anInt(e.wrong, 0, 5000); out.lost = anInt(e.lost, 0, 4);
+  }
   return out;
 }
 async function ingestEvents(request, env) {
@@ -1342,6 +1355,10 @@ export class LeaderboardDO {
       else if (e.e === "level_up") anAdd(day, groups, "levelups", 1);
       else if (e.e === "share") anAdd(day, groups, "shares", 1);
       else if (e.e === "run_end") { anAdd(day, groups, "runs", 1); anAdd(day, groups, "sec", e.sec || 0); anAdd(day, groups, "lvl", e.lvl || 1); }
+      else if (e.e === "play") {   // GAMEPLAY: by difficulty and speed step only
+        const pg = ["p:" + e.diff + ":" + e.st];
+        anAdd(day, pg, "runs", 1); anAdd(day, pg, "sec", e.sec); anAdd(day, pg, "hit", e.hit); anAdd(day, pg, "wrong", e.wrong); anAdd(day, pg, "lost", e.lost);
+      }
     }
     // Raw events for 90 days, in small chunks.
     const n = (await st.get("an:evn:" + today)) || 0, ck = "an:ev:" + today + ":" + Math.max(0, n - 1);

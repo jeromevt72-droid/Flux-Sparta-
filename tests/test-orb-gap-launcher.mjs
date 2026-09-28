@@ -49,9 +49,10 @@ function suite(gameHtml, quiet = false) {
       Math.random = seeded(diff.length * 97);
       run(`difficulty='${diff}';`); g.ctx.newGame(); let worst = Infinity, lvMax = 1, frames = 0;
       for (let f = 0; f < 12000; f++) { if (f % 2500 === 0) run('misses=0;');
-        // On Easy the paddle is steered 8px off-centre (a slow wobble): with dead-centre catches this seeded Easy
-        // ball settled into a straight up-and-down path past the orbs and, at x0.4 Easy points, never reached level 2.
-        run('paddle.x=Math.max(paddle.w/2+8,Math.min(W-paddle.w/2-8,ball.x' + (diff === 'easy' ? '+Math.sin(' + f + '*.05)*8' : '') + ')); if(!playing){playing=true;paused=false;}'); g.ctx.update(1 / 60);
+        // The paddle is steered 8px off-centre (a slow wobble): with dead-centre catches a seeded ball can settle
+        // into a straight up-and-down path past the orbs and never level up (first seen on Easy at x0.4 points;
+        // since TIME SPEED's slower, steadier ball, on every difficulty).
+        run('paddle.x=Math.max(paddle.w/2+8,Math.min(W-paddle.w/2-8,ball.x+Math.sin(' + f + '*.05)*8)); if(!playing){playing=true;paused=false;}'); g.ctx.update(1 / 60);
         if (run('playing')) { worst = Math.min(worst, minGap(run)); frames++; } lvMax = Math.max(lvMax, run('level')); }
       Math.random = realRandom;
       ck('G1 ' + diff + ': ' + frames + ' frames to level ' + lvMax + ', orbs never closer than ' + GAP + 'px edge to edge', GAP >= 8 && worst >= GAP - 0.5 && lvMax >= (diff === 'easy' ? 2 : 3), 'closest ' + worst.toFixed(1) + 'px');

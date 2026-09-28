@@ -87,6 +87,7 @@ html.fluxStandalone{height:100vh;min-height:100%}
 #fluxGlow.on{opacity:1}
 .hud{position:absolute;top:max(16px,env(safe-area-inset-top));left:0;right:0;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;pointer-events:none}
 .logo{font-weight:900;letter-spacing:.38em;font-size:22px;color:#55e8ff;text-shadow:0 0 18px #18cfff}
+.hudDiff{margin-top:3px;font-size:11px;font-weight:900;letter-spacing:.16em;line-height:1;color:#8da0c8;white-space:nowrap}/* HUD: EASY / MEDIUM / HARD under the logo */
 .stats{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;max-width:70vw}/* D-53 (RC2.8.7): the pause button sits IN the FLUX meter row, inside .hud, so it moves with the safe-area inset (iOS Home Screen) instead of being pinned at a fixed height the notch could push the meter onto. */.fluxbar{position:absolute;top:76px;left:16px;display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:.14em;color:#8da0c8}.fluxbar div{width:150px;height:6px;border:1px solid #24427b;border-radius:99px;background:#09102b;overflow:hidden}.fluxbar i{display:block;width:0%;height:100%;background:#62eaff;box-shadow:0 0 14px #27d9ff;transition:width .12s}.fluxbar b{font-size:11px;color:#62eaff;min-width:36px}
 .stat{min-width:64px;text-align:center;border:1px solid #263a72;background:#0b1030cc;border-radius:13px;padding:7px 9px;box-shadow:0 0 18px #15255a66}
 .stat b{display:block;font-size:16px}.levelTrack{height:3px;margin-top:5px;border-radius:99px;background:#111b3c;overflow:hidden}.levelTrack i{display:block;width:0%;height:100%;background:#62eaff;box-shadow:0 0 8px #27d9ff;transition:width .15s}
@@ -120,6 +121,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
   .fluxbar{top:66px;gap:6px;letter-spacing:.08em}.fluxbar div{width:78px}
 }
 #flash{position:absolute;inset:0;pointer-events:none;background:white;opacity:0;mix-blend-mode:screen}
+@media (prefers-reduced-motion: reduce){#pressureGlow.critical{animation:none}.coachArrow.down,.coachArrow.up{animation:none}}/* REDUCE MOTION: no pulsing glow or bouncing arrow */
 .menuPanel{max-height:92vh;overflow:auto}.menuSection{margin:12px 0 14px}.menuLabel{font-size:11px;letter-spacing:.16em;color:#8094c0;margin-bottom:8px}.difficulty{display:flex;gap:7px}.difficulty button{flex:1;padding:11px 4px;font-size:11px;letter-spacing:.08em;background:#0c1537;color:#91a6d4;border:1px solid #294578;box-shadow:none}.difficulty button.selected{background:#62eaff;color:#04101a;box-shadow:0 0 18px #27d9ff66}.profileRow{display:flex;gap:7px;margin:0 0 12px}.profileRow input,.profileRow select{min-width:0;flex:1;border:1px solid #294578;border-radius:12px;background:#070d27;color:#eaf7ff;padding:11px 10px;font-size:16px;font-weight:800}.profileRow select{flex:0 0 118px}.menuTiles{display:flex;gap:8px;margin-top:12px}.menuTiles>div{flex:1;border:1px solid #263a72;background:#0b1030aa;border-radius:12px;padding:8px}.menuTiles span{display:block;font-size:11px;letter-spacing:.08em;color:#7f93bd}.menuTiles b{display:block;margin-top:3px;font-size:16px}.menuLinks{display:flex;gap:8px;margin-top:10px}.linkBtn{flex:1;padding:9px 8px;font-size:11px;letter-spacing:.08em;background:#0b1230;color:#7fdfff;border:1px solid #234174;box-shadow:none}.offline{font-size:11px!important;letter-spacing:.06em;color:#5c779f!important;margin:11px 0 0!important}.miniOverlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#030512dd;z-index:6}.gameoverModes{margin:14px 0 12px}.gameoverModes .menuLabel{margin-bottom:7px}.gameoverModes .difficulty{max-width:340px;margin:auto}.gameoverModes button{padding:10px 4px;font-size:11px}.profileSaved{display:flex;align-items:center;justify-content:center;gap:8px;margin:0 0 12px;color:#8fa5d1;font-size:12px;letter-spacing:.08em}.profileSaved b{color:#62eaff}.editProfile{background:transparent!important;color:#62eaff!important;border:1px solid #294578!important;box-shadow:none!important;padding:6px 14px!important;font-size:11px!important;letter-spacing:.1em!important;min-height:44px}@media(max-width:430px){.menuPanel{padding:20px}.menuPanel h1{font-size:42px}.profileRow select{flex-basis:104px}.menuLinks{flex-direction:column}}
 .lbPanel{max-height:86vh;display:flex;flex-direction:column}.lbBody{flex:1;min-height:0;overflow:auto;margin:14px 0 18px;text-align:left}.lbLoading,.lbEmpty{color:#8da0c8;font-size:12px;text-align:center;padding:20px 0}.lbLeading{text-align:center;font-size:11px;letter-spacing:.08em;color:#9eb0d6;background:#0b1030;border:1px solid #263a72;border-radius:12px;padding:9px;margin-bottom:12px}.lbLeading b{color:#62eaff}.lbSectionLabel{font-size:11px;letter-spacing:.16em;color:#7f93bd;margin:16px 0 8px}.lbList{display:flex;flex-direction:column;gap:6px}.lbRow{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #263a72;background:#0b1030aa;border-radius:10px;font-size:12px}.lbRow.lbMine{border-color:#62eaff;box-shadow:0 0 14px #27d9ff44}.lbRank{width:32px;color:#7f93bd;font-weight:900;font-size:11px}.lbFlag{font-size:15px}.lbName{flex:1;font-weight:800;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lbScore{font-weight:900;color:#62eaff}
 #shop .panel{width:min(420px,88vw)}
@@ -164,7 +166,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 <div id="fluxGlow"></div>
 <div id="flash"></div>
 <div class="hud">
-  <div><div class="logo">FLUX</div></div>
+  <div><div class="logo">FLUX</div><div id="hudDiff" class="hudDiff">MEDIUM</div></div>
   <div class="stats">
     <div class="stat"><span>SCORE</span><b id="score">0</b></div>
     <div class="stat"><span>COMBO</span><b id="combo">x1</b></div>
@@ -445,9 +447,17 @@ function fluxApplyLite(){
 fluxApplyLite();
 let W,H,dpr,playing=false,paused=false,last=0,score=0,combo=1,level=1,streak=0,best=0,misses=0,revivesUsedThisRun=0,flux=0,fluxMode=0,missFragments=[],comboTimer=0,levelBanner=0,perfectFlash=0,levelHold=0,orbValue=20,bonusTimer=0,growTimer=0;
 let missNotice=0,missNoticeText=['',''];   // miss notice, shown in the HUD strip (see drawSlotNotice)
-let pendingLevel=0,levelCountdown=0,levelTickAt=0,speedLevel=1;   // D-50: SPEED UP countdown + smooth speed ramp
+let pendingLevel=0,levelCountdown=0,levelTickAt=0,speedLevel=1;   // D-50: level-up countdown + smooth ramp (launcher width, orb motion)
+let runClock=0,speedStep=0,speedShown=0,speedCountdown=0,speedTickAt=0;   // TIME SPEED: run time, speed step, its ~1 s ramp, SPEED UP countdown
 let fluxCountdown=0,fluxTickAt=0;   // FLUX MODE is announced with a 3-2-1 before it starts (see checkFluxMode)
 let cachedHudRects=[]; // declared early -- resize() runs at script load time and references this immediately
+/* REDUCE MOTION: when the device's Reduce Motion setting is on, calmer
+   effects (no screen shake, softer and shorter flashes, no pulsing glows).
+   Safari 15: MediaQueryList.addListener (onchange as a fallback). */
+let reduceMotion=false;
+(function(){ try{ if(!window.matchMedia) return; const mq=window.matchMedia('(prefers-reduced-motion: reduce)'); if(!mq) return;
+  const read=function(){ reduceMotion=!!mq.matches; }; read();
+  if(typeof mq.addListener==='function') mq.addListener(read); else mq.onchange=read; }catch(e){} })();
 let difficulty=localStorage.fluxDifficulty||'medium', callsign=localStorage.fluxCallsign||'', country=localStorage.fluxCountry||'US';
 let profileComplete=localStorage.fluxProfileComplete==='1';
 /* PILOT NAMES (child privacy). A new pilot starts with a preset name built from
@@ -519,13 +529,15 @@ const playerId=localStorage.fluxPlayerId;
 if(callsign && !isAllowedName(callsign)){ callsign=presetNameForId(playerId); try{ localStorage.fluxCallsign=callsign; localStorage.fluxNameNotice='1'; }catch(e){} }
 const countryFlags={AF:'🇦🇫',AL:'🇦🇱',DZ:'🇩🇿',AD:'🇦🇩',AO:'🇦🇴',AG:'🇦🇬',AR:'🇦🇷',AM:'🇦🇲',AU:'🇦🇺',AT:'🇦🇹',AZ:'🇦🇿',BS:'🇧🇸',BH:'🇧🇭',BD:'🇧🇩',BB:'🇧🇧',BY:'🇧🇾',BE:'🇧🇪',BZ:'🇧🇿',BJ:'🇧🇯',BT:'🇧🇹',BO:'🇧🇴',BA:'🇧🇦',BW:'🇧🇼',BR:'🇧🇷',BN:'🇧🇳',BG:'🇧🇬',BF:'🇧🇫',BI:'🇧🇮',CV:'🇨🇻',KH:'🇰🇭',CM:'🇨🇲',CA:'🇨🇦',CF:'🇨🇫',TD:'🇹🇩',CL:'🇨🇱',CN:'🇨🇳',CO:'🇨🇴',KM:'🇰🇲',CG:'🇨🇬',CD:'🇨🇩',CR:'🇨🇷',CI:'🇨🇮',HR:'🇭🇷',CU:'🇨🇺',CY:'🇨🇾',CZ:'🇨🇿',DK:'🇩🇰',DJ:'🇩🇯',DM:'🇩🇲',DO:'🇩🇴',EC:'🇪🇨',EG:'🇪🇬',SV:'🇸🇻',GQ:'🇬🇶',ER:'🇪🇷',EE:'🇪🇪',SZ:'🇸🇿',ET:'🇪🇹',FJ:'🇫🇯',FI:'🇫🇮',FR:'🇫🇷',GA:'🇬🇦',GM:'🇬🇲',GE:'🇬🇪',DE:'🇩🇪',GH:'🇬🇭',GR:'🇬🇷',GD:'🇬🇩',GT:'🇬🇹',GN:'🇬🇳',GW:'🇬🇼',GY:'🇬🇾',HT:'🇭🇹',HN:'🇭🇳',HU:'🇭🇺',IS:'🇮🇸',IN:'🇮🇳',ID:'🇮🇩',IR:'🇮🇷',IQ:'🇮🇶',IE:'🇮🇪',IL:'🇮🇱',IT:'🇮🇹',JM:'🇯🇲',JP:'🇯🇵',JO:'🇯🇴',KZ:'🇰🇿',KE:'🇰🇪',KI:'🇰🇮',KW:'🇰🇼',KG:'🇰🇬',LA:'🇱🇦',LV:'🇱🇻',LB:'🇱🇧',LS:'🇱🇸',LR:'🇱🇷',LY:'🇱🇾',LI:'🇱🇮',LT:'🇱🇹',LU:'🇱🇺',MG:'🇲🇬',MW:'🇲🇼',MY:'🇲🇾',MV:'🇲🇻',ML:'🇲🇱',MT:'🇲🇹',MH:'🇲🇭',MR:'🇲🇷',MU:'🇲🇺',MX:'🇲🇽',FM:'🇫🇲',MD:'🇲🇩',MC:'🇲🇨',MN:'🇲🇳',ME:'🇲🇪',MA:'🇲🇦',MZ:'🇲🇿',MM:'🇲🇲',NA:'🇳🇦',NR:'🇳🇷',NP:'🇳🇵',NL:'🇳🇱',NZ:'🇳🇿',NI:'🇳🇮',NE:'🇳🇪',NG:'🇳🇬',KP:'🇰🇵',MK:'🇲🇰',NO:'🇳🇴',OM:'🇴🇲',PK:'🇵🇰',PW:'🇵🇼',PS:'🇵🇸',PA:'🇵🇦',PG:'🇵🇬',PY:'🇵🇾',PE:'🇵🇪',PH:'🇵🇭',PL:'🇵🇱',PT:'🇵🇹',QA:'🇶🇦',RO:'🇷🇴',RU:'🇷🇺',RW:'🇷🇼',KN:'🇰🇳',LC:'🇱🇨',VC:'🇻🇨',WS:'🇼🇸',SM:'🇸🇲',ST:'🇸🇹',SA:'🇸🇦',SN:'🇸🇳',RS:'🇷🇸',SC:'🇸🇨',SL:'🇸🇱',SG:'🇸🇬',SK:'🇸🇰',SI:'🇸🇮',SB:'🇸🇧',SO:'🇸🇴',ZA:'🇿🇦',KR:'🇰🇷',SS:'🇸🇸',ES:'🇪🇸',LK:'🇱🇰',SD:'🇸🇩',SR:'🇸🇷',SE:'🇸🇪',CH:'🇨🇭',SY:'🇸🇾',TW:'🇹🇼',TJ:'🇹🇯',TZ:'🇹🇿',TH:'🇹🇭',TL:'🇹🇱',TG:'🇹🇬',TO:'🇹🇴',TT:'🇹🇹',TN:'🇹🇳',TR:'🇹🇷',TM:'🇹🇲',TV:'🇹🇻',UG:'🇺🇬',UA:'🇺🇦',AE:'🇦🇪',GB:'🇬🇧',US:'🇺🇸',UY:'🇺🇾',UZ:'🇺🇿',VU:'🇻🇺',VA:'🇻🇦',VE:'🇻🇪',VN:'🇻🇳',YE:'🇾🇪',ZM:'🇿🇲',ZW:'🇿🇼',OTHER:'🌎'};
 /* D-50 (RC2.8.7) SCORE-BASED LEVELS. A level is reached by SCORE. Perfect
-   catches still score, but no longer drive the level. Medium thresholds for
-   levels 2..9; Easy x0.3 (x0.75 before EASY SCORING cut Easy's points to
-   x0.4), Hard x1.35. MUST stay identical to
+   catches still score, but no longer drive the level. Base thresholds for
+   levels 2..9; Hard x1.35. Easy and Medium thresholds follow their point
+   rates (as EASY SCORING did): Easy .75 x EASY_POINTS = .0225, Medium
+   MEDIUM_POINTS / .85 = .235 (TIME SPEED cut both rates), so their levels
+   still come at the same pace per point. MUST stay identical to
    LEVEL_SCORE_THRESHOLDS / LEVEL_SCORE_MULT in worker.js (D-51 checks it). */
 const LEVEL_SCORE_THRESHOLDS=[2500,6000,10000,15000,21000,28000,36000,45000];
-const LEVEL_SCORE_MULT={easy:.3,medium:1,hard:1.35};
-const FLUX_COUNTDOWN_S=3, FLUX_EASY_FROM_LEVEL=3;   // FLUX MODE: 3 s announce countdown; on Easy it starts from level 3
+const LEVEL_SCORE_MULT={easy:.0225,medium:.235,hard:1.35};
+const FLUX_COUNTDOWN_S=3, FLUX_FROM_LEVEL=3;   // FLUX MODE: 3 s announce countdown; it starts from level 3 on every difficulty (SKILL LADDER)
 const LEVEL_COUNTDOWN_S=5, LEVEL_RAMP_S=1;   // level-up: 5 s SPEED UP countdown, then ~1 s difficulty ramp
 function levelScoreAt(lv,d){   // score needed to reach level lv (lv 1 = 0)
   if(lv<=1) return 0;
@@ -589,8 +601,12 @@ const FLUX_SEASON=1;
    same player scored more on Easy than on Medium or Hard, and the leaderboard
    keeps each player's best across difficulties. Easy's level thresholds
    (LEVEL_SCORE_MULT.easy = .75 x EASY_POINTS) are scaled the same way, so
-   Easy levels still come at the same pace. */
-const EASY_POINTS=.4;
+   Easy levels still come at the same pace.
+   TIME SPEED: the ball's speed now follows run time and Easy's is slow, so
+   runs are much longer; x0.4 became x0.03 to keep the same simulated player
+   scoring less on Easy than on Medium and Hard (240 seeded runs each; most
+   Easy events now pay 1 point). */
+const EASY_POINTS=.03;
 function scorePoints(n){ return difficulty==='easy' ? Math.max(1,Math.round(n*EASY_POINTS)) : n; }
 const DIFFICULTY={easy:{capPhone:3,capPad:5,speed:.82,accel:.82,level:.82,mult:.75},medium:{capPhone:4,capPad:6,speed:1,accel:1,level:1,mult:1},hard:{capPhone:5,capPad:7,speed:1.16,accel:1.12,level:1.16,mult:1.35}};
 function bestKey(){return 'fluxBest_'+difficulty}
@@ -604,11 +620,17 @@ DIFFICULTY.medium.capPhone=5;
    same player still scores less on Medium than on Hard with the fuller Medium
    field (the leaderboard keeps each player's best across difficulties).
    Simulated players (240 seeded runs each): 0.85 is the largest step of 0.05
-   that keeps Medium below Hard. On Medium an ordinary catch (+2) and the FLUX MODE bonus (+250) are not scaled.
-   The level thresholds and the server's score-to-level check are unchanged:
-   levels still come from the score by the same table. Easy and Hard points
-   are not scaled by MEDIUM_POINTS (Easy has its own EASY_POINTS, above). */
-const MEDIUM_POINTS=.85;
+   that keeps Medium below Hard. On Medium an ordinary catch (+2) is not scaled.
+   Levels still come from the score by the table above, checked the same way
+   by the server. Easy and Hard points
+   are not scaled by MEDIUM_POINTS (Easy has its own EASY_POINTS, above).
+   TIME SPEED: Medium runs are now about 3 times longer than Hard runs for
+   the same simulated player, so x0.85 became x0.2, the FLUX MODE bonus is
+   scaled too (+250 would be worth about 40 orb hits), and Medium's level
+   thresholds follow (LEVEL_SCORE_MULT.medium = MEDIUM_POINTS / .85): without
+   that, fewer levels made Medium easier and runs longer, and no rate kept
+   Medium below Hard. An ordinary catch stays +2. */
+const MEDIUM_POINTS=.2;
 function mediumPoints(p){ return difficulty==='medium'?Math.round(p*MEDIUM_POINTS):p; }
 // ---------------------------------------------------------------------------
 // D-09 — BEST-RUN RECORD
@@ -666,7 +688,14 @@ function isPhone(){return W<=700}
    phones: 380px wide or less, or 700px tall or less), in the same colours as
    before -- repeats, never extra colours. Medium and Hard are unchanged. */
 function easyOrbCount(){ return (W<=380||H<=700)?5:6; }
-function targetCap(){if(difficulty==='easy')return easyOrbCount();const d=DIFFICULTY[difficulty],g=Math.min(2,Math.floor((level-1)/4));return isPhone()?Math.min(6,d.capPhone+g):Math.min(9,d.capPad+g)}
+/* HARD KEEPS EMPTY SPACE (owner): Hard gets harder only through speed and
+   shorter reaction time, never more orbs: 5 on phones and 6 on iPad at every
+   level (it had 5 -> 6 on phones and 7 -> 8 -> 9 on iPad), so Hard never has
+   more orbs than Medium or than before. */
+DIFFICULTY.hard.capPad=6;
+function fieldCapAt(lv){ if(difficulty==='easy') return easyOrbCount(); const d=DIFFICULTY[difficulty]; if(difficulty==='hard') return isPhone()?d.capPhone:d.capPad;
+  const g=Math.min(2,Math.floor((lv-1)/4)); return isPhone()?Math.min(6,d.capPhone+g):Math.min(9,d.capPad+g); }
+function targetCap(){ return fieldCapAt(level); }
 let paddle={x:0,y:0,w:150,h:12,handleH:28,hitFlash:0,hitSide:0};
 /* PADDLE GRIP (tester feedback): a round grip like a camera shutter button
    under the launcher, joined by a short stem, always above the iPhone home
@@ -692,11 +721,10 @@ let ball,targets=[],particles=[],texts=[],shake=0;
 const STORE_OPEN = false;
 
 /* ORB COLOURS v2: every skin has exactly 5 colours, 4 core + 1 unlock colour
-   (level 2, symbol ★). Chosen for fast motion and side vision (clear brightness
+   (level 3, symbol ★: SKILL LADDER). Chosen for fast motion and side vision (clear brightness
    steps), red-green colour blindness and harmony (Ou & Luo 2006); Toxic's are
    kept clearly apart from the free Aurora skin. The number of colours in play
-   is min(colors.length, 4+floor(level/2)), so the cap means 4 at level 1 and 5
-   from level 2 on. Only drawing colours: hit areas and scoring are unchanged. */
+   is coloursInPlay(): 4 up to level 2 and 5 from level 3 on (SKILL LADDER). Only drawing colours: hit areas and scoring are unchanged. */
 const SKINS={
   /* D-56 (RC2.8.7) PALETTES. Every colour is bright on the dark field; the
      first four (the ones in play until level 2) differ in hue AND lightness;
@@ -978,6 +1006,7 @@ var runActive=false;
 function newGame(){
  try{ window.parent.postMessage({type:'flux-playing'}, '*'); }catch(e){}
  pendingLevel=0;levelCountdown=0;levelTickAt=0;speedLevel=1;fluxCountdown=0;fluxTickAt=0;
+ runClock=0;speedStep=0;speedShown=0;speedCountdown=0;speedTickAt=0;lastStepClock=0;fieldHoldUntil=0;lostBallHold=0;recoverLeft=0;playStats=[];   // TIME SPEED: every run starts at the first speed
  score=0;combo=1;level=1;streak=0;flux=0;fluxMode=0;misses=0;revivesUsedThisRun=0;missFragments=[];particles=[];texts=[];shake=0;targets=[];comboTimer=0;levelBanner=0;missNotice=0;colorHintLeft=0;perfectFlash=0;bonusTimer=rand(5,9);growTimer=rand(9,14);
  refreshHudRects(); // pauseBtn just became visible -- make sure the exclusion zone reflects that now, not the pre-game state
  applyCelestialBackground(level);
@@ -985,9 +1014,9 @@ function newGame(){
  paddle.w=isPhone()?132:150; paddle.handleH=isPhone()?22:28; gripPulse=1.6; drag=null;
  document.getElementById('pauseOverlay')?.classList.add('hidden');
  document.getElementById('pauseBtn').textContent='Ⅱ';
- ball={x:W/2,y:paddle.y-28,r:13,vx:rand(-3.5,3.5),vy:-6.2*DIFFICULTY[difficulty].speed,color:0,trail:[]};
+ ball={x:W/2,y:paddle.y-28,r:13,vx:rand(-3.5,3.5),vy:-launchSpeed(6.2*DIFFICULTY[difficulty].speed),color:0,trail:[]};
  for(let i=0;i<targetCap();i++){
-   const color=i%Math.min(5,3+level);
+   const color=i%coloursInPlay();
    // Deliberately distribute the opening field over multiple zones.
    const zones=[
      [rand(50,W*.34),rand(H*.20,H*.40)],
@@ -1092,7 +1121,7 @@ function safeSpawnPoint(r=20){
 }
 function spawnTarget(forceColor=null){
  if(targets.length>=targetCap()) return;
- let color=forceColor==null?Math.floor(Math.random()*Math.min(colors.length,4+Math.floor(level/2))):forceColor;
+ let color=forceColor==null?Math.floor(Math.random()*coloursInPlay()):forceColor;
  const [x,y]=safeSpawnPoint(20);
  addTarget(color,x,y,isPhone()?16+Math.random()*5:18+Math.random()*6);
 }
@@ -1112,7 +1141,7 @@ function spawnBonusOrb(){
 function spawnGrowingOrb(){
  if(targets.some(t=>t.growing)) return;
  const [x,y]=safeSpawnPoint(30);
- const color=Math.floor(Math.random()*Math.min(colors.length,4+Math.floor(level/2)));
+ const color=Math.floor(Math.random()*coloursInPlay());
  const maxR=isPhone()?34:40;
  targets.push({x,y,r:12,maxR,color,spin:rand(0,6),vx:rand(-.22,.22),vy:rand(-.18,.18),phase:rand(0,Math.PI*2),age:0,growing:true,matured:false,danger:false});
 }
@@ -1151,7 +1180,7 @@ function resetFieldAfterMiss(){
  targets=[];
  for(let i=0;i<targetCap();i++){
    const [x,y]=safeSpawnPoint(isPhone()?18:22);
-   const color=i%Math.min(5,3+level);
+   const color=i%coloursInPlay();
    addTarget(color,x,y,isPhone()?16+Math.random()*5:18+Math.random()*6);
  }
  if(ball) ball.color=pickBallColour();   // the new ball (after a miss or a revive) matches an orb on the new field
@@ -1228,15 +1257,18 @@ function popup(x,y,s,col='#fff'){texts.push({x,y,s,life:1,col})}
    a full meter no longer starts FLUX MODE at once. It is announced first:
    the HUD-strip banner (the level-up slot) reads "FLUX MODE" / "STARTS IN n"
    and counts 3-2-1 with a soft tick. Only then does FLUX MODE start, with
-   exactly the same effects as before (6 s, +250, top speed 18.5, bonus
-   points). During the countdown nothing speeds up and points are normal.
-   One countdown at a time: a full meter waits for a level-up countdown (and
-   for a miss notice), and a level-up waits for the FLUX countdown. On Easy,
-   FLUX MODE starts from level 3: before that the meter fills and stays full. */
+   the same effects as before (6 s, +250, bonus points, screen glow). FLUX
+   MODE is a reward, not a speed-up: on Easy and Medium the ball keeps its
+   speed; on Hard it gets a short burst (see normalMaxSpeed), never above
+   Hard's top speed. During the countdown nothing speeds up and points are normal.
+   One countdown at a time: a full meter waits for a level-up or SPEED UP
+   countdown (and for a miss notice), and they wait for the FLUX countdown.
+   SKILL LADDER: FLUX MODE starts from level 3 on every difficulty: before
+   that the meter fills and stays full. */
 function addFlux(v){flux=Math.min(100,flux+v);}
-function fluxModeAllowed(){ return !(difficulty==='easy' && level<FLUX_EASY_FROM_LEVEL); }
+function fluxModeAllowed(){ return level>=FLUX_FROM_LEVEL; }
 function checkFluxMode(){
- if(flux<100 || fluxMode>0 || fluxCountdown>0 || pendingLevel || missNotice>0 || !fluxModeAllowed()) return;
+ if(flux<100 || fluxMode>0 || fluxCountdown>0 || pendingLevel || speedCountdown>0 || missNotice>0 || !fluxModeAllowed()) return;
  fluxCountdown=FLUX_COUNTDOWN_S; fluxTickAt=FLUX_COUNTDOWN_S;
  playTick(); haptic(30); updateHud();
 }
@@ -1247,10 +1279,12 @@ function tickFluxCountdown(dt){
  if(shown>=1 && shown<fluxTickAt){ fluxTickAt=shown; playTick(); }
  if(fluxCountdown<=0) startFluxMode();
 }
-function startFluxMode(){fluxCountdown=0;fluxTickAt=0;flux=0;fluxMode=6;score+=scorePoints(250);popup(W/2,120,'FLUX MODE','#62eaff');burst(W/2,120,'#62eaff',30);haptic(50);playFlux();flash(.22);shake=Math.min(14,shake+6);updateHud();}
-const MISS_NOTICE_S=2.2;
+function startFluxMode(){fluxCountdown=0;fluxTickAt=0;flux=0;fluxMode=6;score+=mediumPoints(scorePoints(250));popup(W/2,120,'FLUX MODE','#62eaff');burst(W/2,120,'#62eaff',30);haptic(50);playFlux();flash(.22);shake=Math.min(14,shake+6);updateHud();}
+const MISS_NOTICE_S=2.2, COMBO_TIME_S=2.6;
 function registerMiss(){
  misses++;missFragments.push({x:rand(25,W-25),y:H-24,r:rand(7,12),life:1});
+ playCount('lost',1);   // GAMEPLAY STATS
+ speedAfterLostBall();   // RECOVERY: 5 s a little calmer, no speed step for 8 s
  burst(ball.x,Math.min(H-25,ball.y),'#ff4f98',18);
  // Miss notice: in the HUD strip (like the level banner), never over the launcher or the field.
  // Plain words: the ball is lost and how many lives are left. Score and level are kept.
@@ -1263,7 +1297,7 @@ function registerMiss(){
  }
  resetFieldAfterMiss();
  // Restart the orb from a calm launch point.
- ball.x=paddle.x;ball.y=paddle.y-28;ball.vx=rand(-3.4,3.4);ball.vy=-Math.max(6.0,6.0+level*.12)*DIFFICULTY[difficulty].speed;ball.trail=[];
+ ball.x=paddle.x;ball.y=paddle.y-28;ball.vx=rand(-3.4,3.4);ball.vy=-launchSpeed(Math.max(6.0,6.0+level*.12)*DIFFICULTY[difficulty].speed);ball.trail=[];
  updateHud();
 }
 // One free revive per run: watch a rewarded ad, get one miss back, keep playing.
@@ -1279,7 +1313,7 @@ function offerRevive(){
  const grantRevive=()=>{
    revivesUsedThisRun++;misses=2;missNotice=0;paused=false;last=performance.now();
    resetFieldAfterMiss();
-   ball.x=paddle.x;ball.y=paddle.y-28;ball.vx=rand(-3.4,3.4);ball.vy=-Math.max(6.0,6.0+level*.12)*DIFFICULTY[difficulty].speed;ball.trail=[];
+   ball.x=paddle.x;ball.y=paddle.y-28;ball.vx=rand(-3.4,3.4);ball.vy=-launchSpeed(Math.max(6.0,6.0+level*.12)*DIFFICULTY[difficulty].speed);ball.trail=[];
    updateHud();popup(W/2,H*.4,'REVIVED','#62eaff');burst(W/2,H*.4,'#62eaff',24);
  };
  const d=document.createElement('div');
@@ -1348,10 +1382,11 @@ function showRewardedAd(onReward,onFail){
 }
 function fuse(t){
  const idx=targets.indexOf(t); if(idx<0)return;
- const newColor=(t.color+1)%Math.min(colors.length,4+Math.floor(level/2));
+ const newColor=(t.color+1)%coloursInPlay();
  streak++;
  combo=Math.min(12,combo+1);
- comboTimer=2.6;
+ playCount('hit',1);   // GAMEPLAY STATS
+ comboTimer=COMBO_TIME_S;
  // Orb value grows only from PERFECT paddle control. Fusions score, but do not inflate the level run.
  const points=scorePoints(Math.round((orbValue + combo*2)*(t.r>23?1.15:1)*(fluxMode>0?1.15:1)));   // EASY SCORING (x0.4 on Easy only)
  score+=mediumPoints(points);   // MEDIUM POINTS (x0.85 on Medium only)
@@ -1371,8 +1406,8 @@ function fuse(t){
  targets.splice(idx,1);
  if(!(difficulty==='easy' && t.growing && easyFieldFull())) addTarget(newColor,t.x+rand(-36,36),t.y+rand(-36,36),Math.min(30,t.r+3));   // EASY ORBS: a fused growing orb is not replaced when the Easy field already has its 5-6 orbs
  // Higher levels create more meaningful choices instead of a single obvious cluster.
- if(level>=5 && Math.random()<.20 && targets.length<targetCap()) spawnTarget();
- const speed=Math.min(17.5,Math.hypot(ball.vx,ball.vy)*1.045+0.18+speedLevel*.025);
+ if(level>=SPAWN_MORE_LEVEL && Math.random()<.20 && targets.length<targetCap()) spawnTarget();   // DIFFICULTY BUDGET: from level 6 (level 5 adds an orb on Medium)
+ const speed=fuseKickSpeed(Math.hypot(ball.vx,ball.vy));   // TIME SPEED: a small boost on Easy/Medium, never above the top speed
  const ang=Math.atan2(ball.vy,ball.vx);
  ball.vx=Math.cos(ang)*speed;ball.vy=Math.sin(ang)*speed;
  flash(.16+Math.min(.12,combo*.01));shake=Math.min(14,shake+4+combo*.25);
@@ -1417,10 +1452,14 @@ function burstGrowing(t,maxSpeed){
 /* D-50 (RC2.8.7) LEVEL-UP SEQUENCE. Reaching the score threshold shows the
    banner with "NEXT LEVEL: n"; the LEVEL box turns amber, reads SPEED UP and
    counts 5-4-3-2-1 with a soft tick each second; then the new level starts
-   and the ball's speed limit rises smoothly over ~2 s (speedLevel) instead of
-   jumping. Levels still come one at a time. */
+   and the launcher width and orb motion change smoothly over ~1 s (speedLevel)
+   instead of jumping. Levels still come one at a time. TIME SPEED: the ball's
+   speed no longer follows the level; a level-up brings a speed step only when
+   one is due (level 2 always brings the first one, SKILL LADDER), and then
+   the box reads SPEED UP; otherwise it reads LEVEL UP. */
 function checkScoreLevel(){
- if(pendingLevel || fluxCountdown>0 || level>=9) return;   // one countdown at a time: waits for a FLUX MODE countdown
+ if(pendingLevel || fluxCountdown>0 || speedCountdown>0 || level>=9) return;   // one countdown at a time: waits for a FLUX MODE or SPEED UP countdown
+ if(fieldGrowsAt(level+1) && speedStep>0 && runClock-lastStepClock<FIELD_HOLD_S) return;   // DIFFICULTY BUDGET: more orbs/spawns never right after a speed step
  if(levelForScore(score,difficulty)>level) startLevelUp(level+1);
 }
 function startLevelUp(n){
@@ -1453,20 +1492,40 @@ function finishLevelUp(){
  level++;   // pendingLevel is always level+1: one level per level-up, never a jump
  pendingLevel=0; levelCountdown=0; levelTickAt=0;
  speedLevel=from;   // ramps up to the new level over LEVEL_RAMP_S
+ if(fieldGrowsAt(level)) fieldHoldUntil=runClock+FIELD_HOLD_S;   // DIFFICULTY BUDGET: more orbs/spawns now, so no speed step now or for FIELD_HOLD_S
+ else if(speedDue()) applySpeedStep();   // TIME SPEED: a due step (level 2 brings the first) comes with this level-up's SPEED UP count
  applyCelestialBackground(level);
  popup(W/2,155,'LEVEL '+level,'#62eaff');
  updateHud();
 }
 function paddleWidthFor(lv){ return Math.max(isPhone()?96:112,(isPhone()?132:150)-(lv-1)*4); }
-function flash(v){document.getElementById('flash').style.opacity=v;setTimeout(()=>document.getElementById('flash').style.opacity=0,80)}
+/* FLASH SAFETY (WCAG 2.3.1): the full-screen flash starts at most 3 times in
+   any second. A flash asked for less than FLASH_GAP_MS after the last one
+   starts nothing new: while the last one is still on it may only get
+   brighter, otherwise it is skipped (the burst, sound and haptic still
+   happen). REDUCE MOTION (the device setting): softer and shorter flashes. */
+const FLASH_GAP_MS=340, FLASH_ON_MS=80, FLASH_ON_CALM_MS=50;
+let flashLastAt=-1e9, flashOn=0, flashStarts=0;
+function flashClock(){ try{ return performance.now(); }catch(e){ return Date.now(); } }
+function flash(v){
+ if(reduceMotion) v=Math.min(.08,v*.35);
+ const now=flashClock(), el=document.getElementById('flash');
+ if(now-flashLastAt<FLASH_GAP_MS){ if(now-flashLastAt<FLASH_ON_MS && v>flashOn){ flashOn=v; el.style.opacity=v; } return; }
+ flashLastAt=now; flashOn=v; flashStarts++;
+ el.style.opacity=v; setTimeout(()=>{ flashOn=0; el.style.opacity=0; },reduceMotion?FLASH_ON_CALM_MS:FLASH_ON_MS);
+}
 function updateHud(){
  document.getElementById('score').textContent=score;
+ document.getElementById('hudDiff').textContent=String(difficulty).toUpperCase();   // HUD: EASY / MEDIUM / HARD during play
  document.getElementById('combo').textContent='x'+combo;
  // D-50: the LEVEL box becomes the SPEED UP countdown while a level-up is pending.
  const lvBox=document.getElementById('levelBox'), lvLabel=document.getElementById('levelLabel');
  if(pendingLevel){
-   lvLabel.textContent='SPEED UP'; lvBox.classList.add('speedUp');
+   lvLabel.textContent=levelUpBringsSpeed(pendingLevel)?'SPEED UP':'LEVEL UP'; lvBox.classList.add('speedUp');
    document.getElementById('level').textContent=Math.max(1,Math.ceil(levelCountdown));
+ }else if(speedCountdown>0){   // TIME SPEED: the same amber box counts down every speed step
+   lvLabel.textContent='SPEED UP'; lvBox.classList.add('speedUp');
+   document.getElementById('level').textContent=Math.max(1,Math.ceil(speedCountdown));
  }else{
    lvLabel.textContent='LEVEL'; lvBox.classList.remove('speedUp');
    document.getElementById('level').textContent=level;
@@ -1520,7 +1579,8 @@ function endGame(){
  },420);
 }
 /* SPEED HELP. Help rules that only ever LOWER the ball's top speed register a
-   factor here (the comeback ease, the first-run help). The limit in update()
+   factor here (only the RECOVERY after a lost ball, the same for every
+   player: see TIME SPEED). The limit in update()
    is normalMaxSpeed()*speedHelp(); with no help active the factor is exactly
    1, so the game is exactly the same. A ball cruising between the lowered
    limit and the normal one is slowed to it within about a second (the same
@@ -1529,8 +1589,87 @@ function endGame(){
    adds points, lives or orbs. */
 const SPEED_HELPS=[];
 function speedHelp(){ let k=1; for(let i=0;i<SPEED_HELPS.length;i++) k*=SPEED_HELPS[i](); return k; }
-// The ball's normal top speed (the ramp raises it with speedLevel; FLUX mode lifts it).
-function normalMaxSpeed(){ return fluxMode>0?18.5:Math.min(17.5,(12+speedLevel*.48)*DIFFICULTY[difficulty].speed); }
+/* TIME SPEED (owner). The ball's speed follows the TIME survived in the run,
+   never the score, combos or FLUX points. Speed is set as the seconds the
+   ball takes to cross the play area (ceiling line to launcher) and turned
+   into px from the real play-area height, so it feels the same on iPhone and
+   iPad. It rises in equal small steps (x1.058 to x1.065 each, 4-8%) from
+   `start` to `top`, at most one step every `every` seconds of run time; run
+   time stops while the game is paused (the revive question too), during a
+   level-up, SPEED UP or FLUX countdown and while a miss notice shows. Every
+   step is announced first: the LEVEL box turns amber and counts SPEED UP
+   3-2-1 (one countdown at a time with the level-up and FLUX countdowns);
+   then the speed rises over ~1 s. Top: Easy after 6 steps (4.5 min of run
+   time), Medium after 7 (3.5 min), Hard after 8 (~3 min).
+   SKILL LADDER: reaching level 2 brings the first step if time has not yet
+   (never more than that one step ahead of time).
+   HOLDS: never two steps closer than `every`; none within LOST_BALL_HOLD_S of
+   a lost ball (a running SPEED UP count is called off); none within
+   FIELD_HOLD_S of a level-up that adds an orb or more spawns, and such a
+   level-up never brings a step itself (DIFFICULTY BUDGET: speed, orb count
+   and spawn rate never rise at the same step). A fuller field is a little
+   slower: 3% longer crossing per orb above the level-1 field (Medium).
+   RECOVERY (the same for everyone): after a lost ball the top speed is 10%
+   lower for 5 s (the last second eases back). It never adds points.
+   The kick after an orb hit is small on Easy and Medium; Hard keeps its
+   kick. FLUX MODE adds no speed on Easy and Medium; on Hard a short burst.
+   Nothing is ever above the top speed. */
+const SPEED_CURVE={
+  easy:  {start:2.0,top:1.4,every:45,steps:6,kick:1.015,kickCap:1.04,fluxBurst:1},
+  medium:{start:1.4,top:.9, every:30,steps:7,kick:1.025,kickCap:1.08,fluxBurst:1},
+  hard:  {start:1.1,top:.7, every:22,steps:8,kick:0,    kickCap:0,   fluxBurst:1.15}
+};
+const SPEED_COUNTDOWN_S=3, SPEED_RAMP_S=1, SPEED_STEP_LEVEL=2, FLUX_BURST_S=3;   // FLUX burst (Hard): the first 3 s of FLUX MODE
+const LOST_BALL_HOLD_S=8, FIELD_HOLD_S=10, RECOVER_S=5, RECOVER_SLOW=.1, FIELD_ORB_SLOW=.03;
+const STAR_LEVEL=3, GROWING_LEVEL=4, SPAWN_MORE_LEVEL=6;   // SKILL LADDER: 5th colour (star) and FLUX MODE at 3, growing orbs at 4, hint ring from 5
+let lastStepClock=0, fieldHoldUntil=0, lostBallHold=0, recoverLeft=0;
+let playStats=[];   // GAMEPLAY STATS (anonymous, see STATS): this run's {sec,hit,wrong,lost} at each speed step
+function playCount(k,n){ const s=playStats[speedStep]||(playStats[speedStep]={sec:0,hit:0,wrong:0,lost:0}); s[k]+=n; }
+function coloursInPlay(){ return Math.min(colors.length,level>=STAR_LEVEL?5:4); }
+function speedCurve(){ return SPEED_CURVE[difficulty]||SPEED_CURVE.medium; }
+function playAreaHeight(){ return Math.max(200,paddle.y-maxHudBottom()); }
+function crossingTimeAt(step){ const c=speedCurve(), k=Math.max(0,Math.min(c.steps,step))/c.steps; return c.start*Math.pow(c.top/c.start,k); }
+function crossingSpeed(sec){ return playAreaHeight()/sec/60; }   // px per frame: the ball moves by v*dt*60
+function topSpeed(){ return crossingSpeed(speedCurve().top); }
+function fieldGrowsAt(lv){ return lv===GROWING_LEVEL || lv===SPAWN_MORE_LEVEL || fieldCapAt(lv)>fieldCapAt(lv-1); }   // more orbs or more spawns at this level
+function fieldSlow(){ return 1+FIELD_ORB_SLOW*Math.max(0,fieldCapAt(level)-fieldCapAt(1)); }
+function speedDue(lv){
+  const c=speedCurve(); lv=lv||level;
+  if(speedStep>=c.steps || lostBallHold>0 || runClock<fieldHoldUntil) return false;
+  if(speedStep===0 && lv>=SPEED_STEP_LEVEL) return true;   // level 2: a little faster (no earlier step to hold for)
+  return runClock-lastStepClock>=c.every;
+}
+function levelUpBringsSpeed(lv){ return !fieldGrowsAt(lv) && speedDue(lv); }
+function applySpeedStep(){ speedStep=Math.min(speedCurve().steps,speedStep+1); lastStepClock=runClock; }
+// The ball's normal top speed: the current step (ramped), a fuller field a little slower, Hard's short FLUX burst; never above the top.
+function normalMaxSpeed(){ const c=speedCurve(), s=Math.min(topSpeed(),crossingSpeed(crossingTimeAt(speedShown)*fieldSlow())); return (fluxMode>6-FLUX_BURST_S && c.fluxBurst>1) ? Math.min(topSpeed(),s*c.fluxBurst) : s; }
+function launchSpeed(v){ return Math.min(v,normalMaxSpeed()*speedHelp()); }   // a new ball never starts faster than the step allows
+function fuseKickSpeed(sp){
+  const c=speedCurve(), top=topSpeed();
+  if(!c.kick) return Math.min(top,17.5,sp*1.045+0.18+speedLevel*.025);   // Hard: the kick it always had, capped at Hard's top speed
+  return Math.min(top,Math.max(sp,Math.min(sp*c.kick,normalMaxSpeed()*speedHelp()*c.kickCap)));   // Easy/Medium: small and bounded
+}
+function recoverFactor(){ return recoverLeft<=0 ? 1 : 1-RECOVER_SLOW*Math.min(1,recoverLeft); }   // .9, back to 1 over the final second
+SPEED_HELPS.push(recoverFactor);
+function speedAfterLostBall(){ recoverLeft=RECOVER_S; lostBallHold=LOST_BALL_HOLD_S; if(speedCountdown>0){ speedCountdown=0; speedTickAt=0; } }
+function startSpeedCountdown(){ speedCountdown=SPEED_COUNTDOWN_S; speedTickAt=SPEED_COUNTDOWN_S; playTick(); haptic(30); updateHud(); }
+function tickSpeed(dt){
+  playCount('sec',dt);   // GAMEPLAY STATS: time played at this speed step
+  if(speedShown<speedStep) speedShown=Math.min(speedStep,speedShown+dt/SPEED_RAMP_S);   // the new speed arrives over ~1 s
+  if(lostBallHold>0) lostBallHold=Math.max(0,lostBallHold-dt);
+  if(recoverLeft>0) recoverLeft=Math.max(0,recoverLeft-dt);
+  if(speedCountdown>0){
+    if(missNotice>0) return;   // a miss notice has the slot: the count waits so it is always seen
+    speedCountdown-=dt;
+    const shown=Math.ceil(speedCountdown);
+    if(shown>=1 && shown<speedTickAt){ speedTickAt=shown; playTick(); updateHud(); }
+    if(speedCountdown<=0){ speedCountdown=0; speedTickAt=0; applySpeedStep(); updateHud(); }
+    return;
+  }
+  if(pendingLevel || fluxCountdown>0 || missNotice>0) return;   // countdowns and the miss notice are not run time
+  runClock+=dt;
+  if(speedDue()) startSpeedCountdown();
+}
 function slowToSpeedHelp(dt){ const k=speedHelp(); if(k===1 || !ball) return; const n=normalMaxSpeed(), lim=n*k, sp=Math.hypot(ball.vx,ball.vy); if(sp>lim && sp<=n+1e-9){ const nsp=Math.max(lim,sp-n*2.2*dt); ball.vx*=nsp/sp; ball.vy*=nsp/sp; } }
 function update(dt){
  if(levelBanner>0) levelBanner=Math.max(0,levelBanner-dt);
@@ -1538,9 +1677,10 @@ function update(dt){
  if(missNotice>0) missNotice=Math.max(0,missNotice-dt);
  checkScoreLevel(); tickLevelUp(dt);   // D-50
  checkFluxMode(); tickFluxCountdown(dt);   // FLUX MODE: announce + 3-2-1, then start
+ tickSpeed(dt);   // TIME SPEED: run clock, SPEED UP 3-2-1, then the next step
  // Combo is a real pressure mechanic: keep chaining fusions before the timer expires.
  if(comboTimer>0) comboTimer-=dt;
- else if(combo>1){combo=1;streak=0;popup(W/2,150,'COMBO LOST','#8da0c8');updateHud();}
+ else if(combo>1){combo=Math.max(1,Math.floor(combo/2));streak=0;comboTimer=combo>1?COMBO_TIME_S:0;popup(W/2,150,'COMBO HALVED','#8da0c8');updateHud();}   // COMBO HALVES: a broken chain keeps half (x8 -> x4), not x1
  if(perfectFlash>0)perfectFlash-=dt;
  const maxSpeed=normalMaxSpeed()*speedHelp(); slowToSpeedHelp(dt);   // x1 unless a speed help is on (see SPEED HELP)
  if(fluxMode>0){fluxMode-=dt;document.getElementById('app').style.filter='brightness(1.18) saturate(1.35)';document.getElementById('fluxGlow').classList.add('on');}else{document.getElementById('app').style.filter='none';document.getElementById('fluxGlow').classList.remove('on');}
@@ -1586,7 +1726,7 @@ function update(dt){
  bonusTimer-=dt;
  if(bonusTimer<=0 && playing){spawnBonusOrb();bonusTimer=rand(7,12);}
  growTimer-=dt;
- if(growTimer<=0 && playing && level>=2){spawnGrowingOrb();growTimer=rand(13,19);}
+ if(growTimer<=0 && playing && level>=GROWING_LEVEL){spawnGrowingOrb();growTimer=rand(13,19);}   // SKILL LADDER: growing orbs from level 4
  // target collisions — every overlapping orb this frame gets checked, so a
  // matching orb behind a wrong-color one is never silently skipped.
  for(const t of [...targets]){
@@ -1609,6 +1749,7 @@ function update(dt){
          shake=Math.min(15,shake+5+speed*.25);
          t.hitPulse=0.28;
          t.grazeCooldown=0.35;
+         playCount('wrong',1);   // GAMEPLAY STATS: a wrong-colour hit (once per pass)
        }
      }
    }
@@ -1624,9 +1765,9 @@ function update(dt){
  } else if(targets.some(t=>t.hint)) targets.forEach(t=>t.hint=false);   // the first-run hint ended below level 5
  // paddle collision: angle determined by hit position
  if(ball.vy>0 && ball.y+ball.r>=paddle.y-paddle.h/2 && ball.y<paddle.y+18 &&
-    ball.x>paddle.x-paddle.w/2-ball.r-catchMargin() && ball.x<paddle.x+paddle.w/2+ball.r+catchMargin()){   // catchMargin() is 0 except a new player's first runs
+    ball.x>paddle.x-paddle.w/2-ball.r && ball.x<paddle.x+paddle.w/2+ball.r){
    ball.y=paddle.y-paddle.h/2-ball.r;
-   const hit=clampCatchHit((ball.x-paddle.x)/(paddle.w/2));
+   const hit=(ball.x-paddle.x)/(paddle.w/2);
    const speed=Math.min(maxSpeed,Math.max(7*DIFFICULTY[difficulty].speed,Math.hypot(ball.vx,ball.vy)*1.035));
    const angle= -Math.PI/2 + hit*1.05;
    ball.vx=Math.cos(angle)*speed;ball.vy=Math.sin(angle)*speed;
@@ -1648,7 +1789,7 @@ function update(dt){
    if(targets.length<targetCap())spawnTarget();
    updateHud();
  }
- if(ball.y-ball.r>H){registerMiss();if(!playing)return;ball.x=paddle.x;ball.y=paddle.y-28;ball.vx=rand(-3.8,3.8);ball.vy=-Math.max(6.2,6.0+level*.15)*DIFFICULTY[difficulty].speed;ball.trail=[];}
+ if(ball.y-ball.r>H){registerMiss();if(!playing)return;ball.x=paddle.x;ball.y=paddle.y-28;ball.vx=rand(-3.8,3.8);ball.vy=-launchSpeed(Math.max(6.2,6.0+level*.15)*DIFFICULTY[difficulty].speed);ball.trail=[];}
  // particles
  particles.forEach(p=>{p.x+=p.vx*dt*60;p.y+=p.vy*dt*60;p.vy+=.08*dt*60;p.life-=dt*1.8});particles=particles.filter(p=>p.life>0);
  texts.forEach(t=>{t.y-=.6*dt*60;t.life-=dt});texts=texts.filter(t=>t.life>0);
@@ -1719,6 +1860,7 @@ function draw(){
    ctx.beginPath();ctx.arc(sx,sy,s.r,0,Math.PI*2);ctx.fill();
  }
  ctx.restore();
+ if(reduceMotion) shake=0;   // REDUCE MOTION: no screen shake
  const sx=shake?rand(-shake,shake):0,sy=shake?rand(-shake,shake):0;ctx.save();ctx.translate(sx,sy);
  // ceiling -- a soft gradient band at the exact height the ball/orbs
  // actually bounce off, so the boundary reads as an intentional part of
@@ -1848,7 +1990,7 @@ function draw(){
  // D-52 (RC2.8.7): the bottom-right FLUX LIVES box is gone; lives live in the top LIVES box.
  // particles
  for(const p of particles){ctx.globalAlpha=Math.max(0,p.life);glowCircle(p.x,p.y,Math.max(1,p.life*4),p.col,p.life);ctx.globalAlpha=1}
- const textTop=maxHudBottom()+14;   // popups (COMBO LOST...) never rise into the HUD / FLUX meter row
+ const textTop=maxHudBottom()+14;   // popups (COMBO HALVED...) never rise into the HUD / FLUX meter row
  for(const t of texts){ctx.globalAlpha=t.life;ctx.fillStyle=t.col;ctx.font='900 13px -apple-system,sans-serif';ctx.textAlign='center';ctx.fillText(t.s,t.x,Math.max(t.y,textTop));ctx.globalAlpha=1}
  // Moment-to-moment feedback: FLUX MODE and level-up should feel like events, not numbers.
  if(fluxMode>0){
@@ -1874,6 +2016,14 @@ function draw(){
    ctx.save();ctx.textAlign='center';ctx.textBaseline='top';ctx.shadowBlur=12;
    ctx.font='900 '+Math.max(11,L.f1)+'px -apple-system,sans-serif';ctx.fillStyle='#62eaff';ctx.shadowColor='#27d9ff';ctx.fillText(L.t1,L.cx,L.y1);
    ctx.font='900 '+Math.max(11,L.f2)+'px -apple-system,sans-serif';ctx.fillStyle='#ffffff';ctx.shadowColor='#62eaff';ctx.fillText(L.t2,L.cx,L.y2);
+   ctx.restore();
+ }
+ // TIME SPEED: the SPEED UP countdown, same slot, announced before the ball speeds up.
+ else if(speedCountdown>0){
+   const L=levelBannerLayout('SPEED UP','IN '+Math.max(1,Math.ceil(speedCountdown)));
+   ctx.save();ctx.textAlign='center';ctx.textBaseline='top';ctx.shadowBlur=10;
+   ctx.font='900 '+Math.max(11,L.f1)+'px -apple-system,sans-serif';ctx.fillStyle='#ffc447';ctx.shadowColor='#ffb020';ctx.fillText(L.t1,L.cx,L.y1);
+   ctx.font='900 '+Math.max(11,L.f2)+'px -apple-system,sans-serif';ctx.fillStyle='#ffffff';ctx.shadowColor='#ffb020';ctx.fillText(L.t2,L.cx,L.y2);
    ctx.restore();
  }
  // First-run colour hint: same slot, lowest priority.
@@ -3313,34 +3463,12 @@ async function openRestoreConfirm(id,info){
   };
 }
 
-/* GENEROUS CATCH (new players only). In a player's first 3 runs, and never on
-   Easy, the launcher catches the ball up to 8px beyond each end. A catch in
-   that margin bounces like an edge hit and scores like any ordinary catch;
-   it can NEVER be a perfect catch (the perfect zone is the launcher centre,
-   |hit| < .14, and the margin is beyond its ends). From the 4th run on, and
-   on Easy, catchMargin() is 0 and clampCatchHit() returns its input, so the
-   game is exactly the same as before. Nothing else changes: points, combo,
-   speed, orbs, levels. */
-const CATCH_MARGIN_PX=8, CATCH_FIRST_RUNS=3;
-let generousCatchOn=false;
-// FIRST-RUN HELP: in a player's very first run only, the ball's top speed is a
-// little lower (through the shared SPEED HELP hook: it never adds points).
-const FIRST_RUN_SLOW=.08;
-let firstRunSlowOn=false;
-function firstRunSpeedFactor(){ return firstRunSlowOn ? 1-FIRST_RUN_SLOW : 1; }
-SPEED_HELPS.push(firstRunSpeedFactor);
-function catchMargin(){ return generousCatchOn ? CATCH_MARGIN_PX : 0; }
-function clampCatchHit(h){ if(!generousCatchOn) return h; const m=1+ball.r/(paddle.w/2); return Math.max(-m,Math.min(m,h)); }   // margin catches bounce like the launcher's end
-function generousCatchFor(runsDone,diff){ return runsDone<CATCH_FIRST_RUNS; }   // every difficulty, including Easy (owner decision)
-(function(){
-  const newGame0=newGame;
-  newGame=function(){
-    let runsDone=0; try{ runsDone=+localStorage.getItem('fluxRunsPlayed')||0; }catch(e){}
-    generousCatchOn=generousCatchFor(runsDone,difficulty);
-    firstRunSlowOn=runsDone===0;
-    return newGame0.apply(this,arguments);
-  };
-})();
+/* SAME RULES FOR EVERY PLAYER (owner): every run posts to the leaderboard,
+   so nothing in speed, catching or scoring depends on a player's history or
+   past performance. The generous catch (first 3 runs), the first-run slow
+   start and the comeback ease were removed; the fixed in-run RECOVERY after a
+   lost ball (see TIME SPEED) is the same for everyone. Teaching hints (the
+   first-run colour hint, "Slide anywhere") stay: they change nothing in play. */
 
 /* D-36 (RC2.8.3): the restore code lives inside EDIT, not in the main menu.
    The link under the name editor has two jobs:
@@ -3469,33 +3597,6 @@ try{ if(localStorage.fluxNameNotice==='1') fluxNameToast("Your name didn't fit t
    RC2.8.6 -- D-47 INSTALL AFTER FIRST PLAY, D-48 BRING MY PILOT,
               D-46 LITE GRAPHICS (runtime part)
    ================================================================== */
-/* COMEBACK EASE. After two misses within 20 seconds of play, the ball's top
-   speed is 15% lower for 6 seconds (the last second eases back), through the
-   shared SPEED HELP hook (see update()). It only slows the ball: no points, no
-   extra lives, no change to orbs, timers or scoring. With the ease off its
-   factor is exactly 1, so the game is exactly the same. */
-const EASE_WINDOW_S=20, EASE_TIME_S=6, EASE_SLOW=.15;
-let easeClock=0, easeLastMiss=-1e9, easeLeft=0;
-function easeFactor(){ return easeLeft<=0 ? 1 : 1-EASE_SLOW*Math.min(1,easeLeft); }   // 0.85, back to 1 over the final second
-SPEED_HELPS.push(easeFactor);
-(function(){
-  const update0=update;
-  update=function(dt){
-    easeClock+=dt;
-    const r=update0.apply(this,arguments);
-    if(easeLeft>0) easeLeft=Math.max(0,easeLeft-dt);
-    return r;
-  };
-  const registerMiss0=registerMiss;
-  registerMiss=function(){
-    if(easeClock-easeLastMiss<=EASE_WINDOW_S) easeLeft=EASE_TIME_S;
-    easeLastMiss=easeClock;
-    return registerMiss0.apply(this,arguments);
-  };
-  const newGame0=newGame;
-  newGame=function(){ easeClock=0; easeLastMiss=-1e9; easeLeft=0; return newGame0.apply(this,arguments); };
-})();
-
 /* D-48: the install offer never appears before a first game (owner decision).
    After a run, a single button appears on the GAME-OVER screen only
    (owner decision: not in the menu), and is gone once installed:
@@ -3861,7 +3962,9 @@ if (window.__fluxLite) fluxApplyLiteParticles();
 
 /* STATS (in-house, anonymous; children may play). A few events -- app opened
    (and whether it is the Home Screen app), first run started, run finished
-   (length, level reached, difficulty), level-up, share tapped -- are counted
+   (length, level reached, difficulty), level-up, share tapped, and for each
+   speed step a run reached: seconds at it, orb hits, wrong-colour hits and
+   balls lost (GAMEPLAY) -- are counted
    on our own server with the pilot ID, the chosen country and the link's
    "src" tag (?src=tiktok, ?src=share...). No third party, no advertising ID,
    no personal information. They wait in memory and go in one small
@@ -3902,6 +4005,7 @@ function fluxStatsFlush(){
     const endGame0=endGame;
     endGame=function(){
       try{ fluxTrack('run_end',{sec:fluxRunStartedAt?Math.round((Date.now()-fluxRunStartedAt)/1000):0,lvl:level,diff:difficulty}); fluxRunStartedAt=0; }catch(x){}
+      try{ playStats.forEach(function(s,i){ if(s && (s.sec>=1||s.hit||s.wrong||s.lost)) fluxTrack('play',{diff:difficulty,st:i,sec:Math.round(s.sec),hit:s.hit,wrong:s.wrong,lost:s.lost}); }); }catch(x){}   // GAMEPLAY
       const r=endGame0.apply(this,arguments);
       fluxStatsFlush();
       return r;

@@ -1,6 +1,6 @@
 // Orb colours v2, in the release gate. Real game page in the harness vm.
 //   V1 every skin has exactly the approved 5 colours (4 core + 1 unlock);
-//   V2 colours in play: 4 at level 1, 5 from level 2 to 9 (the cap), and a
+//   V2 colours in play: 4 at levels 1-2, 5 from level 3 to 9 (the cap; SKILL LADDER), and a
 //      long simulated game never deals a colour beyond the 5th;
 //   V3 Toxic clearly differs from the free Aurora skin (every Toxic colour is
 //      dE >= 25 from the nearest Aurora colour);
@@ -38,15 +38,15 @@ function suite(gameHtml, quiet = false) {
     const run = (c) => vm.runInContext(c, g.ctx);
     const SK = JSON.parse(run('JSON.stringify(SKINS)'));
     for (const [k, want] of Object.entries(APPROVED)) ck('V1 ' + k + ': exactly the approved 5 colours', JSON.stringify(SK[k].colors) === JSON.stringify(want), (SK[k].colors || []).join(' '));
-    const inPlay = []; for (let lv = 1; lv <= 9; lv++) inPlay.push(run('level=' + lv + '; Math.min(colors.length,4+Math.floor(level/2))'));
-    ck('V2 colours in play: 4 at level 1, 5 at levels 2-9', inPlay.join('') === '455555555', inPlay.join(' '));
+    const inPlay = []; for (let lv = 1; lv <= 9; lv++) inPlay.push(run('level=' + lv + '; coloursInPlay()'));
+    ck('V2 colours in play: 4 at levels 1-2, 5 at levels 3-9 (SKILL LADDER: the star colour arrives at level 3)', inPlay.join('') === '445555555', inPlay.join(' '));
     // Long simulated game: never a colour index beyond the 5th.
     Math.random = seeded(5);
     g.ctx.newGame(); let maxC = 0, lvMax = 1;
-    for (let f = 0; f < 20000; f++) { if (f % 3000 === 0) run('misses=0;'); run('paddle.x=Math.max(paddle.w/2+8,Math.min(W-paddle.w/2-8,ball.x)); if(!playing){playing=true;paused=false;}'); g.ctx.update(1 / 60);
+    for (let f = 0; f < 20000; f++) { if (f % 3000 === 0) run('misses=0;'); run('paddle.x=Math.max(paddle.w/2+8,Math.min(W-paddle.w/2-8,ball.x+Math.sin(' + f + '*.05)*8)); if(!playing){playing=true;paused=false;}'); g.ctx.update(1 / 60);   // an 8px wobble, so the slower TIME SPEED ball does not settle into a straight up-and-down path
       maxC = Math.max(maxC, run('Math.max(ball.color,...targets.filter(t=>!t.bonus).map(t=>t.color))')); lvMax = Math.max(lvMax, run('level')); }
     Math.random = realRandom;
-    ck('V2 a long simulated game (to level ' + lvMax + ') never deals a colour beyond the 5th', maxC <= 4 && lvMax >= 4, 'max colour index ' + maxC);
+    ck('V2 a long simulated game (to level ' + lvMax + ') never deals a colour beyond the 5th', maxC <= 4 && lvMax >= 4, 'max colour index ' + maxC + ', level ' + lvMax);
     const cross = SK.toxic.colors.map((t) => Math.min(...SK.aurora.colors.map((a) => dE(t, a))));
     ck('V3 Toxic clearly differs from Aurora (every colour dE >= 25 from the nearest Aurora colour)', cross.every((x) => x >= 25), cross.map((x) => x.toFixed(0)).join(' '));
     // Record what draw() paints.
@@ -97,7 +97,10 @@ function control(label, expect, mutate) {
   if (!ok) NC++;
 }
 const rep = (a, b) => (s) => (s.includes(a) ? s.replace(a, b) : s);
-control('a sixth colour added back', 'V2', rep("colors:['#ffe768','#62bdfa','#f16e52','#5be8c8','#7473fb']", "colors:['#ffe768','#62bdfa','#f16e52','#5be8c8','#7473fb','#ff9a3d']"));
+// A sixth palette colour is caught by V1; coloursInPlay() (SKILL LADDER) never deals more than 5 even then,
+// so the in-play cap is checked by opening it up as well.
+control('a sixth colour added back', 'V1', rep("colors:['#ffe768','#62bdfa','#f16e52','#5be8c8','#7473fb']", "colors:['#ffe768','#62bdfa','#f16e52','#5be8c8','#7473fb','#ff9a3d']"));
+control('a sixth colour added back and dealt', 'V2', (s) => rep("colors:['#ffe768','#62bdfa','#f16e52','#5be8c8','#7473fb']", "colors:['#ffe768','#62bdfa','#f16e52','#5be8c8','#7473fb','#ff9a3d']")(s).replace('function coloursInPlay(){ return Math.min(colors.length,level>=STAR_LEVEL?5:4); }', 'function coloursInPlay(){ return Math.min(colors.length,level>=STAR_LEVEL?6:4); }'));
 control('Toxic violet back to Aurora\'s', 'V3', rep("'#bd4ff1','#fd2c29']", "'#7f73f8','#fd2c29']"));
 control('orbs drawn bigger than their hit area', 'V4', rep('   blockOrb(t.x,t.y,t.r,colors[t.color]);\n   // Colour-blind cue', '   blockOrb(t.x,t.y,t.r*1.15,colors[t.color]);\n   // Colour-blind cue'));
 control('no dark outline', 'V4', rep("ctx.lineWidth=Math.max(1.5,r*.08);ctx.strokeStyle=ORB_OUTLINE;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();", ''));

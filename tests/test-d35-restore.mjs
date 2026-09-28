@@ -90,7 +90,7 @@ async function suite({ gameHtml, workerMod, quiet=false }){
 
     const A='a1b2c3d4-0000-4000-8000-00000000000a';
     await submit(worker,env,A,TN,4315,2,'hard','US');
-    await submit(worker,env,A,TN,900,1,'easy','US');
+    await submit(worker,env,A,TN,50,1,'easy','US');   // 50 is level 1 on Easy (TIME SPEED rates)
     const before=snapshot(env);
     r=await call(worker,env,'/api/restore-check',{ method:'POST', body:{ playerId:A } });
     const lb=await call(worker,env,'/api/leaderboard?limit=25');
@@ -98,7 +98,7 @@ async function suite({ gameHtml, workerMod, quiet=false }){
     ck('S3 known pilot -> found:true', r.data && r.data.found===true, r.text.slice(0,120));
     ck('S3 name, country returned', r.data.name===TN && r.data.country==='US');
     ck('S3 tag identical to the leaderboard tag', row && r.data.tag===row.tag, (row&&row.tag)+' vs '+r.data.tag);
-    ck('S3 bests per difficulty', r.data.bests.hard.score===4315 && r.data.bests.hard.level===2 && r.data.bests.easy.score===900 && !r.data.bests.medium);
+    ck('S3 bests per difficulty', r.data.bests.hard.score===4315 && r.data.bests.hard.level===2 && r.data.bests.easy.score===50 && !r.data.bests.medium);
     ck('S3 response never echoes a playerId', !r.text.includes(A) && !('playerId' in r.data));
     ck('S3 restore-check writes nothing', snapshot(env)===before);
 

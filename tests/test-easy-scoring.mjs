@@ -1,21 +1,25 @@
 // Easy scoring, in the release gate. Real game page (harness vm) + real worker.js.
 // The leaderboard keeps each player's best across difficulties, so Easy must
 // never pay better than Medium or Hard for the same player.
-//   S1 on Easy every scoring event pays EASY_POINTS (x0.4, rounded, at least 1):
-//      orb hit, danger orb, bonus orb, overload orb, FLUX MODE, paddle catch;
+//   S1 on Easy every scoring event pays EASY_POINTS (x0.03 since TIME SPEED,
+//      was x0.4; rounded, at least 1): orb hit, danger orb, bonus orb, overload
+//      orb, FLUX MODE, paddle catch;
 //   S2 the Easy factor never applies on Medium or Hard: Hard points are
-//      unchanged, Medium points are only Medium's own x0.85 (MEDIUM_POINTS,
-//      test-medium-orbs.mjs), never x0.4;
-//   S3 Easy's level thresholds are scaled by the same x0.4, so Easy levels
-//      come at the same pace as before (750 1800 3000 ... 13500);
+//      unchanged, Medium points are only Medium's own x0.2 (MEDIUM_POINTS,
+//      test-medium-orbs.mjs), never x0.03;
+//   S3 Easy's level thresholds are .75 x EASY_POINTS of the table, so Easy
+//      levels come at the same pace per point (56 135 225 ... 1013);
 //   S4 the server uses the same Easy thresholds: a real Easy run is accepted,
 //      nothing looser (two levels off is refused), 455,000 ceiling kept;
-//   S5 the same simulated player (new beginner, steady player; seeded) scores
-//      clearly less on Easy than on Medium and on Hard (mean at most 85%).
+//   S5 the same simulated player (new beginner, casual, steady; seeded) scores
+//      clearly less on Easy than on Medium and on Hard (mean at most 85%), and
+//      less on Medium than on Hard (TIME SPEED: runs on Easy and Medium are
+//      much longer, so their point rates were cut; see the sim numbers in the PR).
 // Ends with negative controls.
 import fs from 'fs'; import path from 'path'; import vm from 'vm';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { boot, makeStore } from './harness.mjs';
+import { runParallel } from './sim-player.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const GAME_HTML = fs.readFileSync(path.join(__dirname, 'FLUX-Sparta', 'public', 'play', 'index.html'), 'utf8');
 const WORKER_SRC = fs.readFileSync(path.join(__dirname, 'FLUX-Sparta', 'worker.js'), 'utf8');
@@ -39,11 +43,10 @@ const submit = async (w, env, body) => { skew += 20000;
     body: JSON.stringify({ playerId: 'es-' + (++pidN), name: 'T', country: 'US', season: 1, ...body }) }), env);   // SEASON 1: scores say their season
   return r.status; };
 
-// Simulated player (same model as the PR's measurements and test-generous-catch.mjs):
-// follows the ball with a delay and a random aim error; 4th+ run; one free revive.
-const PLAYERS = [['new beginner', 12, 18, 15], ['steady player', 6, 9, 28]];
-// 40 seeds (was 10): with Medium's fuller field and x0.85 points, 10 runs were too few to tell
-// Easy from Medium reliably (240 seeded runs: Easy is 66-74% of Medium); the 85% bar is unchanged.
+// Simulated players (sim-player.mjs, the model of the PRs' measurements): they follow the ball
+// with a delay and a random aim error; 4th+ run; one free revive; at most 30 minutes.
+// 40 seeds each; the runs are spread over worker threads (Easy runs are now minutes long).
+const PLAYERS = ['new beginner', 'casual', 'steady'];
 const SEEDS = 40;
 
 async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = false, sim = true }) {
@@ -80,52 +83,42 @@ async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = fals
     const OLD = { medium: { orb: 38, danger: 53, bonus: 150, overload: 245, flux: 250, perfect: 15, catch: 2 },
       hard: { orb: 38, danger: 53, bonus: 150, overload: 245, flux: 250, perfect: 20, catch: 2 },
       easy: { orb: 38, danger: 53, bonus: 150, overload: 245, flux: 250, perfect: 11, catch: 2 } };
-    const want = {}; for (const k in OLD.easy) want[k] = Math.max(1, Math.round(OLD.easy[k] * 0.4));
-    want.danger = Math.round(38 * 0.4) + Math.round(15 * 0.4);
-    ck('S1 EASY_POINTS is 0.4', EP === 0.4, EP);
-    ck('S1 on Easy every scoring event pays x0.4 (orb, danger, bonus, overload, FLUX MODE, perfect and plain catch)', JSON.stringify(easy) === JSON.stringify(want), JSON.stringify(easy) + ' want ' + JSON.stringify(want));
-    // Medium: Medium's own MEDIUM_POINTS (x0.85: orb, danger, bonus, overload, perfect catch; FLUX MODE and a plain catch unscaled), never Easy's x0.4.
-    const wantMed = { ...OLD.medium }; for (const k of ['orb', 'bonus', 'overload', 'perfect']) wantMed[k] = Math.round(OLD.medium[k] * 0.85);
-    wantMed.danger = Math.round(38 * 0.85) + Math.round(15 * 0.85);
-    ck('S2 Medium points are only Medium\'s own x0.85 (no Easy x0.4)', JSON.stringify(med) === JSON.stringify(wantMed), JSON.stringify(med) + ' want ' + JSON.stringify(wantMed));
+    const want = {}; for (const k in OLD.easy) want[k] = Math.max(1, Math.round(OLD.easy[k] * 0.03));
+    want.danger = Math.max(1, Math.round(38 * 0.03)) + Math.max(1, Math.round(15 * 0.03));
+    ck('S1 EASY_POINTS is 0.03', EP === 0.03, EP);
+    ck('S1 on Easy every scoring event pays x0.03, at least 1 (orb, danger, bonus, overload, FLUX MODE, perfect and plain catch)', JSON.stringify(easy) === JSON.stringify(want), JSON.stringify(easy) + ' want ' + JSON.stringify(want));
+    // Medium: Medium's own MEDIUM_POINTS (x0.2: orb, danger, bonus, overload, perfect catch, FLUX MODE; a plain catch unscaled), never Easy's x0.03.
+    const wantMed = { ...OLD.medium }; for (const k of ['orb', 'bonus', 'overload', 'flux']) wantMed[k] = Math.round(OLD.medium[k] * 0.2);
+    wantMed.perfect = Math.max(2, Math.round(OLD.medium.perfect * 0.2));
+    wantMed.danger = Math.round(38 * 0.2) + Math.round(15 * 0.2);
+    ck('S2 Medium points are only Medium\'s own x0.2 (no Easy x0.03)', JSON.stringify(med) === JSON.stringify(wantMed), JSON.stringify(med) + ' want ' + JSON.stringify(wantMed));
     ck('S2 Hard points unchanged', JSON.stringify(hard) === JSON.stringify(OLD.hard), JSON.stringify(hard));
 
     const { run: r2 } = bootGame('easy'); Math.random = realRandom;
     const at = (d) => JSON.parse(r2(`JSON.stringify([2,3,4,5,6,7,8,9].map(l=>levelScoreAt(l,'${d}')))`));
     const OLD_EASY = [1875, 4500, 7500, 11250, 15750, 21000, 27000, 33750];
-    ck('S3 Easy level thresholds are the old ones x0.4 (750 1800 3000 4500 6300 8400 10800 13500): same level pace', JSON.stringify(at('easy')) === JSON.stringify(OLD_EASY.map((t) => Math.round(t * 0.4))), JSON.stringify(at('easy')));
-    ck('S3 Medium and Hard thresholds unchanged', JSON.stringify(at('medium')) === '[2500,6000,10000,15000,21000,28000,36000,45000]' && JSON.stringify(at('hard')) === '[3375,8100,13500,20250,28350,37800,48600,60750]');
+    ck('S3 Easy level thresholds are .75 x EASY_POINTS of the table (56 135 225 338 473 630 810 1013): same level pace per point', JSON.stringify(at('easy')) === JSON.stringify([2500, 6000, 10000, 15000, 21000, 28000, 36000, 45000].map((t) => Math.round(t * 0.75 * 0.03))), JSON.stringify(at('easy')));
+    void OLD_EASY;
+    ck('S3 Medium thresholds follow Medium\'s rate (x0.235), Hard thresholds unchanged', JSON.stringify(at('medium')) === '[588,1410,2350,3525,4935,6580,8460,10575]' && JSON.stringify(at('hard')) === '[3375,8100,13500,20250,28350,37800,48600,60750]');
 
     const w = workerMod.default, env = makeEnv(workerMod.LeaderboardDO);
-    ck('S4 server: real Easy runs at their own level are accepted (750 at 2, 4,500 at 5, 13,500 at 9)',
-      (await submit(w, env, { score: 750, level: 2, difficulty: 'easy' })) === 200 && (await submit(w, env, { score: 4500, level: 5, difficulty: 'easy' })) === 200 && (await submit(w, env, { score: 13500, level: 9, difficulty: 'easy' })) === 200);
-    ck('S4 server: nothing looser on Easy (4,500 at level 3 and 13,500 at level 7 refused)',
-      (await submit(w, env, { score: 4500, level: 3, difficulty: 'easy' })) === 422 && (await submit(w, env, { score: 13500, level: 7, difficulty: 'easy' })) === 422);
-    ck('S4 server: Medium unchanged (2,500 at 2 accepted, 26,423 at 4 refused) and the 455,000 ceiling kept on Easy',
-      (await submit(w, env, { score: 2500, level: 2, difficulty: 'medium' })) === 200 && (await submit(w, env, { score: 26423, level: 4, difficulty: 'medium' })) === 422 &&
+    ck('S4 server: real Easy runs at their own level are accepted (56 at 2, 338 at 5, 1,013 at 9)',
+      (await submit(w, env, { score: 56, level: 2, difficulty: 'easy' })) === 200 && (await submit(w, env, { score: 338, level: 5, difficulty: 'easy' })) === 200 && (await submit(w, env, { score: 1013, level: 9, difficulty: 'easy' })) === 200);
+    ck('S4 server: nothing looser on Easy (338 at level 3 and 1,013 at level 7 refused)',
+      (await submit(w, env, { score: 338, level: 3, difficulty: 'easy' })) === 422 && (await submit(w, env, { score: 1013, level: 7, difficulty: 'easy' })) === 422);
+    ck('S4 server: Medium by its own table (588 at 2 accepted, 6,209 at 4 refused) and the 455,000 ceiling kept on Easy',
+      (await submit(w, env, { score: 588, level: 2, difficulty: 'medium' })) === 200 && (await submit(w, env, { score: 6209, level: 4, difficulty: 'medium' })) === 422 &&
       (await submit(w, env, { score: 455001, level: 9, difficulty: 'easy' })) === 422 && /const SCORE_CEILING = 455_000;/.test(workerSrc));
 
     if (sim) {
-      const html = scriptsOf(gameHtml);
-      const play = (diff, seed, [, react, aim, px]) => {
-        Math.random = seeded(seed);
-        const { store } = makeStore({ fluxPlayerId: 'sim-' + seed, fluxCallsign: 'T', fluxProfileComplete: '1', fluxColorHintSeen: '1', fluxRunsPlayed: '5', fluxDifficulty: diff });
-        const g = boot(html, { origin: 'https://x.test', path: '/play/', store });
-        const rr = (c) => vm.runInContext(c, g.ctx);
-        g.ctx.newGame();
-        rr(`var __h=[],__e=0,__t=0,__q=${seed * 7 + 1},__sc=0; function __r(){__q=(__q*1103515245+12345)%2147483648;return __q/2147483648;} function __g(){let u=0,v=0;while(!u)u=__r();while(!v)v=__r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
-          var __rev=false; playing=true; paused=false;
-          for(let i=0;i<108000;i++){ if(!playing&&!paused)break; if(paused&&__rev&&!playing)break; __h.push(ball.x); if(__h.length>${react})__h.shift(); __t-=1/60; if(__t<=0){__e=__g()*${aim};__t=.5;}
-            paddle.x+=Math.max(-${px},Math.min(${px},__h[0]+__e-paddle.x)); setPaddle(paddle.x); update(1/60); __sc=Math.max(__sc,score);
-            if(paused&&!__rev&&document.getElementById('reviveWatchBtn')){__rev=true;const b=document.getElementById('reviveWatchBtn'); if(b.onclick)b.onclick();} }`);
-        const s = rr('__sc'); Math.random = realRandom; return s;
-      };
+      const res = await runParallel(gameHtml, PLAYERS.flatMap((player) => ['easy', 'medium', 'hard'].map((diff) => ({ diff, player, seeds: SEEDS }))));
+      const meanOf = (player, diff) => { const r = res.find((x) => x.player === player && x.diff === diff).runs; return Math.round(r.reduce((a, x) => a + x.score, 0) / r.length); };
       for (const p of PLAYERS) {
-        const mean = {};
-        for (const d of ['easy', 'medium', 'hard']) { let t = 0; for (let s = 1; s <= SEEDS; s++) t += play(d, s, p); mean[d] = Math.round(t / SEEDS); }
+        const mean = { easy: meanOf(p, 'easy'), medium: meanOf(p, 'medium'), hard: meanOf(p, 'hard') };
         const low = Math.min(mean.medium, mean.hard);
-        ck('S5 ' + p[0] + ': Easy mean score is at most 85% of Medium and of Hard (Easy ' + mean.easy + ', Medium ' + mean.medium + ', Hard ' + mean.hard + '; ' + SEEDS + ' seeded runs each)',
+        ck('S5 ' + p + ': Easy mean score is at most 85% of Medium and of Hard (Easy ' + mean.easy + ', Medium ' + mean.medium + ', Hard ' + mean.hard + '; ' + SEEDS + ' seeded runs each)',
           mean.easy <= low * 0.85, (100 * mean.easy / low).toFixed(0) + '%');
+        ck('S5 ' + p + ': Medium mean score is below Hard (' + mean.medium + ' < ' + mean.hard + ')', mean.medium < mean.hard, (100 * mean.medium / mean.hard).toFixed(0) + '%');
       }
     }
   } catch (e) { ck('easy scoring section ran', false, String(e.stack || e).slice(0, 300)); }
@@ -151,13 +144,14 @@ async function control(label, { expect, game = (s) => s, workerSrc = (s) => s })
   } finally { try { fs.unlinkSync(tmp); } catch (e) {} }
 }
 const rep = (a, b) => (s) => (s.includes(a) ? s.replace(a, b) : s);
-await control('Easy pays full points again (old scoring)', { expect: 'S5', game: rep('const EASY_POINTS=.4;', 'const EASY_POINTS=1;') });
-await control('Easy points cut too little (x0.75)', { expect: 'S1', game: rep('const EASY_POINTS=.4;', 'const EASY_POINTS=.75;') });
+await control('Easy pays its old x0.4 again (before TIME SPEED)', { expect: 'S5', game: rep('const EASY_POINTS=.03;', 'const EASY_POINTS=.4;') });
+await control('Medium pays its old x0.85 again (before TIME SPEED)', { expect: 'S5', game: rep('const MEDIUM_POINTS=.2;', 'const MEDIUM_POINTS=.85;') });
+await control('Easy points cut too little (x0.1)', { expect: 'S1', game: rep('const EASY_POINTS=.03;', 'const EASY_POINTS=.1;') });
 await control('bonus orb not scaled on Easy', { expect: 'S1', game: rep(' const points=mediumPoints(scorePoints(Math.round(120+combo*10+(fluxMode>0?60:0))));', ' const points=mediumPoints(Math.round(120+combo*10+(fluxMode>0?60:0)));') });
-await control('FLUX MODE bonus not scaled on Easy', { expect: 'S1', game: rep('score+=scorePoints(250);', 'score+=250;') });
+await control('FLUX MODE bonus not scaled on Easy', { expect: 'S1', game: rep('score+=mediumPoints(scorePoints(250));', 'score+=mediumPoints(250);') });
 await control('Easy scaling applied to Medium too', { expect: 'S2', game: rep("function scorePoints(n){ return difficulty==='easy' ?", "function scorePoints(n){ return difficulty!=='hard' ?") });
-await control('Easy level thresholds not scaled (Easy levels 2.5x slower)', { expect: 'S3', game: rep('const LEVEL_SCORE_MULT={easy:.3,', 'const LEVEL_SCORE_MULT={easy:.75,') });
-await control('server keeps the old Easy thresholds', { expect: 'S4', workerSrc: rep('const LEVEL_SCORE_MULT = { easy: 0.3,', 'const LEVEL_SCORE_MULT = { easy: 0.75,') });
+await control('Easy level thresholds not scaled (the old x0.3 table)', { expect: 'S3', game: rep('const LEVEL_SCORE_MULT={easy:.0225,', 'const LEVEL_SCORE_MULT={easy:.3,') });
+await control('server keeps the old Easy thresholds', { expect: 'S4', workerSrc: rep('const LEVEL_SCORE_MULT = { easy: 0.0225,', 'const LEVEL_SCORE_MULT = { easy: 0.3,') });
 await control('server loosened to two levels either side', { expect: 'S4', workerSrc: rep('const LEVEL_TOLERANCE = 1;', 'const LEVEL_TOLERANCE = 2;') });
 const total = main.F + NC;
 console.log('\n' + (total ? 'EASY SCORING FAILED: ' + main.F + ' check(s), ' + NC + ' uncaught control(s)' : 'EASY SCORING PASSED: all checks and all negative controls'));
