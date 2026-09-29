@@ -45,7 +45,7 @@ for (const [name, w, h] of DEV) {
   await p.screenshot({ path: SHOTS + '/gameover-' + name.replace(/[^a-z0-9]+/gi, '-') + '.png' });
   await p.locator('#shareBtn').tap(); await p.waitForTimeout(200);
   const s = await p.evaluate(() => window.__shared);
-  const withImage = s && s.files.length === 1 && s.files[0].type === 'image/jpeg' && s.files[0].size > 15000 && /^I added 1,200 for 🇵🇭 Philippines! Beat me in FLUX: http:\/\/localhost:\d+\/play\/\?src=share$/.test(s.text);
+  const withImage = s && s.files.length === 1 && s.files[0].type === 'image/jpeg' && s.files[0].size > 15000 && /^I added 1,200 for 🇵🇭 Philippines! Beat me in FLUX Sparta: http:\/\/localhost:\d+\/play\/\?src=share$/.test(s.text);
   const textOnly = s && !s.files.length && /^I added 1,200 for 🇵🇭 Philippines!/.test(s.text) && /\/play\/\?src=share$/.test(s.url);
   ck(name + ': the share sheet gets "I added 1,200 for 🇵🇭 Philippines! ... /play/" (' + (withImage ? 'with the JPEG card' : 'text + link: card not ready yet') + ')', withImage || textOnly, JSON.stringify(s).slice(0, 200));
   if (name === 'iPhone 15 Pro') { const url = await p.evaluate(() => drawShareCard(shareInfo).toDataURL('image/jpeg',.9)); fs.writeFileSync(SHOTS + '/share-card.jpg', Buffer.from(url.split(',')[1], 'base64'));

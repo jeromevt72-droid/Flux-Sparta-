@@ -234,7 +234,7 @@ async function suite(src, quiet = false) {
     const gw = boot(scriptsOf(src.gw), { origin: ORIGIN, path: '/', store: c.store, fetchImpl: (u) => { c.calls.push({ u: String(u) }); return lbFetch(); } });
     await tick();
     ck('C3 the leaderboard is fetched once for two game views AND the Gateway World Grid in another tab (one shared copy)', lbCalls(c) === 1, String(lbCalls(c)));
-    ck('C3 ...every view uses the limit=50 board', c.calls.filter((y) => y.u.includes('/api/leaderboard')).every((y) => /\/api\/leaderboard\?limit=50$/.test(y.u)));
+    ck('C3 ...every view uses the same limit=50 board (with the planet boards: LEADERBOARD REFRESH)', c.calls.filter((y) => y.u.includes('/api/leaderboard')).every((y) => /\/api\/leaderboard\?limit=50&boards=1$/.test(y.u)));
     skew += 30000; gw.ctx.fetchGlobalGrid(); c.g.ctx.openLeaderboard(); await tick();
     ck('C3 ...a manual refresh inside the minute shows the copy (no request)', lbCalls(c) === 1, String(lbCalls(c)));
     skew += 31000; c.g.ctx.openLeaderboard(); await tick(); gw.ctx.fetchGlobalGrid(); await tick();

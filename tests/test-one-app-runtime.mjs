@@ -215,7 +215,7 @@ console.log('\n== ROOT MOVE: API calls stay at the origin, never under /play/ ==
   const hits=[];
   const fetchImpl=(u)=>{ hits.push(String(u)); return Promise.resolve({ ok:true, status:200, json:()=>Promise.resolve({players:[],countries:[]}) }); };
   boot(GATEWAY, { origin:ORIGIN, path:'/', store, fetchImpl });
-  ck('Gateway leaderboard request hits the origin API', hits[0]===ORIGIN+'/api/leaderboard?limit=50', hits[0]);
+  ck('Gateway leaderboard request hits the origin API', hits[0]===ORIGIN+'/api/leaderboard?limit=50&boards=1', hits[0]);
   ck('no request was sent under /play/api/', !hits.some(u=>u.includes('/play/api/')), hits.join(' | '));
 }
 

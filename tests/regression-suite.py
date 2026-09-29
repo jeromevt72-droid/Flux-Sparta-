@@ -332,7 +332,7 @@ print('\n--- AUDIT FIXES (A-1..A-4) ---')
 _w=open('FLUX-Sparta/worker.js',encoding='utf-8').read()
 _lbblk=_w[_w.index('async handleLeaderboard(url)'):_w.index('async handleSubmit(request)')]
 ck('A-1 leaderboard rows carry a hash, not a playerId', 'pid: o.pid,' in _lbblk and 'playerId:' not in _lbblk.split('const top = ')[1].split('}));')[0])
-ck('A-1 game highlights its row by hash', 'const mine=!!myPid && r.pid===myPid;' in _spnow and 'r.playerId===playerId' not in _spnow)
+ck('A-1 game highlights its row by hash', 'const me={ pid:myPid, country:country };' in _spnow and 'rows.findIndex(function(r){ return r.pid===me.pid; })' in _spnow and 'r.playerId===playerId' not in _spnow)   # LEADERBOARD REFRESH: fluxBoardView
 # RC2.8: EVERY admin function must itself start with the password check --
 # checked one by one, so a function losing its guard cannot hide behind a count.
 _admin_fns=re.findall(r'async function (admin\w+)\(request, env.*?\) \{\n(.*?)\n', _w)   # .*? so default params like (b) => ({}) still match
@@ -399,7 +399,7 @@ ck('D-35 restore refused during a run or purchase', "if(playing) return" in _g9 
 ck('D-35 suite is in the release gate with its negative controls', "'test-d35-restore.mjs'" in open('run-all-tests.mjs').read() and "await control(" in _rs35)
 _ad37=open('FLUX-Sparta/public/admin.html',encoding='utf-8').read()
 ck('D-36 restore code is not in the main menu', 'id="restoreBtn"' not in _g9 and 'function syncRestoreLink()' in _g9)
-ck('D-36 game over sets the Mode label', "document.getElementById('finalMode').textContent=String(difficulty).toUpperCase();" in _g9)
+ck('D-36 game over sets the Mode label', "setPlanetLabel(document.getElementById('finalMode'),difficulty);" in _g9)   # LEADERBOARD REFRESH: the planet name (EARTH / MARS / JUPITER)
 ck('D-37 issue-restore requires the admin password and a reason', 'async function adminIssueRestore(request, env) {\n  const denied = requireAdmin(request, env); if (denied) return denied;' in _w9 and 'if (reason.length < RESTORE_REASON_MIN)' in _w9)
 ck('D-37 log is written before a code is returned', _w9.index('try { await this.state.storage.put({ restoreLog: next }); }') < _w9.index('return json({ ok: true, code: await restoreCodeFor(id), tag, name });'))
 ck('D-37 admin page asks how the player was verified', 'How did you verify them?' in _ad37)

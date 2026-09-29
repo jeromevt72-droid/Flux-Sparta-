@@ -64,7 +64,7 @@ async function control(label, expect, mutate) {
 }
 const rep = (a, b) => (s) => (s.includes(a) ? s.replace(a, b) : s);
 await control('always says "added"', 'S1', rep("(info.added>0 ? 'I added '+info.added.toLocaleString('en-US')", "(true ? 'I added '+info.score.toLocaleString('en-US')"));
-await control('pilot name in the text', 'S1', rep("+' Beat me in FLUX:';", "+' Beat '+callsign+' in FLUX:';"));
+await control('pilot name in the text', 'S1', rep("+' Beat me in FLUX Sparta:';", "+' Beat '+callsign+' in FLUX Sparta:';"));
 await control('no image even when the phone can share it', 'S2', rep('    if(shareFile && navigator.canShare && navigator.canShare({files:[shareFile]})){', '    if(false){'));
 await control('share sheet opened after an await (not directly in the tap)', 'S3', rep("navigator.share({files:[shareFile],text:text+' '+url}).then(done,failed);", "Promise.resolve().then(function(){ return navigator.share({files:[shareFile],text:text+' '+url}); }).then(done,failed);"));
 await control('no fallback without a share sheet', 'S2', rep('  copyShare(text+\' \'+url,btn);\n}', '}'));
