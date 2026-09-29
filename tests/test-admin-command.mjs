@@ -325,7 +325,9 @@ async function suite({ adminHtml, workerMod, swSrc, manifestSrc, quiet = false }
       const sc = res.headers.get('set-cookie'); if (sc) jar.v = /Max-Age=0/.test(sc) ? null : cookieOf(sc);
       return res;
     };
-    const until = async (fn, n = 400) => { for (let i = 0; i < n; i++) { if (fn()) return true; await tick(); } return false; };
+    // Waits on real time (up to 15 s), not a fixed number of event-loop turns: the worker's
+    // SHA-256 hashing runs off the main thread, so on a busy machine 400 turns can pass first.
+    const until = async (fn, ms = 15000) => { const end = Date.now() + ms; for (let i = 0; ; i++) { if (fn()) return true; if (Date.now() > end) return false; await (i < 200 ? tick() : new Promise((r) => setTimeout(r, 5))); } };
     const { store } = makeStore({});
     const g = boot(scriptsOf(adminHtml), { origin: ORIGIN, path: '/admin.html', store, fetchImpl });
     const E = g.els;
