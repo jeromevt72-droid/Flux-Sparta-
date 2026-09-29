@@ -2000,8 +2000,24 @@ export class LeaderboardDO {
   }
 
   /* Public rows for one board: real points. No difficulty = the ALL board:
-     each player's best WEIGHTED score across difficulties (DIFF_WEIGHT). */
-  async publicRows(difficulty) {
+     each player's best WEIGHTED score across difficulties (DIFF_WEIGHT; kept
+     for the country totals / World Grid and for old cached pages -- the game
+     no longer shows an All board).
+     LEADERBOARD REFRESH (FREE PLAN, CPU): the sorted rows of each board are
+     built ONCE and cached in memory (this.rowsCache) until the players, the
+     restrictions or the name bans change -- the same moments the tag map is
+     rebuilt (invalidateTags). A cached board also carries, for every row, its
+     rank inside its own country, so a pilot's world rank, country rank and the
+     score just above are read in O(1) (a Map lookup), never with a new sort.
+     Cost: one O(n log n) sort per board after a change (about 2-4 ms at 10,000
+     pilots, which the old code already paid on EVERY leaderboard read), then
+     nothing until the next change. Memory only: nothing is ever written. */
+  async publicRows(difficulty) { return (await this.boardIndex(difficulty)).rows; }
+  async boardIndex(difficulty) {
+    const key = difficulty || "all";
+    const cache = this.rowsCache || (this.rowsCache = new Map());
+    const hit = cache.get(key);
+    if (hit && hit.players === this.players && hit.restricted === this.restricted) return hit;
     const rows = [];
     for (const r of Object.values(this.players)) {
       if (await this.isRestricted(r.playerId)) continue;       // moderation exclusion
@@ -2010,7 +2026,26 @@ export class LeaderboardDO {
       rows.push({ r, score: difficulty ? b.score : b.weighted, points: b.score, level: b.level, difficulty: difficulty || b.difficulty, updatedAt: b.updatedAt || r.updatedAt || 0 });
     }
     rows.sort((a, b) => b.score - a.score || a.updatedAt - b.updatedAt);
-    return rows;
+    const at = new Map(), cRank = new Array(rows.length), cCount = new Map();
+    for (let i = 0; i < rows.length; i++) {
+      const cc = countryOf(rows[i].r);
+      const n = (cCount.get(cc) || 0) + 1;
+      cCount.set(cc, n); cRank[i] = n; at.set(rows[i].r.playerId, i);
+    }
+    const idx = { players: this.players, restricted: this.restricted, rows, at, cRank, cCount };
+    cache.set(key, idx);
+    return idx;
+  }
+  /* LEADERBOARD REFRESH: one pilot's standing on one board, for that pilot's
+     own upload reply only. O(1) on the cached board; null when not on it. */
+  async standing(playerId, difficulty) {
+    const idx = await this.boardIndex(difficulty);
+    const i = idx.at.get(playerId);
+    if (i === undefined) return null;
+    const row = idx.rows[i], cc = countryOf(row.r), up = i > 0 ? idx.rows[i - 1] : null;
+    let above = null;
+    if (up) { const [o] = await this.tagRows([up]); above = { rank: i, name: this.displayName(up.r), tag: o.tag, country: countryOf(up.r), score: up.score }; }
+    return { rank: i + 1, total: idx.rows.length, country: cc, countryRank: idx.cRank[i], countryTotal: idx.cCount.get(cc) || 0, score: row.score, above };
   }
 
   /* D-33 (RC2.8.1): public tags resolved over the COMPLETE player set.
@@ -2049,14 +2084,38 @@ export class LeaderboardDO {
     for (const it of items) out.push({ it, pid: await this.pid(it.r.playerId), tag: await this.tagFor(it.r.playerId) });
     return out;
   }
-  invalidateTags() { this.tagCache = null; }
+  invalidateTags() { this.tagCache = null; this.rowsCache = null; }   // LEADERBOARD REFRESH: the cached boards too
 
   async handleLeaderboard(url) {
     const limit = clampInt(url.searchParams.get("limit"), 1, 100, 25);
     const difficulty = VALID_DIFFICULTIES.has(url.searchParams.get("difficulty")) ? url.searchParams.get("difficulty") : null;
     const rows = (await this.publicRows(difficulty)).slice(0, limit);
+    const top = await this.publicTop(rows);
+    // The leader's tag comes from the SAME live tag map as every other view,
+    // resolved now -- never a copy stored earlier. leaderId never leaves the server.
+    const countries = [];
+    for (const { leaderId, leaderPid, topTag, ...c } of Object.values(this.countries)) {
+      countries.push({ ...c, topTag: leaderId ? await this.tagFor(leaderId) : "" });
+    }
+    countries.sort((a, b) => b.totalScore - a.totalScore);
+    const out = { top, countries, leadingCountry: countries[0] || null, difficulty, weighted: !difficulty, weights: { ...DIFF_WEIGHT } };
+    /* LEADERBOARD REFRESH: ?boards=1 adds the three difficulty boards (real
+       points) to the SAME response, so the game's EARTH / MARS / JUPITER / WORLD
+       tabs still cost one request, cached for a minute (FREE PLAN). Read from
+       the cached sorted boards: no sort, no write. Old pages never ask for it. */
+    if (url.searchParams.get("boards") === "1") {
+      out.boards = {}; out.totals = {};
+      for (const d of VALID_DIFFICULTIES) {
+        const all = await this.publicRows(d);
+        out.boards[d] = await this.publicTop(all.slice(0, limit));
+        out.totals[d] = all.length;
+      }
+    }
+    return json(out);
+  }
+  async publicTop(rows) {
     const tagged = await this.tagRows(rows);
-    const top = tagged.map((o) => ({
+    return tagged.map((o) => ({
       pid: o.pid,                                  // A-1: a hash, never the playerId
       tag: o.tag,
       name: this.displayName(o.it.r),
@@ -2066,14 +2125,6 @@ export class LeaderboardDO {
       level: o.it.level,
       difficulty: o.it.difficulty,
     }));
-    // The leader's tag comes from the SAME live tag map as every other view,
-    // resolved now -- never a copy stored earlier. leaderId never leaves the server.
-    const countries = [];
-    for (const { leaderId, leaderPid, topTag, ...c } of Object.values(this.countries)) {
-      countries.push({ ...c, topTag: leaderId ? await this.tagFor(leaderId) : "" });
-    }
-    countries.sort((a, b) => b.totalScore - a.totalScore);
-    return json({ top, countries, leadingCountry: countries[0] || null, difficulty, weighted: !difficulty, weights: { ...DIFF_WEIGHT } });
   }
 
   /* D-25: country figures are rebuilt from the player records every time
@@ -2163,11 +2214,10 @@ export class LeaderboardDO {
     const record = ownGet(this.players, playerId);
     const pid = await this.pid(playerId);
     const restricted = !!ownGet(this.restricted, pid);
-    let rank = null;
-    if (!restricted) {
-      const rows = await this.publicRows(difficulty);
-      rank = rows.findIndex((x) => x.r.playerId === playerId) + 1 || null;
-    }
+    // LEADERBOARD REFRESH: rank, country rank and the pilot just above, read
+    // from the cached board (O(1), no sort, no write) -- for this pilot only.
+    const st = restricted ? null : await this.standing(playerId, difficulty);
+    const rank = st ? st.rank : null;
     const [o] = await this.tagRows([{ r: record }]);
     const b = record && ownGet(record.bests, difficulty);
     return json({
@@ -2175,6 +2225,7 @@ export class LeaderboardDO {
       country: record ? record.country : undefined, difficulty,
       public: !restricted,       // honest: no public rank is invented for a restricted player
       rank,
+      ...(st ? { total: st.total, countryRank: st.countryRank, countryTotal: st.countryTotal, above: st.above } : {}),
       tag: o.tag,
       ...(duplicate ? { duplicate: true } : {}),
     });
@@ -2465,7 +2516,7 @@ export class LeaderboardDO {
       };
       const st = this.state.storage;
       if (typeof st.transaction === "function") await st.transaction(apply); else await apply(st);
-      this.ready = false; this.tagCache = null; this.pidCache = new Map();
+      this.ready = false; this.tagCache = null; this.rowsCache = null; this.pidCache = new Map();
     });
     await this.load();
     return json({ ok: true, keys: entries.length });
@@ -2992,6 +3043,7 @@ function normaliseRecord(r, id) {
   if (r && Number.isFinite(r.score)) bests[d] = { score: r.score, level: r.level || 1, updatedAt: r.updatedAt || 0 };
   return { playerId: (r && r.playerId) || id, name: r && r.name, country: r && r.country, updatedAt: (r && r.updatedAt) || 0, bests };
 }
+function countryOf(r) { const c = String((r && r.country) || ""); return ISO2.test(c) ? c : "XX"; }
 function weightedBestOf(r) {
   let best = null;
   for (const [d, b] of Object.entries((r && r.bests) || {})) {
