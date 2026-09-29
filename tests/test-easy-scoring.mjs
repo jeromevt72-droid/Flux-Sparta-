@@ -119,7 +119,7 @@ async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = fals
       ph.totalScore === want.ALPHA + want.BRAVO + want.DELTA && ph.playerCount === 3 && us.totalScore === 5000 && ph.topScore === Math.max(want.ALPHA, want.BRAVO, want.DELTA) && ph.topName === ['ALPHA', 'BRAVO', 'DELTA'].sort((x, y) => want[y] - want[x])[0]);
     // Totals stored before the weights (real points) are rebuilt when the board is read; stored scores stay real.
     const inst = w2._inst.get('global'); await inst.state.storage.put({ countries: { PH: { country: 'PH', totalScore: 220000, playerCount: 3, topScore: 100000, topName: 'ALPHA', leaderId: 'w-a' } }, countriesWeights: undefined }); inst.ready = false;   // as stored before the weights; the Durable Object restarts
-    const again = await board(w, w2); const ph2 = (again.countries || []).find((c) => c.country === 'PH') || {};
+    const again = await board(w, w2, '&restart=1');   /* FREE PLAN: a new board URL, so the Worker's 60 s leaderboard memo cannot answer for the restarted DO */ const ph2 = (again.countries || []).find((c) => c.country === 'PH') || {};
     const stored = await inst.state.storage.get('players');
     ck('W3 ...totals stored before the weights are rebuilt once when the server loads them, and stored scores are never rewritten',
       ph2.totalScore === ph.totalScore && stored['w-a'].bests.easy.score === 100000 && stored['w-d'].bests.hard.score === 2000, ph2.totalScore + ' vs ' + ph.totalScore);

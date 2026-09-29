@@ -376,7 +376,8 @@ async function suite({ workerMod, adminHtml, quiet = false }) {
       && /idFromName\("backups"\)/.test(workerMod.__src || WORKER_SRC));
     { let mainCfg = null;
       try { const r = spawnSync('git', ['show', 'origin/main:wrangler.jsonc'], { cwd: ROOT, encoding: 'utf8' }); if (r.status === 0 && r.stdout) mainCfg = r.stdout; } catch (e) {}
-      const strip = (t) => JSON.stringify(JSON.parse(t.replace(/^\s*\/\/.*$/mg, '')));
+      // Only the parts this check is about (FREE PLAN changes the "assets" routing, not these).
+      const strip = (t) => { const c = JSON.parse(t.replace(/^\s*\/\/.*$/mg, '')); return JSON.stringify([c.durable_objects, c.migrations, c.triggers, c.kv_namespaces, c.r2_buckets, c.d1_databases]); };
       ck('B10 wrangler.jsonc has the same bindings, migrations and triggers as main (checked against origin/main when git is available)', mainCfg === null || strip(mainCfg) === strip(WRANGLER), mainCfg === null ? 'git not available: fixed checks above only' : ''); }
     // The two roles never mix.
     const G = mk(new FakeStorage(seed(0, 20)), new FakeStorage(new Map(), { limit: true }));

@@ -1027,18 +1027,48 @@ try{
     area.innerHTML = '<div class="rankTable scorersScroll">'+rows+'</div>';
   };
 
+  /* FREE PLAN: the World Grid and the game's Global Leaderboard share ONE
+     copy of the board in localStorage ("fluxLbCache", same origin, every tab).
+     It is shown at once; the server is asked again at most once a minute by
+     any view or tab ("fluxLbTry"), and RETRY inside that minute shows the
+     copy. Past the server's daily limit (Cloudflare's own error page) the
+     game pauses its calls ("fluxNetPause"); the Grid does too. */
+  var LB_KEY = 'fluxLbCache', LB_TRY = 'fluxLbTry', LB_TTL = 60000;
+  function lbCached(){ try{ var c = JSON.parse(localStorage.getItem(LB_KEY) || 'null'); if(c && c.data && isFinite(c.at)) return c; }catch(e){} return null; }
+  function lbNum(k){ try{ return +localStorage.getItem(k) || 0; }catch(e){ return 0; } }
   var gridFetchInFlight = false;
   window.fetchGlobalGrid = function(){
     if(gridFetchInFlight) return;
+    var cached = lbCached(), now = Date.now();
+    var fresh = cached && cached.at <= now && now - cached.at < LB_TTL;
+    var tried = lbNum(LB_TRY), held = lbNum('fluxNetPause') > now || navigator.onLine === false;
+    if(cached){
+      window.__gridData = cached.data;
+      window.renderGrid(cached.data);
+      window.applyPreferredCountryUI();
+    }
+    if(fresh || held || (tried <= now && now - tried < LB_TTL)){
+      if(!cached){
+        var ra = document.getElementById('gridRankArea');
+        if(ra) ra.innerHTML = gridErrorState(held ? 'The Grid is offline right now. Try again later.' : 'The Grid is refreshing. Try again in a minute.');
+        var rb = document.getElementById('gridRetryBtn');
+        if(rb) rb.onclick = window.fetchGlobalGrid;
+      }
+      return;
+    }
     gridFetchInFlight = true;
+    try{ localStorage.setItem(LB_TRY, String(now)); }catch(e){}
     var rankArea = document.getElementById('gridRankArea');
     var sideArea = document.getElementById('gridSideArea');
-    if(rankArea) rankArea.innerHTML = gridLoadingState();
-    if(sideArea) sideArea.innerHTML = '';
+    if(rankArea && !cached) rankArea.innerHTML = gridLoadingState();
+    if(sideArea && !cached) sideArea.innerHTML = '';
     fetch(window.FLUX_ORIGIN + '/api/leaderboard?limit=50')
       .then(function(res){
         if(!res.ok){
           return res.json().catch(function(){return null;}).then(function(errBody){
+            if(!errBody && res.status === 429){   // FREE PLAN: Cloudflare's daily-limit page, not our JSON: pause until the reset (at most an hour)
+              var t = Date.now(); try{ localStorage.setItem('fluxNetPause', String(Math.min((Math.floor(t / 86400000) + 1) * 86400000, t + 3600000))); }catch(e){}
+            }
             var msg = (errBody && errBody.error) ? errBody.error : ('Server error ('+res.status+')');
             throw new Error(msg);
           });
@@ -1046,6 +1076,7 @@ try{
         return res.json();
       })
       .then(function(data){
+        try{ localStorage.setItem(LB_KEY, JSON.stringify({ at: Date.now(), data: data })); }catch(e){}
         window.__gridData = data;
         window.renderGrid(data);
         // Standing is only known once the Grid loads -- re-run so the hero
@@ -1053,6 +1084,7 @@ try{
         window.applyPreferredCountryUI();
       })
       .catch(function(err){
+        if(cached) return;   // FREE PLAN: the last copy stays on screen
         if(rankArea) rankArea.innerHTML = gridErrorState(err && err.message);
         var retryBtn = document.getElementById('gridRetryBtn');
         if(retryBtn) retryBtn.onclick = window.fetchGlobalGrid;

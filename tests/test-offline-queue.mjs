@@ -36,6 +36,12 @@ for(const f of ['fluxRandomId','loadQueue','saveQueue','buildSubmission','enqueu
 // dropping the async keyword. Re-attach it.
 eval('globalThis.postSubmission = async ' + grab('postSubmission').replace('function postSubmission(','function('));
 eval('globalThis.flushSubmitQueue = async ' + grab('flushSubmitQueue').replace('function flushSubmitQueue(','function('));
+// FREE PLAN: the queue's helpers for the server's daily limit, the stats that
+// ride inside an upload, and the record of the best the server already has.
+Object.assign(globalThis,{FLUX_NET_PAUSE_KEY:'fluxNetPause',FLUX_NET_PAUSE_MAX_MS:3600000,fluxNetDown:false,FLUX_ACK_KEY:'fluxUploadedBest'});
+for(const f of ['fluxNetPausedFor','fluxNetHeld','fluxNetPause','fluxNetOk','fluxNetNote','fluxMergeStats','fluxAckGet','fluxAckSet','fluxAlreadyUploaded'])
+  eval(grab(f).replace('function '+f+'(', 'globalThis.'+f+'=function('));
+eval('globalThis.fluxEdgeKind = async ' + grab('fluxEdgeKind').replace('function fluxEdgeKind(','function('));
 
 console.log('-- offline: run is queued, not discarded --');
 netMode='offline'; navigator.onLine=false;
