@@ -15,6 +15,18 @@
 //
 // run_worker_first keeps every /api/* request on worker.js; everything else
 // falls through to the static assets in ./public.
+//
+// FREE PLAN (owner: FLUX stays on the free Workers plan, 100,000 Worker
+// requests a day). Static asset requests are free and do NOT invoke the
+// Worker. Only /api/* runs worker.js:
+//   - every file in ./public (the Gateway, the game, sw.js, icons, images) is
+//     served by the asset layer;
+//   - "not_found_handling": "404-page" answers a missing path (a bot probing
+//     /wp-login.php, a browser asking for /favicon.ico) with public/404.html
+//     from the asset layer too. Without it, EVERY missing path invoked the
+//     Worker script and counted against the daily limit;
+//   - "html_handling": "auto-trailing-slash" (the default, written out) makes
+//     /play redirect to /play/ in the asset layer, never in the Worker.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "flux-sparta-3",
@@ -25,7 +37,9 @@
     "binding": "ASSETS",
     "run_worker_first": [
       "/api/*"
-    ]
+    ],
+    "not_found_handling": "404-page",
+    "html_handling": "auto-trailing-slash"
   },
   // RC2.8: automatic payment reconciliation every 30 minutes (free on Workers).
   "triggers": { "crons": ["*/30 * * * *"] },

@@ -95,8 +95,8 @@ const cases = [
     expect:/FAIL  start_url is the site root/ },
   { name:'API requested under /play/ after the move',
     rel:'FLUX-Sparta/public/index.html',
-    from:"fetch(window.FLUX_ORIGIN + '/api/leaderboard?limit=50')",
-    to:"fetch(window.FLUX_GAME_URL + 'api/leaderboard?limit=50')",
+    from:"fetch(window.FLUX_ORIGIN + '/api/leaderboard?limit=50&boards=1')",
+    to:"fetch(window.FLUX_GAME_URL + 'api/leaderboard?limit=50&boards=1')",
     expect:/FAIL  Gateway leaderboard request hits the origin API/ },
   { name:'Stripe return no longer forwarded to the game',
     rel:'FLUX-Sparta/public/index.html',
@@ -188,8 +188,8 @@ const cases = [
     // Fabricate a rank outright. (An earlier version of this control only
     // removed the restricted check, which changes nothing: restricted players
     // are already excluded upstream, so it could never fail.)
-    from:'    let rank = null;\n    if (!restricted) {',
-    to:'    let rank = 1;\n    if (!restricted) {',
+    from:'    const rank = st ? st.rank : null;',
+    to:'    const rank = st ? st.rank : 1;',
     test:'test-rc28-worker.mjs', expect:/FAIL  \.\.\.but is given NO public rank/ },
   { name:'Remove score also resets the cooldown',
     rel:'FLUX-Sparta/worker.js',

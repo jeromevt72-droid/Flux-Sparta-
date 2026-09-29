@@ -75,7 +75,8 @@ async function suite({ gameHtml, adminHtml, workerMod, quiet=false }){
       g.win.document.getElementById('finalMode').textContent='MEDIUM';   // the page's static default
       g.ctx.newGame(); vm.runInContext('score=1234; level=2;', g.ctx); g.ctx.endGame();
       for (let i=0;i<5 && timers.length;i++) timers.splice(0).forEach(fn=>{ try{ fn(); }catch(e){} });
-      ck('L1 game over after a '+d+' run says Mode: '+d.toUpperCase(), g.els.finalMode.textContent===d.toUpperCase(), g.els.finalMode.textContent);
+      const planet={easy:'EARTH',medium:'MARS',hard:'JUPITER'}[d];   // LEADERBOARD REFRESH: difficulties are shown as planets
+      ck('L1 game over after a '+d+' run says Mode: '+planet, g.els.finalMode.textContent===planet, g.els.finalMode.textContent);
     }
   } catch(e){ ck('D-36 label section ran', false, String(e.stack||e).slice(0,200)); }
 
@@ -173,7 +174,7 @@ async function control(label,{ expect, game=(s)=>s, admin=(s)=>s, workerSrc=(s)=
     if(!caught) NC++; } finally { try{ fs.unlinkSync(tmp); }catch(e){} }
 }
 const rep=(a,b)=>(s)=>s.includes(a)?s.replace(a,b):s;
-await control('Mode label never set at game over',{ expect:'L1', game:rep("   document.getElementById('finalMode').textContent=String(difficulty).toUpperCase();","") });
+await control('Mode label never set at game over',{ expect:'L1', game:rep("   setPlanetLabel(document.getElementById('finalMode'),difficulty);   // D-36","   // D-36") });
 await control('restore button back in the main menu',{ expect:'M1', game:rep('id="skinsBtn">\u2726 THEMES & SKINS</button>','id="skinsBtn">\u2726 THEMES & SKINS</button><button class="linkBtn" id="restoreBtn">RESTORE CODE</button>') });
 await control('existing pilot sent to code entry',{ expect:'M3', game:rep("if(restoreHasPilot()) openRestoreCode(); else openRestoreEntry();","openRestoreEntry();") });
 await control('EDIT handler replaced instead of chained',{ expect:'M4', game:rep("if(typeof prev==='function') prev.call(this,e); ","throw new Error('lost'); ") });
@@ -185,7 +186,9 @@ await control('code returned before the log is saved',{ expect:'A7', workerSrc:r
 await control('log leaks the code',{ expect:'A6', workerSrc:rep("const entry = { at: Date.now(), pid, tag, name,","const entry = { at: Date.now(), pid, tag, name, code: await restoreCodeFor(id),") });
 await control('server checksum differs from the game',{ expect:'A5', workerSrc:rep('encode("flux-restore:" + playerId)','encode("flux-restore-v2:" + playerId)') });
 await control('privacy deletion leaves the log untouched',{ expect:'A9', workerSrc:rep("const nextLog = this.restoreLog.map((e) => (e.pid === pid ?","const nextLog = this.restoreLog.map((e) => (false ?") });
-await control('response cacheable',{ expect:'A4 never cached', workerSrc:(s)=>{ const i=s.indexOf('async function adminIssueRestore'); const j=s.indexOf('headers.set("Cache-Control", "no-store");',i); return i<0||j<0?s:s.slice(0,j)+s.slice(j+'headers.set("Cache-Control", "no-store");'.length); } });
+// FLUX COMMAND: every admin response is also marked no-store by adminOut(), so both layers are removed.
+await control('response cacheable (both layers)',{ expect:'A4 never cached', workerSrc:(s)=>{ const i=s.indexOf('async function adminIssueRestore'); const j=s.indexOf('headers.set("Cache-Control", "no-store");',i); s=i<0||j<0?s:s.slice(0,j)+s.slice(j+'headers.set("Cache-Control", "no-store");'.length);
+  return s.replace('function adminOut(resp) {\n  const r = withCors(resp);\n  r.headers.set("Cache-Control", "no-store");','function adminOut(resp) {\n  const r = withCors(resp);'); } });
 await control('admin page never asks for a reason',{ expect:'P2', admin:rep("if (reason.trim().length < 3) { say('Write how you verified this player.', 'err'); return; }","") });
 
 const total=main.F+NC;

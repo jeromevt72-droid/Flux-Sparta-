@@ -30,12 +30,18 @@ globalThis.difficulty=difficulty; globalThis.playerId=playerId; globalThis.calls
 Object.assign(globalThis,{SUBMIT_BACKOFF_MS:[5000,15000,45000,120000,300000,600000],SUBMIT_COOLDOWN_WAIT_MS:11000,
   _flushing:null,_retryTimer:null,_flushAgain:false,lastUploadResult:null,document:{getElementById:()=>null},
   FLUX_SEASON:1});   // SEASON 1: the page constant the extracted queue functions read
-for(const f of ['loadQueue','saveQueue','buildSubmission','enqueueSubmission','dequeueSubmission','recordSubmitFailure','clearSubmitFailure','submitScore','updateUploadStatus','scheduleFlush'])
+for(const f of ['fluxRandomId','loadQueue','saveQueue','buildSubmission','enqueueSubmission','dequeueSubmission','recordSubmitFailure','clearSubmitFailure','submitScore','updateUploadStatus','scheduleFlush'])
   eval(grab(f).replace('function '+f+'(', 'globalThis.'+f+'=function('));
 // grab() finds 'function X(' — for async fns the slice starts at 'function',
 // dropping the async keyword. Re-attach it.
 eval('globalThis.postSubmission = async ' + grab('postSubmission').replace('function postSubmission(','function('));
 eval('globalThis.flushSubmitQueue = async ' + grab('flushSubmitQueue').replace('function flushSubmitQueue(','function('));
+// FREE PLAN: the queue's helpers for the server's daily limit, the stats that
+// ride inside an upload, and the record of the best the server already has.
+Object.assign(globalThis,{FLUX_NET_PAUSE_KEY:'fluxNetPause',FLUX_NET_PAUSE_MAX_MS:3600000,fluxNetDown:false,FLUX_ACK_KEY:'fluxUploadedBest'});
+for(const f of ['fluxNetPausedFor','fluxNetHeld','fluxNetPause','fluxNetOk','fluxNetNote','fluxMergeStats','fluxAckGet','fluxAckSet','fluxAlreadyUploaded'])
+  eval(grab(f).replace('function '+f+'(', 'globalThis.'+f+'=function('));
+eval('globalThis.fluxEdgeKind = async ' + grab('fluxEdgeKind').replace('function fluxEdgeKind(','function('));
 
 console.log('-- offline: run is queued, not discarded --');
 netMode='offline'; navigator.onLine=false;

@@ -205,12 +205,13 @@ async function suite({ workerMod, adminHtml, quiet = false, parts = null, small 
       return { status: res.status, data, text, headers: res.headers };
     };
     const admin = (route, body) => req('/api/admin/' + route, body, H);
-    const submit = (id, score, d = 'medium', o = {}) => req('/api/submit-score', { playerId: id, name: o.name || 'PILOT' + String(id).replace(/\D/g, '').slice(-6), score, level: levelFor(score, d), difficulty: d, country: o.country || 'US', season: 1 });
+    const submit = (id, score, d = 'medium', o = {}) => req('/api/submit-score', { playerId: id, name: o.name || 'PILOT' + String(id).replace(/\D/g, '').slice(-6), score, level: levelFor(score, d), difficulty: d, country: o.country || 'US', season: 1, ...(o.runId ? { runId: o.runId } : {}) });
     const cron = async () => { const w = []; await worker.scheduled({}, env, { waitUntil: (p) => w.push(p) }); await Promise.all(w); };
     const doFetch = (path, body) => env.LEADERBOARD_DO.get('global').fetch('https://do.internal' + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
     const view = async (ids = []) => {
       const out = {};
       for (const d of ['', 'easy', 'medium', 'hard']) out['lb:' + d] = (await req('/api/leaderboard?limit=100' + (d ? '&difficulty=' + d : ''), null, {}, 'GET')).text;
+      out['lb:boards'] = (await req('/api/leaderboard?limit=100&boards=1&v=' + now, null, {}, 'GET')).text;   // EARTH / MARS / JUPITER / WORLD in one response
       for (const id of ids) {
         out['ent:' + id] = (await req('/api/entitlements?playerId=' + id, null, {}, 'GET')).text;
         out['rc:' + id] = (await req('/api/restore-check', { playerId: id })).text;
@@ -228,7 +229,7 @@ async function suite({ workerMod, adminHtml, quiet = false, parts = null, small 
     const keys = Object.keys(a); const bad = [];
     for (const k of keys) {
       let x = a[k], y = b[k];
-      if (skipCountry && k.startsWith('lb:')) { const X = JSON.parse(x), Y = JSON.parse(y); X.countries = X.countries.filter((c) => c.country !== skipCountry); Y.countries = Y.countries.filter((c) => c.country !== skipCountry); X.leadingCountry = Y.leadingCountry = null; x = JSON.stringify(X); y = JSON.stringify(Y); }
+      if (skipCountry && k.startsWith('lb:')) { const X = JSON.parse(x), Y = JSON.parse(y); X.countries = X.countries.filter((c) => c.country !== skipCountry); Y.countries = Y.countries.filter((c) => c.country !== skipCountry); X.leadingCountry = Y.leadingCountry = null; delete X.totals; delete Y.totals; x = JSON.stringify(X); y = JSON.stringify(Y); }
       if (x !== y) bad.push(k);
     }
     return bad;
@@ -260,7 +261,8 @@ async function suite({ workerMod, adminHtml, quiet = false, parts = null, small 
       const g = new FakeStorage(seedOld(N)), S = mk(g);
       await S.view();   // loaded
       for (const r of ['storage-status', 'migrate-storage-dry-run', 'migrate-storage', 'migrate-storage-check', 'migrate-storage-rollback', 'migrate-storage-cleanup']) {
-        const x = await S.req('/api/admin/' + r, {}), y = await S.req('/api/admin/' + r, {}, { 'x-admin-token': 'nope' });
+        const ip = { 'CF-Connecting-IP': '10.9.' + r.length + '.' + r.charCodeAt(r.length - 1) };   // FLUX COMMAND locks a client after 5 wrong passwords
+        const x = await S.req('/api/admin/' + r, {}, ip), y = await S.req('/api/admin/' + r, {}, { 'x-admin-token': 'nope', ...ip });
         if (x.status !== 401 || y.status !== 401) { ck('SF3 every storage route needs the admin password', false, r + ': ' + x.status + '/' + y.status); break; }
       }
       ck('SF3 every storage route needs the admin password (401 without it)', !failed.includes('SF3 every storage route needs the admin password'));
@@ -390,12 +392,16 @@ async function suite({ workerMod, adminHtml, quiet = false, parts = null, small 
       ck('SF5 a leaderboard request reads ~100 rows the first time after a restart (ALL a few hundred) and 0 from memory', lbCold <= 130 && allCold <= 700 && lbWarm === 0, 'hard ' + lbCold + ', all ' + allCold + ', warm ' + lbWarm);
       const runCost = async (fn) => { const a = { ...g.meter }; const r = await fn(); return { status: r.status, read: g.meter.read - a.read, written: g.meter.written - a.written }; };
       now += 20000;
-      const cNo = await runCost(() => S.submit(P(21), 301, 'easy', { name: 'PILOT21', country: g.map.get('players')[P(21)].country }));
+      if (process.env.SF_DBG) { const e = g.sql.exec.bind(g.sql); g.sql.exec = (q, ...a) => { const r = e(q, ...a); if (r.rowsWritten) console.log('W', r.rowsWritten, q.slice(0, 60)); return r; }; const p0 = g.put.bind(g); g.put = (k, v) => { console.log('KV', typeof k === 'object' ? Object.keys(k) : k); return p0(k, v); }; }
+      const withEasy = (from) => { for (let i = from; ; i++) { const r = g.map.get('players')[P(i)]; if (r && r.bests.easy && r.bests.easy.score > 400 && !(g.map.get('restricted') || {})[pidHashSync(P(i))]) return i; } };
+      const i21 = withEasy(21), i23 = withEasy(i21 + 1);
+      const cNo = await runCost(() => S.submit(P(i21), 301, 'easy', { name: 'PILOT' + i21, country: g.map.get('players')[P(i21)].country }));
+      if (process.env.SF_DBG) process.exit(0);
       now += 20000;
       const cBest = await runCost(() => S.submit(P(22), 44000, 'easy', { name: 'PILOT22', country: g.map.get('players')[P(22)].country }));
       const cNew = await runCost(() => S.submit('cost-new-1', 2000, 'medium', { name: 'COSTNEW', country: 'US' }));
       now += 20000;
-      const cNo2 = await runCost(() => S.submit(P(23), 302, 'easy', { name: 'PILOT23', country: g.map.get('players')[P(23)].country }));
+      const cNo2 = await runCost(() => S.submit(P(i23), 302, 'easy', { name: 'PILOT' + i23, country: g.map.get('players')[P(i23)].country }));
       const cNew2 = await runCost(() => S.submit('cost-new-2', 2100, 'medium', { name: 'COSTNEWTWO', country: 'US' }));
       report.run = { noBest: cNo, newBest: cBest, newPilot: cNew, noBestSteady: cNo2, newPilotSteady: cNew2, coldStart: cold, leaderboardCold: lbCold, allCold, leaderboardWarm: lbWarm };
       ck('SF5 rows written per run: 1-2 without a new best, <= 6 with one, <= 7 for a new pilot', cNo.status === 200 && cNo.written <= 2 && cBest.written <= 6 && cNew.written <= 7, JSON.stringify(report.run));
@@ -490,7 +496,7 @@ async function suite({ workerMod, adminHtml, quiet = false, parts = null, small 
       const watch = ids12.concat([ca, cb, 'tie-5', 'same-2', 'new-a', 'new-b', 'new-c']);
       const cmp = async (label, fnO, fnN = fnO) => {
         const a = await fnO(O), b = await fnN(Nw);
-        let ok = a.status === b.status && (a.text === b.text || label.startsWith('submit') && (() => { const x = JSON.parse(a.text), y = JSON.parse(b.text); if (!(x.rank > 1000 && y.rank === null)) return false; delete x.rank; delete y.rank; return JSON.stringify(x) === JSON.stringify(y); })());
+        let ok = a.status === b.status && (a.text === b.text || label.startsWith('submit') && (() => { const x = JSON.parse(a.text), y = JSON.parse(b.text); if (!(x.rank > 1000 && y.rank === null)) return false; for (const k of ['rank', 'total', 'countryRank', 'countryTotal', 'above']) { delete x[k]; delete y[k]; } return JSON.stringify(x) === JSON.stringify(y); })());
         const va = await O.view(watch), vb = await Nw.view(watch), bad = sameView(va, vb);
         ck('SF9 ' + label + ': same answer and same public view', ok && !bad.length, (ok ? '' : a.status + ' ' + a.text.slice(0, 160) + ' <> ' + b.status + ' ' + b.text.slice(0, 160) + ' ') + bad.join(','));
       };
@@ -500,6 +506,8 @@ async function suite({ workerMod, adminHtml, quiet = false, parts = null, small 
       step(); await cmp('submit: a full tie (same score, same time) sorts by the older pilot', (X) => X.submit('new-b', 39000, 'hard', { name: 'NEWB', country: 'DE' }));
       step(); await cmp('submit: an Easy best that ties on ALL after the x0.09 weight', (X) => X.submit('tie-7', 450067, 'easy', { name: 'TIE7', country: CC[7 % 4] }));
       step(); await cmp('submit: no new best (name and country refresh)', (X) => X.submit(P(12), 301, 'easy', { name: 'PILOT12', country: 'MX' }));
+      step(); await cmp('submit: with a run id (rank, country rank, pilot above)', (X) => X.submit(P(44), 39800, 'hard', { name: 'PILOT44', country: 'KE', runId: 'run-aaaaaaaaaaaaaaaa-1' }));
+      step(); await cmp('submit: the same run id again = the same reply, nothing changes (duplicate)', (X) => X.submit(P(44), 39800, 'hard', { name: 'PILOT44', country: 'KE', runId: 'run-aaaaaaaaaaaaaaaa-1' }));
       step(); await cmp('submit: a pilot beyond the top 100 (rank counted on the index)', (X) => X.submit(P(33), 2400, 'medium', { name: 'PILOT33', country: 'US' }));
       await cmp('submit: cooldown (429 with Retry-After)', (X) => X.submit(P(33), 2500, 'medium', { name: 'PILOT33', country: 'US' }));
       step(); await cmp('submit: a colliding pilot renames -> both tags go back to 7 characters', (X) => X.submit(cb, 29500, 'medium', { name: 'OTTER', country: 'GB' }));
@@ -530,6 +538,9 @@ async function suite({ workerMod, adminHtml, quiet = false, parts = null, small 
       await cmp('admin: privacy deletion incl. purchases (a pilot in the Season 0 archive)', (X) => X.admin('privacy-delete', { pid: p13, removePurchases: true }).then((r) => ({ status: r.status, text: JSON.stringify({ ...r.data, backups: undefined }) })));
       await cmp('admin: privacy deletion of a buyer with no score', (X) => X.admin('privacy-delete', { pid: pidHashSync('buyerOnly'), removePurchases: true }).then((r) => ({ status: r.status, text: JSON.stringify({ ...r.data, backups: undefined }) })));
       await cmp('admin: overview (restore log, bans)', (X) => X.doFetch('/admin-overview', {}));
+      await cmp('admin: FLUX COMMAND summary (purchases today from the sessions table)', (X) => X.doFetch('/admin-summary', {}));
+      await cmp('admin: privacy deletion also forgets the pilot\'s run ids', (X) => X.admin('privacy-delete', { pid: pidHashSync(P(44)), removePurchases: false }).then((r) => ({ status: r.status, text: JSON.stringify({ ...r.data, backups: undefined }) })));
+      ck('SF11 ...no run ids are kept for a privacy-deleted pilot (both layouts)', !go.map.has('runs:' + pidHashSync(P(44))) && !gn.map.has('runs:' + pidHashSync(P(44))));
       ck('SF10 the Season 0 archive survives the move untouched (minus the privacy-deleted pilot, in both layouts)', util.isDeepStrictEqual(['archive:season0', 'archive:season0:0', 'archive:season0:1'].map((k) => go.map.get(k)), ['archive:season0', 'archive:season0:0', 'archive:season0:1'].map((k) => gn.map.get(k))));
       ck('SF11 a privacy deletion on the new layout also erases the pilot from the old layout\'s copy (kept until CLEAN UP) and its cooldown',
         !gn.map.get('players')[P(13)] && !gn.sql.dump('pilots').some((r) => r.id === P(13)) && !gn.sql.dump('ents').some((r) => r.id === P(13)) && !(gn.map.get('entitlements') || {})[P(13)]);
@@ -734,7 +745,7 @@ async function control(label, expect, parts, { worker = (s) => s, admin = (s) =>
   } finally { try { fs.unlinkSync(tmp); } catch (e) {} }
 }
 const rep = (a, b) => (s) => (s.includes(a) ? s.replace(a, b) : s);
-await control('a cold start reads every pilot (summary rebuilt each time)', 'SF8 a cold start', ['D'], { worker: rep('if (sum && sum.weights === JSON.stringify(DIFF_WEIGHT)) { this.sum = sum; this.sumText = raw; return; }', '') });
+await control('a cold start reads every pilot (summary rebuilt each time)', 'SF8 a cold start', ['D'], { worker: rep('if (sum && sum.weights === JSON.stringify(DIFF_WEIGHT) && sum.bc) { this.sum = sum; this.sumText = raw; return; }', '') });
 await control('boards not kept in memory (every request reads rows)', 'SF5 a leaderboard request', ['D'], { worker: rep('board(d) { return this.boards[d] || (this.boards[d] =', 'board(d) { return (this.boards[d] =') });
 await control('the dry run writes live data', 'SF2 the dry run wrote nothing live', ['B'], { worker: rep('await this.state.storage.put(MIG_DRY_KEY, report);', 'await this.state.storage.put({ [MIG_DRY_KEY]: report, storageLayout: "v2-dry" });') });
 await control('the move without the typed confirmation', 'SF3 the move is refused without the exact typed phrase', ['B'], { worker: rep('if (b.confirm !== "MIGRATE " + dry.id) return', 'if (false) return') });
@@ -760,6 +771,8 @@ await control('restore of a new-layout backup writes nothing', 'SF12 restore of 
 await control('the old layout\'s tables kept after restoring an old backup', 'SF12 restoring the backup from BEFORE the move', ['G'], { worker: rep('if (!want.has(STORAGE_LAYOUT_KEY) && st.sql) new V2SqlDb(st).drop();', '') });
 await control('privacy deletion leaves new-layout backups', 'SF11 a privacy deletion on the new layout erases the pilot from every backup', ['G'], { worker: rep('if (m.schema === 2) { const r = await this.purgePaged(m, pid, removePurchases);', 'if (m.schema === 2) { const r = "unchanged";') });
 await control('privacy deletion leaves the old layout\'s copy', 'SF11 a privacy deletion on the new layout also erases', ['E'], { worker: rep('const saving = o.state.storage.put({ flags: nextFlags, restoreLog: nextLog, ...old });', 'const saving = o.state.storage.put({ flags: nextFlags, restoreLog: nextLog });') });
+await control('new layout: a repeated run id counts again', 'SF9 submit: the same run id again', ['E'], { worker: rep('if (seenRun && row) return this.submitReply(', 'if (false) return this.submitReply(') });
+await control('new layout: country rank wrong in the upload reply', 'SF9 submit: ', ['E'], { worker: rep('      for (let k = 0; k < i; k++) if (B[k].cc === row.cc) countryRank++;', '') });
 await control('storage routes without the password', 'SF3 every storage route needs the admin password', ['B'], { worker: rep('async function adminStorage(request, env, action) {\n  const denied = requireAdmin(request, env); if (denied) return denied;', 'async function adminStorage(request, env, action) {') });
 await control('admin page loses the STORAGE section', 'SF15 admin.html has a STORAGE section', ['K'], { admin: rep('<h2>STORAGE</h2>', '<h2>DATA</h2>') });
 await control('admin page enables MOVE without the typed phrase', 'SF15 the MOVE / ROLL BACK / CLEAN UP buttons', ['K'], { admin: rep('    goBtn.disabled = true;\n    inp.oninput = function () { goBtn.disabled = inp.value !== phrase', '    goBtn.disabled = false;\n    inp.oninput = function () { goBtn.disabled = inp.value !== phrase') });
