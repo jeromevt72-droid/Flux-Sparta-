@@ -156,7 +156,7 @@ async function suite({ gameHtml, workerMod, quiet = false }) {
     const ev = (body.events || []).map((e) => e.e).join(',');
     ck('C2 it carries the pilot ID, country, src, and open + first run + run finished (level 3, hard, length)',
       body.pid === 'p-stats-1' && body.country === 'PH' && body.src === 'direct' && ev === 'open,first_run,run_end' && body.events[2].lvl === 3 && body.events[2].diff === 'hard' && typeof body.events[2].sec === 'number', JSON.stringify(body).slice(0, 200));
-    ck('C2 ...the queue is empty afterwards, and "first run" is sent only once', n.run('fluxStatsQueue.length') === 0 && (n.g.ctx.newGame(), n.run('fluxStatsQueue.length')) === 0);
+    ck('C2 ...the queue is empty afterwards, and "first run" is sent only once', n.run('fluxStatsQueue.length') === 0 && (n.g.ctx.newGame(), n.run('fluxStatsQueue.filter(function(e){return e.e!=="again";}).length')) === 0);   // RETENTION: the restart itself is its own event
     ck('C5 no name is ever sent', !JSON.stringify(body).includes('TITAN'));
     const pg = bootGame({ fluxRunsPlayed: '4', fluxDifficulty: 'medium' }); pg.g.ctx.newGame(); pg.run('playing=true; fluxStatsQueue=[];');
     for (let i = 0; i < 90; i++) { pg.run('targets=[]; ball.y=H*.4; ball.vy=0; if(Math.abs(ball.vx)<1)ball.vx=4; playing=true;'); pg.g.ctx.update(1 / 60); }
