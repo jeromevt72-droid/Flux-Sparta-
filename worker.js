@@ -144,6 +144,12 @@ export default {
             "/api/admin/backup-restore":     () => adminBackup(request, env, "/restore"),     // BACKUPS: real restore, typed confirmation only
             "/api/admin/backup-download":    () => adminBackup(request, env, "/export"),      // BACKUPS: the snapshot as a JSON file
             "/api/admin/backup-import":      () => adminBackup(request, env, "/import"),      // BACKUPS: a downloaded file back in, as a snapshot
+            "/api/admin/storage-status":          () => adminStorage(request, env, "status"),     // STORAGE FIX: layout, size, move progress
+            "/api/admin/migrate-storage-dry-run": () => adminStorage(request, env, "dry-run"),    // STORAGE FIX: builds the new layout in memory; writes nothing live
+            "/api/admin/migrate-storage":         () => adminStorage(request, env, "migrate"),    // STORAGE FIX: typed confirmation + backup < 60 min + safety backup
+            "/api/admin/migrate-storage-check":   () => adminStorage(request, env, "check"),      // STORAGE FIX: old vs new, PASS / FAIL
+            "/api/admin/migrate-storage-rollback": () => adminStorage(request, env, "rollback"),  // STORAGE FIX: back to the old layout
+            "/api/admin/migrate-storage-cleanup": () => adminStorage(request, env, "cleanup"),    // STORAGE FIX: removes the old layout's values (later, by hand)
           }[path];
           if (admin) return withCors(await admin());
         }
@@ -926,6 +932,80 @@ async function adminBackup(request, env, doPath) {
   headers.set("Cache-Control", "no-store");
   return new Response(resp.body, { status: resp.status, headers });
 }
+/* STORAGE FIX (see PilotLayoutV2): the owner's storage move, one step per
+   button, every step behind the admin password. The move itself refuses unless
+   a verified backup of the leaderboard is less than 60 minutes old, takes its
+   own safety backup first, and then copies in batches (the admin page calls
+   again while "more" is true). Nothing here ever runs by itself. */
+async function adminStorage(request, env, action) {
+  const denied = requireAdmin(request, env); if (denied) return denied;
+  if (!env.LEADERBOARD_DO) return json({ error: "Storage is not set up on this server (no LEADERBOARD_DO binding)." }, 500);
+  const b = await adminBody(request);
+  const confirm = typeof b.confirm === "string" ? b.confirm.trim() : "";
+  const call = (path, body) => forwardToDO(request, env, path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+  const out = (resp) => { const h = new Headers(resp.headers); h.set("Cache-Control", "no-store"); return new Response(resp.body, { status: resp.status, headers: h }); };
+  const nostore = { "Cache-Control": "no-store" };
+  if (action === "status") {
+    const s = await (await call("/mig-status")).json().catch(() => ({ ok: false }));
+    s.backup = await sfLatestBackup(env);
+    return json(s, 200, nostore);
+  }
+  if (action === "dry-run") return out(await call("/mig-dry-run"));
+  if (action === "check") return out(await call("/mig-check", { mode: b.mode === "all" ? "all" : "sample", cursor: Math.max(0, Math.floor(Number(b.cursor) || 0)) }));
+  if (action === "migrate") {
+    const bk = await sfLatestBackup(env);
+    if (!bk.fresh) return json({ ok: false, needBackup: true, backup: bk,
+      error: "The move needs a verified backup taken in the last 60 minutes" + (bk.createdAt ? " (the newest is " + bk.ageMin + " minutes old)" : "") + ". Press BACK UP NOW, then try again." }, 409, nostore);
+    const pre = await call("/mig-batch", { confirm, validateOnly: true });
+    if (!pre.ok) return out(pre);
+    const p = await pre.json();
+    let safetyId = p.safetyId || "";
+    if (p.needSafety) {
+      const sf = await sfSafety(env, "before the storage move " + confirm.slice(8));
+      if (!sf.ok) return json({ ok: false, error: "The safety backup failed its check, so nothing was changed." + (sf.error ? " (" + sf.error + ")" : "") }, 500, nostore);
+      safetyId = sf.id;
+    }
+    let last = null;
+    for (let i = 0; i < MIG_CALLS_PER_REQUEST; i++) {
+      const r = await call("/mig-batch", { confirm, safetyId, backupId: bk.id });
+      last = { status: r.status, body: await r.json().catch(() => ({ ok: false, error: "no answer" })) };
+      if (r.status !== 200 || !last.body.more) break;
+    }
+    return json(last.body, last.status, nostore);
+  }
+  if (action === "rollback" || action === "cleanup") {
+    const path = action === "rollback" ? "/mig-rollback" : "/mig-cleanup";
+    const pre = await call(path, { confirm, validateOnly: true });
+    if (!pre.ok) return out(pre);
+    const p = await pre.json();
+    if (p.needSafety) {
+      const sf = await sfSafety(env, "before storage " + action);
+      if (!sf.ok) return json({ ok: false, error: "The safety backup failed its check, so nothing was changed." }, 500, nostore);
+    }
+    return out(await call(path, { confirm }));
+  }
+  return json({ error: "Not found" }, 404);
+}
+/* The newest verified backup that is a copy of the live leaderboard (daily,
+   BACK UP NOW or a safety copy -- not an uploaded file), and whether it is
+   recent enough for the storage move. */
+async function sfLatestBackup(env) {
+  try {
+    const r = await backupDO(env, "/list", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    const d = await r.json();
+    const m = (d.snapshots || []).find((x) => x && x.verified && x.kind !== "imported");
+    if (!m) return { fresh: false, id: "", createdAt: 0, ageMin: null };
+    const age = Date.now() - m.createdAt;
+    return { fresh: age >= 0 && age <= MIG_BACKUP_MAX_AGE_MS, id: m.id, kind: m.kind, createdAt: m.createdAt, ageMin: Math.floor(age / 60000) };
+  } catch (e) { return { fresh: false, id: "", createdAt: 0, ageMin: null, error: "could not read the backups" }; }
+}
+async function sfSafety(env, note) {
+  try {
+    const r = await backupDO(env, "/safety", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ note }) });
+    const d = await r.json();
+    return { ok: r.ok && d.ok === true, id: d.snapshot ? d.snapshot.id : "", error: d.error || "" };
+  } catch (e) { return { ok: false, id: "", error: (e && e.message) || "safety backup failed" }; }
+}
 async function adminFind(request, env) {
   const denied = requireAdmin(request, env); if (denied) return denied;
   const b = await adminBody(request);
@@ -1187,6 +1267,11 @@ export class LeaderboardDO {
     if (this.ready) return;
     await this.state.blockConcurrencyWhile(async () => {
       if (this.ready) return;
+      // STORAGE FIX: which layout holds the pilots. No "storageLayout" = the old one (every pilot in "players").
+      this.restoring = !!(await this.state.storage.get(V2_RESTORING_KEY));
+      this.migPhase = ((await this.state.storage.get(MIG_KEY)) || {}).phase || "";
+      if ((await this.state.storage.get(STORAGE_LAYOUT_KEY)) === "v2") { await this.loadV2(); this.ready = true; return; }
+      this.layout = "v1";
       const raw = (await this.state.storage.get("players")) || {};
       this.players = Object.create(null);                       // D-29
       for (const id of Object.keys(raw)) this.players[id] = normaliseRecord(raw[id], id);
@@ -1333,8 +1418,20 @@ export class LeaderboardDO {
     // BACKUPS: the "backups" instance never serves leaderboard routes.
     if (this.role === undefined) this.role = (await this.state.storage.get(BACKUP_ROLE_KEY)) || "";
     if (this.role) return json({ error: "Not found" }, 404);
+    if (url0.pathname.startsWith("/mig-") || url0.pathname.startsWith("/v2bk-")) return this.handleStorageFix(request, url0);   // STORAGE FIX: the owner's move + paged backups
     await this.load();
     const url = new URL(request.url);
+    // STORAGE FIX: while a backup copies the new layout, or a restore runs, writes wait (503 + Retry-After;
+    // the game keeps the score queued and retries). Writes in flight are counted, so a layout switch or a
+    // backup starts only after they have finished -- none can land in the layout being left behind.
+    if (!V2_WRITE_ROUTES.has(url.pathname)) return this.routeLayout(request, url);
+    if (this.writesBlocked()) return v2Busy();
+    this.writing = (this.writing || 0) + 1;
+    try { return await this.routeLayout(request, url); } finally { this.writing--; }
+  }
+
+  routeLayout(request, url) {
+    if (this.layout === "v2") return this.v2.fetch(request, url);   // STORAGE FIX: one SQL row per pilot
     const route = {
       "/leaderboard": () => this.handleLeaderboard(url),
       "/submit": () => this.handleSubmit(request),
@@ -1820,6 +1917,7 @@ export class LeaderboardDO {
     const nextLog = this.restoreLog.map((e) => (e.pid === pid ? { at: e.at, pid: e.pid, tag: e.tag, name: "", reason: "(erased on privacy request)" } : e));
     await this.eraseFromSeasonArchive(id);   // SEASON 1: the archived Season 0 scores go too
     await this.state.storage.put({ players: nextPlayers, lastSubmit: nextLast, flags: nextFlags, entitlements: nextEnt, restoreLog: nextLog });
+    if ((this.migPhase === "copying" || this.migPhase === "paused") && this.state.storage.sql) new V2SqlDb(this.state.storage).forget(id, removePurchases);   // STORAGE FIX: nor in a half-made copy
     this.players = nextPlayers; this.lastSubmit = nextLast; this.flags = nextFlags; this.entitlements = nextEnt; this.restoreLog = nextLog;
     this.invalidateTags();
     await this.recomputeCountries();
@@ -1909,10 +2007,480 @@ export class LeaderboardDO {
       };
       const st = this.state.storage;
       if (typeof st.transaction === "function") await st.transaction(apply); else await apply(st);
+      // STORAGE FIX: a backup of the old layout brings the old layout back; the new layout's tables go.
+      if (!want.has(STORAGE_LAYOUT_KEY) && st.sql) new V2SqlDb(st).drop();
+      this.v2 = null; this.layout = undefined;
       this.ready = false; this.tagCache = null; this.pidCache = new Map();
     });
     await this.load();
     return json({ ok: true, keys: entries.length });
+  }
+
+  /* ============================ STORAGE FIX ============================ */
+  /* See PilotLayoutV2. The new layout lives in this object's SQLite tables;
+     the small shared values (restricted, nameBans, flags, restoreLog, season,
+     archive) stay where they are, for both layouts. */
+  sqlDb() { return new V2SqlDb(this.state.storage, this.sqlUse || (this.sqlUse = { read: 0, written: 0 })); }
+  async loadV2() {
+    const st = this.state.storage;
+    this.layout = "v2";
+    this.players = null; this.entitlements = null; this.seenSessions = null; this.lastSubmit = null; this.countries = null;
+    this.restricted = NP(await st.get("restricted"));
+    this.nameBans = NP(await st.get("nameBans"));
+    this.tagCache = null;
+    this.flags = (await st.get("flags")) || [];
+    const rl = await st.get("restoreLog");
+    this.restoreLog = Array.isArray(rl) ? rl : [];
+    this.v2 = new PilotLayoutV2(this, this.sqlDb());
+    this.v2.init();
+    if (!((await st.get("season")) >= SEASON)) await this.v2.startSeason();   // a future season, on the new layout
+  }
+  writesBlocked() {
+    const s = this.bkSession;
+    return !!this.restoring || !!(s && s.mode === "dump" && Date.now() - s.at < V2_FREEZE_MS);
+  }
+  async waitIdle() { for (let i = 0; (this.writing || 0) > 0 && i < 6000; i++) await new Promise((r) => setTimeout(r, 5)); }
+  /* After the move, until CLEAN UP: the pilots changed by something other than a
+     score upload (purchases, deletions, imports), so the check can tell "changed
+     since the move" from "different". Public hashes only. */
+  async migTouched(pids) {
+    const add = [].concat(pids).filter(Boolean);
+    if (this.migPhase !== "switched" || !add.length) return;
+    const list = (await this.state.storage.get(MIG_CHANGED_KEY)) || [], have = new Set(list);
+    const fresh = add.filter((p) => !have.has(p) && have.add(p));
+    if (fresh.length) await this.state.storage.put(MIG_CHANGED_KEY, list.concat(fresh).slice(-MIG_CHANGED_MAX));
+  }
+  /* The old layout's values minus one pilot (a privacy deletion after the move). */
+  async v1ValuesWithout(id, removePurchases) {
+    const st = this.state.storage, out = {};
+    const players = await st.get("players");
+    if (players && typeof players === "object" && ownGet(players, id) !== undefined) out.players = dropKey(players, id);
+    const ls = await st.get("lastSubmit");
+    if (ls && typeof ls === "object" && ownGet(ls, id) !== undefined) out.lastSubmit = dropKey(ls, id);
+    if (removePurchases) { const e = await st.get("entitlements"); if (e && typeof e === "object" && ownGet(e, id) !== undefined) out.entitlements = dropKey(e, id); }
+    const cs = await st.get("countries");
+    if (cs && typeof cs === "object" && Object.keys(cs).some((k) => cs[k] && cs[k].leaderId === id)) {
+      const n = NP(cs);
+      for (const k of Object.keys(n)) if (n[k] && n[k].leaderId === id) n[k] = { ...n[k], topName: "", leaderId: "" };
+      out.countries = n;
+    }
+    return out;
+  }
+  /* The old layout as it was left at the switch (read-only), with today's
+     restrictions and name bans: what the check compares the new layout with. */
+  async migTwin() {
+    if (this.twin) return this.twin;
+    const st = this.state.storage;
+    if ((await st.get("players")) === undefined) return null;
+    const entries = [];
+    for (const k of V1_TWIN_KEYS) { const v = await st.get(k); if (v !== undefined) entries.push([k, v]); }
+    const twin = new LeaderboardDO({ storage: new BkMemStorage(entries), blockConcurrencyWhile: (fn) => fn() }, {});
+    await twin.load();
+    await twin.recomputeCountries();
+    this.twin = twin;
+    return twin;
+  }
+  async migChangedSet(mig) {
+    const set = new Set((await this.state.storage.get(MIG_CHANGED_KEY)) || []);
+    this.v2.scanPilots((r) => { const rec = v2dec(r.rec); if ((rec.updatedAt || 0) > mig.switchedAt) set.add(r.pid); });
+    return set;
+  }
+  /* Every pilot of the old layout as a row. seq keeps the order of the
+     "players" value (it breaks full ties on the boards): the order saved when
+     the move started; pilots added (or re-added) since then come after. */
+  async v1Rows(eng, order) {
+    const pos = new Map();
+    (order || []).forEach((id, i) => pos.set(id, i + 1));
+    const L = (order || []).length, rows = [], byId = new Map();
+    let last = 0, tail = false;
+    for (const id of Object.keys(this.players)) {
+      let seq = tail ? undefined : pos.get(id);
+      if (seq === undefined || seq <= last) { tail = true; seq = Math.max(L, last) + 1; }
+      last = seq;
+      const row = eng.rowFor(this.players[id], id, await this.pid(id));
+      row.seq = seq;
+      row.tag = await this.tagFor(id);
+      row.ls = ownGet(this.lastSubmit, id) !== undefined ? v2enc(this.lastSubmit[id]) : null;
+      rows.push(row); byId.set(id, row);
+    }
+    return { rows, byId };
+  }
+  v1Tables() {
+    const cool = Object.create(null);
+    for (const id of Object.keys(this.lastSubmit)) if (ownGet(this.players, id) === undefined) cool[id] = this.lastSubmit[id];
+    return { ents: this.entitlements, seen: this.seenSessions, cool };
+  }
+  /* One storage request at a time, in order. */
+  handleStorageFix(request, url) {
+    const run = async () => {
+      let b = {};
+      try { const t = await request.text(); if (t) b = JSON.parse(t) || {}; } catch (e) { b = {}; }
+      try {
+        await this.load();
+        switch (url.pathname) {
+          case "/mig-status": return await this.migStatus();
+          case "/mig-dry-run": return await this.migDryRun();
+          case "/mig-batch": return await this.migBatch(b);
+          case "/mig-check": return await this.migCheck(b);
+          case "/mig-rollback": return await this.migRollback(b);
+          case "/mig-cleanup": return await this.migCleanup(b);
+          case "/v2bk-layout": return json({ layout: this.layout });
+          case "/v2bk-begin": return await this.bkBegin(b);
+          case "/v2bk-page": return this.bkPage(b);
+          case "/v2bk-end": return await this.bkEnd(b);
+          case "/v2bk-diff": return await this.bkDiffRange(b);
+          case "/v2bk-kv": return await this.bkKv(b);
+          case "/v2bk-summary": return await this.bkSummaryLive();
+        }
+        return json({ error: "Not found" }, 404);
+      } catch (e) {
+        console.error("storage:", e && e.message);
+        return json({ ok: false, error: "Storage error: " + ((e && e.message) || e) }, 500);
+      }
+    };
+    const p = (this.sfChain || Promise.resolve()).then(run, run);
+    this.sfChain = p.then(() => {}, () => {});
+    return p;
+  }
+
+  /* ---------- status ---------- */
+  async migStatus() {
+    const st = this.state.storage;
+    const mig = (await st.get(MIG_KEY)) || null, dry = (await st.get(MIG_DRY_KEY)) || null, check = (await st.get(MIG_CHECK_KEY)) || null;
+    const out = { ok: true, layout: this.layout === "v2" ? "new" : "old", restoring: !!this.restoring, phase: mig ? mig.phase : "none", mig, dry, check, freePlan: FREE_PLAN,
+      limits: { valueBytes: V1_VALUE_LIMIT, backupMaxAgeMin: MIG_BACKUP_MAX_AGE_MS / 60000, batch: MIG_BATCH, dayRowBudget: MIG_DAY_ROW_BUDGET, rankExactMax: RANK_EXACT_MAX } };
+    if (this.layout === "v2") {
+      out.pilots = this.v2.sum.n;
+      out.oldValue = mig && mig.oldBytes ? { bytes: mig.oldBytes, limit: V1_VALUE_LIMIT, pct: Math.round(1000 * mig.oldBytes / V1_VALUE_LIMIT) / 10, kept: mig.phase !== "cleaned" } : null;
+    } else {
+      out.pilots = Object.keys(this.players).length;
+      const bytes = v2Bytes(this.players);
+      out.oldValue = { bytes, limit: V1_VALUE_LIMIT, pct: Math.round(1000 * bytes / V1_VALUE_LIMIT) / 10, kept: true };
+    }
+    out.costs = { now: v2Costs(out.pilots), at10k: v2Costs(10_000), at50k: v2Costs(50_000), at200k: v2Costs(200_000) };
+    return json(out);
+  }
+
+  /* ---------- dry run: the new layout in memory; nothing live is written ---------- */
+  async migDryRun() {
+    if (this.layout !== "v1") return json({ error: "FLUX already uses the new layout; there is nothing to move." }, 409);
+    const t0 = Date.now(), db = new V2MemDb(), eng = new PilotLayoutV2(this, db);
+    const { rows } = await this.v1Rows(eng, null);
+    for (const r of rows) db.insertPilot(r);
+    const tabs = this.v1Tables();
+    for (const t of ["ents", "seen", "cool"]) for (const id of Object.keys(tabs[t])) db.kvPut(t, id, v2enc(tabs[t][id]));
+    eng.sum = eng.buildSum();
+    const checks = await v2Reconcile(this, eng);
+    const now = Date.now(), id = "DR-" + bkIdFor(now, "x").slice(0, 15);
+    const report = { id, at: now, pass: checks.every((c) => c.pass), pilots: rows.length, counts: v2Counts(this), est: v2Estimate(rows, tabs), checks,
+      oldBytes: v2Bytes(this.players), ms: now - t0, confirm: "MIGRATE " + id };
+    await this.state.storage.put(MIG_DRY_KEY, report);   // the report only (the move asks for its id)
+    return json({ ok: true, dryRun: true, wroteLive: false, ...report });
+  }
+
+  /* ---------- the move: batches, then the switch ---------- */
+  async migBatch(b) {
+    if (this.layout !== "v1") return json({ error: "FLUX already uses the new layout." }, 409);
+    const st = this.state.storage, now = Date.now();
+    const dry = await st.get(MIG_DRY_KEY);
+    if (!dry || !dry.pass) return json({ error: "Run a DRY RUN first; every check must pass." }, 409);
+    if (b.confirm !== "MIGRATE " + dry.id) return json({ error: "To move the storage, type exactly: MIGRATE " + dry.id }, 400);
+    let mig = await st.get(MIG_KEY);
+    const going = mig && (mig.phase === "copying" || mig.phase === "paused") && mig.id === dry.id;
+    if (!going && now - dry.at > MIG_DRY_MAX_AGE_MS) return json({ error: "The dry run is more than 24 hours old. Run it again." }, 409);   // a move already under way continues
+    if (b.validateOnly) return json({ ok: true, valid: true, needSafety: !going, safetyId: going ? mig.safetyId : "" });
+    const db = this.sqlDb(), eng = new PilotLayoutV2(this, db);
+    if (!going) {
+      if (!b.safetyId) return json({ error: "A safety backup is taken first; start the move from the admin page." }, 409);
+      db.drop(); db.create();
+      const order = Object.keys(this.players);
+      mig = { id: dry.id, phase: "copying", startedAt: now, safetyId: String(b.safetyId), backupId: String(b.backupId || ""), total: order.length, cursor: 0,
+        batches: 0, rows: 0, day: bkDay(now), dayRows: 0, oldBytes: v2Bytes(this.players), log: [{ at: now, event: "move started", pilots: order.length }] };
+      await st.put({ [MIG_ORDER_KEY]: order, [MIG_KEY]: mig });
+      this.migPhase = "copying";
+    }
+    if (mig.day !== bkDay(now)) { mig.day = bkDay(now); mig.dayRows = 0; }
+    if (mig.dayRows >= MIG_DAY_ROW_BUDGET) {
+      if (mig.phase !== "paused") { mig.phase = "paused"; await st.put(MIG_KEY, mig); this.migPhase = "paused"; }
+      return json({ ok: true, more: false, paused: true, phase: "paused", mig,
+        message: "Paused for today: the move wrote " + mig.dayRows + " rows today (the daily limit is kept for play). Press MOVE again after midnight UTC; it continues where it stopped." });
+    }
+    if (mig.phase === "paused") { mig.phase = "copying"; this.migPhase = "copying"; }
+    const order = (await st.get(MIG_ORDER_KEY)) || [];
+    if (mig.cursor < order.length) {
+      const slice = order.slice(mig.cursor, mig.cursor + MIG_BATCH), rows = [];
+      for (let i = 0; i < slice.length; i++) {
+        const id = slice[i];
+        if (ownGet(this.players, id) === undefined) continue;   // deleted since the move started
+        const row = eng.rowFor(this.players[id], id, await this.pid(id));
+        row.seq = mig.cursor + i + 1; row.tag = row.t12.slice(0, 7);
+        row.ls = ownGet(this.lastSubmit, id) !== undefined ? v2enc(this.lastSubmit[id]) : null;
+        rows.push(row);
+      }
+      const w0 = this.sqlUse.written;
+      db.tx(() => { for (const r of rows) db.replacePilot(r); });   // all or nothing; re-running a batch writes the same rows
+      const w = this.sqlUse.written - w0;
+      mig.cursor += slice.length; mig.batches++; mig.rows += w; mig.dayRows += w;
+      await st.put(MIG_KEY, mig);
+      return json({ ok: true, more: true, phase: "copying", copied: mig.cursor, total: order.length, mig });
+    }
+    return this.migSwitch(mig);
+  }
+  /* The switch. Nothing else runs meanwhile (blockConcurrencyWhile), writes in
+     flight finish first, then every pilot is synced from the old layout as it is
+     NOW and compared again. Only if every comparison passes does FLUX read and
+     write the new layout; otherwise the copy is dropped and nothing changed. */
+  async migSwitch(mig) {
+    const st = this.state.storage, db = this.sqlDb(), eng = new PilotLayoutV2(this, db);
+    let res = null;
+    await this.state.blockConcurrencyWhile(async () => {
+      await this.waitIdle();
+      const w0 = this.sqlUse.written;
+      const want = await this.v1Rows(eng, (await st.get(MIG_ORDER_KEY)) || []);
+      const have = new Map();
+      eng.scanPilots((r) => have.set(r.id, r));
+      const tabs = this.v1Tables(), tabRows = {};
+      for (const t of ["ents", "seen", "cool"]) { tabRows[t] = new Map(); let after = null; for (;;) { const rs = db.rowsById(t, after, null, V2_SCAN_PAGE); for (const x of rs) tabRows[t].set(x.id, x.v); if (rs.length < V2_SCAN_PAGE) break; after = rs[rs.length - 1].id; } }
+      db.tx(() => {
+        for (const [id, h] of have) { const r = want.byId.get(id); if (!r || r.seq !== h.seq) db.deletePilot(h.seq); }
+        for (const r of want.rows) {
+          const h = have.get(r.id);
+          if (!h || h.seq !== r.seq) db.insertPilot(r);
+          else { const ch = v2Changed(h, r); if (ch) db.updatePilot(h.seq, ch); }
+        }
+        for (const t of ["ents", "seen", "cool"]) {
+          const src = tabs[t], cur = tabRows[t];
+          for (const id of cur.keys()) if (ownGet(src, id) === undefined) db.kvDel(t, id);
+          for (const id of Object.keys(src)) { const v = v2enc(src[id]); if (cur.get(id) !== v) db.kvPut(t, id, v); }
+        }
+      });
+      eng.sum = eng.buildSum();
+      eng.saveSum(eng.sum, true);
+      const checks = await v2Reconcile(this, eng);
+      const now = Date.now(), pass = checks.every((c) => c.pass);
+      const log = (mig.log || []).concat([{ at: now, event: pass ? "switched to the new layout" : "switch REFUSED: a comparison failed" }]).slice(-30);
+      if (pass) {
+        const next = { ...mig, phase: "switched", switchedAt: now, rows: mig.rows + (this.sqlUse.written - w0), pilots: want.rows.length, checks, log };
+        await st.put({ [STORAGE_LAYOUT_KEY]: "v2", [MIG_KEY]: next });
+        await st.delete([MIG_ORDER_KEY, MIG_CHECK_KEY, MIG_CHANGED_KEY]);
+        this.ready = false; this.v2 = null; this.migPhase = "switched"; this.twin = null;
+        res = json({ ok: true, more: false, done: true, switched: true, phase: "switched", checks, mig: next });
+      } else {
+        db.drop();
+        const next = { ...mig, phase: "failed", failedAt: now, checks, log };
+        await st.put(MIG_KEY, next);
+        await st.delete(MIG_ORDER_KEY);
+        this.migPhase = "failed";
+        res = json({ ok: false, more: false, done: true, switched: false, phase: "failed", checks, mig: next,
+          error: "The copy did not match the old layout, so nothing was switched. FLUX keeps using the old layout." }, 409);
+      }
+    });
+    return res;
+  }
+
+  /* ---------- after the move: old vs new, PASS / FAIL ---------- */
+  async migCheck(b) {
+    if (this.layout !== "v2") return json({ error: "The check runs after the move; FLUX still uses the old layout." }, 409);
+    const st = this.state.storage, mig = await st.get(MIG_KEY);
+    if (!mig || !mig.switchedAt) return json({ error: "There is no move to check." }, 409);
+    const twin = await this.migTwin();
+    if (!twin) return json({ error: "The old layout was already cleaned up; there is nothing left to compare with." }, 409);
+    const mode = b.mode === "all" ? "all" : "sample", cursor = Math.max(0, Math.floor(Number(b.cursor) || 0));
+    const ids = [...new Set(Object.keys(twin.players).concat(Object.keys(twin.entitlements)))];
+    let state = cursor ? await st.get(MIG_CHECK_KEY) : null;
+    if (cursor && (!state || state.mode !== mode || state.cursor !== cursor)) return json({ error: "That check was interrupted; start it again." }, 409);
+    if (!cursor || !this.migCheckSkip) this.migCheckSkip = await this.migChangedSet(mig);
+    const skip = this.migCheckSkip;
+    if (!cursor) state = { mode, startedAt: Date.now(), at: 0, cursor: 0, total: ids.length, done: false, pass: false, changed: skip.size,
+      pilots: { compared: 0, skipped: 0, failed: 0, restore: 0, ents: 0, tags: 0, examples: [] }, checks: await v2CheckGlobal(twin, this.v2, skip) };
+    let pick;
+    if (mode === "sample") { const step = Math.max(1, Math.floor(ids.length / MIG_CHECK_SAMPLE)); pick = ids.filter((_, i) => i % step === 0).slice(0, MIG_CHECK_SAMPLE); state.cursor = ids.length; }
+    else { pick = ids.slice(cursor, cursor + MIG_CHECK_BATCH); state.cursor = cursor + pick.length; }
+    const r = await v2PilotChecks(twin, this.v2, pick, skip), P = state.pilots;
+    for (const k of ["compared", "skipped", "failed", "restore", "ents", "tags"]) P[k] += r[k];
+    P.examples = P.examples.concat(r.examples).slice(0, 10);
+    state.done = state.cursor >= ids.length;
+    if (state.done) { state.at = Date.now(); state.pass = state.checks.every((c) => c.pass) && P.failed === 0; }
+    await st.put(MIG_CHECK_KEY, state);
+    return json({ ok: true, more: !state.done, ...state });
+  }
+
+  /* ---------- rollback: the new layout back into the old one ---------- */
+  async migRollback(b) {
+    if (b.confirm !== "ROLLBACK") return json({ error: "To roll back, type exactly: ROLLBACK" }, 400);
+    const st = this.state.storage, now = Date.now(), mig = await st.get(MIG_KEY);
+    if (this.layout !== "v2") {
+      if (!mig || (mig.phase !== "copying" && mig.phase !== "paused")) return json({ error: "Nothing to roll back: FLUX uses the old layout." }, 409);
+      if (b.validateOnly) return json({ ok: true, needSafety: false });
+      this.sqlDb().drop();   // a half-made copy; the old layout was never left
+      await st.put(MIG_KEY, { ...mig, phase: "cancelled", cancelledAt: now });
+      await st.delete(MIG_ORDER_KEY);
+      this.migPhase = "cancelled";
+      return json({ ok: true, cancelled: true, phase: "cancelled" });
+    }
+    if (b.validateOnly) return json({ ok: true, needSafety: true });
+    let res = null;
+    await this.state.blockConcurrencyWhile(async () => {
+      await this.waitIdle();
+      const eng = this.v2, db = eng.db;
+      const players = Object.create(null), lastSubmit = Object.create(null);
+      const tab = (t) => { const o = Object.create(null); let after = null; for (;;) { const rs = db.rowsById(t, after, null, V2_SCAN_PAGE); for (const x of rs) o[x.id] = v2dec(x.v); if (rs.length < V2_SCAN_PAGE) return o; after = rs[rs.length - 1].id; } };
+      const cool = tab("cool");
+      for (const id of Object.keys(cool)) lastSubmit[id] = cool[id];
+      eng.scanPilots((r) => { const rec = v2dec(r.rec); rec.bests = NP(rec.bests); players[r.id] = rec; if (r.ls != null) lastSubmit[r.id] = v2dec(r.ls); });
+      const entitlements = tab("ents"), seenSessions = tab("seen"), bytes = v2Bytes(players);
+      if (bytes > V1_ROLLBACK_MAX_BYTES) {
+        res = json({ ok: false, error: "The pilots no longer fit the old layout (" + (bytes / 1048576).toFixed(2) + " MB of 2 MB). Roll back is not possible; restore the backup from before the move instead." }, 409);
+        return;
+      }
+      const shared = [];
+      for (const k of ["restricted", "nameBans", "flags", "restoreLog", "nameRulesV1", "season"]) { const v = await st.get(k); if (v !== undefined) shared.push([k, v]); }
+      const twin = new LeaderboardDO({ storage: new BkMemStorage(shared.concat([["players", players], ["lastSubmit", lastSubmit], ["entitlements", entitlements], ["seenSessions", seenSessions], ["countriesWeights", JSON.stringify(DIFF_WEIGHT)]])), blockConcurrencyWhile: (fn) => fn() }, {});
+      await twin.load();
+      await twin.recomputeCountries();
+      const checks = await v2Reconcile(twin, eng);
+      if (!checks.every((c) => c.pass)) { res = json({ ok: false, checks, error: "The old layout rebuilt from the new one does not match it, so nothing was changed." }, 409); return; }
+      await st.put({ players, lastSubmit, entitlements, seenSessions, countries: twin.countries, countriesWeights: JSON.stringify(DIFF_WEIGHT),
+        [MIG_KEY]: { ...mig, phase: "rolledback", rolledBackAt: now, log: ((mig && mig.log) || []).concat([{ at: now, event: "rolled back to the old layout" }]).slice(-30) } });
+      await st.delete([STORAGE_LAYOUT_KEY, MIG_CHECK_KEY, MIG_CHANGED_KEY]);
+      db.drop();
+      this.ready = false; this.v2 = null; this.layout = undefined; this.migPhase = "rolledback"; this.twin = null;
+      res = json({ ok: true, rolledBack: true, phase: "rolledback", pilots: Object.keys(players).length, checks });
+    });
+    return res;
+  }
+
+  /* ---------- clean-up: the old layout's values go (only after a full check passed) ---------- */
+  async migCleanup(b) {
+    if (this.layout !== "v2") return json({ error: "FLUX uses the old layout; there is nothing to clean up." }, 409);
+    const st = this.state.storage, mig = await st.get(MIG_KEY);
+    if (!mig || mig.phase !== "switched") return json({ error: "Clean-up is offered once, after a move." }, 409);
+    if (b.confirm !== "CLEANUP " + mig.id) return json({ error: "To clean up, type exactly: CLEANUP " + mig.id }, 400);
+    const chk = await st.get(MIG_CHECK_KEY);
+    if (!chk || chk.mode !== "all" || !chk.done || !chk.pass || !(chk.at >= mig.switchedAt)) return json({ error: "Run CHECK EVERY PILOT first; it must pass." }, 409);
+    if (b.validateOnly) return json({ ok: true, needSafety: true });
+    await st.delete(V1_OLD_ONLY_KEYS.concat([MIG_CHANGED_KEY]));
+    const now = Date.now();
+    await st.put(MIG_KEY, { ...mig, phase: "cleaned", cleanedAt: now, log: (mig.log || []).concat([{ at: now, event: "old layout cleaned up" }]).slice(-30) });
+    this.migPhase = "cleaned"; this.twin = null;
+    return json({ ok: true, cleaned: true, phase: "cleaned" });
+  }
+
+  /* ---------- paged backups of the new layout (called by BackupStore only) ---------- */
+  async bkBegin(b) {
+    const token = v2Token();
+    if (b.mode === "dump") {
+      if (this.layout !== "v2") return json({ error: "The leaderboard uses the old layout; it is backed up in one piece." }, 409);
+      this.bkSession = { token, mode: "dump", at: Date.now() };   // writes wait from now (503 + Retry-After)
+      await this.waitIdle();
+      const kv = (await bkListAll(this.state.storage)).filter(([k]) => !V2_BK_SKIP_KEYS.has(k));
+      const text = bkEncode(kv);
+      if (!bkSameEntries(bkDecode(text), kv)) throw new Error("a stored value cannot be copied exactly");
+      return json({ ok: true, token, kv: text, tables: V2_TABLES });
+    }
+    if (b.mode === "restore") {
+      let K;
+      try { K = new Map(bkDecode(String(b.kv || ""))); } catch (e) { return json({ error: "Not a FLUX backup" }, 400); }
+      await this.state.storage.put(V2_RESTORING_KEY, { at: Date.now(), id: String(b.id || "") });   // writes stay paused until the restore finishes
+      this.restoring = true;
+      // the backup's own restrictions and name bans: the rows' other columns are rebuilt with them
+      this.bkSession = { token, mode: "restore", at: Date.now(), bans: NP(K.get("nameBans")), restricted: NP(K.get("restricted")) };
+      await this.waitIdle();
+      this.sqlDb().create();
+      return json({ ok: true, token });
+    }
+    return json({ error: "Unknown mode" }, 400);
+  }
+  bkPage(b) {
+    const t = String(b.table || "");
+    if (!V2_TABLES.includes(t)) return json({ error: "Unknown table" }, 400);
+    const s = this.bkSession;
+    if (b.token) {
+      if (!s || s.token !== b.token) return json({ error: "The backup session ended (the leaderboard restarted). Try again." }, 409);
+      s.at = Date.now();
+    }
+    const db = this.sqlDb();
+    const rows = db.exists() ? db.rowsById(t, b.after == null || b.after === "" ? null : String(b.after), null, clampInt(String(b.limit || ""), 1, V2_BK_PAGE, V2_BK_PAGE)) : [];
+    const entries = rows.map((r) => ["sql:" + t + ":" + r.id, t === "pilots" ? v2Slim(r) : { ...r }]);
+    return new Response(bkEncode(entries), { headers: { "Content-Type": "application/json", "x-flux-n": String(entries.length),
+      "x-flux-last": encodeURIComponent(rows.length ? rows[rows.length - 1].id : "") } });
+  }
+  async bkEnd(b) {
+    const s = this.bkSession;
+    if (!b.restore) { if (s && s.token === b.token && s.mode === "dump") this.bkSession = null; return json({ ok: true }); }
+    if (!s || s.token !== b.token || s.mode !== "restore") return json({ error: "The restore session ended (the leaderboard restarted). Run the restore again; it continues where it stopped." }, 409);
+    let want;
+    try { want = bkDecode(String(b.kv || "")).filter(([k]) => !V2_BK_SKIP_KEYS.has(k)); } catch (e) { return json({ error: "Not a FLUX backup" }, 400); }
+    const W = new Map(want), st = this.state.storage;
+    await this.state.blockConcurrencyWhile(async () => {
+      const live = await bkListAll(st), L = new Map(live);
+      const gone = live.map((e) => e[0]).filter((k) => !W.has(k) && !V2_BK_SKIP_KEYS.has(k));
+      for (let i = 0; i < gone.length; i += BACKUP_PUT_KEYS) await st.delete(gone.slice(i, i + BACKUP_PUT_KEYS));
+      const puts = want.filter(([k, v]) => !L.has(k) || !bkSame(L.get(k), v));
+      for (let i = 0; i < puts.length; i += BACKUP_PUT_KEYS) { const o = Object.create(null); for (const [k, v] of puts.slice(i, i + BACKUP_PUT_KEYS)) o[k] = v; await st.put(o); }
+      const db = this.sqlDb();
+      if (W.get(STORAGE_LAYOUT_KEY) === "v2") { const eng = new PilotLayoutV2(this, db); eng.retagAll(); eng.sum = eng.buildSum(); eng.saveSum(eng.sum, true); }
+      else db.drop();
+      await st.delete(V2_RESTORING_KEY);
+      this.restoring = false; this.bkSession = null;
+      this.ready = false; this.v2 = null; this.layout = undefined; this.tagCache = null; this.pidCache = new Map(); this.twin = null;
+    });
+    await this.load();
+    return json({ ok: true });
+  }
+  /* A backup page against the same range of the live table: counts, and (restore) the differences written. */
+  async bkDiffRange(b) {
+    const t = String(b.table || "");
+    if (!V2_TABLES.includes(t)) return json({ error: "Unknown table" }, 400);
+    const apply = !!b.apply, s = this.bkSession;
+    if (apply && (!s || s.token !== b.token || s.mode !== "restore")) return json({ error: "The restore session ended (the leaderboard restarted). Run the restore again; it continues where it stopped." }, 409);
+    if (s && b.token && s.token === b.token) s.at = Date.now();
+    let snap;
+    try { snap = bkDecode(String(b.text || "")); } catch (e) { return json({ error: "Not a FLUX backup" }, 400); }
+    const want = new Map();
+    for (const [k, row] of snap) want.set(v2RowId(t, k), row);
+    const lo = b.lo == null ? null : String(b.lo), hi = b.hi == null ? null : String(b.hi);
+    const db = this.sqlDb(), c = { added: 0, removed: 0, changed: 0, unchanged: 0 }, seen = new Set(), dels = [], puts = [];
+    if (db.exists()) {
+      let after = lo;
+      for (;;) {
+        const rows = db.rowsById(t, after, hi, V2_BK_PAGE);
+        for (const r of rows) {
+          seen.add(r.id);
+          const w = want.get(r.id);
+          if (!w) { c.removed++; dels.push(r); } else if (!bkSame(t === "pilots" ? v2Slim(r) : { ...r }, w)) { c.changed++; puts.push(w); } else c.unchanged++;
+        }
+        if (rows.length < V2_BK_PAGE) break;
+        after = rows[rows.length - 1].id;
+      }
+    }
+    for (const [id, w] of want) if (!seen.has(id)) { c.added++; puts.push(w); }
+    const eng = t === "pilots" && apply ? new PilotLayoutV2(this, db) : null;
+    if (apply && (dels.length || puts.length)) db.tx(() => {
+      for (const r of dels) { if (t === "pilots") db.deletePilot(r.seq); else db.kvDel(t, r.id); }
+      for (const w of puts) {
+        if (t !== "pilots") { db.kvPut(t, w.id, w.v); continue; }
+        const row = eng.rowFor(w.rec, w.id, w.pid, s.bans, s.restricted);   // tags are regrouped at the end
+        row.seq = w.seq; row.ls = w.ls == null ? null : w.ls; row.tag = row.t12.slice(0, 7);
+        db.replacePilot(row);
+      }
+    });
+    return json({ ok: true, ...c });
+  }
+  async bkKv(b) {
+    let snap;
+    try { snap = bkDecode(String(b.text || "")).filter(([k]) => !V2_BK_SKIP_KEYS.has(k)); } catch (e) { return json({ error: "Not a FLUX backup" }, 400); }
+    const live = (await bkListAll(this.state.storage)).filter(([k]) => !V2_BK_SKIP_KEYS.has(k));
+    const d = bkDiff(live, snap);
+    return json({ ok: true, keysAdded: d.keysAdded, keysRemoved: d.keysRemoved, keysChanged: d.keysChanged, counts: { added: d.counts.added, removed: d.counts.removed, changed: d.counts.changed, unchanged: d.counts.unchanged } });
+  }
+  async bkSummaryLive() {
+    const kv = (await bkListAll(this.state.storage)).filter(([k]) => !V2_BK_SKIP_KEYS.has(k));
+    if (this.layout !== "v2") return json(bkSummary(kv));
+    const acc = v2SumStart(), db = this.sqlDb();
+    v2SumAdd(acc, "", kv);
+    for (const t of V2_TABLES) { let after = null; for (;;) { const rows = db.rowsById(t, after, null, V2_BK_PAGE); v2SumAdd(acc, t, rows.map((r) => ["", t === "pilots" ? v2Slim(r) : r])); if (rows.length < V2_BK_PAGE) break; after = rows[rows.length - 1].id; } }
+    return json(v2SumEnd(acc));
   }
 }
 
@@ -2129,6 +2697,7 @@ class BackupStore {
       case "/export": return this.exportFile(id);
       case "/import": return this.importFile(body);
       case "/purge-player": return this.purgePlayer(String(body.pid || ""), !!body.removePurchases);
+      case "/safety": return this.safety(String(body.note || "safety copy"));   // STORAGE FIX: before the storage move / rollback / clean-up
     }
     return json({ error: "Not found" }, 404);
   }
@@ -2183,6 +2752,7 @@ class BackupStore {
   async verify(id) {
     const meta = await this.state.storage.get("m:" + id);
     if (!meta) return { ok: false, error: "no such backup", meta: null };
+    if (meta.schema === 2) return this.verifyPaged(meta);   // STORAGE FIX: the new layout, page by page
     const parts = [];
     for (let i = 0; i < meta.chunks; i++) {
       const c = await this.state.storage.get(this.chunkKey(id, meta.gen, i));
@@ -2208,6 +2778,7 @@ class BackupStore {
     return id;
   }
   async takeSnapshot(kind, note, text) {
+    if (text === undefined && (await this.livePaged())) return this.takeSnapshotPaged(kind, note);   // STORAGE FIX
     const now = Date.now();
     if (text === undefined) text = await this.dumpLive();
     const id = await this.newId(now, kind);
@@ -2297,6 +2868,7 @@ class BackupStore {
   /* Writes nothing, anywhere. */
   async dryRun(id) {
     const { resp, v } = await this.checked(id); if (resp) return resp;
+    if (v.meta.schema === 2 || (await this.livePaged())) return this.dryRunPaged(id, v);   // STORAGE FIX
     const liveText = await this.dumpLive(), live = bkDecode(liveText), snap = bkDecode(v.text);
     return json({ ok: true, dryRun: true, id, verified: true, identical: bkSameEntries(live, snap), createdAt: v.meta.createdAt,
       before: bkSummary(live), after: bkSummary(snap), diff: bkDiff(live, snap), confirm: "RESTORE " + id });
@@ -2304,6 +2876,7 @@ class BackupStore {
   async restore(id, confirm) {
     if (!id) return json({ error: "Choose a backup." }, 400);
     if (confirm !== "RESTORE " + id) return json({ error: 'To restore, type exactly: RESTORE ' + id }, 400);
+    if (await this.restoreIsPaged(id)) return this.restorePaged(id);   // STORAGE FIX: a backup of the new layout, or the new layout live
     const { resp, v } = await this.checked(id); if (resp) return resp;
     const liveText = await this.dumpLive();
     const safety = await this.takeSnapshot("safety", "before restoring " + id, liveText);
@@ -2326,6 +2899,7 @@ class BackupStore {
   }
   async exportFile(id) {
     const { resp, v } = await this.checked(id); if (resp) return resp;
+    if (v.meta.schema === 2) return this.exportPaged(v.meta);   // STORAGE FIX: streamed, never one big text
     const { chunkSha, gen, ...manifest } = v.meta;
     const text = '{"format":"flux-leaderboard-backup","manifest":' + JSON.stringify(manifest) + ',"snapshot":' + v.text + "}";
     return new Response(text, { headers: { "Content-Type": "application/json", "Content-Disposition": 'attachment; filename="flux-backup-' + id + '.json"' } });
@@ -2334,6 +2908,7 @@ class BackupStore {
      checksum; then it can be dry-run and restored like any other. */
   async importFile(body) {
     const f = body && body.backup;
+    if (f && f.format === "flux-leaderboard-backup" && f.manifest && f.manifest.schema === 2 && Array.isArray(f.pages)) return this.importPaged(f);   // STORAGE FIX
     if (!f || f.format !== "flux-leaderboard-backup" || !f.manifest || typeof f.manifest.sha256 !== "string" || !f.snapshot) return json({ error: "This is not a FLUX backup file." }, 400);
     const text = JSON.stringify(f.snapshot);
     let entries;
@@ -2352,6 +2927,7 @@ class BackupStore {
     let changed = 0, deleted = 0, checked = 0;
     for (const m of await this.metas()) {
       checked++;
+      if (m.schema === 2) { const r = await this.purgePaged(m, pid, removePurchases); if (r === "deleted") deleted++; else if (r === "changed") changed++; continue; }   // STORAGE FIX
       const v = await this.verify(m.id);
       if (!v.ok) { await this.deleteSnapshot(m); deleted++; continue; }
       const out = await bkErasePilot(bkDecode(v.text), pid, removePurchases);
@@ -2363,6 +2939,280 @@ class BackupStore {
     }
     await this.log({ event: "privacy deletion applied to backups", changed, deleted });
     return json({ ok: true, checked, changed, deleted });
+  }
+
+  /* ================= STORAGE FIX: backups of the new layout ================= */
+  /* The new layout (one SQL row per pilot) is copied PAGE BY PAGE, so no step ever
+     holds the whole leaderboard in memory: page 0 is every stored value (as
+     before), then each table in pages of V2_BK_PAGE rows, ordered by id. While
+     the pages are read the leaderboard refuses writes (503 + Retry-After, which
+     the game's upload queue honours; at most V2_FREEZE_MS after the last page),
+     so the copy is still one moment. Each page is its own canonical text, split
+     into chunks like before; the manifest (schema 2) keeps a short checksum per
+     chunk and a SHA-256 over all of them. Dry run and restore compare each page
+     with the same id range of the live table and write only the differences; a
+     restore pauses writes until it has finished (it can be run again to finish). */
+  async livePaged() {
+    const r = await this.lb("/v2bk-layout", { method: "POST" });
+    const d = await r.json().catch(() => ({}));
+    return d.layout === "v2";
+  }
+  async lbJson(path, body) {
+    const r = await this.lb(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || ("the leaderboard answered " + r.status));
+    return d;
+  }
+  async lbPage(body) {
+    const r = await this.lb("/v2bk-page", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || ("could not read the leaderboard (" + r.status + ")")); }
+    return { text: await r.text(), n: Number(r.headers.get("x-flux-n")) || 0, last: decodeURIComponent(r.headers.get("x-flux-last") || "") };
+  }
+  async safety(note) {
+    const meta = await this.takeSnapshot("safety", note);
+    const st = await this.status(), now = Date.now();
+    if (meta.verified) st.lastOk = { at: now, id: meta.id, kind: "safety" }; else st.lastError = { at: now, id: meta.id, error: meta.verifyError, kind: "safety" };
+    await this.state.storage.put("status", st);
+    const removed = meta.verified ? await this.prune() : 0;
+    await this.log(meta.verified ? { event: "safety backup ok", id: meta.id, keys: meta.keyCount, bytes: meta.bytes, removed } : { event: "safety backup FAILED", id: meta.id, error: meta.verifyError });
+    const { chunkSha, ...m } = meta;
+    return json({ ok: meta.verified, snapshot: m, error: meta.verified ? "" : "The backup failed its check: " + meta.verifyError }, meta.verified ? 200 : 500);
+  }
+  async takeSnapshotPaged(kind, note) {
+    const now = Date.now(), id = await this.newId(now, kind);
+    const begin = await this.lbJson("/v2bk-begin", { mode: "dump" });
+    const self = this;
+    async function* pages() {
+      yield { t: "", text: begin.kv };
+      for (const t of begin.tables) {
+        let after = null;
+        for (;;) {
+          const p = await self.lbPage({ token: begin.token, table: t, after, limit: V2_BK_PAGE });
+          if (p.n) yield { t, text: p.text };
+          if (p.n < V2_BK_PAGE) break;
+          after = p.last;
+        }
+      }
+    }
+    let meta;
+    try { meta = await this.writePagedRaw({ id, kind, createdAt: now, day: bkDay(now), weekly: false, note: String(note || "").slice(0, 200) }, pages()); }
+    finally { await this.lbJson("/v2bk-end", { token: begin.token }).catch(() => {}); }   // writes resume before the read-back check
+    return this.finishPaged(meta);
+  }
+  /* Pages -> chunks under a new generation, then the manifest, then the old
+     generation goes (as writeSnapshot). A failure part-way removes what it wrote. */
+  async writePagedRaw(base, pages) {
+    const gen = (base.gen || 0) + 1, written = [], chunkSha = [], info = [], acc = v2SumStart();
+    let bytes = 0, keyCount = 0, i = 0, season = null;
+    try {
+      for await (const p of pages) {
+        const entries = bkDecode(p.text), chunks = bkSplit(p.text), puts = {};
+        for (const c of chunks) { const k = this.chunkKey(base.id, gen, i++); puts[k] = c; written.push(k); chunkSha.push((await bkSha(c)).slice(0, 16)); }
+        await this.putMany(puts);
+        info.push({ t: p.t, c: chunks.length, n: entries.length });
+        bytes += bkBytes(p.text); keyCount += entries.length;
+        v2SumAdd(acc, p.t, entries);
+        if (!p.t) { const m = new Map(entries); season = m.has("season") ? m.get("season") : null; }
+      }
+    } catch (e) { await this.deleteMany(written); throw e; }
+    const meta = { ...base, schema: 2, gen, keyCount, bytes, chunks: i, chunkSha, pages: info, sha256: await bkSha(chunkSha.join("")), season,
+      summary: v2SumEnd(acc), verified: false, verifiedAt: 0, verifyError: "" };
+    await this.state.storage.put("m:" + base.id, meta);
+    if (base.gen) await this.deleteMany(Array.from({ length: base.chunks || 0 }, (_, j) => this.chunkKey(base.id, base.gen, j)));
+    return meta;
+  }
+  async finishPaged(meta) {
+    const v = await this.verify(meta.id);
+    meta.verified = v.ok; meta.verifiedAt = Date.now(); meta.verifyError = v.ok ? "" : v.error;
+    await this.state.storage.put("m:" + meta.id, meta);
+    return meta;
+  }
+  /* Read back page by page: every chunk present and unchanged, each page readable
+     with its recorded count, then the checksum over all chunks, size and count. */
+  async *readPages(meta) {
+    const shas = [];
+    let i = 0, bytes = 0, n = 0;
+    for (const p of meta.pages || []) {
+      const parts = [];
+      for (let j = 0; j < p.c; j++, i++) {
+        const c = await this.state.storage.get(this.chunkKey(meta.id, meta.gen, i));
+        if (typeof c !== "string") throw new Error("part " + (i + 1) + " of " + meta.chunks + " is missing");
+        const h = (await bkSha(c)).slice(0, 16);
+        if (h !== meta.chunkSha[i]) throw new Error("part " + (i + 1) + " of " + meta.chunks + " is damaged (checksum mismatch)");
+        shas.push(h); parts.push(c);
+      }
+      const text = parts.join("");
+      let entries;
+      try { entries = bkDecode(text); } catch (e) { throw new Error("the backup cannot be read"); }
+      if (entries.length !== p.n) throw new Error("a page holds " + entries.length + " entries instead of " + p.n);
+      bytes += bkBytes(text); n += entries.length;
+      yield { p, entries, text };
+    }
+    if (i !== meta.chunks || (await bkSha(shas.join(""))) !== meta.sha256 || bytes !== meta.bytes) throw new Error("the whole-backup checksum does not match");
+    if (n !== meta.keyCount) throw new Error("key count " + n + " does not match " + meta.keyCount);
+  }
+  async verifyPaged(meta) {
+    try { for await (const x of this.readPages(meta)) void x; return { ok: true, error: "", meta }; }
+    catch (e) { return { ok: false, error: (e && e.message) || String(e), meta }; }
+  }
+  /* Dry run / restore of a new-layout backup: each page against the same id
+     range of the live table; the stored values against the live ones. */
+  async diffPaged(meta, apply) {
+    const diff = { keysAdded: [], keysRemoved: [], keysChanged: [], counts: { added: 0, removed: 0, changed: 0, unchanged: 0 },
+      players: { added: 0, removed: 0, changed: 0 }, purchases: { added: 0, removed: 0, changed: 0 } };
+    const last = {}, token = apply ? apply.token : "";
+    const tally = (t, c) => {
+      for (const k of ["added", "removed", "changed", "unchanged"]) diff.counts[k] += c[k] || 0;
+      const into = t === "pilots" ? diff.players : t === "ents" ? diff.purchases : null;
+      if (into) for (const k of ["added", "removed", "changed"]) into[k] += c[k] || 0;
+    };
+    let kv = "";
+    for await (const { p, entries, text } of this.readPages(meta)) {
+      if (!p.t) { kv = text; continue; }
+      const hi = v2RowId(p.t, entries[entries.length - 1][0]);
+      tally(p.t, await this.lbJson("/v2bk-diff", { token, table: p.t, lo: last[p.t] === undefined ? null : last[p.t], hi, text, apply: !!apply }));
+      last[p.t] = hi;
+    }
+    for (const t of V2_TABLES) tally(t, await this.lbJson("/v2bk-diff", { token, table: t, lo: last[t] === undefined ? null : last[t], hi: null, text: bkEncode([]), apply: !!apply }));
+    const k = await this.lbJson("/v2bk-kv", { text: kv });
+    diff.keysAdded = k.keysAdded; diff.keysRemoved = k.keysRemoved; diff.keysChanged = k.keysChanged;
+    for (const x of ["added", "removed", "changed", "unchanged"]) diff.counts[x] += k.counts[x] || 0;
+    return { identical: !diff.counts.added && !diff.counts.removed && !diff.counts.changed, diff, kv };
+  }
+  /* An old-layout backup while the new layout is live: restoring it brings the old
+     layout back and drops the new tables. Pilots and purchases compared one by one. */
+  async diffOldIntoNew(text) {
+    const snap = bkDecode(text), S = new Map(snap), obj = (k) => { const v = S.get(k); return v && typeof v === "object" ? v : {}; };
+    const k = await this.lbJson("/v2bk-kv", { text });
+    const diff = { keysAdded: k.keysAdded, keysRemoved: k.keysRemoved, keysChanged: k.keysChanged, counts: { ...k.counts },
+      players: { added: 0, removed: 0, changed: 0 }, purchases: { added: 0, removed: 0, changed: 0 } };
+    const sp = obj("players"), se = obj("entitlements"), gotP = new Set(), gotE = new Set();
+    for (const t of V2_TABLES) {
+      let after = null;
+      for (;;) {
+        const p = await this.lbPage({ token: "", table: t, after, limit: V2_BK_PAGE });
+        const entries = p.n ? bkDecode(p.text) : [];
+        diff.counts.removed += entries.length;   // the new layout's tables go
+        for (const [key, row] of entries) {
+          const id = v2RowId(t, key);
+          if (t === "pilots") { gotP.add(id); if (!Object.prototype.hasOwnProperty.call(sp, id)) diff.players.removed++; else if (!bkSame(JSON.parse(v2enc(normaliseRecord(sp[id], id))), JSON.parse(v2enc(row.rec)))) diff.players.changed++; }
+          if (t === "ents") { gotE.add(id); if (!Object.prototype.hasOwnProperty.call(se, id)) diff.purchases.removed++; else if (!bkSame(se[id], v2dec(row.v))) diff.purchases.changed++; }
+        }
+        if (p.n < V2_BK_PAGE) break;
+        after = p.last;
+      }
+    }
+    for (const id of Object.keys(sp)) if (!gotP.has(id)) diff.players.added++;
+    for (const id of Object.keys(se)) if (!gotE.has(id)) diff.purchases.added++;
+    return { identical: false, diff };
+  }
+  async dryRunPaged(id, v) {
+    const before = await this.lbJson("/v2bk-summary", {});
+    const d = v.meta.schema === 2 ? await this.diffPaged(v.meta) : await this.diffOldIntoNew(v.text);
+    return json({ ok: true, dryRun: true, id, verified: true, identical: d.identical, createdAt: v.meta.createdAt, before,
+      after: v.meta.schema === 2 ? v.meta.summary : bkSummary(bkDecode(v.text)), diff: d.diff, confirm: "RESTORE " + id });
+  }
+  async restoreIsPaged(id) {
+    const m = await this.state.storage.get("m:" + id);
+    return !!m && (m.schema === 2 || (await this.livePaged()));
+  }
+  async restorePaged(id) {
+    const { resp, v } = await this.checked(id); if (resp) return resp;
+    const before = await this.lbJson("/v2bk-summary", {});
+    const safety = await this.takeSnapshot("safety", "before restoring " + id);
+    if (!safety.verified) {
+      await this.log({ event: "restore REFUSED: the safety backup failed its check", id, safety: safety.id });
+      return json({ ok: false, error: "The safety backup of the current leaderboard failed its check, so nothing was restored." }, 500);
+    }
+    let ok = false, after = null;
+    try {
+      if (v.meta.schema !== 2) {
+        const r = await this.lb("/backup-restore", { method: "POST", headers: { "Content-Type": "application/json" }, body: v.text });
+        if (!r.ok) throw new Error("status " + r.status);
+        const got = bkDecode(await this.dumpLive());
+        ok = bkSameEntries(got, bkDecode(v.text)); after = bkSummary(got);
+      } else {
+        let kv = "";
+        for await (const { p, text } of this.readPages(v.meta)) { if (!p.t) { kv = text; break; } }
+        const begin = await this.lbJson("/v2bk-begin", { mode: "restore", id, kv });
+        const d = await this.diffPaged(v.meta, { token: begin.token });
+        await this.lbJson("/v2bk-end", { token: begin.token, restore: true, kv: d.kv });
+        ok = (await this.diffPaged(v.meta)).identical;
+        after = await this.lbJson("/v2bk-summary", {});
+      }
+    } catch (e) {
+      await this.log({ event: "restore FAILED while writing", id, safety: safety.id, error: (e && e.message) || String(e) });
+      return json({ ok: false, safetyId: safety.id, error: "The restore failed while writing (" + ((e && e.message) || e) + "). Score uploads stay paused until a restore finishes: run this restore again (it continues where it stopped), or restore the safety backup " + safety.id + ", which holds the state from just before." }, 500);
+    }
+    await this.log(ok ? { event: "RESTORED", id, safety: safety.id } : { event: "restore written but the check FAILED", id, safety: safety.id });
+    await this.prune();
+    return json({ ok, restored: id, safetyId: safety.id, verified: ok, before, after,
+      error: ok ? "" : "The leaderboard does not match the backup after the restore. The safety backup " + safety.id + " holds the state from just before." }, ok ? 200 : 500);
+  }
+  /* The download, streamed chunk by chunk (never one big text in memory). */
+  exportPaged(meta) {
+    const { chunkSha, gen, ...manifest } = meta;
+    const st = this.state.storage, self = this, enc = new TextEncoder();
+    let started = false, page = 0, j = 0, i = 0;
+    const stream = new ReadableStream({
+      async pull(ctl) {
+        if (!started) { started = true; ctl.enqueue(enc.encode('{"format":"flux-leaderboard-backup","manifest":' + JSON.stringify(manifest) + ',"pages":[')); return; }
+        if (page >= meta.pages.length) { ctl.enqueue(enc.encode("]}")); ctl.close(); return; }
+        const c = await st.get(self.chunkKey(meta.id, meta.gen, i++));
+        ctl.enqueue(enc.encode((j === 0 && page > 0 ? "," : "") + c));
+        if (++j >= meta.pages[page].c) { page++; j = 0; }
+      },
+    });
+    return new Response(stream, { headers: { "Content-Type": "application/json", "Content-Disposition": 'attachment; filename="flux-backup-' + meta.id + '.json"' } });
+  }
+  async importPaged(f) {
+    const mf = f.manifest, info = Array.isArray(mf.pages) ? mf.pages : null, bad = () => json({ error: "This file does not match its own checksum; it was changed or damaged." }, 400);
+    if (!info || info.length !== f.pages.length || typeof mf.sha256 !== "string") return json({ error: "This is not a FLUX backup file." }, 400);
+    const texts = [], shas = [];
+    let n = 0;
+    for (let k = 0; k < f.pages.length; k++) {
+      const text = JSON.stringify(f.pages[k]);
+      let entries;
+      try { entries = bkDecode(text); } catch (e) { return json({ error: "This is not a FLUX backup file." }, 400); }
+      if (!info[k] || entries.length !== info[k].n || typeof info[k].t !== "string" || (info[k].t && !V2_TABLES.includes(info[k].t)) || (k === 0) !== (info[k].t === "")) return bad();
+      for (const c of bkSplit(text)) shas.push((await bkSha(c)).slice(0, 16));
+      texts.push(text); n += entries.length;
+    }
+    if ((await bkSha(shas.join(""))) !== mf.sha256 || n !== mf.keyCount) return bad();
+    const now = Date.now(), id = await this.newId(now, "imported");
+    const base = { id, kind: "imported", createdAt: now, day: bkDay(now), weekly: false,
+      note: ("uploaded copy of " + String(mf.id || "?").slice(0, 60) + " from " + (mf.createdAt ? new Date(mf.createdAt).toISOString() : "?")).slice(0, 200) };
+    const meta = await this.finishPaged(await this.writePagedRaw(base, (async function* () { for (let k = 0; k < texts.length; k++) yield { t: info[k].t, text: texts[k] }; })()));
+    await this.log(meta.verified ? { event: "backup uploaded", id: meta.id, from: mf.id } : { event: "upload FAILED its check", id: meta.id });
+    const { chunkSha, ...m } = meta;
+    return json({ ok: meta.verified, snapshot: m }, meta.verified ? 200 : 500);
+  }
+  /* Privacy deletion in a new-layout backup: the pilot's rows (and purchases if
+     asked) go, and the stored values lose them as in the old layout. */
+  async purgePaged(m, pid, removePurchases) {
+    const ids = new Set();
+    let kvEntries = null;
+    try {
+      for await (const { p, entries } of this.readPages(m)) {
+        if (!p.t) { kvEntries = entries; continue; }
+        for (const [k, row] of entries) {
+          const id = v2RowId(p.t, k);
+          if (p.t === "pilots" ? row.pid === pid : (p.t === "ents" || p.t === "cool") && (await pidHash(id)) === pid) ids.add(id);
+        }
+      }
+    } catch (e) { await this.deleteSnapshot(m); return "deleted"; }
+    const kvOut = await v2EraseKv(kvEntries || [], pid, ids, removePurchases);
+    if (!ids.size && !kvOut) return "unchanged";
+    const drop = (t, id) => ids.has(id) && (t !== "ents" || removePurchases), self = this;
+    const meta = await this.finishPaged(await this.writePagedRaw({ ...m, purgedAt: Date.now() }, (async function* () {
+      for await (const { p, entries, text } of self.readPages(m)) {
+        if (!p.t) { yield { t: "", text: kvOut ? bkEncode(kvOut) : text }; continue; }
+        const kept = entries.filter(([k]) => !drop(p.t, v2RowId(p.t, k)));
+        if (kept.length === entries.length) yield { t: p.t, text }; else if (kept.length) yield { t: p.t, text: bkEncode(kept) };
+      }
+    })()));
+    if (!meta.verified) { await this.deleteSnapshot(meta); return "deleted"; }
+    return "changed";
   }
 }
 
@@ -2415,6 +3265,991 @@ const RESTORE_LOG_MAX = 500;    // D-37: kept, not time-pruned; newest 500
 const RESTORE_LOG_SHOWN = 25;
 function pruneFlags(flags, now) {
   return flags.filter((f) => now - f.at < FLAG_RETENTION_MS).slice(-FLAG_MAX);
+}
+
+/* ------------------------------------------------------------------ */
+/* STORAGE FIX: one SQL row per pilot (layout "v2")                    */
+/* ------------------------------------------------------------------ */
+/* THE PROBLEM. The old layout keeps EVERY pilot in one stored value,
+   "players" (plus "lastSubmit", "entitlements", "seenSessions", which also
+   grow with pilots). Cloudflare caps one value at 2 MB: about 8,000 pilots,
+   then every score upload fails.
+
+   THE NEW LAYOUT (same LeaderboardDO class, same "global" instance, its
+   SQLite database -- no new class, binding or migration in wrangler.jsonc):
+     pilots  one row per pilot: the exact old record (JSON, "rec") plus the
+             columns the boards need: best score and time per difficulty
+             (e_s/e_t, m_s/m_t, h_s/h_t), country, restricted, displayed name,
+             public tag, last upload (the cooldown). seq keeps the old order
+             of the "players" value, which breaks full ties on the boards.
+             Indexes: id (unique), the 12-character tag (tag collisions, NAME
+             #TAG search, lookups by the public hash) and one per difficulty
+             board, holding only public pilots with a best (partial indexes).
+     ents    one row per buyer (skins, incl. Solar Inferno)
+     seen    one row per delivered checkout session
+     cool    the cooldown of a pilot whose score was removed (no pilot row)
+     v2meta  one small summary row: country totals and leaders, pilot count
+   Small values stay where they are: restricted, nameBans, flags (max 200),
+   restoreLog (max 500), season + Season 0 archive (chunked).
+
+   NO FULL READ ON A COLD START. A restart reads about 10 rows (the small
+   values and the summary row), never the pilots. A board (top 100) is one
+   indexed query of about 100 rows, kept in memory until a write can change
+   it; ALL (difficulty weights, #33) merges the three boards' top rows and
+   adds every row whose weighted score could tie, so it is exact without a
+   weighted column (a weights change never rewrites a row). Country totals are
+   kept up to date on every write (add the new weighted best, remove the old);
+   a leader is looked up again only when a leader gets worse or leaves. Ranks
+   in an upload's answer: exact up to RANK_EXACT_MAX (counted on the index),
+   no rank beyond (the game then shows none, as for a restricted pilot).
+
+   FREE PLAN (Workers Free, SQLite Durable Objects; check the numbers in the
+   Cloudflare dashboard, they may change): 5,000,000 rows read, 100,000 rows
+   written a day, 5 GB stored. Measured with the tests' row counter (an index
+   entry counts as a row written; Cloudflare's own counts are the authority):
+     a run (score upload)    written: 1-2 without a new best, 2-4 with one,
+                             about 5 for a new pilot; read: 2-5, + about 100
+                             when that board changed since, + 1,000 once per
+                             10 minutes per board (the rank floor)
+     leaderboard request     read: 0 from memory; about 100 per board (ALL
+                             about 400) the first time after a restart
+     cold start              read: about 10, at 6,000 or 200,000 pilots alike
+     daily backup            read: every row once (200,000 pilots: ~201,000),
+                             written: one row per 30,000 characters (200,000
+                             pilots: ~2,100 rows, ~58 MB per copy)
+   The old layout's own rows were cheap (a run wrote 5 values, a cold start
+   read 12); its limit was the SIZE of one value, not the row budget. With the
+   new layout the budget that binds on the free plan is the number of runs a
+   day (100,000 rows written, shared with the stats), not the number of pilots.
+   See v2Costs() for the figures at 10k / 50k / 200k pilots.
+
+   THE MOVE (owner-triggered only, admin page STORAGE): back up -> dry run
+   (builds the new layout in memory, compares everything, writes nothing live)
+   -> "MIGRATE <dry-run id>" (needs a verified backup < 60 minutes old, takes a
+   safety backup, copies in batches of MIG_BATCH, resumable, stops for the day
+   at MIG_DAY_ROW_BUDGET rows written) -> switch (all at once: nothing else runs,
+   writes in flight finish first, every pilot is synced and compared again, the
+   new layout is used only if every comparison passes) -> check (old vs new,
+   every public answer) -> rollback if needed / clean-up later. Until the switch,
+   and after a rollback, FLUX runs on the old layout exactly as before. The old
+   values stay untouched (read-only) until CLEAN UP. */
+const STORAGE_LAYOUT_KEY = "storageLayout";
+const V2_RESTORING_KEY = "v2:restoring";
+const MIG_KEY = "mig", MIG_DRY_KEY = "mig:dry", MIG_ORDER_KEY = "mig:order", MIG_CHECK_KEY = "mig:check", MIG_CHANGED_KEY = "mig:changed";
+const V1_OLD_ONLY_KEYS = ["players", "lastSubmit", "entitlements", "seenSessions", "countries", "countriesWeights"];
+const V1_TWIN_KEYS = V1_OLD_ONLY_KEYS.concat(["restricted", "nameBans", "flags", "restoreLog", "nameRulesV1", "season"]);
+const V1_VALUE_LIMIT = 2 * 1024 * 1024;      // Cloudflare's cap on one stored value
+const V1_ROLLBACK_MAX_BYTES = 1_900_000;     // a rollback must fit the old layout with room to spare
+const BOARD_MAX = 100;
+const RANK_EXACT_MAX = 1000;
+const RANK_FLOOR_TTL_MS = 10 * 60 * 1000;
+const V2_TIE_MAX = 5000;
+const V2_SCAN_PAGE = 1000;
+const V2_BK_PAGE = 2000;
+const V2_FREEZE_MS = 60_000;
+const V2_BUSY_SEC = 5;
+const V2_PID_CACHE_MAX = 20_000;
+const MIG_BATCH = 1000;
+const MIG_CALLS_PER_REQUEST = 30;            // batches per admin request (a Worker request makes at most 50 subrequests on the free plan)
+const MIG_BACKUP_MAX_AGE_MS = 60 * 60 * 1000;
+const MIG_DRY_MAX_AGE_MS = 24 * 3600 * 1000;
+const MIG_DAY_ROW_BUDGET = 60_000;           // the move pauses for the day here, leaving the rest of the 100,000 for play
+const MIG_CHECK_BATCH = 2000;
+const MIG_CHECK_SAMPLE = 200;
+const MIG_CHANGED_MAX = 5000;
+const V2_ROW_BYTES_EST = 310;                // one pilot in a backup (measured in the tests)
+const FREE_PLAN = { rowsReadPerDay: 5_000_000, rowsWrittenPerDay: 100_000, storageBytes: 5 * 1024 * 1024 * 1024, note: "Workers Free plan, SQLite Durable Objects -- check the current limits in the Cloudflare dashboard" };
+const V2_WRITE_ROUTES = new Set(["/submit", "/grant", "/revoke", "/import", "/recompute", "/admin-remove-score", "/admin-restrict", "/admin-unrestrict",
+  "/admin-privacy-delete", "/admin-name-ban", "/admin-name-unban", "/admin-dismiss-flag", "/admin-issue-restore"]);
+const V2_TABLES = ["pilots", "ents", "seen", "cool"];       // backed up; v2meta (derived totals) is rebuilt instead
+const V2_ALL_TABLES = V2_TABLES.concat(["v2meta"]);
+const V2_BK_SKIP_KEYS = new Set([V2_RESTORING_KEY]);
+const V2_DIFFS = ["easy", "medium", "hard"];
+const V2_COL = { easy: "e", medium: "m", hard: "h" };
+const V2_PILOT_COLS = ["seq", "id", "pid", "t12", "tag", "dname", "nb1", "nb2", "cc", "rs", "ls", "e_s", "e_t", "m_s", "m_t", "h_s", "h_t", "rec"];
+const V2_SCHEMA = [
+  "CREATE TABLE IF NOT EXISTS pilots (seq INTEGER PRIMARY KEY, id TEXT NOT NULL UNIQUE, pid TEXT NOT NULL, t12 TEXT NOT NULL, tag TEXT NOT NULL, dname TEXT NOT NULL, nb1 TEXT NOT NULL, nb2 TEXT NOT NULL, cc TEXT NOT NULL, rs INTEGER NOT NULL, ls TEXT, e_s NUMERIC, e_t NUMERIC, m_s NUMERIC, m_t NUMERIC, h_s NUMERIC, h_t NUMERIC, rec TEXT NOT NULL)",
+  "CREATE INDEX IF NOT EXISTS pilots_t12 ON pilots (t12)",
+  "CREATE INDEX IF NOT EXISTS pilots_e ON pilots (e_s DESC, e_t, seq) WHERE e_s IS NOT NULL AND rs = 0",
+  "CREATE INDEX IF NOT EXISTS pilots_m ON pilots (m_s DESC, m_t, seq) WHERE m_s IS NOT NULL AND rs = 0",
+  "CREATE INDEX IF NOT EXISTS pilots_h ON pilots (h_s DESC, h_t, seq) WHERE h_s IS NOT NULL AND rs = 0",
+  "CREATE TABLE IF NOT EXISTS ents (id TEXT PRIMARY KEY, v TEXT NOT NULL) WITHOUT ROWID",
+  "CREATE TABLE IF NOT EXISTS seen (id TEXT PRIMARY KEY, v TEXT NOT NULL) WITHOUT ROWID",
+  "CREATE TABLE IF NOT EXISTS cool (id TEXT PRIMARY KEY, v TEXT NOT NULL) WITHOUT ROWID",
+  "CREATE TABLE IF NOT EXISTS v2meta (id TEXT PRIMARY KEY, v TEXT NOT NULL) WITHOUT ROWID",
+];
+
+/* Values stored as text keep undefined / NaN / Infinity, exactly like a backup. */
+function v2enc(v) {
+  return JSON.stringify(v, function (k, x) {
+    if (x === undefined) return { [BK_MARK]: "undefined" };
+    if (typeof x === "number" && !Number.isFinite(x)) return { [BK_MARK]: String(x) };
+    return x;
+  });
+}
+function v2dec(t) { return t == null ? undefined : bkRevive(JSON.parse(t)); }
+function v2Busy() {
+  return json({ error: "FLUX is saving or restoring the leaderboard. Try again in a few seconds.", retryAfterSec: V2_BUSY_SEC, busy: true }, 503, { "Retry-After": String(V2_BUSY_SEC) });
+}
+function v2Token() { return crypto.randomUUID(); }
+function v2RowId(t, key) { return String(key).slice(("sql:" + t + ":").length); }
+/* Board order: higher score first, then the earlier time, then the older pilot (seq). */
+function v2KeyLess(a, b) { return a.s !== b.s ? a.s > b.s : a.t !== b.t ? a.t < b.t : a.seq < b.seq; }
+function v2Changed(a, b) {
+  let ch = null;
+  for (const k of V2_PILOT_COLS) if (k !== "seq" && a[k] !== b[k]) (ch || (ch = {}))[k] = b[k];
+  return ch;
+}
+function v2SameSum(a, b) {
+  if (!a || !b || a.n !== b.n || !bkSame(JSON.parse(JSON.stringify(a.list)), JSON.parse(JSON.stringify(b.list)))) return false;
+  const ka = Object.keys(a.lead), kb = Object.keys(b.lead);
+  if (ka.length !== kb.length) return false;
+  for (const cc of ka) { const x = a.lead[cc], y = b.lead[cc]; if (!y || x.id !== y.id || x.s !== y.s || x.t !== y.t || x.seq !== y.seq || x.tag !== y.tag) return false; }
+  return true;
+}
+/* A pilot row in a backup: only what cannot be recomputed (the record as an
+   object, not escaped text); the other columns are rebuilt on restore. */
+function v2Slim(row) { return { seq: row.seq, id: row.id, pid: row.pid, ls: row.ls, rec: v2dec(row.rec) }; }
+function v2Bytes(v) { return new TextEncoder().encode(JSON.stringify(v) || "").length; }
+/* The owner's cost table (see the note above): rows a day at n pilots. */
+function v2Costs(n) {
+  const bytes = n * V2_ROW_BYTES_EST, chunks = Math.ceil(bytes / BACKUP_CHUNK_CHARS) + 1;
+  const kept = BACKUP_KEEP_DAILY + BACKUP_KEEP_WEEKLY;
+  return {
+    pilots: n,
+    run: { rowsWritten: "1-2 (no new best), 2-4 (new best), about 5 (new pilot)", rowsRead: "2-5; about 100 more when that board changed; " + RANK_EXACT_MAX + " once per 10 minutes per board (rank floor)" },
+    leaderboardRequest: { rowsRead: "0 from memory; about 100 per board (ALL about 400) after a restart" },
+    coldStart: { rowsRead: "about 10 (never the pilots)" },
+    dailyBackup: { rowsRead: n + chunks * (1 + kept), rowsWritten: chunks + 6, bytes, keptBytes: bytes * kept,
+      note: "reads every pilot once, writes the copy in " + chunks + " parts, re-checks every kept copy (" + kept + " typical)" },
+  };
+}
+
+/* ---- the SQL tables (Cloudflare: ctx.storage.sql) ---- */
+class V2SqlDb {
+  constructor(storage, use) { this.st = storage; this.sql = storage.sql; this.use = use || { read: 0, written: 0 }; }
+  q(query, ...args) {
+    const c = this.sql.exec(query, ...args), rows = c.toArray();
+    this.use.read += c.rowsRead || 0; this.use.written += c.rowsWritten || 0;
+    return rows;
+  }
+  create() { for (const s of V2_SCHEMA) this.q(s); }
+  drop() { for (const t of V2_ALL_TABLES) this.q("DROP TABLE IF EXISTS " + t); }
+  exists() { try { this.q("SELECT seq FROM pilots LIMIT 1"); return true; } catch (e) { return false; } }
+  tx(fn) { return typeof this.st.transactionSync === "function" ? this.st.transactionSync(fn) : fn(); }
+  pilot(id) { return this.q("SELECT * FROM pilots WHERE id = ?", id)[0] || null; }
+  pilotsT12(lo, hi) { return this.q("SELECT * FROM pilots WHERE t12 >= ? AND t12 < ?", lo, hi); }
+  pilotsByT12(t12) { return this.q("SELECT * FROM pilots WHERE t12 = ?", t12); }
+  board(d, limit, smin) {
+    const c = V2_COL[d];
+    return smin == null
+      ? this.q(`SELECT * FROM pilots WHERE ${c}_s IS NOT NULL AND rs = 0 ORDER BY ${c}_s DESC, ${c}_t, seq LIMIT ?`, limit)
+      : this.q(`SELECT * FROM pilots WHERE ${c}_s IS NOT NULL AND rs = 0 AND ${c}_s >= ? ORDER BY ${c}_s DESC, ${c}_t, seq LIMIT ?`, smin, limit);
+  }
+  boardKeys(d, limit, smin) {
+    const c = V2_COL[d];
+    return smin == null
+      ? this.q(`SELECT ${c}_s AS s, ${c}_t AS t, seq FROM pilots WHERE ${c}_s IS NOT NULL AND rs = 0 ORDER BY ${c}_s DESC, ${c}_t, seq LIMIT ?`, limit)
+      : this.q(`SELECT ${c}_s AS s, ${c}_t AS t, seq FROM pilots WHERE ${c}_s IS NOT NULL AND rs = 0 AND ${c}_s >= ? ORDER BY ${c}_s DESC, ${c}_t, seq LIMIT ?`, smin, limit);
+  }
+  pilotPage(afterSeq, limit) { return this.q("SELECT * FROM pilots WHERE seq > ? ORDER BY seq LIMIT ?", afterSeq, limit); }
+  insertPilot(row) {
+    return this.q(`INSERT INTO pilots (${V2_PILOT_COLS.join(", ")}) VALUES (${V2_PILOT_COLS.map(() => "?").join(", ")}) RETURNING seq`,
+      ...V2_PILOT_COLS.map((k) => (row[k] === undefined ? null : row[k])))[0].seq;
+  }
+  replacePilot(row) {
+    this.q(`INSERT OR REPLACE INTO pilots (${V2_PILOT_COLS.join(", ")}) VALUES (${V2_PILOT_COLS.map(() => "?").join(", ")})`,
+      ...V2_PILOT_COLS.map((k) => (row[k] === undefined ? null : row[k])));
+  }
+  updatePilot(seq, ch) {
+    const ks = Object.keys(ch || {}).filter((k) => k !== "seq" && V2_PILOT_COLS.includes(k));
+    if (ks.length) this.q(`UPDATE pilots SET ${ks.map((k) => k + " = ?").join(", ")} WHERE seq = ?`, ...ks.map((k) => (ch[k] === undefined ? null : ch[k])), seq);
+  }
+  deletePilot(seq) { this.q("DELETE FROM pilots WHERE seq = ?", seq); }
+  kvGet(t, id) { const r = this.q(`SELECT v FROM ${t} WHERE id = ?`, id)[0]; return r ? r.v : null; }
+  kvPut(t, id, v) { this.q(`INSERT OR REPLACE INTO ${t} (id, v) VALUES (?, ?)`, id, v); }
+  kvDel(t, id) { this.q(`DELETE FROM ${t} WHERE id = ?`, id); }
+  rowsById(t, lo, hi, limit) {
+    const w = [], a = [];
+    if (lo != null) { w.push("id > ?"); a.push(lo); }
+    if (hi != null) { w.push("id <= ?"); a.push(hi); }
+    return this.q(`SELECT ${t === "pilots" ? "*" : "id, v"} FROM ${t}${w.length ? " WHERE " + w.join(" AND ") : ""} ORDER BY id LIMIT ?`, ...a, limit);
+  }
+  /* A privacy deletion while a move is half-copied: the copy loses the pilot too. */
+  forget(id, removePurchases) {
+    try { this.q("DELETE FROM pilots WHERE id = ?", id); this.q("DELETE FROM cool WHERE id = ?", id); if (removePurchases) this.q("DELETE FROM ents WHERE id = ?", id); } catch (e) { /* no copy yet */ }
+  }
+}
+
+/* ---- the same tables in memory: the dry run builds the new layout here ---- */
+class V2MemDb {
+  constructor() { this.use = { read: 0, written: 0 }; this.drop(); }
+  drop() { this.rows = new Map(); this.ids = new Map(); this.tabs = { ents: new Map(), seen: new Map(), cool: new Map(), v2meta: new Map() }; this.max = 0; this.sorted = null; }
+  create() {}
+  exists() { return true; }
+  tx(fn) { return fn(); }
+  pilot(id) { const r = this.ids.get(id); return r ? { ...r } : null; }
+  pilotsT12(lo, hi) { const out = []; for (const r of this.rows.values()) if (r.t12 >= lo && r.t12 < hi) out.push({ ...r }); return out; }
+  pilotsByT12(t12) { return this.pilotsT12(t12, t12 + "\u0000"); }
+  boardAll(d, smin) {
+    const c = V2_COL[d], out = [];
+    for (const r of this.rows.values()) { const s = r[c + "_s"]; if (s != null && !r.rs && (smin == null || s >= smin)) out.push(r); }
+    return out.sort((a, b) => b[c + "_s"] - a[c + "_s"] || a[c + "_t"] - b[c + "_t"] || a.seq - b.seq);
+  }
+  board(d, limit, smin) { return this.boardAll(d, smin).slice(0, limit).map((r) => ({ ...r })); }
+  boardKeys(d, limit, smin) { const c = V2_COL[d]; return this.boardAll(d, smin).slice(0, limit).map((r) => ({ s: r[c + "_s"], t: r[c + "_t"], seq: r.seq })); }
+  pilotPage(afterSeq, limit) {
+    const all = this.sorted || (this.sorted = [...this.rows.values()].sort((a, b) => a.seq - b.seq));
+    let lo = 0, hi = all.length;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (all[m].seq > afterSeq) hi = m; else lo = m + 1; }
+    return all.slice(lo, lo + limit).map((r) => ({ ...r }));
+  }
+  insertPilot(row) {
+    const seq = row.seq != null ? row.seq : this.max + 1;
+    if (this.rows.has(seq) || this.ids.has(row.id)) throw new Error("UNIQUE constraint failed");
+    const r = {}; for (const k of V2_PILOT_COLS) r[k] = row[k] === undefined ? null : row[k];
+    r.seq = seq; this.rows.set(seq, r); this.ids.set(r.id, r); this.max = Math.max(this.max, seq); this.sorted = null;
+    return seq;
+  }
+  replacePilot(row) { const a = this.rows.get(row.seq); if (a) this.deletePilot(a.seq); const b = this.ids.get(row.id); if (b) this.deletePilot(b.seq); this.insertPilot(row); }
+  updatePilot(seq, ch) { const r = this.rows.get(seq); if (r && ch) for (const k of Object.keys(ch)) if (k !== "seq" && V2_PILOT_COLS.includes(k)) r[k] = ch[k] === undefined ? null : ch[k]; }
+  deletePilot(seq) { const r = this.rows.get(seq); if (!r) return; this.rows.delete(seq); this.ids.delete(r.id); this.sorted = null; }
+  kvGet(t, id) { const v = this.tabs[t].get(id); return v === undefined ? null : v; }
+  kvPut(t, id, v) { this.tabs[t].set(id, v); }
+  kvDel(t, id) { this.tabs[t].delete(id); }
+  rowsById(t, lo, hi, limit) {
+    const src = t === "pilots" ? [...this.ids.values()] : [...this.tabs[t].entries()].map(([id, v]) => ({ id, v }));
+    return src.filter((r) => (lo == null || r.id > lo) && (hi == null || r.id <= hi)).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)).slice(0, limit).map((r) => ({ ...r }));
+  }
+  forget() {}
+}
+
+/* ---- the new layout: every leaderboard answer, from rows (see the note above) ---- */
+class PilotLayoutV2 {
+  constructor(o, db) { this.o = o; this.db = db; this.sum = null; this.sumText = ""; this.boards = Object.create(null); this.floor = Object.create(null); }
+
+  /* Cold start: the summary row only. The tables are created when missing; the
+     summary is rebuilt from the rows only when it is missing or the difficulty
+     weights changed. */
+  init() {
+    let raw = null;
+    try { raw = this.db.kvGet("v2meta", "sum"); } catch (e) { this.db.create(); }
+    const sum = raw ? v2dec(raw) : null;
+    if (sum && sum.weights === JSON.stringify(DIFF_WEIGHT)) { this.sum = sum; this.sumText = raw; return; }
+    this.sum = this.buildSum();
+    this.saveSum(this.sum);
+  }
+  saveSum(sum, force) { const t = v2enc(sum); if (force || t !== this.sumText) this.db.kvPut("v2meta", "sum", t); this.sumText = t; }
+
+  scanPilots(fn) {
+    let after = 0;
+    for (;;) {
+      const rows = this.db.pilotPage(after, V2_SCAN_PAGE);
+      for (const r of rows) fn(r);
+      if (rows.length < V2_SCAN_PAGE) return;
+      after = rows[rows.length - 1].seq;
+    }
+  }
+  dnameOf(rec, bans) {
+    const n = presetOrOwn(cleanName(rec.name), rec.playerId);
+    return ownGet(bans, normaliseForBan(rec.name)) || ownGet(bans, normaliseForBan(n)) ? "PILOT" : n;
+  }
+  /* A pilot record as a row (seq, tag and ls are set by the caller). */
+  rowFor(rec, id, pid, bans = this.o.nameBans, restricted = this.o.restricted) {
+    const n = presetOrOwn(cleanName(rec.name), rec.playerId);
+    const row = { seq: null, id, pid, t12: tagFromPid(pid, 12), tag: "", dname: this.dnameOf(rec, bans), nb1: normaliseForBan(rec.name), nb2: normaliseForBan(n),
+      cc: ISO2.test(String(rec.country || "")) ? rec.country : "XX", rs: ownGet(restricted, pid) ? 1 : 0, ls: null,
+      e_s: null, e_t: null, m_s: null, m_t: null, h_s: null, h_t: null, rec: v2enc(rec) };
+    for (const d of V2_DIFFS) {
+      const b = ownGet(rec.bests, d);
+      if (!b) continue;
+      const c = V2_COL[d], t = b.updatedAt || rec.updatedAt || 0;
+      row[c + "_s"] = Number.isFinite(b.score) ? b.score : 0;
+      row[c + "_t"] = Number.isFinite(t) ? t : 0;
+    }
+    return row;
+  }
+  /* The pilot's entry on the ALL board / in the country figures (public pilots with a best). */
+  entryOf(row) {
+    if (!row || row.rs) return null;
+    const rec = v2dec(row.rec), b = weightedBestOf(rec);
+    if (!b) return null;
+    return { id: row.id, leaderId: rec.playerId, cc: row.cc, s: b.weighted, t: b.updatedAt || rec.updatedAt || 0, seq: row.seq, dname: row.dname, tag: row.tag };
+  }
+
+  /* ---- country figures (same as recomputeCountries, kept up to date) ---- */
+  buildSum() {
+    const sum = { v: 1, weights: JSON.stringify(DIFF_WEIGHT), n: 0, list: {}, lead: {} };
+    this.scanPilots((row) => { sum.n++; const e = this.entryOf(row); if (e) this.ctryAdd(sum, e); });
+    return sum;
+  }
+  ctryAdd(sum, e) {
+    const c = sum.list[e.cc] || (sum.list[e.cc] = { country: e.cc, totalScore: 0, playerCount: 0, topScore: 0, topName: "", leaderId: "" });
+    c.totalScore += e.s; c.playerCount += 1;
+    const L = sum.lead[e.cc];
+    if (!L || v2KeyLess(e, L)) this.setLead(sum, e);
+  }
+  setLead(sum, e) {
+    sum.lead[e.cc] = { id: e.id, s: e.s, t: e.t, seq: e.seq, tag: e.tag };
+    const c = sum.list[e.cc]; c.topScore = e.s; c.topName = e.dname; c.leaderId = e.leaderId;
+  }
+  /* One pilot's entry changed from `before` to `after` (either may be null). */
+  applyCountry(sum, before, after) {
+    const need = new Set();
+    if (before) {
+      const c = sum.list[before.cc];
+      if (c) { c.totalScore -= before.s; c.playerCount -= 1; }
+      const L = sum.lead[before.cc];
+      if (L && L.id === before.id) { delete sum.lead[before.cc]; need.add(before.cc); }
+    }
+    if (after) {
+      const cc = after.cc;
+      const c = sum.list[cc] || (sum.list[cc] = { country: cc, totalScore: 0, playerCount: 0, topScore: 0, topName: "", leaderId: "" });
+      c.totalScore += after.s; c.playerCount += 1;
+      const L = sum.lead[cc];
+      if (L ? v2KeyLess(after, L) : (c.playerCount === 1 || (before && before.cc === cc && !v2KeyLess(before, after)))) { this.setLead(sum, after); need.delete(cc); }
+    }
+    for (const cc of Object.keys(sum.list)) if (sum.list[cc].playerCount <= 0) { delete sum.list[cc]; delete sum.lead[cc]; need.delete(cc); }
+    for (const cc of need) this.relead(sum, cc);
+  }
+  /* Rare (a leader got worse, left, was restricted or deleted): every row is read once. */
+  relead(sum, cc) {
+    delete sum.lead[cc];
+    let best = null;
+    this.scanPilots((row) => { if (row.cc !== cc || row.rs) return; const e = this.entryOf(row); if (e && (!best || v2KeyLess(e, best))) best = e; });
+    if (best) this.setLead(sum, best);
+  }
+  leadTags(sum, ids) {
+    const set = new Set(ids);
+    for (const cc of Object.keys(sum.lead)) { const L = sum.lead[cc]; if (set.has(L.id)) { const r = this.db.pilot(L.id); if (r) L.tag = r.tag; } }
+  }
+  refreshLeads(sum) {
+    for (const cc of Object.keys(sum.lead)) { const L = sum.lead[cc], r = this.db.pilot(L.id); if (r) { L.tag = r.tag; sum.list[cc].topName = r.dname; } }
+  }
+  countryList() {
+    const out = [];
+    for (const cc of Object.keys(this.sum.list)) {
+      const { leaderId, leaderPid, topTag, ...c } = this.sum.list[cc], L = this.sum.lead[cc];
+      out.push({ c: { ...c, topTag: leaderId ? (L ? L.tag : "") : "" }, L: L || { s: 0, t: 0, seq: 0 } });
+    }
+    out.sort((a, b) => b.c.totalScore - a.c.totalScore || (v2KeyLess(a.L, b.L) ? -1 : v2KeyLess(b.L, a.L) ? 1 : 0));
+    return out.map((x) => x.c);
+  }
+
+  /* ---- public tags (D-33): 7 characters, 12 where two pilots share a shown name and a short tag ---- */
+  retag(dname, tag7) {
+    const rows = this.db.pilotsT12(tag7, tag7 + "~").filter((r) => r.dname === dname);
+    const len = rows.length > 1 ? 12 : 7, changed = [];
+    for (const r of rows) { const t = r.t12.slice(0, len); if (r.tag !== t) { this.db.updatePilot(r.seq, { tag: t }); changed.push(r.id); } }
+    return changed;
+  }
+  retagAll() {
+    const groups = new Map();
+    this.scanPilots((r) => { const k = r.dname + "#" + r.t12.slice(0, 7); if (!groups.has(k)) groups.set(k, []); groups.get(k).push({ seq: r.seq, t12: r.t12, tag: r.tag }); });
+    this.db.tx(() => { for (const list of groups.values()) for (const r of list) { const t = r.t12.slice(0, list.length > 1 ? 12 : 7); if (r.tag !== t) this.db.updatePilot(r.seq, { tag: t }); } });
+  }
+
+  /* ---- boards ---- */
+  board(d) { return this.boards[d] || (this.boards[d] = d === "all" ? this.computeAll() : this.db.board(d, BOARD_MAX, null).map((r) => this.itemD(r, d))); }
+  itemD(row, d) {
+    const rec = v2dec(row.rec), b = ownGet(rec.bests, d), c = V2_COL[d];
+    return { id: row.id, seq: row.seq, pid: row.pid, tag: row.tag, name: row.dname, country: rec.country, score: b.score, points: b.score, level: b.level, difficulty: d, s: row[c + "_s"], t: row[c + "_t"] };
+  }
+  itemAll(row) {
+    const rec = v2dec(row.rec), b = weightedBestOf(rec);
+    if (!b) return null;
+    return { id: row.id, seq: row.seq, pid: row.pid, tag: row.tag, name: row.dname, country: rec.country, score: b.weighted, points: b.score, level: b.level, difficulty: b.difficulty, s: b.weighted, t: b.updatedAt || rec.updatedAt || 0 };
+  }
+  /* ALL: each pilot's best WEIGHTED score (DIFF_WEIGHT). Candidates: the top rows of
+     each difficulty board, then every row that could reach the 100th weighted score
+     (score * weight >= that score - 0.5, rounding included), so ties are exact. */
+  computeAll() {
+    const cand = new Map();
+    const add = (rows) => { for (const r of rows) if (!cand.has(r.id)) { const it = this.itemAll(r); if (it) cand.set(r.id, it); } };
+    const sorted = () => [...cand.values()].sort((a, b) => (v2KeyLess(a, b) ? -1 : v2KeyLess(b, a) ? 1 : 0));
+    for (const d of V2_DIFFS) add(this.db.board(d, BOARD_MAX, null));
+    let items = sorted();
+    if (items.length >= BOARD_MAX) {
+      const v = items[BOARD_MAX - 1].s;
+      for (const d of V2_DIFFS) add(this.db.board(d, V2_TIE_MAX, (v - 0.5) / (DIFF_WEIGHT[d] || 1) - 1e-6));
+      items = sorted();
+    }
+    return items.slice(0, BOARD_MAX);
+  }
+  /* After a write to one pilot: drop only the cached boards it can change. */
+  touch(id, row) {
+    for (const d of V2_DIFFS) {
+      const B = this.boards[d]; if (!B) continue;
+      const c = V2_COL[d], s = row && !row.rs ? row[c + "_s"] : null;
+      if (B.some((x) => x.id === id) || (s != null && (B.length < BOARD_MAX || v2KeyLess({ s, t: row[c + "_t"], seq: row.seq }, B[B.length - 1])))) delete this.boards[d];
+    }
+    const A = this.boards.all;
+    if (A) { const it = row && !row.rs ? this.itemAll(row) : null; if (A.some((x) => x.id === id) || (it && (A.length < BOARD_MAX || v2KeyLess(it, A[A.length - 1])))) delete this.boards.all; }
+  }
+  dropCaches() { this.boards = Object.create(null); this.floor = Object.create(null); }
+  /* The pilot's place on board d: from the cached top 100, else counted on the
+     index up to RANK_EXACT_MAX (null beyond). */
+  rankOf(d, row) {
+    if (!row || row.rs) return null;
+    const c = V2_COL[d], s = row[c + "_s"];
+    if (s == null) return null;
+    const B = this.board(d), i = B.findIndex((x) => x.id === row.id);
+    if (i >= 0) return i + 1;
+    if (B.length < BOARD_MAX) return null;
+    const me = { s, t: row[c + "_t"], seq: row.seq };
+    let f = this.floor[d];
+    if (!f || Date.now() - f.at > RANK_FLOOR_TTL_MS) {
+      const keys = this.db.boardKeys(d, RANK_EXACT_MAX, null);
+      f = this.floor[d] = { at: Date.now(), key: keys.length >= RANK_EXACT_MAX ? keys[keys.length - 1] : null };
+    }
+    if (f.key && v2KeyLess(f.key, me)) return null;
+    let n = 0;
+    for (const k of this.db.boardKeys(d, RANK_EXACT_MAX, s)) { if (v2KeyLess(k, me)) n++; else break; }
+    return n < RANK_EXACT_MAX ? n + 1 : null;
+  }
+
+  /* ---- writing one pilot (synchronous: runs inside one transaction) ---- */
+  putPilot(sum, row, rec, id, pid, ls) {
+    const next = this.rowFor(rec, id, pid);
+    next.ls = ls === undefined ? (row ? row.ls : null) : ls;
+    const before = row ? this.entryOf(row) : null;
+    let changedTags = [];
+    if (row) {
+      next.seq = row.seq; next.tag = row.tag;
+      const ch = v2Changed(row, next);
+      if (ch) this.db.updatePilot(row.seq, ch);
+    } else {
+      next.tag = next.t12.slice(0, 7);
+      next.seq = this.db.insertPilot(next);
+      sum.n = (sum.n || 0) + 1;
+    }
+    if (!row || row.dname !== next.dname) {
+      if (row) changedTags = changedTags.concat(this.retag(row.dname, row.t12.slice(0, 7)));
+      changedTags = changedTags.concat(this.retag(next.dname, next.t12.slice(0, 7)));
+    }
+    const cur = changedTags.length ? this.db.pilot(id) : next;
+    this.applyCountry(sum, before, this.entryOf(cur));
+    if (changedTags.length) this.leadTags(sum, changedTags);
+    return { cur, changedTags };
+  }
+  dropPilot(sum, row) {
+    const before = this.entryOf(row);
+    this.db.deletePilot(row.seq);
+    sum.n = Math.max(0, (sum.n || 0) - 1);
+    const ch = this.retag(row.dname, row.t12.slice(0, 7));
+    this.applyCountry(sum, before, null);
+    if (ch.length) this.leadTags(sum, ch);
+    return ch;
+  }
+  commit(sum, id, res) {
+    this.sum = sum;
+    if (res && res.changedTags && res.changedTags.length) this.dropCaches(); else this.touch(id, res ? res.cur : null);
+  }
+  pilotByPid(pid) {
+    if (!PID_RE.test(String(pid || ""))) return null;
+    return this.db.pilotsByT12(tagFromPid(pid, 12)).find((r) => r.pid === pid) || null;
+  }
+  async findIdByPid(pid) {
+    const row = this.pilotByPid(pid);
+    if (row) return row.id;
+    if (!PID_RE.test(String(pid || ""))) return null;
+    let after = null;
+    for (;;) {
+      const rows = this.db.rowsById("ents", after, null, V2_SCAN_PAGE);
+      for (const r of rows) if ((await this.o.pid(r.id)) === pid) return r.id;
+      if (rows.length < V2_SCAN_PAGE) return null;
+      after = rows[rows.length - 1].id;
+    }
+  }
+  ents(id) { const v = this.db.kvGet("ents", id); return v == null ? undefined : v2dec(v); }
+
+  /* ---- routes (same answers as the old layout) ---- */
+  fetch(request, url) {
+    const o = this.o;
+    if (o.pidCache.size > V2_PID_CACHE_MAX) o.pidCache = new Map();   // memory stays bounded however many pilots play
+    const route = {
+      "/leaderboard": () => this.leaderboard(url),
+      "/submit": () => this.submit(request),
+      "/entitlements": () => this.entitlements(url),
+      "/restore-check": () => this.restoreCheck(request),
+      "/grant": () => this.grant(request),
+      "/revoke": () => this.revoke(request),
+      "/import": () => this.importRecords(request),
+      "/recompute": () => this.recompute(),
+      "/admin-find": () => this.find(request),
+      "/admin-remove-score": () => this.removeScore(request),
+      "/admin-restrict": () => this.restrict(request, true),
+      "/admin-unrestrict": () => this.restrict(request, false),
+      "/admin-privacy-delete": () => this.privacyDelete(request),
+      "/admin-name-ban": () => this.nameBan(request, true),
+      "/admin-name-unban": () => this.nameBan(request, false),
+      "/admin-overview": () => o.handleAdminOverview(),
+      "/admin-dismiss-flag": () => o.handleAdminDismissFlag(request),
+      "/admin-issue-restore": () => this.issueRestore(request),
+      "/admin-season-archive": () => this.seasonArchive(),
+      "/backup-dump": () => json({ error: "The leaderboard uses the new layout; it is backed up page by page.", paged: true, layout: "v2" }, 409),
+      "/backup-restore": () => o.handleBackupRestore(request),
+    }[url.pathname];
+    return route ? route() : json({ error: "Not found" }, 404);
+  }
+
+  leaderboard(url) {
+    const limit = clampInt(url.searchParams.get("limit"), 1, 100, 25);
+    const difficulty = VALID_DIFFICULTIES.has(url.searchParams.get("difficulty")) ? url.searchParams.get("difficulty") : null;
+    const top = this.board(difficulty || "all").slice(0, limit).map((x) => ({
+      pid: x.pid, tag: x.tag, name: x.name, country: x.country, score: x.score, points: x.points, level: x.level, difficulty: x.difficulty,
+    }));
+    const countries = this.countryList();
+    return json({ top, countries, leadingCountry: countries[0] || null, difficulty, weighted: !difficulty, weights: { ...DIFF_WEIGHT } });
+  }
+
+  async submit(request) {
+    const o = this.o, body = await request.json();
+    const { playerId, name, score, level, difficulty, country } = body;
+    const now = Date.now();
+    const pid = await o.pid(playerId);
+    const row = this.db.pilot(playerId);
+    let last = row && row.ls != null ? v2dec(row.ls) : undefined, cooled = false;
+    if (last === undefined) { const c = this.db.kvGet("cool", playerId); if (c != null) { last = v2dec(c); cooled = true; } }
+    last = last || 0;
+    if (now - last < SUBMIT_COOLDOWN_MS) {
+      return json({ error: "Slow down — too many submissions", retryAfterSec: Math.ceil((SUBMIT_COOLDOWN_MS - (now - last)) / 1000) }, 429,
+                  { "Retry-After": String(Math.ceil((SUBMIT_COOLDOWN_MS - (now - last)) / 1000)) });
+    }
+    const prev = row ? v2dec(row.rec) : null;
+    const prevBest = prev && ownGet(prev.bests, difficulty) ? prev.bests[difficulty].score : 0;
+    const isNewBest = score > prevBest;
+    const record = { playerId, name, country, updatedAt: now, bests: NP(prev ? prev.bests : null) };
+    if (isNewBest) record.bests[difficulty] = { score, level, updatedAt: now };
+    const flag = this.maybeFlag(pid, playerId, name, difficulty, score, prevBest, now);
+    const nextFlags = flag ? pruneFlags([...o.flags.filter((f) => f.id !== flag.id), flag], now) : o.flags;
+    const sum = structuredClone(this.sum);
+    let res;
+    this.db.tx(() => {
+      res = this.putPilot(sum, row, record, playerId, pid, v2enc(now));
+      if (cooled) this.db.kvDel("cool", playerId);
+      this.saveSum(sum);
+    });
+    const saving = flag ? o.state.storage.put({ flags: nextFlags }) : null;   // same moment as the rows (no await in between)
+    this.commit(sum, playerId, res);
+    if (saving) await saving;
+    o.flags = nextFlags;
+    const restricted = !!ownGet(o.restricted, pid);
+    return json({
+      ok: true, isNewBest, best: record.bests[difficulty] ? record.bests[difficulty].score : score,
+      country, difficulty,
+      public: !restricted,
+      rank: restricted ? null : this.rankOf(difficulty, res.cur),
+      tag: res.cur.tag,
+    });
+  }
+  maybeFlag(pid, playerId, name, difficulty, score, prevBest, now) {
+    let boardTop = 0;
+    for (const x of this.board(difficulty)) { if (x.id !== playerId) { boardTop = x.score; break; } }
+    let reason = null;
+    if (score >= FLAG_ABSOLUTE) reason = "exceptionally high score";
+    else if (score >= FLAG_MIN_SCORE && boardTop > 0 && score > boardTop * FLAG_JUMP_FACTOR) reason = "far above the current #1";
+    else if (score >= FLAG_MIN_SCORE && prevBest > 0 && score > prevBest * FLAG_PERSONAL_JUMP) reason = "sudden jump over this player's own best";
+    if (!reason) return null;
+    return { id: pid + ":" + difficulty, pid, name: cleanName(name), difficulty, score, prevBest, boardTop, reason, at: now };
+  }
+
+  async restoreCheck(request) {
+    let body = null;
+    try { body = await request.json(); } catch (e) {}
+    const playerId = body && typeof body.playerId === "string" ? body.playerId : "";
+    if (!validPlayerId(playerId)) return json({ error: "Missing or invalid playerId" }, 400);
+    const row = this.db.pilot(playerId), rec = row ? v2dec(row.rec) : null;
+    const owned = this.ents(playerId);
+    const skus = Array.isArray(owned) ? owned.filter((s) => VALID_SKUS.has(s)) : [];
+    if (!rec && !skus.length) return json({ found: false });
+    const bests = {};
+    if (rec) for (const d of VALID_DIFFICULTIES) {
+      const b = ownGet(rec.bests, d);
+      if (b && Number.isFinite(b.score)) bests[d] = { score: b.score, level: Number.isFinite(b.level) ? b.level : 1 };
+    }
+    return json({
+      found: true,
+      name: rec ? presetOrOwn(cleanName(rec.name), playerId) : "",
+      tag: row ? row.tag : tagFromPid(await this.o.pid(playerId), 7),
+      country: rec && ISO2.test(String(rec.country || "")) ? rec.country : "",
+      bests,
+      skus,
+    });
+  }
+  entitlements(url) {
+    const playerId = url.searchParams.get("playerId") || "";
+    return json({ playerId, skus: this.ents(playerId) || [] });
+  }
+  async grant(request) {
+    const o = this.o, { playerId, sku, sessionId, force } = await request.json();
+    if (!force && sessionId) { const seen = this.db.kvGet("seen", sessionId); if (seen != null && v2dec(seen)) return json({ ok: true, duplicate: true, skus: this.ents(playerId) || [] }); }
+    const owned = new Set(this.ents(playerId) || []);
+    owned.add(sku);
+    const skus = [...owned];
+    this.db.tx(() => {   // durable first: both rows or neither
+      this.db.kvPut("ents", playerId, v2enc(skus));
+      if (sessionId) this.db.kvPut("seen", sessionId, v2enc(Date.now()));
+    });
+    await o.migTouched(await o.pid(playerId));
+    return json({ ok: true, skus });
+  }
+  async revoke(request) {
+    const o = this.o, { playerId, sku } = await request.json();
+    const owned = (this.ents(playerId) || []).filter((s) => s !== sku);
+    if (owned.length) this.db.kvPut("ents", playerId, v2enc(owned)); else this.db.kvDel("ents", playerId);
+    await o.migTouched(await o.pid(playerId));
+    return json({ ok: true, skus: owned });
+  }
+  async importRecords(request) {
+    const { records } = await request.json();
+    const list = [];
+    for (const rec of Array.isArray(records) ? records : []) {
+      if (!rec || typeof rec.playerId !== "string" || !validPlayerId(rec.playerId)) continue;
+      list.push({ rec, pid: await this.o.pid(rec.playerId) });
+    }
+    let imported = 0, merged = 0;
+    const sum = structuredClone(this.sum);
+    this.db.tx(() => {
+      for (const { rec, pid } of list) {
+        const incoming = normaliseRecord(rec, rec.playerId);
+        incoming.name = presetOrOwn(cleanName(incoming.name), rec.playerId);
+        const row = this.db.pilot(rec.playerId);
+        if (!row) { this.putPilot(sum, null, incoming, rec.playerId, pid); imported++; continue; }
+        const existing = v2dec(row.rec), bests = NP(existing.bests);
+        for (const [d, b] of Object.entries(incoming.bests)) if (!bests[d] || b.score > bests[d].score) bests[d] = b;
+        this.putPilot(sum, row, { ...existing, bests }, rec.playerId, pid);
+        merged++;
+      }
+      this.saveSum(sum);
+    });
+    this.sum = sum; this.dropCaches();
+    await this.o.migTouched(list.map((x) => x.pid));
+    return json({ ok: true, imported, merged });
+  }
+  recompute() {
+    const sum = this.buildSum();
+    this.saveSum(sum, true); this.sum = sum; this.dropCaches();
+    return json({ ok: true, players: sum.n, countries: Object.keys(sum.list).length });
+  }
+
+  /* ---- admin (by public hash; never a playerId out) ---- */
+  adminView(row) {
+    const rec = v2dec(row.rec), r = ownGet(this.o.restricted, row.pid);
+    return { pid: row.pid, tag: row.tag, name: cleanName(rec.name), shownAs: row.dname, country: rec.country,
+      bests: rec.bests, restricted: !!r, restriction: r || null, updatedAt: rec.updatedAt || null };
+  }
+  async find(request) {
+    const { q } = await request.json();
+    const raw = String(q || "").toUpperCase().replace(/\s+/g, " ").trim();
+    const both = /^(.+?)\s*#\s*([0-9A-Z]+)$/.exec(raw);
+    const query = raw.replace(/^#/, "").trim();
+    const matches = [];
+    const test = (row) => {
+      const v = this.adminView(row);
+      const named = (n) => v.name.includes(n) || String(v.shownAs || "").includes(n);
+      const hit = both
+        ? (named(both[1].trim()) && (v.tag.startsWith(both[2]) || tagFromPid(v.pid, 12).startsWith(both[2])))
+        : (named(query) || v.tag.startsWith(query) || tagFromPid(v.pid, 12).startsWith(query));
+      if (hit) matches.push(v);
+    };
+    if (both) for (const row of this.db.pilotsT12(both[2], both[2] + "~")) test(row);   // "NAME #TAG": the tag index, a few rows
+    else this.scanPilots(test);                                                          // anything else: every pilot is read once
+    matches.sort((a, b) => (bestOf({ bests: b.bests }) || { score: 0 }).score - (bestOf({ bests: a.bests }) || { score: 0 }).score);
+    return json({ ok: true, matches: matches.slice(0, 25) });
+  }
+  async removeScore(request) {
+    const o = this.o, { pid } = await request.json();
+    const row = this.pilotByPid(pid);
+    if (!row) return json({ error: "Entry not found" }, 404);
+    const rec = v2dec(row.rec), nextFlags = o.flags.filter((f) => f.pid !== pid);
+    const sum = structuredClone(this.sum);
+    this.db.tx(() => {
+      this.dropPilot(sum, row);
+      if (row.ls != null) this.db.kvPut("cool", row.id, row.ls);   // the cooldown is kept
+      this.saveSum(sum);
+    });
+    const saving = o.state.storage.put({ flags: nextFlags });
+    this.sum = sum; this.dropCaches();
+    await saving;
+    o.flags = nextFlags;
+    await o.migTouched(pid);
+    return json({ ok: true, removed: { name: cleanName(rec.name), country: rec.country } });
+  }
+  async restrict(request, on) {
+    const o = this.o, { pid, reason } = await request.json();
+    const next = NP(o.restricted);
+    if (on) next[pid] = { at: Date.now(), reason: String(reason || "").slice(0, 120) };
+    else delete next[pid];
+    const row = this.pilotByPid(pid), sum = structuredClone(this.sum);
+    if (row && row.rs !== (on ? 1 : 0)) this.db.tx(() => {
+      const before = this.entryOf(row);
+      this.db.updatePilot(row.seq, { rs: on ? 1 : 0 });
+      this.applyCountry(sum, before, this.entryOf({ ...row, rs: on ? 1 : 0 }));
+      this.saveSum(sum);
+    });
+    const saving = o.state.storage.put({ restricted: next });
+    this.sum = sum; this.dropCaches();
+    await saving;
+    o.restricted = next;
+    return json({ ok: true, restricted: on });
+  }
+  async privacyDelete(request) {
+    const o = this.o, { pid, removePurchases } = await request.json();
+    const id = await this.findIdByPid(pid);
+    if (!id) return json({ error: "No records found for that entry" }, 404);
+    const row = this.db.pilot(id), owned = this.ents(id);
+    const purchasesRemoved = removePurchases && Array.isArray(owned) ? owned.length : 0;
+    const nextFlags = o.flags.filter((f) => f.pid !== pid);
+    const nextLog = o.restoreLog.map((e) => (e.pid === pid ? { at: e.at, pid: e.pid, tag: e.tag, name: "", reason: "(erased on privacy request)" } : e));
+    await o.eraseFromSeasonArchive(id);                        // SEASON 1: the archived Season 0 scores go too
+    const old = await o.v1ValuesWithout(id, !!removePurchases);   // and the old layout's values, kept until CLEAN UP
+    const sum = structuredClone(this.sum);
+    this.db.tx(() => {
+      if (row) this.dropPilot(sum, row);
+      this.db.kvDel("cool", id);
+      if (removePurchases) this.db.kvDel("ents", id);
+      this.saveSum(sum);
+    });
+    const saving = o.state.storage.put({ flags: nextFlags, restoreLog: nextLog, ...old });
+    this.sum = sum; this.dropCaches();
+    await saving;
+    o.flags = nextFlags; o.restoreLog = nextLog; o.twin = null;
+    await o.migTouched(pid);
+    return json({ ok: true, purchasesRemoved, restrictionKept: !!ownGet(o.restricted, pid) });
+  }
+  async nameBan(request, on) {
+    const o = this.o, { name } = await request.json();
+    const key = normaliseForBan(name);
+    if (!key) return json({ error: "Enter a name" }, 400);
+    const next = NP(o.nameBans);
+    if (on) next[key] = { at: Date.now() }; else delete next[key];
+    const hit = [];
+    this.scanPilots((r) => { if (r.nb1 === key || r.nb2 === key) hit.push(r); });   // every pilot is read once
+    const sum = structuredClone(this.sum);
+    let any = false;
+    this.db.tx(() => {
+      for (const r of hit) {
+        const d = this.dnameOf(v2dec(r.rec), next);
+        if (d === r.dname) continue;
+        any = true;
+        this.db.updatePilot(r.seq, { dname: d });
+        this.retag(r.dname, r.t12.slice(0, 7));
+        this.retag(d, r.t12.slice(0, 7));
+      }
+      if (any) { this.refreshLeads(sum); this.saveSum(sum); }
+    });
+    const saving = o.state.storage.put({ nameBans: next });
+    this.sum = sum; this.dropCaches();
+    await saving;
+    o.nameBans = next;
+    return json({ ok: true, name: key, banned: on });
+  }
+  async issueRestore(request) {
+    const o = this.o, { pid, reason } = await request.json();
+    const id = await this.findIdByPid(pid);
+    if (!id) return json({ error: "Entry not found" }, 404);
+    const row = this.db.pilot(id);
+    const tag = row ? row.tag : tagFromPid(await o.pid(id), 7);
+    const name = row ? cleanName(v2dec(row.rec).name) : "";
+    const logged = { at: Date.now(), pid, tag, name, reason: String(reason || "").slice(0, RESTORE_REASON_MAX) };
+    const next = [...o.restoreLog, logged].slice(-RESTORE_LOG_MAX);
+    try { await o.state.storage.put({ restoreLog: next }); }
+    catch (e) { return json({ error: "Could not record this in the log, so no code was issued. Try again." }, 503); }
+    o.restoreLog = next;
+    return json({ ok: true, code: await restoreCodeFor(id), tag, name });
+  }
+  async seasonArchive() {
+    const { meta, players } = await this.o.readSeasonArchive();
+    const rows = [];
+    for (const p of players) {
+      const pid = await this.o.pid(p.playerId), row = this.db.pilot(p.playerId), tag = row ? row.tag : tagFromPid(pid, 7);
+      for (const d of Object.keys(p.bests || {})) {
+        const b = p.bests[d];
+        rows.push({ difficulty: d, pid, tag, name: cleanName(p.name), country: p.country || "", score: b.score, level: b.level, updatedAt: b.updatedAt || 0 });
+      }
+    }
+    rows.sort((a, b) => b.score - a.score || a.updatedAt - b.updatedAt);
+    return json({ ok: true, season: 0, archivedAt: meta ? meta.archivedAt : null, players: meta ? meta.players : 0, count: rows.length, rows });
+  }
+  /* SEASON (a future season on the new layout): the bests are archived (read page
+     by page) and cleared. Rows written: every pilot with a best -- plan it (see
+     the note at the top). Runs inside load()'s blockConcurrencyWhile. */
+  async startSeason() {
+    const st = this.o.state.storage, players = [];
+    this.scanPilots((r) => {
+      const rec = v2dec(r.rec), bests = {};
+      for (const d of Object.keys(rec.bests || {})) { const b = rec.bests[d]; if (b && Number.isFinite(b.score)) bests[d] = { score: b.score, level: b.level, updatedAt: b.updatedAt || 0 }; }
+      if (Object.keys(bests).length) players.push({ playerId: rec.playerId || r.id, name: rec.name, country: rec.country, bests });
+    });
+    const chunks = [];
+    let cur = [], size = 2;
+    for (const p of players) {
+      const n = new TextEncoder().encode(JSON.stringify(p)).length + 1;
+      if (cur.length && size + n > SEASON_ARCHIVE_CHUNK_BYTES) { chunks.push(cur); cur = []; size = 2; }
+      cur.push(p); size += n;
+    }
+    if (cur.length) chunks.push(cur);
+    for (let i = 0; i < chunks.length; i += SEASON_ARCHIVE_PUT_KEYS) {
+      const part = {};
+      chunks.slice(i, i + SEASON_ARCHIVE_PUT_KEYS).forEach((c, j) => { part[SEASON_ARCHIVE_KEY + ":" + (i + j)] = c; });
+      await st.put(part);
+    }
+    const scores = players.reduce((n, p) => n + Object.keys(p.bests).length, 0);
+    const meta = { season: 0, archivedAt: Date.now(), players: players.length, scores, chunks: chunks.length };
+    const clear = [];
+    this.scanPilots((r) => { if (r.e_s != null || r.m_s != null || r.h_s != null || Object.keys(v2dec(r.rec).bests || {}).length) clear.push(r); });
+    this.db.tx(() => {
+      for (const r of clear) { const rec = v2dec(r.rec); rec.bests = {}; this.db.updatePilot(r.seq, { rec: v2enc(rec), e_s: null, e_t: null, m_s: null, m_t: null, h_s: null, h_t: null }); }
+      this.sum = { v: 1, weights: JSON.stringify(DIFF_WEIGHT), n: this.sum ? this.sum.n : 0, list: {}, lead: {} };
+      this.saveSum(this.sum, true);
+    });
+    await st.put({ [SEASON_ARCHIVE_KEY]: meta, season: SEASON });
+    this.dropCaches();
+  }
+}
+
+/* ---- the move: comparisons (dry run, switch, check, rollback) ---- */
+function v2Counts(v1) {
+  const c = { pilots: 0, bests: { easy: 0, medium: 0, hard: 0 }, purchasePilots: 0, skins: { toxic: 0, cosmic: 0, solar: 0 }, purchaseSessions: Object.keys(v1.seenSessions || {}).length,
+    cooldowns: Object.keys(v1.lastSubmit || {}).length, flags: (v1.flags || []).length, nameBans: Object.keys(v1.nameBans || {}).length,
+    restricted: Object.keys(v1.restricted || {}).length, restoreLog: (v1.restoreLog || []).length, countries: Object.keys(v1.countries || {}).length };
+  for (const id of Object.keys(v1.players || {})) { c.pilots++; for (const d of V2_DIFFS) if (ownGet(v1.players[id].bests, d)) c.bests[d]++; }
+  for (const id of Object.keys(v1.entitlements || {})) {
+    const skus = Array.isArray(v1.entitlements[id]) ? v1.entitlements[id] : [];
+    if (skus.length) c.purchasePilots++;
+    for (const k of skus) if (ownGet(c.skins, k) !== undefined) c.skins[k]++;
+  }
+  c.solarInferno = c.skins.solar;
+  return c;
+}
+function v2Estimate(rows, tabs) {
+  let w = 0;
+  for (const r of rows) { w += 3; for (const d of V2_DIFFS) if (r[V2_COL[d] + "_s"] != null && !r.rs) w++; }   // row + id index + tag index + a board index per best
+  const other = Object.keys(tabs.ents).length + Object.keys(tabs.seen).length + Object.keys(tabs.cool).length;
+  const rowsWritten = w + other + 10, batches = Math.max(1, Math.ceil(rows.length / MIG_BATCH));
+  return { rowsWritten, rowsRead: 4 * rows.length + 2 * other + 20, batches, adminRequests: Math.ceil(batches / MIG_CALLS_PER_REQUEST),
+    seconds: 5 + Math.ceil(batches * 1.5), pctOfDailyWrites: Math.round(100 * rowsWritten / FREE_PLAN.rowsWrittenPerDay), days: Math.max(1, Math.ceil(rowsWritten / MIG_DAY_ROW_BUDGET)) };
+}
+async function v2PilotChecks(v1, eng, ids, skip) {
+  const r = { compared: 0, skipped: 0, failed: 0, restore: 0, ents: 0, tags: 0, examples: [] };
+  for (const id of ids) {
+    const pid = await v1.pid(id);
+    if (skip && skip.has(pid)) { r.skipped++; continue; }
+    r.compared++;
+    const rq = () => new Request("https://do.internal/restore-check", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ playerId: id }) });
+    const a = await (await v1.handleRestoreCheck(rq())).text(), b = await (await eng.restoreCheck(rq())).text();
+    const u = new URL("https://do.internal/entitlements?playerId=" + encodeURIComponent(id));
+    const ea = await (await v1.handleEntitlements(u)).text(), eb = await (await eng.entitlements(u)).text();
+    const row = eng.db.pilot(id), ta = ownGet(v1.players, id) !== undefined ? await v1.tagFor(id) : null, tb = row ? row.tag : null;
+    let bad = false;
+    if (a !== b) { r.restore++; bad = true; }
+    if (ea !== eb) { r.ents++; bad = true; }
+    if (ta !== tb) { r.tags++; bad = true; }
+    if (bad) { r.failed++; if (r.examples.length < 5) r.examples.push("#" + tagFromPid(pid, 7)); }
+  }
+  return r;
+}
+function v2FirstDiff(a, b) {
+  const x = a.top || [], y = b.top || [];
+  for (let i = 0; i < Math.max(x.length, y.length); i++) if (JSON.stringify(x[i]) !== JSON.stringify(y[i])) return "first difference at #" + (i + 1);
+  return "the country figures or the header differ";
+}
+async function v2CheckGlobal(v1, eng, skip) {
+  const out = [], add = (name, pass, detail) => out.push({ name, pass: !!pass, detail: String(detail || "") });
+  const n = skip ? skip.size : 0;
+  for (const d of ["", "easy", "medium", "hard"]) {
+    const u = new URL("https://do.internal/leaderboard?limit=100" + (d ? "&difficulty=" + d : ""));
+    const A = JSON.parse(await (await v1.handleLeaderboard(u)).text()), B = JSON.parse(await (await eng.leaderboard(u)).text());
+    const name = "Leaderboard " + (d ? d.toUpperCase() : "ALL (difficulty weights)") + ", top 100";
+    if (!n) add(name, JSON.stringify(A) === JSON.stringify(B), JSON.stringify(A) === JSON.stringify(B) ? (A.top || []).length + " rows identical" : v2FirstDiff(A, B));
+    else {
+      const f = (x) => (x.top || []).filter((e) => !skip.has(e.pid)).slice(0, Math.max(0, BOARD_MAX - n));
+      const same = JSON.stringify(f(A)) === JSON.stringify(f(B));
+      add(name + " (pilots unchanged since the move)", same, same ? f(A).length + " rows identical" : v2FirstDiff({ top: f(A) }, { top: f(B) }));
+    }
+    if (!d) {
+      if (!n) { const same = JSON.stringify(A.countries) === JSON.stringify(B.countries); add("Country totals and leaders", same, same ? (A.countries || []).length + " countries identical" : "they differ"); }
+      else add("Country totals and leaders", true, "not compared old vs new: " + n + " pilot(s) changed since the move; the next check covers them");
+    }
+  }
+  const fresh = eng.buildSum(), same = v2SameSum(fresh, eng.sum);
+  add("Country totals kept up to date = a fresh count of every pilot", same, same ? Object.keys(fresh.list).length + " countries, " + fresh.n + " pilots" : "the running totals drifted from the rows");
+  return out;
+}
+async function v2Reconcile(v1, eng) {
+  const checks = [], add = (name, pass, detail) => checks.push({ name, pass: !!pass, detail: String(detail || "") });
+  const ids = Object.keys(v1.players), rows = new Map();
+  eng.scanPilots((r) => rows.set(r.id, r));
+  const bad = [];
+  for (const id of ids) { const r = rows.get(id); if (!r || !bkSame(v2dec(r.rec), v1.players[id])) bad.push("#" + tagFromPid(await v1.pid(id), 7)); }
+  const extra = [...rows.keys()].filter((id) => ownGet(v1.players, id) === undefined).length;
+  add("Pilots: every record identical", !bad.length && !extra, bad.length ? bad.length + " differ, e.g. " + bad.slice(0, 5).join(" ") : extra ? extra + " extra row(s)" : ids.length + " pilots identical");
+  const b1 = { easy: 0, medium: 0, hard: 0 }, b2 = { easy: 0, medium: 0, hard: 0 };
+  for (const id of ids) for (const d of V2_DIFFS) if (ownGet(v1.players[id].bests, d)) b1[d]++;
+  for (const r of rows.values()) for (const d of V2_DIFFS) if (r[V2_COL[d] + "_s"] != null) b2[d]++;
+  add("Bests per difficulty", bkSame(b1, b2), "easy " + b2.easy + " / medium " + b2.medium + " / hard " + b2.hard + (bkSame(b1, b2) ? "" : " (old: " + b1.easy + " / " + b1.medium + " / " + b1.hard + ")"));
+  const tab = (t) => { const o = {}; let after = null; for (;;) { const rs = eng.db.rowsById(t, after, null, V2_SCAN_PAGE); for (const x of rs) o[x.id] = v2dec(x.v); if (rs.length < V2_SCAN_PAGE) return o; after = rs[rs.length - 1].id; } };
+  const ls = tab("cool");
+  for (const r of rows.values()) if (r.ls != null) ls[r.id] = v2dec(r.ls);
+  add("Upload cooldowns", bkSame(JSON.parse(v2enc(v1.lastSubmit)), JSON.parse(v2enc(ls))), Object.keys(ls).length + " pilots");
+  const ents = tab("ents"), solar = Object.keys(ents).filter((k) => Array.isArray(ents[k]) && ents[k].includes("solar")).length;
+  add("Purchases (skins) of every buyer, incl. Solar Inferno", bkSame(JSON.parse(v2enc(v1.entitlements)), JSON.parse(v2enc(ents))), Object.keys(ents).length + " buyers, " + solar + " own Solar Inferno");
+  const seen = tab("seen");
+  add("Delivered checkout sessions", bkSame(JSON.parse(v2enc(v1.seenSessions)), JSON.parse(v2enc(seen))), Object.keys(seen).length + " sessions");
+  checks.push(...(await v2CheckGlobal(v1, eng, null)));
+  const everyone = [...new Set(ids.concat(Object.keys(v1.entitlements)))];
+  const p = await v2PilotChecks(v1, eng, everyone, null);
+  add("Restore codes (/api/restore-check) of every pilot and buyer", !p.restore, p.compared + " compared" + (p.restore ? ", " + p.restore + " differ, e.g. " + p.examples.join(" ") : ""));
+  add("Skins (/api/entitlements) of every pilot and buyer", !p.ents, p.compared + " compared" + (p.ents ? ", " + p.ents + " differ" : ""));
+  add("Public #tags of every pilot (incl. lengthened ones)", !p.tags, ids.length + " compared" + (p.tags ? ", " + p.tags + " differ" : ""));
+  add("Flags, name bans, restrictions, restore log, Season 0 archive: kept as they are", true,
+    (v1.flags || []).length + " flags, " + Object.keys(v1.nameBans || {}).length + " name bans, " + Object.keys(v1.restricted || {}).length + " restrictions, " + (v1.restoreLog || []).length + " restore-log entries");
+  return checks;
+}
+/* The stored values of a new-layout backup, minus one pilot (a privacy deletion):
+   the old layout's values (until CLEAN UP), flags, restore log, Season 0 archive. */
+async function v2EraseKv(entries, pid, ids, removePurchases) {
+  const layout = entries.find(([k]) => k === STORAGE_LAYOUT_KEY), rest = entries.filter(([k]) => k !== STORAGE_LAYOUT_KEY);
+  const out = await bkErasePilot(rest, pid, removePurchases);
+  let cur = out || rest, touched = !!out;
+  const M = new Map(cur), meta = M.get(SEASON_ARCHIVE_KEY);
+  if (ids.size && meta) {
+    let removed = 0, lost = 0, hit = false;
+    cur = cur.map(([k, v]) => {
+      if (!k.startsWith(SEASON_ARCHIVE_KEY + ":") || !Array.isArray(v) || !v.some((p) => p && ids.has(p.playerId))) return [k, v];
+      hit = true;
+      for (const p of v) if (p && ids.has(p.playerId)) { removed++; lost += Object.keys(p.bests || {}).length; }
+      return [k, v.filter((p) => !(p && ids.has(p.playerId)))];
+    });
+    if (hit) { touched = true; cur = cur.map(([k, v]) => (k === SEASON_ARCHIVE_KEY ? [k, { ...v, players: Math.max(0, v.players - removed), scores: Math.max(0, (v.scores || 0) - lost) }] : [k, v])); }
+  }
+  if (!touched) return null;
+  if (layout) cur = cur.concat([layout]).sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  return cur;
+}
+/* Backup summaries of the new layout (the same fields as bkSummary). */
+function v2SumStart() { return { kv: null, restricted: {}, keys: 0, players: 0, bests: { easy: 0, medium: 0, hard: 0 }, purchasePilots: 0, skins: { toxic: 0, cosmic: 0, solar: 0 }, purchaseSessions: 0, cc: new Set() }; }
+function v2SumAdd(acc, t, entries) {
+  acc.keys += entries.length;
+  if (!t) { acc.kv = entries; const r = new Map(entries).get("restricted"); acc.restricted = r && typeof r === "object" ? r : {}; return; }
+  for (const [, row] of entries) {
+    if (t === "pilots") {
+      acc.players++;
+      const rec = row.rec || {}, bests = rec.bests || {};
+      let any = false;
+      for (const d of V2_DIFFS) if (ownGet(bests, d)) { acc.bests[d]++; any = true; }
+      if (any && !ownGet(acc.restricted, row.pid)) acc.cc.add(ISO2.test(String(rec.country || "")) ? rec.country : "XX");
+    } else if (t === "ents") {
+      const skus = v2dec(row.v), list = Array.isArray(skus) ? skus : [];
+      if (list.length) acc.purchasePilots++;
+      for (const k of list) if (ownGet(acc.skins, k) !== undefined) acc.skins[k]++;
+    } else if (t === "seen") acc.purchaseSessions++;
+  }
+}
+function v2SumEnd(acc) {
+  const s = bkSummary(acc.kv || []);
+  return { ...s, keys: acc.keys, players: acc.players, bests: acc.bests, purchasePilots: acc.purchasePilots, skins: acc.skins, purchaseSessions: acc.purchaseSessions, countries: acc.cc.size, layout: "new" };
 }
 
 /* ------------------------------------------------------------------ */

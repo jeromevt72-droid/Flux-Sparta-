@@ -121,6 +121,14 @@
     <button id="bkUpload" class="ghost">UPLOAD</button>
   </div>
 
+  <h2>STORAGE</h2>
+  <p class="note">How the leaderboard is kept on the server. The <b>old layout</b> keeps every pilot in one stored value that
+  Cloudflare caps at 2 MB (about 8,000 pilots); past that, every score upload fails. The <b>new layout</b> keeps one row per pilot
+  and works far beyond 200,000 pilots on the free plan. You move it once, in the steps below. Nothing happens by itself.
+  See <b>Storage move (2 MB limit)</b> in the guide.</p>
+  <div class="row"><button id="sgLoad" class="ghost" style="flex:1">SHOW STORAGE</button></div>
+  <div id="storage"></div>
+
   <details id="guide" class="guide">
     <summary>GUIDE</summary>
 
@@ -181,6 +189,29 @@
       last 3 days are delivered again by the automatic payment check; older ones can be looked up in the purchase records under ADVANCED.
       Anonymous PLAYER STATS are not part of backups.</li>
       <li>A <b>privacy deletion</b> also removes the pilot from every backup on the server, so a restore never brings them back.</li>
+    </ul>
+
+    <h3>Storage move (2 MB limit)</h3>
+    <ul>
+      <li><b>Why:</b> the old layout stores every pilot in one value, and Cloudflare caps a value at 2 MB — about 8,000 pilots.
+      <b>STORAGE</b> shows how full it is. Move before it passes about 75%.</li>
+      <li><b>1. Back up.</b> Press <b>BACK UP NOW</b>. The move refuses to start without a checked backup from the last 60 minutes.</li>
+      <li><b>2. Dry run.</b> Press <b>DRY RUN</b>. It builds the new layout in memory and compares everything with the old one —
+      every pilot, best, cooldown, purchase (incl. Solar Inferno), #tag, restore code, the four leaderboards and the country totals —
+      and shows PASS or FAIL for each, plus how many rows the move will write. It changes nothing. If anything says FAIL, stop and ask for help.</li>
+      <li><b>3. Approve and move.</b> Type the phrase it shows (<b>MIGRATE</b> and the dry run's name) and press <b>MOVE NOW</b>. The server
+      takes a safety backup first, then copies the pilots in batches (a few seconds for 8,000 pilots). Players keep playing meanwhile.
+      At the end it pauses everything for a moment, copies what changed, compares again, and only then switches. If a comparison
+      fails it does not switch and FLUX stays on the old layout. If it stops half-way, press MOVE NOW again: it continues.</li>
+      <li><b>4. Check.</b> Press <b>CHECK A SAMPLE</b>, then <b>CHECK EVERY PILOT</b>. Each public answer (leaderboards, countries,
+      skins, restore codes, #tags) is compared between the old and the new layout: PASS or FAIL. Pilots who played since the move are
+      counted as changed, not as failures.</li>
+      <li><b>If the check fails:</b> type <b>ROLLBACK</b> and press <b>ROLL BACK</b>. FLUX goes back to the old layout, keeping every score and
+      purchase made since the move (a safety backup is taken first).</li>
+      <li><b>Later, once everything has run well for a while:</b> <b>CLEAN UP</b> removes the old layout's copy (only after
+      CHECK EVERY PILOT passed; a safety backup is taken first). After that, going back is only possible by restoring a backup.</li>
+      <li>Backups keep working on the new layout: they are copied page by page, and score uploads wait a few seconds while that happens
+      (the game retries them by itself). A privacy deletion also removes the pilot from the old layout's copy and from every backup.</li>
     </ul>
 
     <h3>Reading PLAYER STATS</h3>
@@ -662,12 +693,132 @@
     say('Uploaded and checked ✓ as ' + o.snapshot.id + '. Use DRY RUN on it before any restore.', 'ok'); $('bkFile').value = ''; await loadBackups();
   }
 
+  /* ---------------- storage (the 2 MB move) ---------------- */
+  var SG = null;
+  function pct(x) { return (Math.round(x * 10) / 10) + '%'; }
+  function sgCard(title, pillText, pillKind) {
+    var c = el('div', 'card'), h = el('div');
+    h.appendChild(el('span', 'name', title));
+    if (pillText) h.appendChild(el('span', 'pill ' + (pillKind || 'amber'), pillText));
+    c.appendChild(h); return c;
+  }
+  function sgChecks(box, checks) {
+    (checks || []).forEach(function (x) {
+      box.appendChild(el('div', 'logrow', (x.pass ? 'PASS ✓ ' : 'FAIL ✗ ') + x.name + (x.detail ? '\n' + x.detail : '')));
+    });
+  }
+  function sgTyped(box, phrase, label, cls, onGo, extraOk) {
+    var inp = document.createElement('input'); inp.type = 'text'; inp.autocomplete = 'off'; inp.spellcheck = false; inp.setAttribute('autocapitalize', 'characters');
+    inp.placeholder = phrase; inp.className = 'sgConfirm';
+    var goBtn = btn(label, cls, function () { var b = this;
+      if (inp.value !== phrase) { say('Type ' + phrase + ' exactly.', 'err'); return; }
+      act(b, 'WORKING…', async function () { await onGo(inp.value, b); b.disabled = false; b.textContent = label; });
+    });
+    goBtn.disabled = true;
+    inp.oninput = function () { goBtn.disabled = inp.value !== phrase || (extraOk ? !extraOk() : false); };
+    var row = el('div', 'row'); row.appendChild(inp); row.appendChild(goBtn); box.appendChild(row);
+    return goBtn;
+  }
+  function renderStorage(d) {
+    SG = d;
+    var box = $('storage'); box.textContent = '';
+    var oldL = d.layout !== 'new', ov = d.oldValue, bk = d.backup || {}, mig = d.mig || {}, dry = d.dry, chk = d.check;
+    var near = oldL && ov && ov.pct >= 75;
+    var c = sgCard(oldL ? 'Layout: OLD (one 2 MB value)' : 'Layout: NEW (one row per pilot)', oldL ? (near ? 'NEAR THE 2 MB LIMIT' : 'NOT MOVED YET') : 'MOVED ✓', near ? 'pink' : 'amber');
+    var lines = [fmt(d.pilots) + ' pilots'];
+    if (ov) lines.push((oldL ? 'Old value: ' : 'Old layout copy (kept until CLEAN UP): ') + kb(ov.bytes) + ' of 2 MB (' + pct(ov.pct) + ')' + (ov.kept === false ? ' — cleaned up' : ''));
+    lines.push('Newest checked backup: ' + (bk.createdAt ? when(bk.createdAt) + ' (' + bk.ageMin + ' min ago' + (bk.fresh ? ', recent enough ✓' : ', older than 60 min') + ')' : 'none'));
+    lines.push('Move: ' + ({ none: 'not started', copying: 'copying (' + fmt(mig.cursor) + ' of ' + fmt(mig.total) + ')', paused: 'paused for today', switched: 'done ✓ ' + when(mig.switchedAt), failed: 'refused — the copy did not match; nothing changed', cancelled: 'cancelled', rolledback: 'rolled back to the old layout', cleaned: 'done ✓, old layout cleaned up' }[d.phase] || d.phase));
+    if (d.restoring) lines.push('A RESTORE IS UNFINISHED: score uploads are paused. Run that restore again, or restore its safety backup.');
+    c.appendChild(el('div', 'meta', lines.join('\n')));
+    box.appendChild(c);
+    if (oldL && d.phase !== 'switched') {
+      var s1 = sgCard('1 · BACK UP', bk.fresh ? 'READY ✓' : 'NEEDED', bk.fresh ? 'amber' : 'pink');
+      s1.appendChild(el('div', 'meta', 'The move needs a checked backup from the last 60 minutes.'));
+      var a1 = el('div', 'actions'); a1.appendChild(btn('BACK UP NOW', 'go', function () { var b = this; act(b, 'BACKING UP…', async function () {
+        var o = await call('backup-now'); await loadStorage(); say('Backup ' + o.snapshot.id + ' saved and checked ✓', 'ok'); }); }));
+      s1.appendChild(a1); box.appendChild(s1);
+      var s2 = sgCard('2 · DRY RUN', dry ? (dry.pass ? 'PASS ✓' : 'FAIL ✗') : '', dry && !dry.pass ? 'pink' : 'amber');
+      if (dry) {
+        var e = dry.est || {}, n = dry.counts || {}, b2 = n.bests || {};
+        s2.appendChild(el('div', 'meta', dry.id + ' · ' + when(dry.at) + '\n' + fmt(dry.pilots) + ' pilots · bests easy ' + fmt(b2.easy) + ' / medium ' + fmt(b2.medium) + ' / hard ' + fmt(b2.hard) +
+          '\nbuyers ' + fmt(n.purchasePilots) + ' (Solar Inferno ' + fmt(n.solarInferno) + ') · flags ' + fmt(n.flags) + ' · name bans ' + fmt(n.nameBans) + ' · restrictions ' + fmt(n.restricted) +
+          '\nThe move will write about ' + fmt(e.rowsWritten) + ' rows (' + e.pctOfDailyWrites + '% of a free day) in ' + fmt(e.batches) + ' batch(es), about ' + fmt(e.seconds) + ' s.'));
+        sgChecks(s2, dry.checks);
+      } else s2.appendChild(el('div', 'meta', 'Builds the new layout in memory and compares everything. Changes nothing.'));
+      var a2 = el('div', 'actions'); a2.appendChild(btn('DRY RUN', 'ghost', function () { var b = this; act(b, 'COMPARING…', async function () {
+        var o = await call('migrate-storage-dry-run'); await loadStorage(); say(o.pass ? 'Dry run: every check passed. Nothing was changed.' : 'Dry run: something did not match. Do not move; nothing was changed.', o.pass ? 'ok' : 'err'); }); }));
+      s2.appendChild(a2); box.appendChild(s2);
+      if (dry && dry.pass) {
+        var s3 = sgCard('3 · APPROVE AND MOVE', mig.phase === 'copying' || mig.phase === 'paused' ? 'IN PROGRESS' : '');
+        s3.appendChild(el('p', 'note', 'Type ' + dry.confirm + ' to enable the move. A safety backup is taken first. Players keep playing.'));
+        var prog = el('div', 'meta', '');
+        sgTyped(s3, dry.confirm, 'MOVE NOW', 'danger', async function (phrase) {
+          for (var i = 0; i < 200; i++) {
+            var o;
+            try { o = await call('migrate-storage', { confirm: phrase }); }
+            catch (err) { if (/60 minutes/.test(err.message)) { prog.textContent = err.message; } throw err; }
+            if (o.copied != null) prog.textContent = 'Copied ' + fmt(o.copied) + ' of ' + fmt(o.total) + ' pilots…';
+            if (!o.more || o.paused || o.switched) break;
+          }
+          await loadStorage();
+          if (o.paused) say(o.message, 'err'); else if (o.switched) say('Moved ✓ Every comparison passed. Now run the CHECK.', 'ok');
+        }, function () { return !!(SG && SG.backup && SG.backup.fresh); });
+        s3.appendChild(prog); box.appendChild(s3);
+      }
+      if (mig.phase === 'copying' || mig.phase === 'paused') {
+        var sc = sgCard('CANCEL THE MOVE', ''); sc.appendChild(el('p', 'note', 'FLUX never left the old layout. Type ROLLBACK to drop the half-made copy.'));
+        sgTyped(sc, 'ROLLBACK', 'CANCEL', 'warn', async function (phrase) { await call('migrate-storage-rollback', { confirm: phrase }); await loadStorage(); say('Cancelled. FLUX stays on the old layout.', 'ok'); });
+        box.appendChild(sc);
+      }
+    }
+    if (!oldL) {
+      var s4 = sgCard('4 · CHECK', chk && chk.done ? (chk.pass ? 'PASS ✓' : 'FAIL ✗') : '', chk && chk.done && !chk.pass ? 'pink' : 'amber');
+      if (chk) {
+        var P = chk.pilots || {};
+        s4.appendChild(el('div', 'meta', (chk.mode === 'all' ? 'Every pilot' : 'A sample') + (chk.done ? ' · ' + when(chk.at) : ' · running') + '\n' + fmt(P.compared) + ' compared · ' + fmt(P.failed) + ' failed · ' + fmt(P.skipped) + ' changed since the move (not failures)' + ((P.examples || []).length ? '\nfailed: ' + P.examples.join(' ') : '')));
+        sgChecks(s4, chk.checks);
+      } else s4.appendChild(el('div', 'meta', 'Compares every public answer between the old and the new layout.'));
+      var a4 = el('div', 'actions');
+      [['CHECK A SAMPLE', 'sample'], ['CHECK EVERY PILOT', 'all']].forEach(function (x) {
+        a4.appendChild(btn(x[0], 'ghost', function () { var b = this; act(b, 'CHECKING…', async function () {
+          var cur = 0, o;
+          for (var i = 0; i < 1000; i++) { o = await call('migrate-storage-check', { mode: x[1], cursor: cur }); b.textContent = 'CHECKED ' + fmt(o.cursor) + ' / ' + fmt(o.total); if (!o.more) break; cur = o.cursor; }
+          await loadStorage(); say(o.pass ? 'Check passed ✓' : 'Check FAILED — see the list; you can ROLL BACK.', o.pass ? 'ok' : 'err'); }); }));
+      });
+      s4.appendChild(a4); box.appendChild(s4);
+      if (d.phase === 'switched') {
+        var s5 = sgCard('ROLL BACK', chk && chk.done && !chk.pass ? 'RECOMMENDED' : '', 'pink');
+        s5.appendChild(el('p', 'note', 'Only if the check failed. FLUX goes back to the old layout with every score and purchase made since the move. Type ROLLBACK.'));
+        sgTyped(s5, 'ROLLBACK', 'ROLL BACK', 'danger', async function (phrase) { await call('migrate-storage-rollback', { confirm: phrase }); await loadStorage(); say('Rolled back to the old layout.', 'ok'); });
+        box.appendChild(s5);
+        var fullOk = !!(chk && chk.mode === 'all' && chk.done && chk.pass);
+        var s6 = sgCard('5 · CLEAN UP (LATER)', fullOk ? 'ALLOWED' : 'AFTER CHECK EVERY PILOT');
+        s6.appendChild(el('p', 'note', 'Removes the old layout\'s copy. Only after CHECK EVERY PILOT passed; a safety backup is taken first. Type CLEANUP ' + mig.id + '.'));
+        sgTyped(s6, 'CLEANUP ' + mig.id, 'CLEAN UP', 'warn', async function (phrase) { await call('migrate-storage-cleanup', { confirm: phrase }); await loadStorage(); say('Old layout cleaned up.', 'ok'); }, function () { return fullOk; });
+        box.appendChild(s6);
+      }
+    }
+    var cost = (d.costs || {}), fp = d.freePlan || {};
+    var cc = sgCard('FREE PLAN BUDGET', '');
+    var rowsOf = function (k, label) { var x = cost[k]; return x ? label + ': a daily backup reads ' + fmt(x.dailyBackup.rowsRead) + ' rows and writes ' + fmt(x.dailyBackup.rowsWritten) : ''; };
+    cc.appendChild(el('div', 'meta', 'Per day (free plan): ' + fmt(fp.rowsReadPerDay) + ' rows read · ' + fmt(fp.rowsWrittenPerDay) + ' rows written · 5 GB. Check the dashboard for the current limits.' +
+      '\nNew layout — a run writes 1-6 rows; a restart reads about 10; a leaderboard is served from memory.\n' + [rowsOf('now', 'Now'), rowsOf('at10k', '10,000 pilots'), rowsOf('at50k', '50,000 pilots'), rowsOf('at200k', '200,000 pilots')].filter(Boolean).join('\n')));
+    box.appendChild(cc);
+  }
+  async function loadStorage() {
+    say('Loading storage…');
+    renderStorage(await call('storage-status'));
+    say('');
+  }
+
   function guard(fn) { return function () { fn().catch(function (e) { say(e.message, 'err'); }); }; }
   $('stLoad').onclick = guard(loadStats);
   $('s0Load').onclick = guard(loadSeason0);
   $('bkLoad').onclick = guard(loadBackups);
   $('bkNow').onclick = guard(backupNow);
   $('bkUpload').onclick = guard(uploadBackup);
+  $('sgLoad').onclick = guard(loadStorage);
   $('loadEx').onclick = guard(loadExceptions);
   $('find').onclick = guard(find);
   $('q').addEventListener('keydown', function (e) { if (e.key === 'Enter') guard(find)(); });
