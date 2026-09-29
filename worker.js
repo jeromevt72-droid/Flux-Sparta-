@@ -1146,6 +1146,7 @@ async function adminSummary(request, env) {
 }
 /* OWNER SUMMARY for PLAYER STATS: the same insights, without the rest of the summary. */
 async function adminInsights(request, env) {
+  const denied = requireAdmin(request, env); if (denied) return denied;
   const r = await adminSummary(request, env);
   if (!r.ok) return r;
   const d = await r.json();
