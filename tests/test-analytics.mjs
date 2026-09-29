@@ -11,7 +11,11 @@
 //   S6 raw events are kept 90 days, then only the totals;
 //   S7 the dashboard data needs the admin password;
 //   S8 stats never touch the leaderboard (own instance, no player data loaded);
-//   S9 a flood from one pilot is capped per day.
+//   S9 a flood from one pilot is capped per day;
+//   S10 GAMEPLAY: "play" events (per run and speed step: seconds, orb hits, wrong
+//      hits, lost balls) are cleaned (difficulty whitelisted, step capped at 8,
+//      numbers clamped, extra fields dropped), added into day totals keyed only by
+//      difficulty and step (never by country or source), and share the daily cap.
 // Game (REAL page, harness vm):
 //   C1 app open (Home Screen or not) and the first-touch ?src= tag, kept;
 //   C2 first run once, run finished (length, level, difficulty), sent at game
@@ -22,7 +26,9 @@
 //      app is hidden -- once per page load, no timer;
 //   C4 if stats cannot be sent (no sendBeacon, or it throws) the game carries
 //      on and nothing waits;
-//   C5 same-origin only, and no name is ever sent.
+//   C5 same-origin only, and no name is ever sent;
+//   C6 GAMEPLAY: at game over one "play" event per speed step reached goes in the
+//      same request (difficulty, step, seconds, hits, wrong hits, lost balls).
 // Ends with negative controls.
 import fs from 'fs'; import path from 'path'; import vm from 'vm';
 import { fileURLToPath, pathToFileURL } from 'url';
@@ -33,7 +39,7 @@ const GAME_HTML = fs.readFileSync(path.join(ROOT, 'public', 'play', 'index.html'
 const WORKER_SRC = fs.readFileSync(path.join(ROOT, 'worker.js'), 'utf8');
 const scriptsOf = (h) => [...h.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
 const ORIGIN = 'https://flux-sparta-3.example.dev', DAY = 86400000, T0 = Date.parse('2026-10-01T12:00:00Z');
-const PID = '11111111-aaaa-4bbb-8ccc-000000000001', PID2 = '22222222-aaaa-4bbb-8ccc-000000000002';
+const PID = '11111111-aaaa-4bbb-8ccc-000000000001', PID2 = '22222222-aaaa-4bbb-8ccc-000000000002', PID3 = '33333333-aaaa-4bbb-8ccc-000000000003';
 
 class FakeStorage {
   constructor() { this.map = new Map(); }
@@ -111,6 +117,23 @@ async function suite({ gameHtml, workerMod, quiet = false }) {
     await Promise.all(flood); rep = await report();
     const today = dayOf(rep, new Date(now).toISOString().slice(0, 10));
     ck('S9 a flood from one pilot is capped (at most ~500 events a day)', today.all.shares <= 520 && today.all.shares >= 480, String(today.all.shares));
+    // ---- GAMEPLAY (a new day, a new pilot)
+    now = T0 + 97 * DAY;
+    await send(PID3, [{ e: 'play', diff: 'easy', st: 0, sec: 60, hit: 30, wrong: 5, lost: 1 }, { e: 'play', diff: 'easy', st: 1, sec: 40, hit: 20, wrong: 4, lost: 1 },
+      { e: 'play', diff: 'hard', st: 12, sec: 99999, hit: -5, wrong: 'x', lost: 77 }, { e: 'play', diff: 'nightmare', st: 0, sec: 10, hit: 1, wrong: 0, lost: 0 },
+      { e: 'play', diff: 'easy', st: 0, sec: 30, hit: 10, wrong: 1, lost: 0, name: 'TITAN', pid: PID3, email: 'a@b.c' }], { country: 'PH', src: 'tiktok' });
+    rep = await report(); const d97 = dayOf(rep, new Date(now).toISOString().slice(0, 10));
+    const pe0 = d97['p:easy:0'] || {}, pe1 = d97['p:easy:1'] || {}, ph8 = d97['p:hard:8'] || {};
+    ck('S10 gameplay day totals by difficulty and speed step: Easy step 0 (2 runs, 90 s, 40 hits, 6 wrong, 1 lost), Easy step 1',
+      pe0.runs === 2 && pe0.sec === 90 && pe0.hit === 40 && pe0.wrong === 6 && pe0.lost === 1 && pe1.runs === 1 && pe1.sec === 40 && pe1.hit === 20, JSON.stringify([pe0, pe1]));
+    ck('S10 ...cleaned: unknown difficulty dropped, step capped at 8, seconds at 2 hours, lost balls at 4, bad numbers 0',
+      !Object.keys(d97).some((k) => /nightmare|p:hard:12/.test(k)) && ph8.runs === 1 && ph8.sec === 7200 && ph8.hit === 0 && ph8.wrong === 0 && ph8.lost === 4, JSON.stringify(ph8));
+    const store97 = JSON.stringify([...inst().state.storage.map.entries()]);
+    ck('S10 ...kept only by difficulty and step (not by country or source), and no name or other extra field is stored',
+      !(d97.all || {}).hit && !(d97['c:PH'] || {}).hit && !(d97['s:tiktok'] || {}).sec && !store97.includes('TITAN') && !store97.includes('a@b.c') && !store97.includes(PID3), Object.keys(d97).join(','));
+    const flood2 = []; for (let i = 0; i < 14; i++) flood2.push(send(PID3, Array.from({ length: 40 }, () => ({ e: 'play', diff: 'medium', st: 0, sec: 1, hit: 1, wrong: 0, lost: 0 }))));
+    await Promise.all(flood2); rep = await report(); const pm0 = (dayOf(rep, new Date(now).toISOString().slice(0, 10))['p:medium:0'] || {}).runs || 0;
+    ck('S10 ...and they share the per-pilot daily cap (~500 events)', pm0 <= 520 && pm0 >= 400, String(pm0));
   } catch (e) { ck('server section ran', false, String(e.stack || e).slice(0, 300)); }
 
   try {
@@ -144,6 +167,13 @@ async function suite({ gameHtml, workerMod, quiet = false }) {
     let zb = {}; try { zb = JSON.parse(await z.beacons[0].b.text()); } catch (e) {}
     ck('C2 ...with no score to upload, the run\'s stats go alone: one request', z.beacons.length === 1 && z.beacons[0].u === '/api/events' && (zb.events || []).some((e) => e.e === 'run_end') && !z.posts.length, z.beacons.length + ' ' + z.posts.length);
     ck('C5 no name is ever sent with the stats', !JSON.stringify(body).includes('TITAN') && !JSON.stringify(zb).includes('TITAN') && zb.pid === 'p-stats-1');
+    const pg = bootGame({ fluxRunsPlayed: '4', fluxDifficulty: 'medium' }); pg.g.ctx.newGame(); pg.run('playing=true; fluxStatsQueue=[];');
+    for (let i = 0; i < 90; i++) { pg.run('targets=[]; ball.y=H*.4; ball.vy=0; if(Math.abs(ball.vx)<1)ball.vx=4; playing=true;'); pg.g.ctx.update(1 / 60); }
+    pg.run('targets=[]; addTarget(ball.color,ball.x,ball.y,20);'); pg.g.ctx.fuse(pg.run('targets[0]')); pg.g.ctx.registerMiss(); await pg.gameOver();
+    let pbody = {}; try { const up = pg.posts.filter((x) => x.u === '/api/submit-score').pop(); pbody = up ? up.body.stats : JSON.parse(await pg.beacons[pg.beacons.length - 1].b.text()); } catch (e) {}
+    const play = (pbody.events || []).filter((e) => e.e === 'play');
+    ck('C6 at game over the run\'s gameplay goes in the same request: one "play" event per speed step (difficulty, step, seconds, hits, wrong hits, lost balls), no name',
+      play.length === 1 && play[0].diff === 'medium' && play[0].st === 0 && play[0].sec >= 1 && play[0].sec <= 2 && play[0].hit === 1 && play[0].wrong === 0 && play[0].lost === 1 && Object.keys(play[0]).sort().join(',') === 'diff,e,hit,lost,sec,st,wrong', JSON.stringify(play));
     const s = bootGame({ fluxRunsPlayed: '4' }); s.run('fluxStatsQueue=[];'); s.g.ctx.newGame(); s.run('pendingLevel=level+1;'); s.g.ctx.finishLevelUp();
     ck('C3 a level-up is counted with its level and difficulty', /"e":"level_up","lvl":2/.test(s.run('JSON.stringify(fluxStatsQueue)')), s.run('JSON.stringify(fluxStatsQueue)'));
     s.run('shareInfo=null;'); s.g.win.document.getElementById('shareBtn').onclick();
@@ -187,6 +217,10 @@ await control('stats written into the leaderboard instance', 'S8', { worker: rep
 await control('no daily cap', 'S9', { worker: rep('if (p.k >= 500) return', 'if (false) return') });
 await control('later src overwrites the first one', 'C1', { game: rep("  if(!s){\n    try{ const q=", "  if(true){\n    try{ const q=") });
 await control('stats sent without a guard (a failure breaks game over)', 'C4', { game: rep("    navigator.sendBeacon(FLUX_STATS_URL,new Blob([body],{type:'text/plain'}));   // fire and forget\n  }catch(x){ fluxStatsQueue=[]; }", "    navigator.sendBeacon(FLUX_STATS_URL,new Blob([body],{type:'text/plain'}));   // fire and forget\n  }finally{}") });
+await control('gameplay also kept by country (more detail than needed)', 'S10', { worker: rep('const pg = ["p:" + e.diff + ":" + e.st];', 'const pg = ["p:" + e.diff + ":" + e.st, "c:" + country];') });
+await control('gameplay difficulty not whitelisted', 'S10', { worker: rep('    if (!VALID_DIFFICULTIES.has(e.diff)) return null;\n    out.diff = e.diff; out.st', '    out.diff = String(e.diff); out.st') });
+await control('gameplay step not capped', 'S10', { worker: rep('out.st = anInt(e.st, 0, AN_MAX_STEP);', 'out.st = anInt(e.st, 0, 99);') });
+await control('gameplay not sent at game over', 'C6', { game: rep("fluxTrack('play',{diff:difficulty,", "void({diff:difficulty,") });
 await control('the pilot name is sent', 'C5', { game: rep('JSON.stringify({pid:playerId,country:country,', 'JSON.stringify({pid:playerId,name:callsign,country:country,') });
 const total = main.F + NC;
 console.log('\n' + (total ? 'STATS FAILED: ' + main.F + ' check(s), ' + NC + ' uncaught control(s)' : 'STATS PASSED: all checks and all negative controls'));

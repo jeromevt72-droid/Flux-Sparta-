@@ -55,7 +55,29 @@ const PRECACHE = [
 ];
 
 function isNetworkOnly(url) {
-  return url.pathname.startsWith('/api/');
+  return url.pathname.startsWith('/api/') || isAdmin(url);
+}
+/* FLUX COMMAND: the admin page, its manifest and icons, and the admin API are
+   never stored by this worker. The admin page is fetched from the network every
+   time; offline it gets a plain "reconnect" page -- never a copy of the game,
+   never old admin data. */
+function isAdmin(url) {
+  return url.pathname === '/admin.html' || url.pathname === '/admin' || url.pathname.startsWith('/admin-') ||
+         url.pathname.startsWith('/admin.') || url.pathname.startsWith('/api/admin/');
+}
+function adminOffline() {
+  return new Response(
+    '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">' +
+    '<meta name="robots" content="noindex,nofollow"><title>FLUX COMMAND</title>' +
+    '<body style="margin:0;background:#07091d;color:#eaf7ff;font-family:-apple-system,sans-serif;text-align:center;' +
+    'padding:calc(env(safe-area-inset-top) + 60px) 24px 40px">' +
+    '<h1 style="font-size:15px;letter-spacing:.42em;color:#62eaff">FLUX COMMAND</h1>' +
+    '<p style="font-size:17px">Offline — reconnect.</p>' +
+    '<p style="color:#8fa3d8;font-size:14px;line-height:1.5">FLUX COMMAND needs a connection. Nothing from the admin page is kept on this device.</p>' +
+    '<button onclick="location.reload()" style="font:inherit;font-weight:700;letter-spacing:.14em;font-size:12px;border:0;border-radius:11px;' +
+    'padding:13px 18px;background:#62eaff;color:#04121a">TRY AGAIN</button>',
+    { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } }
+  );
 }
 function isCacheable(response) {
   return !!response &&
@@ -126,6 +148,10 @@ self.addEventListener('fetch', function (event) {
 
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+  if (req.mode === 'navigate' && isAdmin(url)) {
+    event.respondWith(fetch(req).catch(adminOffline));   // FLUX COMMAND: network only, never stored
+    return;
+  }
   if (isNetworkOnly(url)) return;
 
   if (req.mode === 'navigate' && inScope(url)) {

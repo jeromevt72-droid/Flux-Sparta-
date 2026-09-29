@@ -4,7 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
-<title>FLUX · Admin</title>
+<meta name="format-detection" content="telephone=no">
+<meta name="theme-color" content="#07091d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FLUX COMMAND">
+<meta name="application-name" content="FLUX COMMAND">
+<link rel="manifest" href="/admin.webmanifest">
+<link rel="apple-touch-icon" href="/admin-icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/admin-icon-192.png">
+<title>FLUX COMMAND</title>
 <!--
   FLUX ADMIN (RC2.8) — built for exceptions, not daily supervision.
   Everyday: find a player, remove a score, restrict / unrestrict, and the short
@@ -12,20 +22,42 @@
   records, name bans. PLAYER STATS: the in-house anonymous statistics
   (same password). GUIDE: plain-words how-to for the owner.
 
-  Safety: every action needs the ADMIN_TOKEN secret, checked on the server.
-  The password lives only in this page's memory -- never saved, never sent
-  anywhere but this site's own admin API. No manifest, no service worker, no
-  player storage. All data is written with textContent. Players are identified
-  by public tag and leaderboard hash; no playerId ever reaches this page.
+  FLUX COMMAND: this page installs as its own Home Screen app (admin.webmanifest,
+  scope /admin.html only -- separate from the player game's manifest). The
+  owner logs in once: the server checks the ADMIN_TOKEN secret and answers with
+  a session cookie the page cannot read (HttpOnly, Secure, SameSite=Strict,
+  Path=/api/admin). The password is sent once, to this site's own admin API,
+  and is never saved. Sessions end after 30 minutes without use or 12 hours at
+  most; 5 wrong passwords lock a device out for 15 minutes. The first screen is
+  the owner summary (TODAY), then the sections below, unchanged.
+  Safety: every action is still checked on the server. No service worker is
+  registered here, and the site's worker never caches this page or the admin
+  API (offline shows "reconnect", never old data). No player storage. All data
+  is written with textContent. Players are identified by public tag and
+  leaderboard hash; no playerId ever reaches this page.
 -->
 <style>
   :root{--bg:#07091d;--panel:#0d1230;--panel2:#10173a;--line:#1f2a5c;--text:#eaf7ff;--dim:#8fa3d8;
         --cyan:#62eaff;--pink:#ff4f98;--amber:#ffc15e;--green:#5dffb0}
   *{box-sizing:border-box}
+  [hidden]{display:none!important}
+  html{-webkit-text-size-adjust:100%;background:var(--bg)}
   body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-       padding:calc(env(safe-area-inset-top) + 24px) 18px 70px}
+       padding:calc(env(safe-area-inset-top) + 24px) max(18px, env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + 70px) max(18px, env(safe-area-inset-left))}
   main{max-width:680px;margin:0 auto}
+  .top{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:40px}
   h1{font-size:15px;letter-spacing:.42em;margin:0 0 4px;color:var(--cyan)} h1 span{color:var(--text)}
+  button.small{padding:9px 12px;font-size:11px}
+  .banner{background:rgba(255,193,94,.12);border:1px solid var(--amber);color:var(--amber);border-radius:12px;padding:12px 14px;font-size:14px;line-height:1.45;margin:0 0 16px}
+  .login{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;margin:8px 0 0}
+  .lbl{display:block;font-size:11px;letter-spacing:.24em;color:var(--dim);font-weight:700;margin:0 0 10px}
+  .loginmsg{min-height:22px;margin:12px 0 6px;font-size:15px;line-height:1.4;color:var(--pink)}.loginmsg.dim{color:var(--dim)}.loginmsg.ok{color:var(--green)}
+  .tile.hot{border-color:var(--pink)}.tile.hot b{color:var(--pink)}
+  .tile.calm b{color:var(--green)}
+  .asof{color:var(--dim);font-size:12px;line-height:1.45;margin:4px 0 12px}
+  #status:empty{min-height:0;margin:0}
+  #app > h2:first-of-type{margin-top:6px}
+  .loginmsg:empty{min-height:0;margin:0 0 4px}
   h2{font-size:11px;letter-spacing:.28em;color:var(--dim);margin:30px 0 10px;font-weight:700}
   .lede{color:var(--dim);font-size:14px;margin:0 0 18px;line-height:1.5}
   input[type=password],input[type=text],input[type=email]{width:100%;background:var(--panel);border:1px solid var(--line);
@@ -77,14 +109,35 @@
 </head>
 <body>
 <main>
-  <h1>FLUX <span>· ADMIN</span></h1>
+  <div class="top">
+    <h1>FLUX <span>· COMMAND</span></h1>
+    <button id="logout" class="ghost small" type="button" hidden>LOG OUT</button>
+  </div>
   <p class="lede">For exceptions only. Scores, uploads and payments run on their own.</p>
+  <div id="offline" class="banner" role="status" hidden>Offline — reconnect to use FLUX COMMAND. Nothing from the admin API is kept on this device.</div>
 
-  <input id="token" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Admin password">
+  <section id="login" class="login">
+    <form id="loginForm">
+      <label class="lbl" for="token">ADMIN PASSWORD</label>
+      <div class="row">
+        <input id="token" type="password" autocomplete="current-password" autocapitalize="off" spellcheck="false" placeholder="Admin password">
+        <button id="loginBtn" class="go" type="submit">LOG IN</button>
+      </div>
+    </form>
+    <div id="loginMsg" class="loginmsg" role="alert" aria-live="assertive"></div>
+    <p class="note">You stay logged in for 30 minutes without use, 12 hours at most. The password is never saved on this device.
+    5 wrong passwords lock this device out for 15 minutes.</p>
+  </section>
+
+  <div id="app" hidden>
   <div id="status" role="status" aria-live="polite"></div>
 
-  <h2>FREE PLAN USAGE · TODAY (UTC)</h2>
+  <h2>TODAY</h2>
   <div id="usageAlert" class="usageAlert hidden" role="alert"></div>
+  <div id="summary"></div>
+  <div class="row"><button id="sumLoad" class="ghost" style="flex:1">REFRESH SUMMARY</button></div>
+
+  <h2>FREE PLAN USAGE · TODAY (UTC)</h2>
   <div class="row"><button id="usageLoad" class="ghost" style="flex:1">CHECK REQUESTS TODAY</button></div>
   <div id="usage"></div>
 
@@ -116,6 +169,21 @@
   <p class="note">Read-only. Every best from before Season 1, kept when the boards were reset. Nothing here is public.</p>
   <div class="row"><button id="s0Load" class="ghost" style="flex:1">SHOW SEASON 0 SCORES</button></div>
   <div id="season0"></div>
+
+  <h2>BACKUPS</h2>
+  <p class="note">The leaderboard (scores, pilots, purchases, restore log, bans, season archive) is copied every day and each
+  copy is checked. Restoring is never automatic. See <b>Backups and restore</b> in the guide below.</p>
+  <div class="row">
+    <button id="bkLoad" class="ghost" style="flex:1">SHOW BACKUPS</button>
+    <button id="bkNow" class="go">BACK UP NOW</button>
+  </div>
+  <div id="bkStatus"></div>
+  <div id="backups"></div>
+  <p class="note">Have a downloaded backup file? Upload it here; it is checked, then listed like any other backup.</p>
+  <div class="row">
+    <input id="bkFile" type="file" accept=".json,application/json" aria-label="Backup file" style="flex:1;min-width:0;color:var(--dim);font-size:13px">
+    <button id="bkUpload" class="ghost">UPLOAD</button>
+  </div>
 
   <details id="guide" class="guide">
     <summary>GUIDE</summary>
@@ -157,6 +225,28 @@
       <li>A game page left open from before Season 1 cannot post old-rate scores; it is refused until the page reloads.</li>
     </ul>
 
+    <h3>Backups and restore</h3>
+    <ul>
+      <li><b>Every day</b> (first check after midnight UTC) the server copies the whole leaderboard: pilots and their bests on every
+      difficulty, purchases (skins), the restore-code log, restrictions, name bans, flags, country figures and the Season 0 archive.
+      Each copy is read back and checked straight away; <b>BACKUPS</b> shows ✓ for a good copy and ✗ for one that failed.
+      If a day's backup fails it is tried again on the next check and the failure is shown here in pink.</li>
+      <li><b>Kept:</b> the last 14 daily copies, plus up to 4 weekly ones (never older than 28 days). Copies you make with
+      <b>BACK UP NOW</b>, the safety copies made before a restore, and uploaded files are kept up to 28 days.</li>
+      <li><b>DOWNLOAD</b> saves a copy as a file on this device: an off-site copy in case Cloudflare storage itself is ever lost.
+      Keep it private (it holds every pilot's scores and purchases), and delete downloaded files older than 30 days, and any
+      made before a privacy deletion, so the 30-day promise in the Privacy Policy holds for them too.</li>
+      <li><b>DRY RUN</b> changes nothing. It shows what a restore of that copy would do: which stored parts would be added, changed
+      or removed, and pilots, scores and purchases now versus after. Use it first, every time.</li>
+      <li><b>Real restore</b> is only for a real accident: the boards were wiped, a bad update damaged scores, or purchases went missing.
+      Type the phrase it shows (<b>RESTORE</b> and the backup's name) and press <b>RESTORE NOW</b>. The server first saves a safety copy of the
+      leaderboard as it is now, then restores, then checks the result matches the backup. To undo a restore, restore that safety copy.</li>
+      <li>A restore puts the leaderboard back to that moment: <b>scores and purchases made after it are lost</b>. Purchases from the
+      last 3 days are delivered again by the automatic payment check; older ones can be looked up in the purchase records under ADVANCED.
+      Anonymous PLAYER STATS are not part of backups.</li>
+      <li>A <b>privacy deletion</b> also removes the pilot from every backup on the server, so a restore never brings them back.</li>
+    </ul>
+
     <h3>Reading PLAYER STATS</h3>
     <ul>
       <li><b>Active players</b>: pilots who opened FLUX that day (each counted once). <b>Monthly active</b>: each counted once per calendar month.</li>
@@ -171,6 +261,50 @@
       Compare their <b>Day 7</b> and <b>Day 30</b> columns — higher means that platform brings players who stay. Always post
       links with a tag, e.g. <code>…/play/?src=tiktok</code>.</li>
       <li>Individual events are kept 90 days, then only totals. Nothing here identifies a person.</li>
+    </ul>
+
+    <h3>Reading GAMEPLAY (tuning the speed)</h3>
+    <ul>
+      <li>One row per <b>difficulty</b> and <b>speed step</b> of the ball (0 = the starting speed; the ball gets a little
+      faster at each step, by run time). It is for everyone, whatever you choose under Group.</li>
+      <li><b>Runs</b>: finished runs that reached that step. <b>Time at step</b>: total play time at that speed, and its share
+      of all play time on that difficulty. If almost all the time is at step 0-1, players rarely get far.</li>
+      <li><b>Hit rate</b>: orb hits ÷ (orb hits + wrong-colour hits). <b>Misses / min</b>: wrong-colour hits plus lost balls
+      per minute at that step. <b>Lives lost / min</b>: lost balls per minute.</li>
+      <li>How to tune: if <b>lives lost / min</b> jumps between two steps, that step is too big a jump; if a difficulty loses
+      lives quickly already at step 0, its starting speed is too fast. A steady hit rate with few lives lost at the top step
+      means that difficulty could go a little faster. Compare Easy, Medium and Hard: each should lose lives faster than the
+      one before at the same step.</li>
+      <li>Only totals by difficulty and step are kept here — no country, no source, nothing about a person.</li>
+    </ul>
+
+    <h3>TODAY (the first screen)</h3>
+    <ul>
+      <li>Today's PLAYER STATS so far (UTC day): active and new players, finished runs, average run, share rate and opens from the Home Screen app.</li>
+      <li><b>Exceptions</b>: the same list as CHECK EXCEPTIONS (unusual scores plus payments not delivered). Pink means something is waiting.</li>
+      <li><b>Purchases today</b>: skins delivered since 00:00 UTC. Amounts are in the Stripe dashboard.</li>
+      <li><b>Failed logins</b>: wrong admin passwords in the last 24 hours, with the time and a short device code (never a password or an address).
+      Many you did not type yourself means someone is guessing: change the password (below).</li>
+      <li><b>Last backup</b>: the same status as BACKUPS below; amber means no good daily backup in the last 36 hours or a recent failure.</li>
+    </ul>
+
+    <h3>FLUX COMMAND on your iPhone or iPad</h3>
+    <ol>
+      <li>Open <b>/admin.html</b> on this site in <b>Safari</b>.</li>
+      <li>Tap <b>Share</b> → <b>Add to Home Screen</b> → <b>Add</b>. The amber FLUX COMMAND icon opens this page full screen, separate from the game.</li>
+      <li>Log in with the admin password. You stay logged in for 30 minutes without use and 12 hours at most; then it asks again.
+      Anything you had typed on the page is kept. <b>LOG OUT</b> ends the session at once.</li>
+      <li>It needs a connection. Offline it only says to reconnect; no admin data is kept on the device.</li>
+    </ol>
+
+    <h3>Locked out?</h3>
+    <ul>
+      <li>"Too many requests from this device" is the general admin speed limit (30 requests a minute); it lasts under a minute and never counts as a wrong password.</li>
+      <li>5 wrong passwords from one device within 15 minutes lock that device for <b>15 minutes</b>. The login screen says how long. Wait, then try again.</li>
+      <li>If many wrong passwords arrive from everywhere (50 in 15 minutes), a 15-minute safety mode starts in which one wrong password locks a device.
+      A device that has not typed a wrong password can still log in, and you stay logged in where you already are.</li>
+      <li>Always works: in the Cloudflare dashboard open <b>Workers &amp; Pages → flux-sparta-3 → Settings → Variables and Secrets</b>, edit
+      <b>ADMIN_TOKEN</b> and save a new password. Every lock is cleared and every session is logged out at once. Log in with the new password.</li>
     </ul>
   </details>
 
@@ -199,11 +333,13 @@
     </div>
     <div id="bans"></div>
   </details>
+  </div>
 </main>
 <script>
 (function () {
   var $ = function (id) { return document.getElementById(id); };
   var tokenEl = $('token'), statusEl = $('status'), showPrivacy = false;
+  var HDR = { 'Content-Type': 'application/json', 'X-FLUX-Admin': '1' };   // FLUX COMMAND: required on every admin request (CSRF)
 
   function say(msg, kind) { statusEl.textContent = msg || ''; statusEl.className = kind || ''; }
   function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
@@ -211,15 +347,123 @@
   function fmt(n) { return Number(n || 0).toLocaleString(); }
   function when(t) { return t ? new Date(t).toLocaleString() : 'unknown'; }
 
+  /* FLUX COMMAND: the login session lives in an HttpOnly cookie the browser
+     sends to /api/admin only; this script never sees it or the password again. */
+  async function post(path, body) {
+    var res;
+    try {
+      res = await fetch('/api/admin/' + path, { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: HDR, body: JSON.stringify(body || {}) });
+    } catch (e) { offline(true); throw new Error('Offline — reconnect and try again.'); }
+    var data = {}; try { data = (await res.json()) || {}; } catch (e) {}
+    return { status: res.status, ok: res.ok, data: data, retry: res.headers && res.headers.get ? res.headers.get('Retry-After') : null };
+  }
   async function call(path, body) {
-    if (!tokenEl.value) throw new Error('Enter the admin password first.');
-    var res = await fetch('/api/admin/' + path, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-token': tokenEl.value },
-      body: JSON.stringify(body || {})
-    });
-    var data = {}; try { data = await res.json(); } catch (e) {}
-    if (!res.ok) throw new Error(res.status === 401 ? 'Wrong admin password.' : (data.error || ('Error ' + res.status)));
-    return data;
+    var r = await post(path, body);
+    if (r.status === 401) { sessionEnded(); throw new Error('Your session ended. Log in again — what you typed is kept.'); }
+    if (!r.ok) throw new Error(r.data.error || ('Error ' + r.status));
+    return r.data;
+  }
+
+  /* ---------------- login / session ---------------- */
+  function loginSay(msg, kind) { var m = $('loginMsg'); m.textContent = msg || ''; m.className = 'loginmsg' + (kind ? ' ' + kind : ''); }
+  function showApp() { $('login').hidden = true; $('app').hidden = false; $('logout').hidden = false; }
+  function showLogin(msg, kind) {
+    $('app').hidden = true; $('logout').hidden = true; $('login').hidden = false;
+    loginSay(msg, kind);
+    try { tokenEl.focus(); } catch (e) {}
+  }
+  // A 401 on any action: back to the login screen. The admin sections are only
+  // hidden, not cleared, so anything typed there is still there after logging in.
+  function sessionEnded() { if (!$('app').hidden) showLogin('Your session ended. Log in again — what you typed is kept.', 'dim'); }
+  function lockedText(r) {
+    var m = Number(r.data.minutes) || Math.ceil((Number(r.retry) || 900) / 60);
+    return 'Too many wrong passwords. Locked for ' + m + ' min. Wait, or change ADMIN_TOKEN in the Cloudflare dashboard to reset every lock.';
+  }
+  async function login(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    var pw = tokenEl.value, b = $('loginBtn');
+    if (!pw) { loginSay('Enter the admin password.'); return; }
+    b.disabled = true; loginSay('Checking…', 'dim');
+    try {
+      var r = await post('login', { password: pw });
+      if (r.ok) { tokenEl.value = ''; loginSay(''); showApp(); say(''); guard(loadSummary)(); }
+      else if (r.status === 429 && r.data.rateLimited) loginSay('Too many requests from this device. Wait ' + (Number(r.data.retryAfterSec) || 60) + ' s and try again.');
+      else if (r.status === 429) { tokenEl.value = ''; loginSay(lockedText(r)); }
+      else if (r.status === 401) {
+        tokenEl.value = ''; var left = Number(r.data.attemptsLeft);
+        loginSay('Wrong password.' + (left > 0 ? ' ' + left + (left === 1 ? ' try' : ' tries') + ' left before a 15-minute lock.' : ''));
+      }
+      else loginSay(r.data.error || ('Error ' + r.status));
+    } catch (x) { loginSay(x.message); }
+    b.disabled = false;
+  }
+  function wipe() {
+    ['summary', 'usage', 'exceptions', 'results', 'stats', 'season0', 'purchases', 'bans'].forEach(function (id) { $(id).textContent = ''; });
+    $('usageAlert').classList.add('hidden');
+    ['q', 'pq', 'banName'].forEach(function (id) { $(id).value = ''; });
+    say('');
+  }
+  async function logout() {
+    try { await post('logout'); } catch (e) {}
+    wipe(); showLogin('Logged out.', 'ok');
+  }
+  function offline(on) {
+    $('offline').hidden = !on;
+    if (on) { var box = $('summary'); box.textContent = ''; box.appendChild(el('div', 'empty', 'Offline — reconnect to see today’s numbers.')); }
+  }
+  async function checkSession(quiet) {
+    var r = await post('session');
+    if (r.ok) { if ($('app').hidden) { showApp(); guard(loadSummary)(); } return; }
+    if (r.status === 401) { if ($('app').hidden) showLogin(''); else sessionEnded(); return; }
+    if (!quiet) showLogin(r.data.error || ('Error ' + r.status));
+  }
+
+  /* ---------------- owner summary (TODAY) ---------------- */
+  async function loadSummary() {
+    var box = $('summary');
+    var d = await call('summary');
+    box.textContent = '';
+    var tiles = el('div', 'tiles');
+    function tile(v, label, cls) { var t = el('div', 'tile' + (cls ? ' ' + cls : '')); t.appendChild(el('b', null, v)); t.appendChild(el('span', null, label)); tiles.appendChild(t); }
+    var p = d.players, ex = d.exceptions, pu = d.purchases, sec = d.security;
+    if (p) {
+      tile(fmt(p.active), 'active players'); tile(fmt(p.newPlayers), 'new players'); tile(fmt(p.runs), 'runs');
+      tile(mins(p.avgRunSec == null ? NaN : p.avgRunSec), 'avg run'); tile(rate(p.shareRate == null ? NaN : p.shareRate), 'share rate');
+      tile(fmt(p.homeOpens), 'Home Screen opens');
+    }
+    tile(ex ? fmt(ex.total) : '—', ex && ex.total === 1 ? 'exception needs attention' : 'exceptions need attention', ex ? (ex.total ? 'hot' : 'calm') : '');
+    tile(pu ? fmt(pu.today) : '—', 'purchases today');
+    box.appendChild(tiles);
+    if (!p) box.appendChild(el('div', 'empty', 'Player stats are unavailable right now.'));
+    var c = el('div', 'card' + (sec && (sec.lockedClients || sec.safetyUntil) ? ' restricted' : ''));
+    c.appendChild(el('div', 'name', 'Failed logins'));
+    if (!sec) c.appendChild(el('div', 'meta', 'Unavailable right now.'));
+    else {
+      c.appendChild(el('div', 'meta', (sec.failed24h ? fmt(sec.failed24h) + ' in the last 24 h · last ' + when(sec.lastFailedAt) : 'None in the last 24 h.') +
+        (sec.lockedClients ? '\n' + fmt(sec.lockedClients) + ' device' + (sec.lockedClients === 1 ? '' : 's') + ' locked out now' : '') +
+        (sec.safetyUntil ? '\nSafety mode (one wrong password locks a device) until ' + when(sec.safetyUntil) : '')));
+      (sec.recent || []).forEach(function (x) {
+        c.appendChild(el('div', 'logrow', when(x.at) + ' · device ' + x.c + (x.lock ? ' · locked 15 min' : '') + (x.g ? ' · safety mode started' : '')));
+      });
+    }
+    box.appendChild(c);
+    var bk = d.backup, bc = el('div', 'card' + (bk && !bk.ok ? ' restricted' : ''));
+    bc.appendChild(el('div', 'name', 'Last backup'));
+    bc.appendChild(el('div', 'meta', !bk ? 'Unavailable right now.' :
+      (bk.lastDailyAt ? 'Last good daily backup: ' + when(bk.lastDailyAt) : 'No daily backup yet.') +
+      (bk.ok ? ' ✓' : '\n' + (bk.stale ? 'No daily backup in the last 36 hours. ' : '') + (bk.lastError ? 'Latest failure ' + when(bk.lastError.at) + ': ' + bk.lastError.error : '') + '\nSee BACKUPS below.')));
+    box.appendChild(bc);
+    // FREE PLAN: today's requests vs the free daily limits, and the 80% alert, on the first screen.
+    if (d.usage) renderUsage(d.usage, true);
+    var uc = el('div', 'card' + (d.usage && d.usage.alert ? ' restricted' : ''));
+    uc.appendChild(el('div', 'name', 'Free plan usage'));
+    uc.appendChild(el('div', 'meta', !d.usage ? 'Unavailable right now.' :
+      'Worker requests ' + fmt(d.usage.usage.workerRequests) + ' / ' + fmt(d.usage.limits.workerRequests) + ' (' + Math.round(d.usage.pct.workerRequests) + '%)' +
+      ' · Durable Object requests ' + Math.round(d.usage.pct.doRequests) + '% · rows written ' + Math.round(d.usage.pct.rowsWritten) + '%' +
+      (d.usage.alert ? '\nAbove ' + d.usage.alertPct + '% of a free daily limit. See FREE PLAN USAGE below.' : '')));
+    box.appendChild(uc);
+    box.appendChild(el('div', 'asof', (p ? 'Today = ' + p.date + ' (UTC)' : 'Today (UTC)') + ' · updated ' + new Date(d.at || Date.now()).toLocaleTimeString() +
+      ' · purchase amounts are in Stripe'));
   }
   async function act(button, busy, fn) {
     var label = button.textContent; button.disabled = true; button.textContent = busy;
@@ -231,7 +475,6 @@
     var box = $('exceptions'); box.textContent = '';
     say('Checking…');
     var d = await call('exceptions');
-    loadUsage(true).catch(function () {});   // FREE PLAN: the usage alert shows with the exceptions
     var flags = d.flags || [], delivery = d.delivery || [];
     if (!flags.length && !delivery.length) { box.appendChild(el('div', 'empty', 'Nothing needs attention.')); say(''); renderBans(d.nameBans || []); renderRestoreLog(d.restoreLog || []); return; }
     delivery.forEach(function (x) {
@@ -429,7 +672,28 @@
     });
     return out;
   }
-  window.FLUX_ADMIN_STATS = { summarize: summarize };
+  // GAMEPLAY: the server's "p:<difficulty>:<step>" day totals, added over the period, one row per difficulty and speed step.
+  var PLAY_DIFFS = ['easy', 'medium', 'hard'];
+  function summarizePlay(rep) {
+    var cells = {}, perDiff = {};
+    (rep.days || []).forEach(function (d) {
+      Object.keys(d.groups || {}).forEach(function (k) {
+        var m = /^p:(easy|medium|hard):(\d)$/.exec(k); if (!m) return;
+        var v = d.groups[k] || {}, c = cells[k] || (cells[k] = { diff: m[1], step: +m[2], runs: 0, sec: 0, hit: 0, wrong: 0, lost: 0 });
+        ['runs', 'sec', 'hit', 'wrong', 'lost'].forEach(function (f) { c[f] += +v[f] || 0; });
+        perDiff[m[1]] = (perDiff[m[1]] || 0) + (+v.sec || 0);
+      });
+    });
+    var rows = Object.keys(cells).map(function (k) { var c = cells[k], min = c.sec / 60;
+      c.hitRate = (c.hit + c.wrong) ? c.hit / (c.hit + c.wrong) : NaN;
+      c.missesPerMin = min ? (c.wrong + c.lost) / min : NaN;
+      c.livesPerMin = min ? c.lost / min : NaN;
+      c.timeShare = perDiff[c.diff] ? c.sec / perDiff[c.diff] : NaN;
+      return c; });
+    rows.sort(function (a, b) { return PLAY_DIFFS.indexOf(a.diff) - PLAY_DIFFS.indexOf(b.diff) || a.step - b.step; });
+    return { rows: rows };
+  }
+  window.FLUX_ADMIN_STATS = { summarize: summarize, summarizePlay: summarizePlay };
   function table(head, rows) {
     var w = el('div', 'stwrap'), t = el('table', 'st'), tr = el('tr');
     head.forEach(function (h) { tr.appendChild(el('th', null, h)); }); t.appendChild(tr);
@@ -465,6 +729,11 @@
       box.appendChild(table([by === 'src' ? 'Source' : 'Country', 'New', 'Active/day', 'Runs/player', 'Avg run', 'Avg level', 'Share', 'Day 1', 'Day 7', 'Day 30'],
         s.groups.map(function (g) { return [g.label, fmt(g.newPlayers), num(g.avgDaily), num(g.runsPerPlayer), mins(g.avgRunSec), num(g.avgLevel), rate(g.shareRate), rate(g.day1), rate(g.day7), rate(g.day30)]; })));
     }
+    var play = summarizePlay(rep).rows;
+    box.appendChild(el('h2', null, 'GAMEPLAY'));
+    if (!play.length) box.appendChild(el('div', 'empty', 'No gameplay measurements yet for this period.'));
+    else box.appendChild(table(['Difficulty', 'Speed step', 'Runs', 'Time at step', 'Hit rate', 'Misses / min', 'Lives lost / min'],
+      play.map(function (c) { return [c.diff.toUpperCase(), c.step === 0 ? '0 (start)' : String(c.step), fmt(c.runs), mins(c.sec) + ' (' + rate(c.timeShare) + ')', rate(c.hitRate), num(c.missesPerMin), num(c.livesPerMin)]; })));
     box.appendChild(el('p', 'note', 'From ' + rep.from + ' to ' + rep.to + ' (UTC). Individual events are kept ' + rep.keepDays + ' days, then only totals.'));
     say('');
   }
@@ -479,19 +748,21 @@
     var b = el('div', 'bar'), f = el('div', 'fill'); f.style.width = Math.min(100, Math.max(p > 0 ? 1 : 0, p)) + '%'; b.appendChild(f);
     m.appendChild(l); m.appendChild(b); if (note) m.appendChild(el('div', 'note', note)); return m;
   }
-  function renderUsage(d) {
-    var box = $('usage'), al = $('usageAlert'); box.textContent = '';
+  function renderUsage(d, alertOnly) {
+    var box = $('usage'), al = $('usageAlert');
+    var peak0 = Math.max(d.pct.workerRequests || 0, d.pct.doRequests || 0, d.pct.rowsWritten || 0);
+    if (d.alert) {
+      al.textContent = '';
+      al.appendChild(el('b', null, 'ALERT · ' + Math.round(peak0) + '% of a free daily limit used. '));
+      al.appendChild(document.createTextNode('At 100%, score uploads and leaderboards pause until 00:00 UTC. The game keeps working offline and queued scores upload after the reset. Check the Cloudflare dashboard.'));
+      al.classList.remove('hidden');
+    } else al.classList.add('hidden');
+    if (alertOnly) return;
+    box.textContent = '';
     var u = d.usage || {}, L = d.limits || {};
     box.appendChild(meter('Worker requests', u.workerRequests || 0, L.workerRequests, 'Game and site pages are free static files; only /api/ calls count.'));
     box.appendChild(meter('Durable Object requests', u.doRequests || 0, L.doRequests));
     box.appendChild(meter('Storage rows written (estimate)', u.rowsWritten || 0, L.rowsWritten));
-    var peak = Math.max(d.pct.workerRequests || 0, d.pct.doRequests || 0, d.pct.rowsWritten || 0);
-    if (d.alert) {
-      al.textContent = '';
-      al.appendChild(el('b', null, 'ALERT · ' + Math.round(peak) + '% of a free daily limit used. '));
-      al.appendChild(document.createTextNode('At 100%, score uploads and leaderboards pause until 00:00 UTC. The game keeps working offline and queued scores upload after the reset. Check the Cloudflare dashboard.'));
-      al.classList.remove('hidden');
-    } else al.classList.add('hidden');
     box.appendChild(el('p', 'note', 'At this pace: about ' + fmt(d.projectedPct) + '% by the end of the day. Resets ' + when(Date.parse(d.resetsAt)) + '. ' +
       'Approximate: counted by the server itself and never above the real number; the Cloudflare dashboard is exact.'));
     box.appendChild(table(['Date (UTC)', 'Worker', 'Durable Obj.', 'Rows written'], (d.days || []).slice().reverse().map(function (x) { return [x.date, fmt(x.w), fmt(x.d), fmt(x.rw)]; })));
@@ -519,10 +790,136 @@
     say('');
   }
 
+  /* ---------------- backups ---------------- */
+  var BK_KIND = { daily: 'DAILY', manual: 'MANUAL', safety: 'SAFETY', imported: 'UPLOADED' };
+  function kb(n) { return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB'; }
+  function sumText(s) {
+    if (!s) return '';
+    var b = s.bests || {}, k = s.skins || {};
+    return fmt(s.players) + ' pilots · bests easy ' + fmt(b.easy) + ' / medium ' + fmt(b.medium) + ' / hard ' + fmt(b.hard) +
+      '\npurchases: ' + fmt(s.purchasePilots) + ' pilots (toxic ' + fmt(k.toxic) + ', cosmic ' + fmt(k.cosmic) + ', solar ' + fmt(k.solar) + ')' +
+      ' · restore log ' + fmt(s.restoreLog) + ' · bans ' + fmt(s.nameBans) + ' · season ' + (s.season == null ? '—' : s.season);
+  }
+  function renderBkStatus(d) {
+    var box = $('bkStatus'); box.textContent = '';
+    var st = d.status || {}, dl = st.daily, c = el('div', 'card');
+    var ok = dl && dl.ok && !d.stale;
+    var h = el('div'); h.appendChild(el('span', 'name', 'Last backup'));
+    h.appendChild(el('span', 'pill ' + (ok ? 'amber' : 'pink'), ok ? 'OK' : (d.stale ? 'NO RECENT DAILY BACKUP' : 'FAILED')));
+    c.appendChild(h);
+    var lines = [];
+    if (d.lastDaily) lines.push('Last good daily backup: ' + when(d.lastDaily.createdAt));
+    else lines.push('No daily backup yet. The first one runs on the next check after midnight UTC, or press BACK UP NOW.');
+    if (dl) lines.push('Today (' + dl.day + '): ' + (dl.ok ? 'done ✓' : 'failed ✗ after ' + dl.attempts + ' attempt(s): ' + dl.error));
+    if (st.lastError && (!st.lastOk || st.lastError.at > st.lastOk.at)) lines.push('Latest failure ' + when(st.lastError.at) + ': ' + st.lastError.error);
+    c.appendChild(el('div', 'meta', lines.join('\n')));
+    (d.log || []).slice(0, 6).forEach(function (x) {
+      c.appendChild(el('div', 'logrow', when(x.at) + ' · ' + x.event + (x.id ? ' · ' + x.id : '') + (x.error ? '\n' + x.error : '')));
+    });
+    box.appendChild(c);
+  }
+  function renderSnapshot(m) {
+    var c = el('div', 'card bk');
+    var h = el('div');
+    h.appendChild(el('span', 'name', when(m.createdAt)));
+    h.appendChild(el('span', 'pill amber', (BK_KIND[m.kind] || m.kind) + (m.weekly ? ' · WEEKLY' : '')));
+    h.appendChild(el('span', 'pill ' + (m.verified ? 'amber' : 'pink'), m.verified ? 'VERIFIED ✓' : 'FAILED ✗'));
+    c.appendChild(h);
+    c.appendChild(el('div', 'meta', m.id + '\n' + kb(m.bytes) + ' · ' + fmt(m.keyCount) + ' keys · ' + fmt(m.chunks) + ' part(s)' +
+      (m.note ? ' · ' + m.note : '') + '\n' + sumText(m.summary) + (m.verified ? '' : '\nCheck failed: ' + (m.verifyError || 'unknown'))));
+    var a = el('div', 'actions'), out = el('div');
+    if (m.verified) {
+      a.appendChild(btn('DRY RUN', 'ghost', function () { var b = this; act(b, 'CHECKING…', async function () {
+        var r = await call('backup-dry-run', { id: m.id }); showDryRun(out, m, r); b.disabled = false; b.textContent = 'DRY RUN'; say('Dry run done. Nothing was changed.', 'ok'); }); }));
+      a.appendChild(btn('DOWNLOAD', 'ghost', function () { var b = this; act(b, 'PREPARING…', async function () {
+        await download(m.id); b.disabled = false; b.textContent = 'DOWNLOAD'; say('Saved flux-backup-' + m.id + '.json. Keep it private.', 'ok'); }); }));
+    }
+    c.appendChild(a); c.appendChild(out);
+    return c;
+  }
+  function showDryRun(out, m, r) {
+    out.textContent = '';
+    var d = r.diff || {}, n = d.counts || {}, p = d.players || {}, pu = d.purchases || {};
+    var box = el('div', 'card');
+    box.appendChild(el('div', 'name', 'DRY RUN · nothing was changed'));
+    var lines = [];
+    if (r.identical) lines.push('The leaderboard is identical to this backup. A restore would change nothing.');
+    lines.push('Stored parts: ' + fmt(n.added) + ' added, ' + fmt(n.changed) + ' changed, ' + fmt(n.removed) + ' removed, ' + fmt(n.unchanged) + ' unchanged.');
+    if ((d.keysAdded || []).length) lines.push('added: ' + d.keysAdded.join(', '));
+    if ((d.keysChanged || []).length) lines.push('changed: ' + d.keysChanged.join(', '));
+    if ((d.keysRemoved || []).length) lines.push('removed: ' + d.keysRemoved.join(', '));
+    lines.push('Pilots: ' + fmt(p.added) + ' come back, ' + fmt(p.changed) + ' change, ' + fmt(p.removed) + ' removed (new since the backup).');
+    lines.push('Purchases: ' + fmt(pu.added) + ' pilots gain, ' + fmt(pu.changed) + ' change, ' + fmt(pu.removed) + ' lose all skins.');
+    lines.push('\nNOW:\n' + sumText(r.before) + '\n\nAFTER A RESTORE:\n' + sumText(r.after));
+    box.appendChild(el('div', 'meta', lines.join('\n')));
+    box.appendChild(el('p', 'note', 'Real restore: only after an accident. Scores and purchases made after this backup are lost. A safety copy of the leaderboard as it is now is saved first. Type ' + r.confirm + ' to enable it.'));
+    var inp = document.createElement('input'); inp.type = 'text'; inp.autocomplete = 'off'; inp.spellcheck = false; inp.setAttribute('autocapitalize', 'characters');
+    inp.placeholder = r.confirm; inp.className = 'bkConfirm';
+    var go = btn('RESTORE NOW', 'danger', function () { var b = this;
+      if (inp.value !== r.confirm) { say('Type ' + r.confirm + ' exactly.', 'err'); return; }
+      act(b, 'RESTORING…', async function () {
+        var o = await call('backup-restore', { id: m.id, confirm: inp.value });
+        box.textContent = ''; box.appendChild(el('div', 'name ok', 'RESTORED ✓ · ' + m.id));
+        box.appendChild(el('div', 'meta', 'The leaderboard matches the backup. Safety copy of the state before: ' + o.safetyId + '\n' + sumText(o.after)));
+        say('Restored and checked.', 'ok'); loadBackups();
+      }); });
+    go.disabled = true;
+    inp.oninput = function () { go.disabled = inp.value !== r.confirm; };
+    var row = el('div', 'row'); row.appendChild(inp); row.appendChild(go);
+    box.appendChild(row); out.appendChild(box);
+  }
+  async function download(id) {
+    // FLUX COMMAND: the login session (cookie) and the CSRF header, like every admin call; never stored by the site's worker.
+    var res;
+    try { res = await fetch('/api/admin/backup-download', { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: HDR, body: JSON.stringify({ id: id }) }); }
+    catch (x) { offline(true); throw new Error('Offline — reconnect and try again.'); }
+    if (res.status === 401) { sessionEnded(); throw new Error('Your session ended. Log in again — what you typed is kept.'); }
+    if (!res.ok) { var e = {}; try { e = await res.json(); } catch (x) {} throw new Error(e.error || ('Error ' + res.status)); }
+    var blob = await res.blob(), url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = 'flux-backup-' + id + '.json'; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+  }
+  async function loadBackups() {
+    var box = $('backups'); box.textContent = '';
+    say('Loading backups…');
+    var d = await call('backups');
+    renderBkStatus(d);
+    var list = d.snapshots || [];
+    if (!list.length) box.appendChild(el('div', 'empty', 'No backups yet.'));
+    list.forEach(function (m) { box.appendChild(renderSnapshot(m)); });
+    say('');
+  }
+  async function backupNow() {
+    var b = $('bkNow'); b.disabled = true; b.textContent = 'BACKING UP…';
+    try { var o = await call('backup-now'); say('Backup ' + o.snapshot.id + ' saved and checked ✓', 'ok'); await loadBackups(); }
+    finally { b.disabled = false; b.textContent = 'BACK UP NOW'; }
+  }
+  async function uploadBackup() {
+    var f = $('bkFile').files && $('bkFile').files[0];
+    if (!f) { say('Choose a downloaded backup file first.', 'err'); return; }
+    var parsed; try { parsed = JSON.parse(await f.text()); } catch (e) { throw new Error('That file is not a FLUX backup.'); }
+    say('Uploading…');
+    var o = await call('backup-import', { backup: parsed });
+    say('Uploaded and checked ✓ as ' + o.snapshot.id + '. Use DRY RUN on it before any restore.', 'ok'); $('bkFile').value = ''; await loadBackups();
+  }
+
   function guard(fn) { return function () { fn().catch(function (e) { say(e.message, 'err'); }); }; }
+  $('loginForm').onsubmit = login;
+  $('logout').onclick = guard(logout);
+  $('sumLoad').onclick = guard(loadSummary);
+  window.onoffline = function () { offline(true); };
+  window.ononline = function () { offline(false); if (!$('app').hidden) guard(loadSummary)(); };
+  // Back from the background (iPhone app switcher): an expired session goes straight to the login screen.
+  document.onvisibilitychange = function () { if (document.visibilityState === 'visible' && !$('app').hidden) checkSession(true).catch(function () {}); };
+  loginSay('Connecting…', 'dim');
+  if (navigator.onLine === false) offline(true);
+  checkSession(false).catch(function (e) { showLogin(e.message); });
   $('stLoad').onclick = guard(loadStats);
   $('s0Load').onclick = guard(loadSeason0);
   $('usageLoad').onclick = guard(function () { return loadUsage(false); });
+  $('bkLoad').onclick = guard(loadBackups);
+  $('bkNow').onclick = guard(backupNow);
+  $('bkUpload').onclick = guard(uploadBackup);
   $('loadEx').onclick = guard(loadExceptions);
   $('find').onclick = guard(find);
   $('q').addEventListener('keydown', function (e) { if (e.key === 'Enter') guard(find)(); });

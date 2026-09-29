@@ -7,12 +7,17 @@
 //   D1 the dashboard turns the server's totals into the right numbers (runs per player, average
 //      run, level, share rate, Day 1/7/30 by src and by country; "—" before a day is reached);
 //   D2 it lives inside admin.html (same password, no separate page), uses the admin API, writes text only;
-//   G1 the guide covers the lost-pilot steps, the name rules and how to read the stats.
+//   D3 GAMEPLAY table: by difficulty x speed step, hit rate, misses per minute, time at
+//      the step (share of that difficulty's play time), lives lost per minute, runs;
+//      only difficulty/step keys, nothing about a person; drawn as text in PLAYER STATS;
+//   G1 the guide covers the lost-pilot steps, the name rules and how to read the stats;
+//   G2 ...and how to read GAMEPLAY for tuning the speed.
 // Ends with negative controls.
 import fs from 'fs'; import path from 'path'; import vm from 'vm';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { boot, makeStore } from './harness.mjs';
 import { presetNameForId } from './preset-names.mjs';
+import { levelFor } from './level-rule.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, 'FLUX-Sparta');
 const ADMIN_HTML = fs.readFileSync(path.join(ROOT, 'public', 'admin.html'), 'utf8');
@@ -40,7 +45,7 @@ async function suite({ adminHtml, workerMod, quiet = false }) {
   const ck = (l, c, x = '') => { if (!quiet) console.log((c ? '  PASS  ' : '  FAIL  ') + l + (x !== '' ? '  [' + x + ']' : '')); if (!c) { F++; failed.push(l); } };
   const worker = workerMod.default, env = makeEnv(workerMod.LeaderboardDO);
   const call = async (p, body, headers = {}) => { const res = await worker.fetch(new Request(ORIGIN + p, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body || {}) }), env, {}); let d = null; try { d = await res.json(); } catch (e) {} return { status: res.status, data: d }; };
-  const submit = (pid, name, score, country = 'PH') => call('/api/submit-score', { playerId: pid, name, score, level: 1, difficulty: 'easy', country, season: 1 })   // SEASON 1: scores say their season;
+  const submit = (pid, name, score, country = 'PH') => call('/api/submit-score', { playerId: pid, name, score, level: levelFor(score, 'easy'), difficulty: 'easy', country, season: 1 })   // SEASON 1: scores say their season;
   const find = async (q) => ((await call('/api/admin/find-player', { query: q }, H)).data || {}).matches || [];
   try {
     await submit(P(1), 'SWIFT COMET 42', 400); await submit(P(2), 'titan', 300); await submit(P(3), 'NOVA7', 200);
@@ -69,6 +74,8 @@ async function suite({ adminHtml, workerMod, quiet = false }) {
     await ev(P(5), [{ e: 'open' }, { e: 'run_end', sec: 60, lvl: 2, diff: 'easy' }, { e: 'share' }], 'tiktok', 'PH');
     await ev(P(6), [{ e: 'open' }, { e: 'run_end', sec: 120, lvl: 4, diff: 'easy' }, { e: 'run_end', sec: 60, lvl: 3, diff: 'easy' }], 'tiktok', 'PH');
     await ev(P(7), [{ e: 'open' }, { e: 'run_end', sec: 30, lvl: 1, diff: 'easy' }], 'direct', 'JP');
+    await ev(P(5), [{ e: 'play', diff: 'easy', st: 0, sec: 120, hit: 60, wrong: 20, lost: 2 }, { e: 'play', diff: 'easy', st: 1, sec: 60, hit: 20, wrong: 20, lost: 2 }], 'tiktok', 'PH');
+    await ev(P(6), [{ e: 'play', diff: 'hard', st: 0, sec: 30, hit: 10, wrong: 10, lost: 3 }], 'tiktok', 'PH');
     now = T0 + DAY; await ev(P(5), [{ e: 'open' }], 'tiktok', 'PH'); await ev(P(6), [{ e: 'open' }], 'tiktok', 'PH');
     now = T0 + 7 * DAY; await ev(P(5), [{ e: 'open' }], 'tiktok', 'PH');
     const rep = (await call('/api/admin/analytics', { from: '2026-10-01', to: '2026-10-08' }, H)).data;
@@ -85,6 +92,13 @@ async function suite({ adminHtml, workerMod, quiet = false }) {
     ck('D1 by country: one row per country', byC === 'c:JP,c:PH', byC);
     ck('D2 the dashboard is inside the admin page (same password), not a separate page, and uses the admin API',
       /<h2>PLAYER STATS<\/h2>/.test(adminHtml) && /await call\('analytics', \{ from:/.test(adminHtml) && !fs.existsSync(path.join(ROOT, 'public', 'stats.html')) && !fs.existsSync(path.join(ROOT, 'public', 'dashboard.html')));
+    const P3 = S.summarizePlay ? S.summarizePlay(rep).rows : [];
+    const pr = P3.map((c) => [c.diff, c.step, c.runs, +c.hitRate.toFixed(3), +c.missesPerMin.toFixed(3), +c.livesPerMin.toFixed(3), +c.timeShare.toFixed(3)].join(':')).join(' ');
+    ck('D3 GAMEPLAY: Easy step 0 hit rate 75%, 11 misses/min, 1 life/min, 67% of Easy time; step 1 50%, 22/min, 2/min, 33%; Hard step 0 50%, 26/min, 6/min, 100%',
+      pr === 'easy:0:1:0.75:11:1:0.667 easy:1:1:0.5:22:2:0.333 hard:0:1:0.5:26:6:1', pr);
+    ck('D3 ...the server keeps it only by difficulty and step (no country or source rows), and PLAYER STATS draws it as a GAMEPLAY table',
+      rep.days.every((d) => Object.keys(d.groups).every((k) => !/^p:/.test(k) || /^p:(easy|medium|hard):\d$/.test(k))) && /box\.appendChild\(el\('h2', null, 'GAMEPLAY'\)\)/.test(adminHtml)
+      && /\['Difficulty', 'Speed step', 'Runs', 'Time at step', 'Hit rate', 'Misses \/ min', 'Lives lost \/ min'\]/.test(adminHtml) && S.summarize(rep, 'country').groups.every((g) => !/^p:/.test(g.key)));
     const js = scriptsOf(adminHtml).join('\n'), statsJs = js.slice(js.indexOf('/* ---------------- player stats'), js.indexOf('function guard('));
     ck('D2 the stats code writes text only (no innerHTML) and loads nothing from other sites', statsJs.length > 500 && !/innerHTML/.test(statsJs) && !/<script[^>]+src=/.test(adminHtml));
     ck('D2 averages already worked out are shown as numbers (never passed to the two-number ratio helper, which would show "—")', /\[num\(g\.runsPerPlayer\), 'runs \/ player \/ day'\]/.test(adminHtml) && !/ratio\(g\./.test(adminHtml));
@@ -93,6 +107,8 @@ async function suite({ adminHtml, workerMod, quiet = false }) {
       /A player lost their pilot/.test(guide) && /ISSUE RESTORE CODE/.test(guide) && /HAVE A RESTORE CODE\?/.test(guide) && /RESTORE A DIFFERENT PILOT/.test(guide)
       && /preset name/.test(guide) && /one word/.test(guide) && /<b>PILOT<\/b>/.test(guide) && /Old-name clean-up/.test(guide)
       && /Day 1 \/ Day 7 \/ Day 30/.test(guide) && /Which platform brings players who come back/.test(guide) && /\?src=tiktok/.test(guide));
+    ck('G2 the guide says how to read GAMEPLAY for tuning (hit rate, misses and lives lost per minute, time at each step, what a jump means)',
+      /Reading GAMEPLAY/.test(guide) && /Hit rate/.test(guide) && /Lives lost \/ min/.test(guide) && /Time at step/.test(guide) && /too big a jump/.test(guide) && /nothing about a person/.test(guide));
   } catch (e) { ck('dashboard section ran', false, String(e.stack || e).slice(0, 300)); }
   return { F, failed };
 }
@@ -117,6 +133,10 @@ await control('extra spaces break the search', 'A1', { worker: rep('.toUpperCase
 await control('search ignores what the board shows', 'A4', { worker: rep('v.name.includes(n) || String(v.shownAs || "").includes(n)', 'v.name.includes(n)') });
 await control('share rate per player instead of per run', 'D1', { admin: rep('shareRate: t.runs ? t.shares / t.runs : NaN', 'shareRate: t.active ? t.shares / t.active : NaN') });
 await control('retention counted before the day is reached', 'D1', { admin: rep("d30: c.age >= 30 ? pct(v.d30 || 0, v.n) : '—'", "d30: pct(v.d30 || 0, v.n)") });
+await control('hit rate counts lost balls as hits tried', 'D3', { admin: rep('c.hitRate = (c.hit + c.wrong) ? c.hit / (c.hit + c.wrong) : NaN;', 'c.hitRate = (c.hit + c.wrong + c.lost) ? c.hit / (c.hit + c.wrong + c.lost) : NaN;') });
+await control('time share over all difficulties', 'D3', { admin: rep('c.timeShare = perDiff[c.diff] ? c.sec / perDiff[c.diff] : NaN;', 'c.timeShare = c.sec / 210;') });
+await control('GAMEPLAY table not drawn', 'D3', { admin: rep("box.appendChild(el('h2', null, 'GAMEPLAY'));", '') });
+await control('guide loses the GAMEPLAY note', 'G2', { admin: rep('<h3>Reading GAMEPLAY (tuning the speed)</h3>', '<h3>Gameplay</h3>') });
 await control('averages shown as "—"', 'D2 averages', { admin: rep('[num(g.runsPerPlayer), ', '[ratio(g.runsPerPlayer), ') });
 await control('guide loses the name rules', 'G1', { admin: rep('<h3>Pilot names</h3>', '<h3>Names</h3>').bind(null) && ((s) => s.replace('Old-name clean-up', 'Clean-up')) });
 const total = main.F + NC;

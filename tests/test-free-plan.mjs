@@ -98,7 +98,7 @@ async function suite(src, quiet = false) {
       /^[0-9a-f]{16}$/.test(an.h || '') && an.country === 'PH' && an.src === 'tiktok' && JSON.stringify(an.events) === JSON.stringify([{ e: 'open', home: true }, { e: 'run_end', lvl: 3, diff: 'medium', sec: 42 }]) && !JSON.stringify(an).includes('TITAN') && !JSON.stringify(an).includes(PID), JSON.stringify(an).slice(0, 160));
     ck('S1 ...and they are counted (1 run, 1 open)', day.all && day.all.runs === 1 && day.all.opens === 1, JSON.stringify(day.all || {}));
     const lbBoard = await call(env, '/api/leaderboard?limit=50');
-    ck('S1 ...and the score is on the board', lbBoard.data && lbBoard.data.top && lbBoard.data.top.length === 1 && lbBoard.data.top[0].score === 3000);
+    ck('S1 ...and the score is on the board', lbBoard.data && lbBoard.data.top && lbBoard.data.top.length === 1 && (lbBoard.data.top[0].points || lbBoard.data.top[0].score) === 3000);
 
     // S2
     env = makeEnv(mod.LeaderboardDO);
@@ -113,6 +113,16 @@ async function suite(src, quiet = false) {
     ck('S2 ...the accepted retry counts them exactly once', r.status === 200 && d2.all && d2.all.runs === 1, JSON.stringify(d2.all || {}));
     const bad = await call(env, '/api/submit-score', { method: 'POST', body: run({ score: 999999, level: 1, stats: { src: 'x', events: [{ e: 'run_end', sec: 5, lvl: 1, diff: 'medium' }] } }) });
     ck('S2 a permanent refusal (the game drops it) still counts the run\'s stats once', bad.status === 422 && (dayRow(env).all.runs === 2), JSON.stringify(dayRow(env).all));
+
+    // S2 (run ids, #35): a retry of the same run (reply lost) is counted once, stats included
+    env = makeEnv(mod.LeaderboardDO);
+    const RUN = 'r'.repeat(8) + '0123456789abcdef0123';
+    const r1 = await call(env, '/api/submit-score', { method: 'POST', body: run({ runId: RUN, stats: STATS }) });
+    const r2 = await call(env, '/api/submit-score', { method: 'POST', body: run({ runId: RUN, stats: STATS }) });
+    const an2 = env.S.req.filter((x) => x.path === '/an-ingest');
+    ck('S2 a retried run (same run id) gets the same success reply and its stats are counted once; the run id is the stats batch id',
+      r1.status === 200 && r2.status === 200 && r2.data.duplicate === true && dayRow(env).all.runs === 1 && an2.length === 1 && JSON.parse(an2[0].body).bid === RUN, an2.length + ' ' + JSON.stringify(dayRow(env).all));
+    ck('S2 the upload rate limit is checked inside the leaderboard DO: no separate limiter round trip per run', !env.S.req.some((x) => x.path === '/rl'), env.S.req.map((x) => x.path).join(','));
 
     // S3
     env = makeEnv(mod.LeaderboardDO);
@@ -147,7 +157,7 @@ async function suite(src, quiet = false) {
     const dd = u2.data && u1.data ? u2.data.usage.doRequests - u1.data.usage.doRequests : -1;
     ck('S6 the usage route needs the admin password', noPw.status === 401 && u1.status === 200);
     ck('S6 it counts every Worker request of this isolate exactly (5 geo + 1 board + the usage call itself)', dw === 7, String(dw));
-    ck('S6 ...and the Durable Object requests (the board + the previous usage call)', dd === 2, String(dd));
+    ck('S6 ...and the Durable Object requests (the board + the previous usage call + this call\'s admin check)', dd === 3, String(dd));
     ck('S6 ...against the free limits (100,000 a day), no alert at low use', u2.data.limits.workerRequests === 100000 && u2.data.limits.doRequests === 100000 && u2.data.alert === false && u2.data.alertPct === 80 && Array.isArray(u2.data.days) && u2.data.days.length === 7);
     const set = (w) => { const k = 'an:day:' + Math.floor(Date.now() / 86400000), row = env.inst.get('analytics').state.storage.map.get(k); row._use.w = w; };
     set(78000); const u3 = await call(env, '/api/admin/usage', { method: 'POST', body: {}, headers: ADMIN });
@@ -165,7 +175,7 @@ async function suite(src, quiet = false) {
     ck('S7 the worker fetch handler routes /api/ first and serves no page itself (only the unreachable asset fallback)',
       /if \(path\.startsWith\("\/api\/"\)\) \{/.test(fetchBody) && !/text\/html|\.html"/.test(fetchBody) && (fetchBody.match(/env\.ASSETS\.fetch/g) || []).length === 1);
     ck('S7 the service worker never touches /api/ and serves the cached game on a Cloudflare limit page',
-      /return url\.pathname\.startsWith\('\/api\/'\);/.test(src.sw) && /res\.status === 429 \|\| res\.status >= 500/.test(src.sw) && /\? shellResponse\(req\)\.then/.test(src.sw));
+      /return url\.pathname\.startsWith\('\/api\/'\)( \|\| isAdmin\(url\))?;/.test(src.sw) && /res\.status === 429 \|\| res\.status >= 500/.test(src.sw) && /\? shellResponse\(req\)\.then/.test(src.sw));
     void outside;
   } catch (e) { ck('server section ran', false, String(e.stack || e).slice(0, 300)); }
   finally { try { fs.unlinkSync(tmp); } catch (e) {} }
@@ -193,7 +203,7 @@ async function suite(src, quiet = false) {
     const ups = () => a.calls.filter((x) => x.u === '/api/submit-score');
     const first = ups()[0];
     ck('C1 a run is ONE request: the score upload carries the run\'s stats; no separate stats request',
-      ups().length === 1 && a.beacons.length === 0 && first.body.stats && first.body.stats.events.some((e) => e.e === 'run_end') && first.body.stats.events.some((e) => e.e === 'open') && first.body.score === 3000, JSON.stringify(first && first.body).slice(0, 200));
+      ups().length === 1 && a.beacons.length === 0 && first.body.stats && first.body.stats.events.some((e) => e.e === 'run_end') && first.body.stats.events.some((e) => e.e === 'open') && first.body.score === 3000 && /^[0-9a-f]{32}$/.test(first.body.runId || ''), JSON.stringify(first && first.body).slice(0, 200));
     skew += 20000; await a.gameOver(1200);
     ck('C1 ...a run that is not a new best sends only its stats (one small request), not the same best again', ups().length === 1 && a.beacons.length === 1 && a.beacons[0].u === '/api/events', ups().length + ' ' + a.beacons.length);
     skew += 20000; await a.gameOver(5200);
@@ -284,7 +294,9 @@ await control('the leaderboard copy never reused', 'C3', rep('game', "FLUX_LB_TT
 await control('the Gateway ignores the shared copy', 'C3', rep('gw', "var LB_KEY = 'fluxLbCache', LB_TRY = 'fluxLbTry', LB_TTL = 60000;", "var LB_KEY = 'fluxLbCacheGw', LB_TRY = 'fluxLbTryGw', LB_TTL = 60000;"));
 await control('the limit page not recognised (normal backoff, no pause)', 'C4', rep('game', "if(await fluxEdgeKind(res)==='limit'){", "if(false){"));
 await control('a paused queue retried anyway', 'C4', rep('game', "      if(fluxNetPausedFor()>0){ if(loadQueue().length) scheduleFlush(fluxNetPausedFor()); return; }", ''));
-await control('stats counted on a 429 (counted twice after the retry)', 'S2', rep('worker', 'if (stats && resp.status !== 429 && resp.status < 500) {', 'if (stats) {'));
+await control('stats counted on a 429 (counted twice after the retry)', 'S2', rep('worker', 'if (stats && !dup && resp.status !== 429 && resp.status < 500) {', 'if (stats) {'));
+await control('the run id not used as the stats batch id (a retried run counted twice)', 'S2', rep('worker', 'const dup = resp.ok ? !!(await resp.clone().json().catch(() => ({}))).duplicate : false;', 'const dup = false;'));
+await control('limiter back to a separate DO round trip per upload', 'S2', rep('worker', '  const name = presetOrOwn(cleanName(body.name), playerId);', '  const limited = await rateLimit(env, "global", "submit", request, await pidHash(playerId));\n  if (limited) return limited;\n  const name = presetOrOwn(cleanName(body.name), playerId);'));
 await control('stats in the run request dropped by the server', 'S1', rep('worker', '  const stats = runStats(body, playerId);', '  const stats = null;'));
 await control('a new field forwarded to the leaderboard', 'S4', rep('worker', 'body: JSON.stringify({ playerId, name, score, level, difficulty, country, detected })', 'body: JSON.stringify({ playerId, name, score, level, difficulty, country, detected, ua: "x" })'));
 await control('leaderboard memo off', 'S5', rep('worker', 'if (hit && now - hit.at < LB_MEMO_MS)', 'if (false)'));

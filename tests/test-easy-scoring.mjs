@@ -1,21 +1,24 @@
-// Easy scoring, in the release gate. Real game page (harness vm) + real worker.js.
-// The leaderboard keeps each player's best across difficulties, so Easy must
-// never pay better than Medium or Hard for the same player.
-//   S1 on Easy every scoring event pays EASY_POINTS (x0.4, rounded, at least 1):
-//      orb hit, danger orb, bonus orb, overload orb, FLUX MODE, paddle catch;
-//   S2 the Easy factor never applies on Medium or Hard: Hard points are
-//      unchanged, Medium points are only Medium's own x0.85 (MEDIUM_POINTS,
-//      test-medium-orbs.mjs), never x0.4;
-//   S3 Easy's level thresholds are scaled by the same x0.4, so Easy levels
-//      come at the same pace as before (750 1800 3000 ... 13500);
-//   S4 the server uses the same Easy thresholds: a real Easy run is accepted,
-//      nothing looser (two levels off is refused), 455,000 ceiling kept;
-//   S5 the same simulated player (new beginner, steady player; seeded) scores
-//      clearly less on Easy than on Medium and on Hard (mean at most 85%).
+// Scoring and difficulty weights, in the release gate. Real game page (harness vm) + real worker.js.
+// The leaderboard's ALL board and the country totals compare difficulties, so the same player
+// must count for less on Easy than on Medium, and on Medium than on Hard.
+//   S1 FULL POINTS (owner): every scoring event pays the same on Easy, Medium and Hard
+//      (orb, danger, bonus, overload, FLUX MODE, perfect and plain catch);
+//   S3 level thresholds: the table x1.5 on Easy (longer runs), x1 on Medium, x0.55 on Hard;
+//   S4 the server uses the same thresholds: real runs at their level are accepted, nothing
+//      looser (two levels off is refused), 455,000 ceiling kept;
+//   W1 the Easy, Medium and Hard boards show players' REAL points;
+//   W2 the ALL board ranks each player by their best WEIGHTED score (Hard x1, Medium x0.21,
+//      Easy x0.09) and shows it (with the real points beside it, and weighted:true);
+//   W3 country totals add each player's best weighted score once; totals stored before the
+//      weights are rebuilt once when the server loads them; stored scores are never rewritten;
+//   W4 the game and the server use the same weights; the game says "weighted" on the board;
+//   S5 the same simulated player (new beginner, casual, steady; seeded) has a lower weighted
+//      mean on Easy than on Medium, and on Medium than on Hard, by at least 10% (at most 90%).
 // Ends with negative controls.
 import fs from 'fs'; import path from 'path'; import vm from 'vm';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { boot, makeStore } from './harness.mjs';
+import { runParallel } from './sim-player.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const GAME_HTML = fs.readFileSync(path.join(__dirname, 'FLUX-Sparta', 'public', 'play', 'index.html'), 'utf8');
 const WORKER_SRC = fs.readFileSync(path.join(__dirname, 'FLUX-Sparta', 'worker.js'), 'utf8');
@@ -29,21 +32,21 @@ function makeEnv(DO) {
     async put(a, v) { const o = typeof a === 'object' ? a : { [a]: v }; for (const [k, val] of Object.entries(o)) this.map.set(k, structuredClone(val)); } }
   class St { constructor() { this.storage = new S(); } async blockConcurrencyWhile(fn) { return fn(); } }
   const inst = new Map(); let chain = Promise.resolve();
-  return { ADMIN_TOKEN: 't', STORE_OPEN: 'false', SITE_URL: ORIGIN,
+  return { ADMIN_TOKEN: 't', STORE_OPEN: 'false', SITE_URL: ORIGIN, _inst: inst,
     LEADERBOARD_DO: { idFromName: (n) => n, get(id) { if (!inst.has(id)) inst.set(id, new DO(new St())); const o = inst.get(id);
       return { fetch(u, i) { const r = () => o.fetch(new Request(u, i)); const p = chain.then(r, r); chain = p.then(() => {}, () => {}); return p; } }; } } };
 }
 let pidN = 0;
+const board = async (w, env, q = '') => (await (await w.fetch(new Request(ORIGIN + '/api/leaderboard?limit=50' + q), env)).json());
 const submit = async (w, env, body) => { skew += 20000;
   const r = await w.fetch(new Request(ORIGIN + '/api/submit-score', { method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ playerId: 'es-' + (++pidN), name: 'T', country: 'US', season: 1, ...body }) }), env);   // SEASON 1: scores say their season
   return r.status; };
 
-// Simulated player (same model as the PR's measurements and test-generous-catch.mjs):
-// follows the ball with a delay and a random aim error; 4th+ run; one free revive.
-const PLAYERS = [['new beginner', 12, 18, 15], ['steady player', 6, 9, 28]];
-// 40 seeds (was 10): with Medium's fuller field and x0.85 points, 10 runs were too few to tell
-// Easy from Medium reliably (240 seeded runs: Easy is 66-74% of Medium); the 85% bar is unchanged.
+// Simulated players (sim-player.mjs, the model of the PRs' measurements): they follow the ball
+// with a delay and a random aim error; 4th+ run; one free revive; at most 30 minutes.
+// 40 seeds each; the runs are spread over worker threads.
+const PLAYERS = ['new beginner', 'casual', 'steady'];
 const SEEDS = 40;
 
 async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = false, sim = true }) {
@@ -72,63 +75,73 @@ async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = fals
     one('catch', paddle(0.6));
     Math.random = realRandom; return out;
   };
+  let W = null;
   try {
-    const { run } = bootGame('easy');
-    const EP = run('EASY_POINTS'); Math.random = realRandom;
     const med = events('medium'), hard = events('hard'), easy = events('easy');
-    // Values before Easy scoring (combo 3 -> 4 on an orb hit; orb value 30).
-    const OLD = { medium: { orb: 38, danger: 53, bonus: 150, overload: 245, flux: 250, perfect: 15, catch: 2 },
-      hard: { orb: 38, danger: 53, bonus: 150, overload: 245, flux: 250, perfect: 20, catch: 2 },
-      easy: { orb: 38, danger: 53, bonus: 150, overload: 245, flux: 250, perfect: 11, catch: 2 } };
-    const want = {}; for (const k in OLD.easy) want[k] = Math.max(1, Math.round(OLD.easy[k] * 0.4));
-    want.danger = Math.round(38 * 0.4) + Math.round(15 * 0.4);
-    ck('S1 EASY_POINTS is 0.4', EP === 0.4, EP);
-    ck('S1 on Easy every scoring event pays x0.4 (orb, danger, bonus, overload, FLUX MODE, perfect and plain catch)', JSON.stringify(easy) === JSON.stringify(want), JSON.stringify(easy) + ' want ' + JSON.stringify(want));
-    // Medium: Medium's own MEDIUM_POINTS (x0.85: orb, danger, bonus, overload, perfect catch; FLUX MODE and a plain catch unscaled), never Easy's x0.4.
-    const wantMed = { ...OLD.medium }; for (const k of ['orb', 'bonus', 'overload', 'perfect']) wantMed[k] = Math.round(OLD.medium[k] * 0.85);
-    wantMed.danger = Math.round(38 * 0.85) + Math.round(15 * 0.85);
-    ck('S2 Medium points are only Medium\'s own x0.85 (no Easy x0.4)', JSON.stringify(med) === JSON.stringify(wantMed), JSON.stringify(med) + ' want ' + JSON.stringify(wantMed));
-    ck('S2 Hard points unchanged', JSON.stringify(hard) === JSON.stringify(OLD.hard), JSON.stringify(hard));
+    // Full points (combo 3 -> 4 on an orb hit; orb value 30): the pre-#26 Medium values, and a perfect catch 5 x combo 3.
+    const FULL = { orb: 38, danger: 53, bonus: 150, overload: 245, flux: 250, perfect: 15, catch: 2 };
+    ck('S1 FULL POINTS: every scoring event pays the same on Easy, Medium and Hard (orb, danger, bonus, overload, FLUX MODE, perfect and plain catch)',
+      [easy, med, hard].every((x) => JSON.stringify(x) === JSON.stringify(FULL)), JSON.stringify({ easy, med, hard }));
 
-    const { run: r2 } = bootGame('easy'); Math.random = realRandom;
+    const { run: r2 } = bootGame('easy'); W = JSON.parse(r2('JSON.stringify(DIFF_WEIGHT)')); Math.random = realRandom;
     const at = (d) => JSON.parse(r2(`JSON.stringify([2,3,4,5,6,7,8,9].map(l=>levelScoreAt(l,'${d}')))`));
-    const OLD_EASY = [1875, 4500, 7500, 11250, 15750, 21000, 27000, 33750];
-    ck('S3 Easy level thresholds are the old ones x0.4 (750 1800 3000 4500 6300 8400 10800 13500): same level pace', JSON.stringify(at('easy')) === JSON.stringify(OLD_EASY.map((t) => Math.round(t * 0.4))), JSON.stringify(at('easy')));
-    ck('S3 Medium and Hard thresholds unchanged', JSON.stringify(at('medium')) === '[2500,6000,10000,15000,21000,28000,36000,45000]' && JSON.stringify(at('hard')) === '[3375,8100,13500,20250,28350,37800,48600,60750]');
+    ck('S3 level thresholds: Easy the table x1.5 (3750 9000 15000 22500 31500 42000 54000 67500), Medium x1, Hard x0.55 (1375 3300 ... 24750)',
+      JSON.stringify(at('easy')) === '[3750,9000,15000,22500,31500,42000,54000,67500]' && JSON.stringify(at('medium')) === '[2500,6000,10000,15000,21000,28000,36000,45000]' && JSON.stringify(at('hard')) === '[1375,3300,5500,8250,11550,15400,19800,24750]', JSON.stringify([at('easy'), at('hard')]));
 
     const w = workerMod.default, env = makeEnv(workerMod.LeaderboardDO);
-    ck('S4 server: real Easy runs at their own level are accepted (750 at 2, 4,500 at 5, 13,500 at 9)',
-      (await submit(w, env, { score: 750, level: 2, difficulty: 'easy' })) === 200 && (await submit(w, env, { score: 4500, level: 5, difficulty: 'easy' })) === 200 && (await submit(w, env, { score: 13500, level: 9, difficulty: 'easy' })) === 200);
-    ck('S4 server: nothing looser on Easy (4,500 at level 3 and 13,500 at level 7 refused)',
-      (await submit(w, env, { score: 4500, level: 3, difficulty: 'easy' })) === 422 && (await submit(w, env, { score: 13500, level: 7, difficulty: 'easy' })) === 422);
-    ck('S4 server: Medium unchanged (2,500 at 2 accepted, 26,423 at 4 refused) and the 455,000 ceiling kept on Easy',
+    ck('S4 server: real Easy runs at their own level are accepted (3,750 at 2, 22,500 at 5, 67,500 at 9), and a capped 300,000 run at level 9 on every difficulty',
+      (await submit(w, env, { score: 3750, level: 2, difficulty: 'easy' })) === 200 && (await submit(w, env, { score: 22500, level: 5, difficulty: 'easy' })) === 200 && (await submit(w, env, { score: 67500, level: 9, difficulty: 'easy' })) === 200
+      && (await submit(w, env, { score: 300000, level: 9, difficulty: 'easy' })) === 200 && (await submit(w, env, { score: 300000, level: 9, difficulty: 'medium' })) === 200 && (await submit(w, env, { score: 300000, level: 9, difficulty: 'hard' })) === 200);
+    ck('S4 server: nothing looser on Easy (22,500 at level 3 and 67,500 at level 7 refused)',
+      (await submit(w, env, { score: 22500, level: 3, difficulty: 'easy' })) === 422 && (await submit(w, env, { score: 67500, level: 7, difficulty: 'easy' })) === 422);
+    ck('S4 server: Medium as before (2,500 at 2 accepted, 26,423 at 4 refused) and the 455,000 ceiling kept on Easy',
       (await submit(w, env, { score: 2500, level: 2, difficulty: 'medium' })) === 200 && (await submit(w, env, { score: 26423, level: 4, difficulty: 'medium' })) === 422 &&
-      (await submit(w, env, { score: 455001, level: 9, difficulty: 'easy' })) === 422 && /const SCORE_CEILING = 455_000;/.test(workerSrc));
+      (await submit(w, env, { score: 455001, level: 9, difficulty: 'easy' })) === 422 && /const SCORE_CEILING = 455_000;/.test(workerSrc) && /const MAX_SCORE = 5_000_000;/.test(workerSrc));
+
+    // W1-W3: a fresh board. Real points: A Easy 100,000 (PH), B Medium 30,000 (PH), C Hard 5,000 (US),
+    // D Easy 90,000 + Hard 2,000 (PH): D's best weighted is the Easy one (2,700 > 2,000).
+    const w2 = makeEnv(workerMod.LeaderboardDO), lvl = (sc, d) => { let lv = 1; for (const t of [2500, 6000, 10000, 15000, 21000, 28000, 36000, 45000]) if (sc >= Math.round(t * { easy: 1.5, medium: 1, hard: 0.55 }[d])) lv++; return lv; };
+    const put = (pid, name, country, score, difficulty) => submit(w, w2, { playerId: pid, name, country, score, difficulty, level: lvl(score, difficulty) });
+    await put('w-a', 'ALPHA', 'PH', 100000, 'easy'); await put('w-b', 'BRAVO', 'PH', 30000, 'medium'); await put('w-c', 'CHARLIE', 'US', 5000, 'hard');
+    await put('w-d', 'DELTA', 'PH', 90000, 'easy'); await put('w-d', 'DELTA', 'PH', 2000, 'hard');
+    const be = await board(w, w2, '&difficulty=easy'), bm = await board(w, w2, '&difficulty=medium'), bh = await board(w, w2, '&difficulty=hard'), ba = await board(w, w2);
+    const row = (b, n) => (b.top || []).find((r) => r.name === n) || {};
+    ck('W1 the Easy, Medium and Hard boards show real points (Easy 100,000 / 90,000; Medium 30,000; Hard 5,000 / 2,000)',
+      row(be, 'ALPHA').score === 100000 && row(be, 'DELTA').score === 90000 && row(bm, 'BRAVO').score === 30000 && row(bh, 'CHARLIE').score === 5000 && row(bh, 'DELTA').score === 2000 && !be.weighted,
+      JSON.stringify([be.top, bh.top].map((t) => (t || []).map((r) => r.name + ':' + r.score))));
+    const want = { BRAVO: Math.round(30000 * W.medium), CHARLIE: 5000, ALPHA: Math.round(100000 * W.easy), DELTA: Math.round(90000 * W.easy) };
+    const order = (ba.top || []).map((r) => r.name + ':' + r.score + '/' + r.points + ':' + r.difficulty).join(' ');
+    ck('W2 the ALL board ranks by each player\'s best weighted score and shows it (' + order + ')',
+      ba.weighted === true && (ba.top || []).map((r) => r.name).join(',') === Object.entries(want).sort((a, b) => b[1] - a[1]).map((x) => x[0]).join(',') &&
+      Object.entries(want).every(([n, v]) => row(ba, n).score === v) && row(ba, 'ALPHA').points === 100000 && row(ba, 'DELTA').difficulty === 'easy' && row(ba, 'DELTA').points === 90000, order);
+    const ph = (ba.countries || []).find((c) => c.country === 'PH') || {}, us = (ba.countries || []).find((c) => c.country === 'US') || {};
+    ck('W3 country totals add each player\'s best weighted score once (PH ' + ph.totalScore + ', US ' + us.totalScore + ')',
+      ph.totalScore === want.ALPHA + want.BRAVO + want.DELTA && ph.playerCount === 3 && us.totalScore === 5000 && ph.topScore === Math.max(want.ALPHA, want.BRAVO, want.DELTA) && ph.topName === ['ALPHA', 'BRAVO', 'DELTA'].sort((x, y) => want[y] - want[x])[0]);
+    // Totals stored before the weights (real points) are rebuilt when the board is read; stored scores stay real.
+    const inst = w2._inst.get('global'); await inst.state.storage.put({ countries: { PH: { country: 'PH', totalScore: 220000, playerCount: 3, topScore: 100000, topName: 'ALPHA', leaderId: 'w-a' } }, countriesWeights: undefined }); inst.ready = false;   // as stored before the weights; the Durable Object restarts
+    const again = await board(w, w2, '&restart=1');   /* FREE PLAN: a new board URL, so the Worker's 60 s leaderboard memo cannot answer for the restarted DO */ const ph2 = (again.countries || []).find((c) => c.country === 'PH') || {};
+    const stored = await inst.state.storage.get('players');
+    ck('W3 ...totals stored before the weights are rebuilt once when the server loads them, and stored scores are never rewritten',
+      ph2.totalScore === ph.totalScore && stored['w-a'].bests.easy.score === 100000 && stored['w-d'].bests.hard.score === 2000, ph2.totalScore + ' vs ' + ph.totalScore);
+    const wk = (workerSrc.match(/const DIFF_WEIGHT = (\{[^}]*\})/) || [])[1] || '';
+    ck('W4 the game and the server use the same weights (Hard 1 > Medium > Easy) and the game\'s board says WEIGHTED',
+      JSON.stringify(JSON.parse(wk.replace(/(\w+):/g, '"$1":'))) === JSON.stringify(W) && W.hard === 1 && W.medium < 1 && W.easy < W.medium &&
+      /if\(data\.weighted\) html\+='<div class="lbSectionLabel">ALL DIFFICULTIES \\u00b7 WEIGHTED/.test(gameHtml) && /TOP COUNTRIES \(WEIGHTED\)/.test(gameHtml), wk + ' vs ' + JSON.stringify(W));
+    ck('W4 the submit response ranks a player on their own difficulty board (real points)', await (async () => {
+      skew += 20000; const r = await w.fetch(new Request(ORIGIN + '/api/submit-score', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ playerId: 'w-e', name: 'ECHO', country: 'PH', score: 95000, level: lvl(95000, 'easy'), difficulty: 'easy', season: 1 }) }), w2);
+      const d = await r.json(); return d.rank === 2 && d.best === 95000; })());
 
     if (sim) {
-      const html = scriptsOf(gameHtml);
-      const play = (diff, seed, [, react, aim, px]) => {
-        Math.random = seeded(seed);
-        const { store } = makeStore({ fluxPlayerId: 'sim-' + seed, fluxCallsign: 'T', fluxProfileComplete: '1', fluxColorHintSeen: '1', fluxRunsPlayed: '5', fluxDifficulty: diff });
-        const g = boot(html, { origin: 'https://x.test', path: '/play/', store });
-        const rr = (c) => vm.runInContext(c, g.ctx);
-        g.ctx.newGame();
-        rr(`var __h=[],__e=0,__t=0,__q=${seed * 7 + 1},__sc=0; function __r(){__q=(__q*1103515245+12345)%2147483648;return __q/2147483648;} function __g(){let u=0,v=0;while(!u)u=__r();while(!v)v=__r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
-          var __rev=false; playing=true; paused=false;
-          for(let i=0;i<108000;i++){ if(!playing&&!paused)break; if(paused&&__rev&&!playing)break; __h.push(ball.x); if(__h.length>${react})__h.shift(); __t-=1/60; if(__t<=0){__e=__g()*${aim};__t=.5;}
-            paddle.x+=Math.max(-${px},Math.min(${px},__h[0]+__e-paddle.x)); setPaddle(paddle.x); update(1/60); __sc=Math.max(__sc,score);
-            if(paused&&!__rev&&document.getElementById('reviveWatchBtn')){__rev=true;const b=document.getElementById('reviveWatchBtn'); if(b.onclick)b.onclick();} }`);
-        const s = rr('__sc'); Math.random = realRandom; return s;
-      };
+      const res = await runParallel(gameHtml, PLAYERS.flatMap((player) => ['easy', 'medium', 'hard'].map((diff) => ({ diff, player, seeds: SEEDS }))));
+      const meanOf = (player, diff) => { const r = res.find((x) => x.player === player && x.diff === diff).runs; return r.reduce((a, x) => a + x.score, 0) / r.length; };
       for (const p of PLAYERS) {
-        const mean = {};
-        for (const d of ['easy', 'medium', 'hard']) { let t = 0; for (let s = 1; s <= SEEDS; s++) t += play(d, s, p); mean[d] = Math.round(t / SEEDS); }
-        const low = Math.min(mean.medium, mean.hard);
-        ck('S5 ' + p[0] + ': Easy mean score is at most 85% of Medium and of Hard (Easy ' + mean.easy + ', Medium ' + mean.medium + ', Hard ' + mean.hard + '; ' + SEEDS + ' seeded runs each)',
-          mean.easy <= low * 0.85, (100 * mean.easy / low).toFixed(0) + '%');
+        const real = { easy: meanOf(p, 'easy'), medium: meanOf(p, 'medium'), hard: meanOf(p, 'hard') };
+        const wt = { easy: Math.round(real.easy * W.easy), medium: Math.round(real.medium * W.medium), hard: Math.round(real.hard * W.hard) };
+        ck('S5 ' + p + ': weighted mean Easy ' + wt.easy + ' < Medium ' + wt.medium + ' < Hard ' + wt.hard + ', each at most 90% of the next (real points ' + Math.round(real.easy) + ' / ' + Math.round(real.medium) + ' / ' + Math.round(real.hard) + '; ' + SEEDS + ' seeded runs each)',
+          wt.easy <= wt.medium * 0.9 && wt.medium <= wt.hard * 0.9, (100 * wt.easy / wt.medium).toFixed(0) + '% / ' + (100 * wt.medium / wt.hard).toFixed(0) + '%');
       }
     }
-  } catch (e) { ck('easy scoring section ran', false, String(e.stack || e).slice(0, 300)); }
+  } catch (e) { ck('scoring section ran', false, String(e.stack || e).slice(0, 300)); }
   finally { Math.random = realRandom; }
   return { F, failed };
 }
@@ -151,14 +164,19 @@ async function control(label, { expect, game = (s) => s, workerSrc = (s) => s })
   } finally { try { fs.unlinkSync(tmp); } catch (e) {} }
 }
 const rep = (a, b) => (s) => (s.includes(a) ? s.replace(a, b) : s);
-await control('Easy pays full points again (old scoring)', { expect: 'S5', game: rep('const EASY_POINTS=.4;', 'const EASY_POINTS=1;') });
-await control('Easy points cut too little (x0.75)', { expect: 'S1', game: rep('const EASY_POINTS=.4;', 'const EASY_POINTS=.75;') });
-await control('bonus orb not scaled on Easy', { expect: 'S1', game: rep(' const points=mediumPoints(scorePoints(Math.round(120+combo*10+(fluxMode>0?60:0))));', ' const points=mediumPoints(Math.round(120+combo*10+(fluxMode>0?60:0)));') });
-await control('FLUX MODE bonus not scaled on Easy', { expect: 'S1', game: rep('score+=scorePoints(250);', 'score+=250;') });
-await control('Easy scaling applied to Medium too', { expect: 'S2', game: rep("function scorePoints(n){ return difficulty==='easy' ?", "function scorePoints(n){ return difficulty!=='hard' ?") });
-await control('Easy level thresholds not scaled (Easy levels 2.5x slower)', { expect: 'S3', game: rep('const LEVEL_SCORE_MULT={easy:.3,', 'const LEVEL_SCORE_MULT={easy:.75,') });
-await control('server keeps the old Easy thresholds', { expect: 'S4', workerSrc: rep('const LEVEL_SCORE_MULT = { easy: 0.3,', 'const LEVEL_SCORE_MULT = { easy: 0.75,') });
+await control('Easy weight as heavy as Medium', { expect: 'S5', game: rep('const DIFF_WEIGHT={easy:.09,', 'const DIFF_WEIGHT={easy:.21,') });
+await control('no weights (all x1)', { expect: 'S5', game: rep('const DIFF_WEIGHT={easy:.09,medium:.21,hard:1};', 'const DIFF_WEIGHT={easy:1,medium:1,hard:1};') });
+await control('Easy points cut again (x0.4)', { expect: 'S1', game: rep(' const points=Math.round((orbValue + combo*2)*(t.r>23?1.15:1)*(fluxMode>0?1.15:1));', " const points=Math.round((orbValue + combo*2)*(t.r>23?1.15:1)*(fluxMode>0?1.15:1)*(difficulty==='easy'?.4:1));") });
+await control('FLUX MODE bonus scaled by difficulty', { expect: 'S1', game: rep('score+=250;', "score+=(difficulty==='hard'?250:100);") });
+await control('Easy level thresholds back to the x0.3 table', { expect: 'S3', game: rep('const LEVEL_SCORE_MULT={easy:1.5,', 'const LEVEL_SCORE_MULT={easy:.3,') });
+await control('server keeps the old Easy thresholds', { expect: 'S4', workerSrc: rep('const LEVEL_SCORE_MULT = { easy: 1.5,', 'const LEVEL_SCORE_MULT = { easy: 0.3,') });
 await control('server loosened to two levels either side', { expect: 'S4', workerSrc: rep('const LEVEL_TOLERANCE = 1;', 'const LEVEL_TOLERANCE = 2;') });
+await control('difficulty boards weighted too', { expect: 'W1', workerSrc: rep('rows.push({ r, score: difficulty ? b.score : b.weighted,', 'rows.push({ r, score: difficulty ? weightedScore(b.score, difficulty) : b.weighted,') });
+await control('ALL board by real points again', { expect: 'W2', workerSrc: rep('const b = difficulty ? r.bests[difficulty] : weightedBestOf(r);', 'const b = difficulty ? r.bests[difficulty] : bestOf(r);') });
+await control('country totals from real points', { expect: 'W3', workerSrc: rep('      c.totalScore += x.score;', '      c.totalScore += x.points;') });
+await control('stale country totals never rebuilt', { expect: 'W3', workerSrc: rep('      if ((await this.state.storage.get("countriesWeights")) !== JSON.stringify(DIFF_WEIGHT)) await this.recomputeCountries();', '') });
+await control('server weights differ from the game', { expect: 'W4', workerSrc: rep('const DIFF_WEIGHT = { easy: 0.09, medium: 0.21, hard: 1 };', 'const DIFF_WEIGHT = { easy: 0.1, medium: 0.21, hard: 1 };') });
+await control('the game board does not say weighted', { expect: 'W4', game: rep("if(data.weighted) html+='<div class=\"lbSectionLabel\">ALL DIFFICULTIES", "if(false) html+='<div class=\"lbSectionLabel\">ALL DIFFICULTIES") });
 const total = main.F + NC;
-console.log('\n' + (total ? 'EASY SCORING FAILED: ' + main.F + ' check(s), ' + NC + ' uncaught control(s)' : 'EASY SCORING PASSED: all checks and all negative controls'));
+console.log('\n' + (total ? 'SCORING FAILED: ' + main.F + ' check(s), ' + NC + ' uncaught control(s)' : 'SCORING PASSED: all checks and all negative controls'));
 process.exit(total ? 1 : 0);

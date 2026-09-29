@@ -28,8 +28,12 @@ function suite(files, quiet = false) {
   const tm = files['public/terms.html'], wt = files['public/welcome/terms.html'];
   ck('P1 the policy is finished: no "not ready" note, no placeholder, an effective date', !/Not yet ready|OWNER INPUT|class="todo"|\[[A-Z ]+:/.test(pv) && /Effective date: <strong>[A-Z][a-z]+ \d{1,2}, 20\d\d<\/strong>/.test(pv));
   ck('P1 the retired /welcome/ copy (still reachable) is the same finished policy', wv === pv);
-  const hits = Object.entries(files).filter(([f, s]) => !/privacy\.html$/.test(f) && TRACKERS.test(s)).map(([f, s]) => f + ': ' + s.match(TRACKERS)[0]);
-  ck('P2 no third-party analytics, advertising, tracking pixels or cookies anywhere the site serves (as the policy says)', hits.length === 0 && /no third-party analytics, no advertising, no tracking pixels, and no\s*cookies/.test(pv), hits.slice(0, 3).join(' | '));
+  // FLUX COMMAND: the one cookie allowed is the OWNER's admin login -- set only by commandCookie(), only after the
+  // admin password, HttpOnly and scoped to /api/admin, so it never reaches a player. Any other Set-Cookie still fails.
+  const ownerOnly = (f, s) => f === 'worker.js' && /function commandCookie\(token, maxAgeSec\) \{\n  return COMMAND_COOKIE \+ "=" \+ token \+ "; Path=\/api\/admin; HttpOnly;/.test(s)
+    ? s.replace(/\{ "Set-Cookie": commandCookie\(/g, '{ commandCookie(') : s;
+  const hits = Object.entries(files).map(([f, s]) => [f, ownerOnly(f, s)]).filter(([f, s]) => !/privacy\.html$/.test(f) && TRACKERS.test(s)).map(([f, s]) => f + ': ' + s.match(TRACKERS)[0]);
+  ck('P2 no third-party analytics, advertising, tracking pixels or cookies anywhere the site serves (as the policy says)', hits.length === 0 && /no third-party analytics, no advertising, no tracking pixels, and no\s*cookies for players/.test(pv) && /only cookie is a <strong>security cookie for the owner's admin login<\/strong>[\s\S]{0,200}never set for players/.test(pv) && !/and no\s*cookies<\/strong>/.test(pv), hits.slice(0, 3).join(' | '));
   ck('P2 ads are switched off in the game (the revive is free)', /const ADS_ENABLED = false;/.test(game));
   const rule = /if \(!\/\^\[A-Z0-9\]\+\$\/\.test\(s\) \|\| s\.length > TYPED_NAME_MAX\)/;
   ck('P3 the policy describes the names the game really allows (preset to start; typed: one word, letters and numbers, up to 12; no email, phone or link)',
@@ -59,7 +63,8 @@ function suite(files, quiet = false) {
     && /<h3 id="stats">Anonymous gameplay statistics \(in-house\)<\/h3>\s*<div class="review"><strong>For lawyer review before launch\.<\/strong>/.test(pv)
     && /<strong>our own server<\/strong>/.test(pv) && /one-way code, different from the\s+leaderboard's tag/.test(pv) && /<strong>90 days<\/strong>/.test(pv) && /\?src=tiktok/.test(pv) && !/Future gameplay statistics/.test(pv));
   const evs = [...g.matchAll(/fluxTrack\('([a-z_]+)'/g)].map((m) => m[1]).sort().join(',');
-  ck('P6 ...the events the game sends are exactly the ones the policy lists', evs === 'first_run,level_up,open,run_end,share' && /the app being opened[\s\S]{0,120}first run, each finished run[\s\S]{0,120}level-ups, and taps on the share button/.test(pv), evs);
+  ck('P6 ...the events the game sends are exactly the ones the policy lists', evs === 'first_run,level_up,open,play,run_end,share' && /the app being opened[\s\S]{0,120}first run, each finished run[\s\S]{0,120}level-ups, and taps on the share button/.test(pv)
+    && /For each finished run we also count, for each speed of the ball reached in\s+that run: the seconds played at that speed, the orbs hit, the wrong-colour\s+orbs hit and the balls lost\./.test(pv), evs);
   ck('T1 Terms: kids may play, no "13 and older", children section marked for lawyer review',
     /Anyone may play FLUX, including children/.test(tm) && !/at least 13/.test(tm) && /<div class="review"><strong>For lawyer review before launch\.<\/strong>/.test(tm));
   ck('T1 Terms describe the name rules (one word, letters and numbers, up to 12, no full names)', /a typed name must be one word, letters and numbers\s+only, up to 12 characters/.test(tm) && /Full names/.test(tm) && !/up to 14 characters|dice|Names cannot be typed/.test(tm));
@@ -79,6 +84,8 @@ const edit = (file, a, b) => (fl) => { if (!fl[file].includes(a)) throw new Erro
 control('Google Analytics added to the game', 'P2', edit('public/play/index.html', '</head>', '<script async src="https://www.googletagmanager.com/gtag/js?id=G-X"></script></head>'));
 control('ads switched on', 'P2', edit('public/play/index.html', 'const ADS_ENABLED = false;', 'const ADS_ENABLED = true;'));
 control('a cookie set by the Gateway', 'P2', edit('public/index.html', '</body>', '<script>document.cookie="v=1"</script></body>'));
+control('a cookie set on a player API response', 'P2', edit('worker.js', 'return withCors(await submitRun(request, env, ctx));', 'return withCors(json({ ok: true }, 200, { "Set-Cookie": "pid=1" }));'));
+control('the admin cookie opened to the whole site', 'P2', edit('worker.js', '"; Path=/api/admin; HttpOnly;', '"; Path=/; HttpOnly;'));
 control('placeholder left in the retired copy', 'P1', edit('public/welcome/privacy.html', 'Effective date:', 'Effective date: [OWNER INPUT REQUIRED: date]'));
 control('"not ready" note back', 'P1', edit('public/privacy.html', '<h1>Privacy Policy</h1>', '<h1>Privacy Policy</h1><div class="todo">Not yet ready for publication.</div>'));
 control('auto names go back to PILOT-XXXX without the policy', 'P3', edit('public/play/index.html', "callsign = randomPresetName();", "callsign = 'PILOT-' + t;"));
@@ -94,6 +101,8 @@ control('Terms back to 13 and older', 'T1', edit('public/terms.html', 'Anyone ma
 control('retired Terms copy left behind', 'T1', edit('public/welcome/terms.html', 'Effective date:', 'Effective date: [OWNER INPUT REQUIRED: date]'));
 control('children section back to "13 and older"', 'P3', edit('public/privacy.html', 'FLUX is a game for a general audience, and children may play it.', 'FLUX is intended for players aged 13 and older.'));
 control('the game counts a new event the policy does not list', 'P6', edit('public/play/index.html', "fluxTrack('share');", "fluxTrack('share'); fluxTrack('scroll');"));
+control('policy says plain "no cookies" again (admin cookie not disclosed)', 'P2', (f) => { let o = f; for (const q of ['public/privacy.html', 'public/welcome/privacy.html']) o = edit(q, 'cookies for players</strong>', 'cookies</strong>')(o); return o; });
+control('admin cookie sentence dropped', 'P2', edit('public/privacy.html', "The only cookie is a <strong>security cookie for the owner's admin login</strong>.", ''));
 control('stats kept longer than the policy says', 'P6', edit('worker.js', 'const AN_KEEP_DAYS = 90;', 'const AN_KEEP_DAYS = 365;'));
 control('upload sends a new field', 'P4', edit('worker.js', 'body: JSON.stringify({ playerId, name, score, level, difficulty, country, detected })', 'body: JSON.stringify({ playerId, name, score, level, difficulty, country, detected, ua: request.headers.get("user-agent") })'));
 const total = main.F + NC;
