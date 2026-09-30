@@ -157,6 +157,11 @@ body.anim .gameWrap{animation:gameReveal var(--dur) ease-in-out infinite}
 
 nav{position:fixed;z-index:20;top:0;left:0;right:0;padding:calc(18px + env(safe-area-inset-top)) max(22px,env(safe-area-inset-right)) 18px max(22px,env(safe-area-inset-left));display:flex;align-items:center;justify-content:space-between;background:linear-gradient(#03030bc9,transparent);backdrop-filter:blur(4px)}
 .brand{font-weight:900;letter-spacing:.32em}
+.brandSparta{letter-spacing:.06em;font-weight:700;opacity:.85;font-size:.82em}
+nav .brand,footer .brand{white-space:nowrap}
+@media (min-width:600px) and (max-width:1024px){nav .brandSparta{display:none}}   /* tablets: the nav links need the room; the hero logo shows the full name */
+/* The full name: "Sparta" sits under the big FLUX, scaled with it (em), never clipped. */
+.logoSparta{display:block;font-size:.3em;line-height:1.1;letter-spacing:.3em;font-weight:800;margin:.25em 0 0 .3em;text-shadow:none;opacity:.92}
 .navlinks{display:flex;align-items:center;gap:20px}
 .navlinks a,.ghost{color:#fff;text-decoration:none;font-size:12px;letter-spacing:.15em;text-transform:uppercase;opacity:.78}
 .navPlay{opacity:0;pointer-events:none;transition:opacity .3s ease;border:1px solid #ffffff45;background:#ffffff14;padding:9px 16px;border-radius:999px;font-weight:800}
@@ -548,7 +553,7 @@ footer{position:relative;z-index:3;padding:40px 7vw 50px;color:#777;font-size:12
 <body class="anim">
 <div class="noise"></div>
 <nav>
-  <div class="brand">FLUX</div>
+  <div class="brand">FLUX <span class="brandSparta">Sparta</span></div>
   <div class="navlinks">
     <a href="#play">Play Free</a>
     <a href="#grid">World Grid</a>
@@ -578,7 +583,7 @@ footer{position:relative;z-index:3;padding:40px 7vw 50px;color:#777;font-size:12
   <div class="heroContent">
     <div class="heroBrand">
       <div class="eyebrow">Flow · Launch · Unite · Xcelerate</div>
-      <div class="logo">FLUX</div>
+      <div class="logo">FLUX<span class="logoSparta">Sparta</span></div>
       <div class="tag">THE WORLD HAS ENTERED THE FLUX.</div>
       <div class="freeBadge">100% FREE TO PLAY</div>
     </div>
@@ -725,7 +730,7 @@ footer{position:relative;z-index:3;padding:40px 7vw 50px;color:#777;font-size:12
 
 <footer>
   <div class="footTop">
-    <div class="brand" style="font-size:16px">FLUX</div>
+    <div class="brand" style="font-size:16px">FLUX <span class="brandSparta">Sparta</span></div>
     <div class="footLinks">
       <a href="#play">Play</a>
       <a href="#worlds">Worlds</a>
