@@ -3470,6 +3470,7 @@ function overallBestScore(){
 }
 // What this run adds to the country (weighted), 0 if nothing.
 function runAdds(sc,prevOverall){ const w=weighted(sc,difficulty); return (profileComplete && sc>0 && w>prevOverall) ? w-prevOverall : 0; }
+const GO_LINE_NEAR=0.2;   // game over: the best line shows only within 20% of the best (or a new best)
 /* D-57: the score is the headline; ONE line says what it meant. */
 function gameOverLine(sc,prevBest,prevOverall){
   const c=countryLabel(country);
@@ -3479,11 +3480,16 @@ function gameOverLine(sc,prevBest,prevOverall){
   if(!profileComplete) second='Add your name to count for '+c.flag;
   else if(runAdds(sc,prevOverall)>0) second=c.flag+' +'+runAdds(sc,prevOverall).toLocaleString()+' for '+c.name;   // weighted, as in the country total
   else second='Beat '+Math.max(sc,Math.ceil(prevOverall/(DIFF_WEIGHT[difficulty]||1))).toLocaleString()+' to add to '+c.flag;   // in this difficulty's real points
-  return { isNew:isNew, first:first, second:second };
+  // Shown only when the run was close: a new best, or within 20% of the best on this
+  // difficulty. A far-off run gets a clean game over (the rank line and "points behind" stay).
+  const show=isNew || (prevBest>0 && sc>=prevBest*(1-GO_LINE_NEAR));
+  return { isNew:isNew, first:first, second:second, show:show };
 }
 function showGameOverLine(sc,prevBest,prevOverall){
   const el=document.getElementById('goLine'); if(!el) return;
   const l=gameOverLine(sc,prevBest,prevOverall);
+  el.style.display=l.show?'':'none';
+  if(!l.show){ el.textContent=''; return; }
   el.innerHTML='<span class="'+(l.isNew?'goNew':'')+'">'+escapeHtml(l.first)+'</span> · '+escapeHtml(l.second);
 }
 /* D-60: an auto-named pilot (PILOT-XXXX) who sets a new best on their second

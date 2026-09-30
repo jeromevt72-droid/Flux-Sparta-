@@ -284,6 +284,14 @@ async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = fals
     const m = bootGame({ fluxPlayerId: 'go-2', fluxCallsign: 'MARIA', fluxProfileComplete: '1', fluxCountry: 'PH', fluxDifficulty: 'medium' });
     const Lm = (a, p, o) => { const r = m.g.ctx.gameOverLine(a, p, o); return r.first + ' · ' + r.second; };
     ck('G6 weighted on Medium (x0.21): 23,810 (= 5,000 weighted) over a counted 4,000 adds +1,000; 15,000 must beat 19,048', Lm(23810, 3000, 4000) === 'NEW BEST! · 🇵🇭 +1,000 for Philippines' && Lm(15000, 3000, 4000) === 'NEW BEST! · Beat 19,048 to add to 🇵🇭', Lm(23810, 3000, 4000) + ' | ' + Lm(15000, 3000, 4000));
+    // Owner: the best line shows only when the run was close -- a new best, or within 20% of the best.
+    const S = (a, p) => b.g.ctx.gameOverLine(a, p, 4000).show;
+    ck('G7 the best line shows for a new best, a tie, and a run within 20% of the best; hidden below that', S(5000, 3000) && S(3000, 3000) && S(2400, 3000) && !S(2399, 3000) && !S(0, 3000) && S(10, 0), [S(5000, 3000), S(3000, 3000), S(2400, 3000), S(2399, 3000), S(0, 3000), S(10, 0)].join(','));
+    const far = bootGame({ fluxPlayerId: 'go-3', fluxCallsign: 'MARIA', fluxProfileComplete: '1', fluxCountry: 'PH', fluxDifficulty: 'hard',
+      fluxBest_hard: '10000', fluxBestRun_hard: JSON.stringify({ score: 10000, level: 4, difficulty: 'hard', playerId: 'go-3', at: 1 }) });
+    far.g.ctx.newGame(); far.run('score=2000;'); far.g.ctx.endGame(); far.flush();
+    const fl = far.el('goLine');
+    ck('G8 a real game over far below the best hides the line (nothing shown), the score still shows', fl.style.display === 'none' && String(fl.innerHTML) === '' && String(far.el('finalScore').textContent) === (2000).toLocaleString(), fl.style.display + ' | ' + String(fl.innerHTML));
   } catch (e) { ck('D-57 section ran', false, String(e.stack || e).slice(0, 300)); }
 
   /* ================= D-58 ================= */
@@ -443,6 +451,9 @@ await control('D-60 offered to named pilots', { expect: 'N7', game: rep("return 
 await control('D-60 NOT NOW does nothing', { expect: 'N3', game: rep("document.getElementById('goClaimNo').onclick=function(){ document.getElementById('goClaim').classList.add('hidden'); };", '') });
 // D-61
 await control('D-61 loud start, no fade', { expect: 'A1', game: rep('      masterGain.gain.value=0;\n', '      masterGain.gain.value=.52;\n') });
+await control('best line always shown (no 20% rule)', { expect: 'G7', game: rep("const show=isNew || (prevBest>0 && sc>=prevBest*(1-GO_LINE_NEAR));", "const show=true;") });
+await control('best line hidden but left on screen', { expect: 'G8', game: rep("  el.style.display=l.show?'':'none';\n  if(!l.show){ el.textContent=''; return; }\n", "") });
+await control('best line window widened to 50%', { expect: 'G7', game: rep('const GO_LINE_NEAR=0.2;', 'const GO_LINE_NEAR=0.5;') });
 await control('D-61 volume raised later', { expect: 'A3', game: rep('function playTick(){', "function raiseVolume(){ if(masterGain) masterGain.gain.value=1; }\nfunction playTick(){") });
 await control('D-61 combo pitch stops rising at x7', { expect: 'A4', game: rep('const base=360*Math.pow(2,(Math.max(1,Math.min(24,comboNow))-1)/12);', 'const base=360+Math.min(7,comboNow)*42;') });
 
