@@ -15,7 +15,7 @@ function block(marker){
 const phone = strip(block('@media(max-width:700px){'));
 
 console.log('-- all four reveal elements still exist --');
-for(const el of ['Flow · Launch · Unite · Xcelerate','<div class="logo">FLUX</div>',
+for(const el of ['Flow · Launch · Unite · Xcelerate','<div class="logo">FLUX<span class="logoSparta">Sparta</span></div>',
                  'THE WORLD HAS ENTERED THE FLUX.','100% FREE TO PLAY'])
   ck('present: '+el.slice(0,34), g.includes(el));
 ck('all four inside .heroBrand', /<div class="heroBrand">[\s\S]{0,400}100% FREE TO PLAY/.test(g));
