@@ -15,13 +15,13 @@
 //   W7 APPLY is refused without the admin session/password (+ CSRF header for a cookie session), without
 //      exactly "APPLY <dry-run id>", without a checked backup from the last 60 minutes, with a dry run
 //      older than 60 minutes, or when the archive changed since the dry run -- and then nothing changes;
-//   W8 APPLY takes a verified safety backup, switches the World Grid (ALL board + countries) to the
+//   W8 APPLY takes a verified safety backup, switches the World Grid (EARTH / MARS / JUPITER boards, ALL, WORLD countries) to the
 //      consolidated data, runs the checks against the live routes, shows in the owner summary;
 //   W9 APPLY and REVERT are reversible: the bests and the archive are never rewritten; after REVERT every
 //      public route answers exactly as before APPLY; the switch survives a restart;
 //   W10 after APPLY new runs still count: a run above the Season 0 best raises the grid, one below does not;
 //   W11 if the check after the switch fails, the switch is turned back off by itself;
-//   W12 the game's leaderboard shows ONE combined grid (no tabs) once applied, and is unchanged before;
+//   W12 the game's leaderboard (#43 tabs, none added) shows the combined grid once applied, and is unchanged before;
 //   W13 the gateway World Grid shows ONE combined grid (no tabs) once applied, and is unchanged before;
 //   W14 the Season 1 message no longer says "Fresh boards for everyone" (true before and after APPLY);
 //   W15 admin page: WORLD GRID section (dry run, typed APPLY, REVERT, report in plain words, BACK UP NOW
@@ -364,7 +364,12 @@ async function suite({ workerMod, gameHtml, gateHtml, adminHtml, quiet = false, 
     ck('W8 the leaderboard response keeps its shape (top, countries, leadingCountry, difficulty, weighted, weights) + combined', ['top', 'countries', 'leadingCountry', 'difficulty', 'weighted', 'weights', 'combined', 'gridCombined'].every((k) => k in after) && after.top.every((t) => ['pid', 'tag', 'name', 'country', 'score', 'points', 'level', 'difficulty'].every((k) => k in t)) && !JSON.stringify(after).includes('aaaaaaaa-bbbb'));
     const easyAfter = await R.board('easy', 100);
     const hardAfter = await R.board('hard', 100);
-    ck('W8 the Easy, Medium and Hard boards stay Season 1 only (their pilot lists; the countries are the World Grid)', util.isDeepStrictEqual(easyAfter.top, before['lb:easy'].top) && util.isDeepStrictEqual(hardAfter.top, before['lb:hard'].top) && easyAfter.combined === false && easyAfter.gridCombined === true && sameCountries(easyAfter, E));
+    const expD = (d) => E.pilots.filter((p) => p.b[d] !== undefined).map((p) => p.b[d]).sort((x, y) => y - x).slice(0, 100);
+    ck('W8 the EARTH / MARS / JUPITER boards (easy / medium / hard) are consolidated too: max(Season 0, Season 1) per pilot, each pilot once',
+      util.isDeepStrictEqual(easyAfter.top.map((t) => t.score), expD('easy')) && util.isDeepStrictEqual(hardAfter.top.map((t) => t.score), expD('hard')) && new Set(hardAfter.top.map((t) => t.pid)).size === hardAfter.top.length
+      && easyAfter.combined === true && sameCountries(easyAfter, E) && !util.isDeepStrictEqual(easyAfter.top, before['lb:easy'].top));
+    const both = await R.req('/api/leaderboard?limit=100&boards=1', null, {}, 'GET');
+    ck('W8 ?boards=1 (one request for the game\'s tabs) serves the consolidated boards', util.isDeepStrictEqual(both.data.boards.medium.map((t) => t.score), expD('medium')) && both.data.combined === true);
     const sum = await R.admin('summary');
     ck('W8 the FLUX COMMAND owner summary says the combined grid is live', sum.status === 200 && sum.data.worldGrid && sum.data.worldGrid.combined === true && sum.data.worldGrid.appliedAt === now);
     const banned = after.top.find((t) => t.name === 'PILOT');
@@ -423,19 +428,24 @@ async function suite({ workerMod, gameHtml, gateHtml, adminHtml, quiet = false, 
 
     /* ================= W12 the game ================= */
     if (!quiet) console.log('== W12 the game ==');
-    const lbCombined = await R.board('', 25), lbSeason = before['lb:'];
-    const renderGame = async (data) => {
-      const { store } = makeStore({ fluxPlayerId: 'player-x', fluxCallsign: 'NOVA', fluxProfileComplete: '1', fluxSeason: '1', fluxRunsPlayed: '4' });
+    const lbCombined = (await R.req('/api/leaderboard?limit=25&boards=1', null, {}, 'GET')).data;
+    await R.admin('world-grid-revert');
+    const lbSeason = (await R.req('/api/leaderboard?limit=25&boards=1', null, {}, 'GET')).data;
+    { const dd = (await R.admin('world-grid-dry-run')).data; await R.admin('backup-now'); await R.admin('world-grid-apply', { id: dd.id, confirm: dd.confirm }); }
+    const renderGame = async (data, tab) => {
+      const { store } = makeStore({ fluxPlayerId: 'player-x', fluxCallsign: 'NOVA', fluxProfileComplete: '1', fluxSeason: '1', fluxRunsPlayed: '4', fluxCountry: 'US' });
       const gm = boot(scriptsOf(gameHtml), { origin: ORIGIN, path: '/play/', store, fetchImpl: (u) => String(u).includes('/api/leaderboard') ? Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(structuredClone(data)) }) : Promise.reject(new TypeError('offline')) });
-      vm.runInContext("var __lbBody={innerHTML:''}; document.createElement=function(){ return { className:'', innerHTML:'', querySelector:function(s){ return s==='#lbBody' ? __lbBody : { onclick:null }; }, remove:function(){} }; }; openLeaderboard();", gm.ctx);
+      vm.runInContext("var __lb={}; document.createElement=function(){ return { className:'', innerHTML:'', querySelector:function(s){ return __lb[s]||(__lb[s]={innerHTML:'',onclick:null}); }, querySelectorAll:function(){ return []; }, remove:function(){} }; }; openLeaderboard(" + JSON.stringify(tab) + ");", gm.ctx);
       for (let i = 0; i < 20; i++) await new Promise((r) => setTimeout(r, 1));
-      return { html: String(vm.runInContext('__lbBody.innerHTML', gm.ctx)), errors: gm.errors };
+      return { html: String(vm.runInContext("(__lb['#lbBody']||{}).innerHTML", gm.ctx)), tabs: String(vm.runInContext("(__lb['#lbTabsBox']||{}).innerHTML", gm.ctx)), errors: gm.errors };
     };
-    const gc = await renderGame(lbCombined), gs = await renderGame(lbSeason);
     const noTabs = (h) => !/role="tab|class="[^"]*\btabs?\b|lbTab/i.test(h);
-    ck('W12 after APPLY the game leaderboard shows ONE combined grid: the label, one pilot list, no tabs', gc.errors.length === 0 && /BEST OF SEASON 0 \+ SEASON 1/.test(gc.html) && /EACH PILOT COUNTED ONCE/.test(gc.html) && (gc.html.match(/class="lbList"/g) || []).length === 2 && noTabs(gc.html)
-      && (gc.html.match(/class="lbRow/g) || []).length === lbCombined.top.length + Math.min(8, lbCombined.countries.length), gc.errors.join(';') + ' ' + gc.html.slice(0, 200));
-    ck('W12 before APPLY the game leaderboard is as today (no combined label, no tabs)', gs.errors.length === 0 && !/SEASON 0/.test(gs.html) && /ALL DIFFICULTIES/.test(gs.html) && noTabs(gs.html) && (gs.html.match(/class="lbRow/g) || []).length === lbSeason.top.length + Math.min(8, lbSeason.countries.length));
+    const tabCount = (t) => (t.match(/role="tab"/g) || []).length;
+    const gc = await renderGame(lbCombined, 'hard'), gw0 = await renderGame(lbCombined, 'world'), gs = await renderGame(lbSeason, 'hard');
+    ck('W12 after APPLY the game leaderboard shows the combined grid on its own tabs (EARTH / MARS / JUPITER / WORLD, none added): the label and the consolidated JUPITER board',
+      gc.errors.length === 0 && /BEST OF SEASON 0 \+ SEASON 1 · EACH PILOT COUNTED ONCE/.test(gc.html) && /BEST OF SEASON 0 \+ SEASON 1/.test(gw0.html) && tabCount(gc.tabs) === 4 && tabCount(gs.tabs) === 4
+      && gc.html.includes(lbCombined.boards.hard[0].score.toLocaleString('en-US')) && gc.html !== gs.html, gc.errors.join(';') + ' ' + gc.html.slice(0, 200));
+    ck('W12 before APPLY the game leaderboard is as today (no combined label)', gs.errors.length === 0 && !/SEASON 0/.test(gs.html) && /class="lbList"/.test(gs.html));
     ck('W12 the game adds no event listener (17 sites, as pinned by the regression suite)', (gameHtml.match(/addEventListener\(/g) || []).length === 17);
 
     /* ================= W13 the gateway ================= */
@@ -546,16 +556,17 @@ await control('APPLY without a safety backup', 'W8 a verified safety backup', { 
 await control('APPLY without the check on the live routes', 'W8 the post-apply checks ran', { worker: rep('  const ck = await lb("/world-grid-check", {});\n', '  const ck = { r: { ok: true }, d: { ok: true, checks: [] } };\n') });
 await control('APPLY does not recompute the country totals', 'W8 the live World Grid is combined', { worker: rep('    this.worldGrid = next;\n    await this.recomputeCountries();\n    return json({ ok: true, worldGrid: this.worldGridState() });', '    this.worldGrid = next;\n    return json({ ok: true, worldGrid: this.worldGridState() });') });
 await control('the switch is ignored by the leaderboard', 'W8 the live World Grid is combined', { worker: rep('get gridCombined() { return !!(this.worldGrid && this.worldGrid.combined); }', 'get gridCombined() { return false; }') });
-await control('the per-difficulty boards are combined too', 'W8 the Easy, Medium and Hard boards stay', { worker: rep('for (const r of difficulty ? this.pilotRecords() : await this.gridRecords()) {', 'for (const r of await this.gridRecords()) {') });
+await control('the planet boards stay Season 1 only', 'W8 the EARTH / MARS / JUPITER boards', { worker: rep('for (const r of await this.gridRecords()) {', 'for (const r of difficulty ? this.pilotRecords() : await this.gridRecords()) {') });
+await control('the board cache ignores the switch', 'W8 the live World Grid is combined', { worker: rep('const hit = seen && seen.grid === this.worldGrid && seen.archive === this.archiveCache ? seen : null;', 'const hit = seen;') });
 await control('the owner summary does not show the World Grid', 'W8 the FLUX COMMAND owner summary', { worker: rep('    worldGrid: lb && lb.worldGrid ?', '    worldGridX: lb && lb.worldGrid ?') });
 await control('APPLY writes the merged bests into the pilot records', 'W9 APPLY rewrote no best', { worker: rep('    await this.state.storage.put({ [WORLD_GRID_KEY]: next });\n    this.worldGrid = next;\n    await this.recomputeCountries();\n    return json({ ok: true, worldGrid', '    await this.state.storage.put({ [WORLD_GRID_KEY]: next, players: Object.fromEntries(res.pilots.map((p) => [p.playerId, p])) });\n    this.worldGrid = next;\n    await this.recomputeCountries();\n    return json({ ok: true, worldGrid') });
 await control('the switch is not stored (lost on restart)', 'W9 the switch survives a restart', { worker: rep('    await this.state.storage.put({ [WORLD_GRID_KEY]: next });\n    this.worldGrid = next;\n    await this.recomputeCountries();\n    return json({ ok: true, worldGrid', '    this.worldGrid = next;\n    await this.recomputeCountries();\n    return json({ ok: true, worldGrid') });
 await control('REVERT does not switch back', 'W9 REVERT switches back', { worker: rep('const next = { ...prev, combined: false, revertedAt: now,', 'const next = { ...prev, revertedAt: now,') });
 await control('REVERT leaves the combined country totals', 'W9 after REVERT', { worker: rep('    this.worldGrid = next;\n    await this.recomputeCountries();\n    return json({ ok: true, wasCombined', '    this.worldGrid = next;\n    return json({ ok: true, wasCombined') });
 await control('a failed check after APPLY leaves the switch on', 'W11 if the check after the switch fails', { worker: rep('    await lb("/world-grid-revert", { reason: "the check after APPLY failed" });\n', '') });
-await control('a privacy deletion leaves the cached archive in memory', 'W7 if the archive changed', { worker: rep('    await this.state.storage.put(puts);\n    this.archiveCache = null;\n  }', '    await this.state.storage.put(puts);\n  }') });
-await control('game: no combined label', 'W12 after APPLY the game', { game: rep("    if(data.combined) html+='<div class=\"lbSectionLabel lbCombined\">", "    if(false) html+='<div class=\"lbSectionLabel lbCombined\">") });
-await control('game: the combined grid in tabs', 'W12 after APPLY the game', { game: rep("    if(data.combined) html+='<div class=\"lbSectionLabel lbCombined\">", "    if(data.combined) html+='<div class=\"lbTabs\"><button role=\"tab\">SEASON 0</button><button role=\"tab\">SEASON 1</button></div>';\n    if(data.combined) html+='<div class=\"lbSectionLabel lbCombined\">") });
+await control('a privacy deletion leaves the cached archive in memory', 'W7 if the archive changed', { worker: rep('    await this.state.storage.put(puts);\n    this.archiveCache = null; this.rowsCache = null;\n  }', '    await this.state.storage.put(puts);\n  }') });
+await control('game: no combined label', 'W12 after APPLY the game', { game: rep("if(o.data && o.data.combined) html=", "if(false) html=") });
+await control('game: a Season 0 tab added', 'W12 after APPLY the game', { game: rep("  return '<div class=\"lbTabs\" role=\"tablist\">'+FLUX_LB_TABS.map(", "  return '<div class=\"lbTabs\" role=\"tablist\"><button role=\"tab\">SEASON 0</button>'+FLUX_LB_TABS.map(") });
 await control('gateway: no combined note', 'W13 after APPLY the gateway', { gate: rep("combinedNote.hidden = !data.combined;", "combinedNote.hidden = true;") });
 await control('gateway: the note always shows', 'W13 before APPLY the gateway', { gate: rep("combinedNote.hidden = !data.combined;", "combinedNote.hidden = false;") });
 await control('game: the old "Fresh boards" message', 'W14 the one-time message', { game: rep("const FLUX_SEASON_MSG='Season 1: new point rates on Easy and Medium.';", "const FLUX_SEASON_MSG='Season 1 starts now! Fresh boards for everyone.';") });

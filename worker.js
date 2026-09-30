@@ -67,6 +67,40 @@ const SEASON_ARCHIVE_PUT_KEYS = 100;                // a DO put takes at most 12
 // Minimum gap between two accepted submissions from one playerId.
 const SUBMIT_COOLDOWN_MS = 10_000;
 
+/* FREE PLAN (owner decision: FLUX stays on the free Cloudflare Workers plan).
+   Free-plan daily limits this server must stay under, reset at 00:00 UTC:
+     Worker requests        100,000 / day  (static assets in ./public do NOT
+                                            invoke this script: wrangler.jsonc)
+     Durable Object requests 100,000 / day (every stub.fetch below)
+     DO SQLite rows written  100,000 / day
+     DO SQLite rows read   5,000,000 / day
+   USAGE COUNTER: each Worker isolate counts, in memory, its own invocations
+   (w), the Durable Object requests it makes (d) and an ESTIMATE of the rows
+   those requests write (rw). The counts ride along, at no extra request, on
+   the next call this isolate makes to the "analytics" instance anyway (a run's
+   stats, a stats beacon, the cron, the admin page), which adds them into
+   today's stats row -- no extra request and no extra row. Accuracy: a lower
+   bound. An isolate that is evicted before its next analytics call loses its
+   unsent counts (at most the requests since its last run upload); the
+   analytics instance's own writes are counted exactly. The Cloudflare
+   dashboard stays the authority; this is the early warning on the admin page
+   (alert at USAGE_ALERT_PCT of any limit). */
+const FREE_LIMITS = { workerRequests: 100_000, doRequests: 100_000, rowsWritten: 100_000, rowsRead: 5_000_000 };
+const USAGE_ALERT_PCT = 80;
+const SUBMIT_ROWS_EST = 3;              // an accepted score writes players, lastSubmit, countries (+ flags when one is added)
+let USE = { day: -1, w: 0, d: 0, rw: 0 };
+function useFresh() { const day = Math.floor(Date.now() / 86_400_000); if (USE.day !== day) USE = { day, w: 0, d: 0, rw: 0 }; }
+function useCount(field, n = 1) { useFresh(); USE[field] += n; }
+function takeUse() { useFresh(); const out = { day: USE.day, w: USE.w, d: USE.d, rw: USE.rw }; USE.w = 0; USE.d = 0; USE.rw = 0; return out; }
+
+/* LEADERBOARD MEMO (FREE PLAN): GET /api/leaderboard answers from this
+   isolate's memory for up to LB_MEMO_MS, so a busy isolate asks the Durable
+   Object at most about once a minute per board. Any POST through this isolate
+   (a score, an admin action) clears it at once. Each response says
+   X-Flux-Cache: hit | miss. (The Cache API was not used: on a *.workers.dev
+   address it stores nothing, and a cache hit is still a Worker request.) */
+const LB_MEMO_MS = 60_000;
+const lbMemo = new WeakMap();
 /* RATE LIMITS + REPLAY PROTECTION (no Cloudflare setup needed).
    Rate limits: fixed one-minute windows counted in the MEMORY of the Durable
    Object that serves the route ("global" for scores, restore checks and admin;
@@ -120,27 +154,30 @@ const validPlayerId = (v) => PLAYER_ID.test(String(v || "")) && !UNSAFE_KEYS.has
 
 export default {
   async scheduled(event, env, ctx) {
+    useCount("w");                        // FREE PLAN: a cron run is a Worker request too (48 a day)
     ctx.waitUntil(reconcilePayments(env).catch((e) => console.error("reconcile:", e && e.message)));
-    ctx.waitUntil(analyticsDO(env, "/an-purge", { method: "POST" }).catch(() => {}));   // STATS: raw events older than 90 days -> totals only
+    ctx.waitUntil(analyticsDO(env, "/an-purge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ use: takeUse() }) }).catch(() => {}));   // STATS: raw events older than 90 days -> totals only
     // BACKUPS: the first run of each UTC day takes the daily leaderboard backup; later runs that day do nothing.
     if (env.LEADERBOARD_DO) ctx.waitUntil(backupDO(env, "/daily", { method: "POST" })
       .then(async (r) => { if (!r.ok) console.error("backup: daily failed:", (await r.text()).slice(0, 300)); })
       .catch((e) => console.error("backup: daily failed:", e && e.message)));
   },
 
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname;
+    useCount("w");                        // FREE PLAN: every invocation of this script
 
     try {
       if (path.startsWith("/api/")) {
         if (request.method === "OPTIONS") return preflight();
+        if (request.method !== "GET") lbMemo.delete(env);   // LEADERBOARD MEMO: a write through this isolate shows at once
 
         if (path === "/api/leaderboard" && request.method === "GET") {
-          return withCors(await forwardToDO(request, env, "/leaderboard" + url.search));
+          return withCors(await getLeaderboard(request, env, url));
         }
         if (path === "/api/submit-score" && request.method === "POST") {
-          return withCors(await submitScore(request, env));
+          return withCors(await submitRun(request, env, ctx));   // FREE PLAN: a run's score AND its stats, one request
         }
         if (path === "/api/events" && request.method === "POST") {
           return withCors(await ingestEvents(request, env));   // STATS (in-house, anonymous)
@@ -190,6 +227,7 @@ export default {
             "/api/admin/issue-restore-code": () => adminIssueRestore(request, env),   // D-37
             "/api/admin/analytics":          () => adminAnalytics(request, env),     // STATS dashboard data
             "/api/admin/season-archive":     () => adminDO(request, env, "/admin-season-archive", {}),   // SEASON 1: archived Season 0 scores, read-only
+            "/api/admin/usage":              () => adminUsage(request, env),         // FREE PLAN: today's requests vs the free limits
             "/api/admin/backups":            () => adminBackup(request, env, "/list"),        // BACKUPS: list + last status
             "/api/admin/backup-now":         () => adminBackup(request, env, "/snapshot"),    // BACKUPS: manual backup
             "/api/admin/backup-dry-run":     () => adminBackup(request, env, "/dry-run"),     // BACKUPS: what a restore would change; writes nothing
@@ -212,6 +250,9 @@ export default {
         return withCors(json({ error: "Not found" }, 404));
       }
 
+      // FREE PLAN: never reached in production. wrangler.jsonc serves every file
+      // in ./public, and every missing path (not_found_handling "404-page"),
+      // without invoking this script; only /api/* runs it (run_worker_first).
       if (env.ASSETS) return env.ASSETS.fetch(request);
       return new Response("Not found", { status: 404 });
     } catch (err) {
@@ -228,7 +269,21 @@ export default {
 function leaderboardStub(env) {
   if (!env.LEADERBOARD_DO) return null;
   const id = env.LEADERBOARD_DO.idFromName("global");
-  return env.LEADERBOARD_DO.get(id);
+  const stub = env.LEADERBOARD_DO.get(id);
+  return { fetch(u, init) { useCount("d"); return stub.fetch(u, init); } };   // FREE PLAN: every DO request is counted
+}
+/* LEADERBOARD MEMO (see LB_MEMO_MS). */
+async function getLeaderboard(request, env, url) {
+  let memo = lbMemo.get(env);
+  if (!memo) { memo = new Map(); lbMemo.set(env, memo); }
+  const now = Date.now(), key = url.search, hit = memo.get(key);
+  if (hit && now - hit.at < LB_MEMO_MS) return new Response(hit.body, { status: 200, headers: { "Content-Type": "application/json", "X-Flux-Cache": "hit" } });
+  const resp = await forwardToDO(request, env, "/leaderboard" + url.search);
+  if (resp.status !== 200) return resp;
+  const body = await resp.text();
+  if (memo.size >= 16) memo.clear();
+  memo.set(key, { at: now, body });
+  return new Response(body, { status: 200, headers: { "Content-Type": "application/json", "X-Flux-Cache": "miss" } });
 }
 
 async function forwardToDO(request, env, path, init) {
@@ -248,20 +303,41 @@ async function ipCode(request) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("flux-rl:" + day + ":" + ip));
   return Array.from(new Uint8Array(buf)).slice(0, 12).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
+async function rlKeys(route, request, playerCode) {
+  const lim = RATE_LIMITS[route], keys = [], ip = await ipCode(request);
+  if (ip && lim.ip) keys.push({ k: "i:" + route + ":" + ip, max: lim.ip });
+  if (playerCode && lim.player) keys.push({ k: "p:" + route + ":" + playerCode, max: lim.player });
+  return keys;
+}
+function rlRefusal(d) {
+  if (!d || !d.limited) return null;
+  const sec = Math.max(1, Math.min(60, Math.ceil(Number(d.retryAfterSec) || 60)));
+  return json({ error: "Too many requests — please wait a moment", retryAfterSec: sec, rateLimited: true }, 429, { "Retry-After": String(sec) });
+}
 async function rateLimit(env, instance, route, request, playerCode) {
   try {
     if (!env.LEADERBOARD_DO) return null;
-    const lim = RATE_LIMITS[route], keys = [], ip = await ipCode(request);
-    if (ip && lim.ip) keys.push({ k: "i:" + route + ":" + ip, max: lim.ip });
-    if (playerCode && lim.player) keys.push({ k: "p:" + route + ":" + playerCode, max: lim.player });
+    const keys = await rlKeys(route, request, playerCode);
     if (!keys.length) return null;
+    useCount("d");
     const r = await env.LEADERBOARD_DO.get(env.LEADERBOARD_DO.idFromName(instance)).fetch("https://do.internal/rl", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ keys }) });
-    const d = r.ok ? await r.json() : null;
-    if (!d || !d.limited) return null;
-    const sec = Math.max(1, Math.min(60, Math.ceil(Number(d.retryAfterSec) || 60)));
-    return json({ error: "Too many requests — please wait a moment", retryAfterSec: sec, rateLimited: true }, 429, { "Retry-After": String(sec) });
+    return rlRefusal(r.ok ? await r.json() : null);
   } catch (e) { return null; }           // fail open: the limiter never costs a legitimate request
+}
+/* FREE PLAN: for uploads and stats the limiter keys ride INSIDE the request
+   the route makes anyway (header X-Flux-RL), and the Durable Object that
+   serves it checks them in memory first -- same limits, same 429 +
+   Retry-After, no extra Durable Object round trip. (Restore check and admin
+   keep the separate /rl call: rare routes.) */
+const RL_HEADER = "X-Flux-RL", RL_LIMITED_HEADER = "X-Flux-Limited";
+async function rlHeaders(route, request, playerCode, headers) {
+  try { const keys = await rlKeys(route, request, playerCode); if (keys.length) headers[RL_HEADER] = JSON.stringify(keys); } catch (e) {}   // fail open
+  return headers;
+}
+async function rlFromDO(resp) {
+  if (resp.status !== 429 || resp.headers.get(RL_LIMITED_HEADER) !== "1") return resp;
+  return rlRefusal(await resp.json().catch(() => ({ limited: true }))) || resp;
 }
 function adminRateLimit(request, env) { return rateLimit(env, "global", "admin", request, null); }
 
@@ -292,6 +368,7 @@ const AN_KEEP_DAYS = 90;
 const AN_MAX_BATCH = 40;
 function analyticsDO(env, path, init) {
   if (!env.LEADERBOARD_DO) return Promise.resolve(json({ error: "not configured" }, 500));
+  useCount("d");
   return env.LEADERBOARD_DO.get(env.LEADERBOARD_DO.idFromName("analytics")).fetch("https://do.internal" + path, init);
 }
 async function analyticsCode(playerId) {
@@ -324,16 +401,64 @@ async function ingestEvents(request, env) {
     const events = (Array.isArray(body.events) ? body.events : []).slice(0, AN_MAX_BATCH).map(cleanEvent).filter(Boolean);
     if (!events.length) return json({ ok: true, n: 0 });
     const h = await analyticsCode(playerId);
-    const limited = await rateLimit(env, "analytics", "events", request, h);
-    if (limited) return limited;
     const bid = typeof body.bid === "string" && BATCH_ID_RE.test(body.bid) ? body.bid : "";   // older pages send none
     const c = typeof body.country === "string" ? body.country.trim().toUpperCase() : "";
     const cf = (request.cf && request.cf.country) || "";
     const country = ISO2.test(c) ? c : (ISO2.test(cf) ? cf : "XX");   // country only, never a precise location
-    const r = await analyticsDO(env, "/an-ingest", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ h, bid, src: cleanSrc(body.src), country, events }) });
+    const r = await rlFromDO(await analyticsDO(env, "/an-ingest", { method: "POST", headers: await rlHeaders("events", request, h, { "Content-Type": "application/json" }),
+      body: JSON.stringify({ h, bid, src: cleanSrc(body.src), country, events, use: takeUse() }) }));
+    if (r.status === 429) return r;
     return json({ ok: r.ok }, r.ok ? 200 : 500);
   } catch (e) { return json({ ok: false }, 500); }
+}
+/* FREE PLAN: ONE REQUEST PER RUN. At game over the game sends its score and
+   that run's stats together to /api/submit-score:
+     { playerId, name, score, level, difficulty, country, season,
+       stats: { src, events: [...] } }            (stats is optional)
+   The score goes to the leaderboard exactly as before (same checks, same
+   forwarded fields). The stats go to the "analytics" instance exactly as
+   /api/events would send them (same cleaning, same one-way code, country
+   only) -- but only once the score has a final answer: on 429 / 5xx the game
+   keeps the whole upload queued and sends it again, so the stats are not
+   counted twice. They are sent after the reply (waitUntil), so the player
+   never waits for them. Pages from before this change send no "stats" and
+   keep using /api/events: both paths stay. */
+function runStats(body, playerId) {
+  const st = body && body.stats;
+  if (!st || typeof st !== "object" || !validPlayerId(playerId)) return null;
+  const events = (Array.isArray(st.events) ? st.events : []).slice(0, AN_MAX_BATCH).map(cleanEvent).filter(Boolean);
+  return events.length ? { src: st.src, events } : null;
+}
+async function ingestRunStats(request, env, playerId, chosen, stats, runId) {
+  const c = typeof chosen === "string" ? chosen.trim().toUpperCase() : "";
+  const cf = (request.cf && request.cf.country) || "";
+  const country = ISO2.test(c) ? c : (ISO2.test(cf) ? cf : "XX");   // country only, never a precise location
+  const r = await analyticsDO(env, "/an-ingest", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ h: await analyticsCode(playerId), bid: runId, src: cleanSrc(stats.src), country, events: stats.events, use: takeUse() }) });
+  return r.ok;
+}
+async function submitRun(request, env, ctx) {
+  const body = await readJsonObject(request);
+  const resp = await submitScore(body, request, env);
+  if (resp.ok) useCount("rw", SUBMIT_ROWS_EST);
+  const playerId = body && typeof body.playerId === "string" ? body.playerId.trim() : "";
+  const stats = runStats(body, playerId);
+  // REPLAY PROTECTION: the run id is also the stats batch id, so a retried
+  // run is counted once; a reply marked duplicate needs no stats request at all.
+  const runId = body && typeof body.runId === "string" && BATCH_ID_RE.test(body.runId) ? body.runId : "";
+  const dup = resp.ok ? !!(await resp.clone().json().catch(() => ({}))).duplicate : false;
+  if (stats && !dup && resp.status !== 429 && resp.status < 500) {
+    const p = ingestRunStats(request, env, playerId, body.country, stats, runId).catch(() => false);
+    if (ctx && typeof ctx.waitUntil === "function") ctx.waitUntil(p); else await p;
+  }
+  return resp;
+}
+/* FREE PLAN: today's usage against the free limits, for the admin page. */
+async function adminUsage(request, env) {
+  const denied = requireAdmin(request, env); if (denied) return denied;
+  const r = await analyticsDO(env, "/an-usage", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ use: takeUse() }) });
+  const headers = new Headers(r.headers); headers.set("Cache-Control", "no-store");
+  return new Response(r.body, { status: r.status, headers });
 }
 async function adminAnalytics(request, env) {
   const denied = requireAdmin(request, env); if (denied) return denied;
@@ -344,23 +469,29 @@ const AN_DAY_MS = 86400000;
 const anDayStr = (d) => new Date(d * AN_DAY_MS).toISOString().slice(0, 10);
 const anDayNum = (s) => (/^\d{4}-\d{2}-\d{2}$/.test(s || "") ? Math.floor(Date.parse(s + "T00:00:00Z") / AN_DAY_MS) : NaN);
 const anMonth = (d) => anDayStr(d).slice(0, 7);
+/* FREE PLAN: adds one Worker isolate's counts (only today's) and the rows this
+   write itself makes into day._use. Returns whether anything was added. */
+function anUse(day, use, today, ownRows) {
+  const u = day._use || { w: 0, d: 0, rw: 0 };
+  const n = (v) => { const x = Math.floor(Number(v)); return Number.isFinite(x) && x > 0 ? Math.min(x, 10_000_000) : 0; };
+  const ok = !!use && typeof use === "object" && use.day === today;
+  u.w += ok ? n(use.w) : 0; u.d += ok ? n(use.d) : 0; u.rw += (ok ? n(use.rw) : 0) + n(ownRows);
+  day._use = u;
+  return ok || n(ownRows) > 0;
+}
 function anAdd(bucket, groups, field, n) { for (const g of groups) { const o = bucket[g] || (bucket[g] = {}); o[field] = (o[field] || 0) + n; } }
 
 /* ------------------------------------------------------------------ */
 /* Score submission                                                    */
 /* ------------------------------------------------------------------ */
 
-async function submitScore(request, env) {
-  const body = await readJsonObject(request);
+async function submitScore(body, request, env) {
   if (!body) return json({ error: "Invalid request body" }, 400);
 
   const playerId = typeof body.playerId === "string" ? body.playerId.trim() : "";
   if (!validPlayerId(playerId)) {
     return json({ error: "Missing or invalid playerId" }, 400);
   }
-
-  const limited = await rateLimit(env, "global", "submit", request, await pidHash(playerId));
-  if (limited) return limited;
 
   const name = presetOrOwn(cleanName(body.name), playerId);   // A-3 + PRESET NAMES: only allowed names are ever stored
 
@@ -399,11 +530,11 @@ async function submitScore(request, env) {
   const chosen = typeof body.country === "string" ? body.country.trim().toUpperCase() : "";
   const country = ISO2.test(chosen) ? chosen : (ISO2.test(detected) ? detected : "XX");
 
-  return forwardToDO(request, env, "/submit" + (runId ? "?run=" + encodeURIComponent(runId) : ""), {
+  return rlFromDO(await forwardToDO(request, env, "/submit" + (runId ? "?run=" + encodeURIComponent(runId) : ""), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: await rlHeaders("submit", request, await pidHash(playerId), { "Content-Type": "application/json" }),   // FREE PLAN: limiter checked inside the DO
     body: JSON.stringify({ playerId, name, score, level, difficulty, country, detected }),
-  });
+  }));
 }
 
 async function getEntitlements(request, env) {
@@ -1019,6 +1150,7 @@ async function sha256Hex(s) {
   return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 async function commandDO(env, path, body) {
+  useCount("d");
   const stub = env.LEADERBOARD_DO.get(env.LEADERBOARD_DO.idFromName("admin-auth"));
   const r = await stub.fetch("https://do.internal" + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   return (await r.json().catch(() => null)) || { ok: false, error: "auth unavailable" };
@@ -1116,12 +1248,13 @@ async function adminSummary(request, env) {
   const denied = requireAdmin(request, env); if (denied) return denied;
   const safe = (p) => Promise.resolve(p).then((v) => v, () => null);
   const body = (p) => safe(Promise.resolve(p).then((r) => (r && r.ok ? r.json() : null)));
-  const [rep, lb, delivery, sec, bk] = await Promise.all([
+  const [rep, lb, delivery, sec, bk, usage] = await Promise.all([
     body(analyticsDO(env, "/an-report?today=1")),
     body(forwardToDO(request, env, "/admin-summary", { method: "POST" })),
     safe(listDeliveryExceptions(env)),
     env.LEADERBOARD_DO ? safe(commandIds(request, env).then(({ fp }) => commandDO(env, "/auth-report", { fp }))) : null,
     env.LEADERBOARD_DO ? body(backupDO(env, "/list", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })) : null,
+    body(analyticsDO(env, "/an-usage", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ use: takeUse() }) })),   // FREE PLAN
   ]);
   const bst = (bk && bk.status) || {}, bErr = bst.lastError && (!bst.lastOk || bst.lastError.at > bst.lastOk.at) ? bst.lastError : null;
   const day = rep && (rep.days || []).find((d) => d.date === rep.today);
@@ -1144,6 +1277,8 @@ async function adminSummary(request, env) {
       lastError: bErr ? { at: bErr.at, error: String(bErr.error || "").slice(0, 200) } : null } : null,
     // COMBINED WORLD GRID: is the combined grid (Season 0 + Season 1) live?
     worldGrid: lb && lb.worldGrid ? { combined: !!lb.worldGrid.combined, appliedAt: lb.worldGrid.appliedAt, revertedAt: lb.worldGrid.revertedAt } : null,
+    // FREE PLAN: today's requests vs the free daily limits; alert from USAGE_ALERT_PCT (80%).
+    usage: usage && usage.ok ? usage : null,
   });
 }
 /* Every admin response: CORS as before, never cached anywhere. */
@@ -1624,7 +1759,7 @@ export class LeaderboardDO {
     if (!removed) return;
     puts[SEASON_ARCHIVE_KEY] = { ...meta, players: Math.max(0, meta.players - removed), scores: Math.max(0, (meta.scores || 0) - lostScores) };
     await this.state.storage.put(puts);
-    this.archiveCache = null;
+    this.archiveCache = null; this.rowsCache = null;
   }
 
   async pid(playerId) {
@@ -1646,6 +1781,13 @@ export class LeaderboardDO {
   async fetch(request) {
     const url0 = new URL(request.url);
     if (url0.pathname === "/rl") return this.handleRateLimit(request);                 // memory only, any instance
+    const rlk = request.headers.get(RL_HEADER);                                          // FREE PLAN: limiter keys inside the request
+    if (rlk) {
+      let keys = []; try { keys = JSON.parse(rlk); } catch (e) {}
+      keys = (Array.isArray(keys) ? keys : []).slice(0, 4).filter((x) => x && typeof x.k === "string" && x.k.length <= 80 && Number.isFinite(x.max) && x.max > 0);
+      const d = this.rateCheck(keys, Date.now());
+      if (d.limited) return json({ limited: true, retryAfterSec: d.retryAfterSec }, 429, { [RL_LIMITED_HEADER]: "1" });
+    }
     if (url0.pathname.startsWith("/an-")) return this.handleAnalytics(request, url0);   // STATS instance: never loads the leaderboard
     if (url0.pathname.startsWith("/auth-")) return this.handleCommandAuth(request, url0);   // FLUX COMMAND instance: never loads the leaderboard
     if (url0.pathname.startsWith("/bk/")) return this.handleBackups(request, url0);    // BACKUPS instance: never loads the leaderboard
@@ -1781,7 +1923,8 @@ export class LeaderboardDO {
       try {
         if (url.pathname === "/an-ingest" && request.method === "POST") return await this.anIngest(await request.json());
         if (url.pathname === "/an-report") return await this.anReport(url);
-        if (url.pathname === "/an-purge") return await this.anPurge();
+        if (url.pathname === "/an-purge") return await this.anPurge(await this.anBody(request));
+        if (url.pathname === "/an-usage") return await this.anUsage(await this.anBody(request));   // FREE PLAN
         return json({ error: "Not found" }, 404);
       } catch (e) { return json({ error: "stats failed" }, 500); }
     };
@@ -1845,10 +1988,38 @@ export class LeaderboardDO {
     const days = (await st.get("an:days")) || [];
     if (days[days.length - 1] !== today) { days.push(today); puts["an:days"] = days; }
     puts["an:day:" + today] = day; puts["an:p:" + h] = p;
+    anUse(day, b.use, today, Object.keys(puts).length);   // FREE PLAN: the usage counter rides in today's row
     await st.put(puts);
     return json({ ok: true });
   }
-  async anPurge() {
+  async anBody(request) { try { const t = await request.text(); return t ? JSON.parse(t) || {} : {}; } catch (e) { return {}; } }
+  /* FREE PLAN: a Worker isolate's usage counts (see FREE_LIMITS), added into today's row. */
+  async anAddUse(use) {
+    if (!use || !(Number(use.w) > 0 || Number(use.d) > 0 || Number(use.rw) > 0)) return;
+    const st = this.state.storage, today = this.anToday(), day = (await st.get("an:day:" + today)) || {};
+    if (!anUse(day, use, today, 1)) return;
+    const days = (await st.get("an:days")) || [], puts = { ["an:day:" + today]: day };
+    if (days[days.length - 1] !== today) { days.push(today); puts["an:days"] = days; }
+    await st.put(puts);
+  }
+  async anUsage(b) {
+    await this.anAddUse(b && b.use);
+    const st = this.state.storage, today = this.anToday(), days = [];
+    for (let d = today - 6; d <= today; d++) {
+      const u = ((await st.get("an:day:" + d)) || {})._use || { w: 0, d: 0, rw: 0 };
+      days.push({ date: anDayStr(d), w: u.w || 0, d: u.d || 0, rw: u.rw || 0 });
+    }
+    const u = days[days.length - 1], L = FREE_LIMITS;
+    const pct = { workerRequests: 100 * u.w / L.workerRequests, doRequests: 100 * u.d / L.doRequests, rowsWritten: 100 * u.rw / L.rowsWritten };
+    const nowMs = this.nowMs ? this.nowMs() : Date.now(), dayFrac = Math.max(1 / 24, (nowMs - today * AN_DAY_MS) / AN_DAY_MS);
+    const peak = Math.max(pct.workerRequests, pct.doRequests, pct.rowsWritten);
+    return json({ ok: true, today: anDayStr(today), usage: { workerRequests: u.w, doRequests: u.d, rowsWritten: u.rw }, limits: L, pct,
+      alertPct: USAGE_ALERT_PCT, alert: peak >= USAGE_ALERT_PCT, projectedPct: Math.round(peak / dayFrac), resetsAt: new Date((today + 1) * AN_DAY_MS).toISOString(),
+      accuracy: "approximate lower bound: counted in each Worker instance's memory and saved on its next stats call; the Cloudflare dashboard is exact",
+      days });
+  }
+  async anPurge(b) {
+    await this.anAddUse(b && b.use);
     const st = this.state.storage, cut = this.anToday() - AN_KEEP_DAYS;
     const days = (await st.get("an:days")) || [], keep = [], gone = [];
     for (const d of days) (d < cut ? gone : keep).push(d);
@@ -1869,7 +2040,7 @@ export class LeaderboardDO {
     from = Math.max(from, to - 400);
     const days = [], cohorts = [], months = [];
     for (let d = from; d <= to; d++) {
-      const day = await st.get("an:day:" + d); if (day) days.push({ date: anDayStr(d), groups: day });
+      const day = await st.get("an:day:" + d); if (day) { const { _use, ...groups } = day; days.push({ date: anDayStr(d), groups }); }   // FREE PLAN: usage is not a stats group
       const ret = await st.get("an:ret:" + d); if (ret) cohorts.push({ date: anDayStr(d), age: today - d, groups: ret });
     }
     for (let m = anMonth(from); m <= anMonth(to);) {
@@ -1881,18 +2052,55 @@ export class LeaderboardDO {
   }
 
   /* Public rows for one board: real points. No difficulty = the ALL board:
-     each player's best WEIGHTED score across difficulties (DIFF_WEIGHT). */
-  /* COMBINED WORLD GRID: the ALL board (and so the country totals) reads
-     gridRecords() -- this season's records, or, once the owner applied the
-     combined grid, each pilot's best of Season 0 and Season 1. The Easy,
-     Medium and Hard boards always read this season's records. */
-  async publicRows(difficulty) {
+     each player's best WEIGHTED score across difficulties (DIFF_WEIGHT; kept
+     for the country totals / World Grid and for old cached pages -- the game
+     no longer shows an All board).
+     LEADERBOARD REFRESH (FREE PLAN, CPU): the sorted rows of each board are
+     built ONCE and cached in memory (this.rowsCache) until the players, the
+     restrictions or the name bans change -- the same moments the tag map is
+     rebuilt (invalidateTags). A cached board also carries, for every row, its
+     rank inside its own country, so a pilot's world rank, country rank and the
+     score just above are read in O(1) (a Map lookup), never with a new sort.
+     Cost: one O(n log n) sort per board after a change (about 2-4 ms at 10,000
+     pilots, which the old code already paid on EVERY leaderboard read), then
+     nothing until the next change. Memory only: nothing is ever written.
+     COMBINED WORLD GRID: every board reads gridRecords() -- this season's
+     records, or, once the owner applied the combined grid, each pilot's best
+     of Season 0 and Season 1 per difficulty (never the sum). APPLY / REVERT and
+     a privacy deletion clear this cache. */
+  async publicRows(difficulty) { return (await this.boardIndex(difficulty)).rows; }
+  async boardIndex(difficulty) {
+    const key = difficulty || "all";
+    const cache = this.rowsCache || (this.rowsCache = new Map());
+    const seen = cache.get(key);
+    const hit = seen && seen.grid === this.worldGrid && seen.archive === this.archiveCache ? seen : null;   // COMBINED WORLD GRID: APPLY / REVERT / archive change rebuild the boards
+    if (hit && hit.players === this.players && hit.restricted === this.restricted) return hit;
     const recs = [];
-    for (const r of difficulty ? this.pilotRecords() : await this.gridRecords()) {
+    for (const r of await this.gridRecords()) {   // COMBINED WORLD GRID: this season, or each pilot's best of Season 0 and Season 1 once applied
       if (await this.isRestricted(r.playerId)) continue;       // moderation exclusion
       recs.push(r);
     }
-    return boardRows(recs, difficulty);
+    const rows = boardRows(recs, difficulty);
+    const at = new Map(), cRank = new Array(rows.length), cCount = new Map();
+    for (let i = 0; i < rows.length; i++) {
+      const cc = countryOf(rows[i].r);
+      const n = (cCount.get(cc) || 0) + 1;
+      cCount.set(cc, n); cRank[i] = n; at.set(rows[i].r.playerId, i);
+    }
+    const idx = { players: this.players, restricted: this.restricted, grid: this.worldGrid, archive: this.archiveCache, rows, at, cRank, cCount };
+    cache.set(key, idx);
+    return idx;
+  }
+  /* LEADERBOARD REFRESH: one pilot's standing on one board, for that pilot's
+     own upload reply only. O(1) on the cached board; null when not on it. */
+  async standing(playerId, difficulty) {
+    const idx = await this.boardIndex(difficulty);
+    const i = idx.at.get(playerId);
+    if (i === undefined) return null;
+    const row = idx.rows[i], cc = countryOf(row.r), up = i > 0 ? idx.rows[i - 1] : null;
+    let above = null;
+    if (up) { const [o] = await this.tagRows([up]); above = { rank: i, name: this.displayName(up.r), tag: o.tag, country: countryOf(up.r), score: up.score }; }
+    return { rank: i + 1, total: idx.rows.length, country: cc, countryRank: idx.cRank[i], countryTotal: idx.cCount.get(cc) || 0, score: row.score, above };
   }
 
   /* STORAGE ACCESSOR: every pilot record, as { playerId, name, country,
@@ -1938,7 +2146,7 @@ export class LeaderboardDO {
     for (const it of items) out.push({ it, pid: await this.pid(it.r.playerId), tag: await this.tagFor(it.r.playerId) });
     return out;
   }
-  invalidateTags() { this.tagCache = null; }
+  invalidateTags() { this.tagCache = null; this.rowsCache = null; }   // LEADERBOARD REFRESH: the cached boards too
 
   /* ------------------------ COMBINED WORLD GRID ------------------------ */
   /* See WORLD_GRID_KEY. Reads only: the archive (cached in memory; cleared when
@@ -2057,7 +2265,7 @@ export class LeaderboardDO {
     const input = await this.worldGridInput();
     const res = consolidateWorldGrid(input), checks = res.checks.slice();
     const want = this.gridCombined ? res : seasonGrid(input);
-    const live = await (await this.handleLeaderboard(new URL("https://do.internal/leaderboard?limit=100"))).json();
+    const live = await (await this.handleLeaderboard(new URL("https://do.internal/leaderboard?limit=100&boards=1"))).json();
     const pidOf = (id) => (input.labels.get(id) || {}).pid;
     const cKey = (c) => c.country + ":" + c.totalScore + ":" + c.playerCount;
     const bad = [];
@@ -2066,7 +2274,12 @@ export class LeaderboardDO {
     if (JSON.stringify(wc) !== JSON.stringify(lc)) bad.push("country totals differ from the consolidated ones");
     const wt = want.rows.slice(0, 100).map((x) => pidOf(x.r.playerId) + ":" + x.score), lt = (live.top || []).map((t) => t.pid + ":" + t.score);
     if (JSON.stringify(wt) !== JSON.stringify(lt)) bad.push("the top pilots differ from the consolidated ones");
-    checks.push({ id: "live-grid", label: "Live World Grid (game + gateway) serves the " + (this.gridCombined ? "combined" : "Season 1") + " grid", ok: !bad.length, detail: bad.length ? bad.join("; ") : "countries and top " + lt.length + " pilots match" });
+    const recs = (this.gridCombined ? res.pilots : input.pilots).filter((p) => !input.restrictedIds.has(p.playerId));
+    for (const d of VALID_DIFFICULTIES) {   // the EARTH / MARS / JUPITER boards
+      const wd = boardRows(recs, d).slice(0, 100).map((x) => pidOf(x.r.playerId) + ":" + x.score), ld = ((live.boards || {})[d] || []).map((t) => t.pid + ":" + t.score);
+      if (JSON.stringify(wd) !== JSON.stringify(ld)) bad.push("the " + d + " board differs from the consolidated one");
+    }
+    checks.push({ id: "live-grid", label: "Live World Grid (game + gateway) serves the " + (this.gridCombined ? "combined" : "Season 1") + " grid", ok: !bad.length, detail: bad.length ? bad.join("; ") : "countries, the ALL board and the easy / medium / hard boards match" });
     const liveRows = new Map((await this.publicRows(null)).map((x) => [x.r.playerId, x.score])), lost = [];
     for (const r of input.pilots) {
       if (input.restrictedIds.has(r.playerId)) continue;
@@ -2092,8 +2305,34 @@ export class LeaderboardDO {
     const limit = clampInt(url.searchParams.get("limit"), 1, 100, 25);
     const difficulty = VALID_DIFFICULTIES.has(url.searchParams.get("difficulty")) ? url.searchParams.get("difficulty") : null;
     const rows = (await this.publicRows(difficulty)).slice(0, limit);
+    const top = await this.publicTop(rows);
+    // The leader's tag comes from the SAME live tag map as every other view,
+    // resolved now -- never a copy stored earlier. leaderId never leaves the server.
+    const countries = [];
+    for (const { leaderId, leaderPid, topTag, ...c } of Object.values(this.countries)) {
+      countries.push({ ...c, topTag: leaderId ? await this.tagFor(leaderId) : "" });
+    }
+    countries.sort((a, b) => b.totalScore - a.totalScore);
+    // COMBINED WORLD GRID: combined = every board and the country totals are each pilot's best of Season 0 and Season 1.
+    const out = { top, countries, leadingCountry: countries[0] || null, difficulty, weighted: !difficulty, weights: { ...DIFF_WEIGHT },
+      combined: this.gridCombined, gridCombined: this.gridCombined };
+    /* LEADERBOARD REFRESH: ?boards=1 adds the three difficulty boards (real
+       points) to the SAME response, so the game's EARTH / MARS / JUPITER / WORLD
+       tabs still cost one request, cached for a minute (FREE PLAN). Read from
+       the cached sorted boards: no sort, no write. Old pages never ask for it. */
+    if (url.searchParams.get("boards") === "1") {
+      out.boards = {}; out.totals = {};
+      for (const d of VALID_DIFFICULTIES) {
+        const all = await this.publicRows(d);
+        out.boards[d] = await this.publicTop(all.slice(0, limit));
+        out.totals[d] = all.length;
+      }
+    }
+    return json(out);
+  }
+  async publicTop(rows) {
     const tagged = await this.tagRows(rows);
-    const top = tagged.map((o) => ({
+    return tagged.map((o) => ({
       pid: o.pid,                                  // A-1: a hash, never the playerId
       tag: o.tag,
       name: this.displayName(o.it.r),
@@ -2103,16 +2342,6 @@ export class LeaderboardDO {
       level: o.it.level,
       difficulty: o.it.difficulty,
     }));
-    // The leader's tag comes from the SAME live tag map as every other view,
-    // resolved now -- never a copy stored earlier. leaderId never leaves the server.
-    const countries = [];
-    for (const { leaderId, leaderPid, topTag, ...c } of Object.values(this.countries)) {
-      countries.push({ ...c, topTag: leaderId ? await this.tagFor(leaderId) : "" });
-    }
-    countries.sort((a, b) => b.totalScore - a.totalScore);
-    // COMBINED WORLD GRID: combined = the ALL board and the countries are each pilot's best of Season 0 and Season 1.
-    return json({ top, countries, leadingCountry: countries[0] || null, difficulty, weighted: !difficulty, weights: { ...DIFF_WEIGHT },
-      combined: this.gridCombined && !difficulty, gridCombined: this.gridCombined });
   }
 
   /* D-25: country figures are rebuilt from the player records every time
@@ -2168,7 +2397,8 @@ export class LeaderboardDO {
     const nextPlayers = setKey(this.players, playerId, record);
     const nextLast = setKey(this.lastSubmit, playerId, now);
     const nextFlags = flag ? pruneFlags([...this.flags.filter((f) => f.id !== flag.id), flag], now) : this.flags;
-    const puts = { players: nextPlayers, lastSubmit: nextLast, flags: nextFlags };
+    // FREE PLAN: "flags" is written only when this upload adds one (a row written less per score).
+    const puts = flag ? { players: nextPlayers, lastSubmit: nextLast, flags: nextFlags } : { players: nextPlayers, lastSubmit: nextLast };
     if (runId) {                         // stored in the SAME write as the score: accepted <=> remembered
       const entry = runId + "." + Math.floor(now / 1000).toString(36) + "." + (isNewBest ? "1" : "0") + difficulty[0];
       puts["runs:" + pid] = runs.concat([entry]).slice(-RUN_IDS_MAX).join(",");
@@ -2188,11 +2418,10 @@ export class LeaderboardDO {
     const record = ownGet(this.players, playerId);
     const pid = await this.pid(playerId);
     const restricted = !!ownGet(this.restricted, pid);
-    let rank = null;
-    if (!restricted) {
-      const rows = await this.publicRows(difficulty);
-      rank = rows.findIndex((x) => x.r.playerId === playerId) + 1 || null;
-    }
+    // LEADERBOARD REFRESH: rank, country rank and the pilot just above, read
+    // from the cached board (O(1), no sort, no write) -- for this pilot only.
+    const st = restricted ? null : await this.standing(playerId, difficulty);
+    const rank = st ? st.rank : null;
     const [o] = await this.tagRows([{ r: record }]);
     const b = record && ownGet(record.bests, difficulty);
     return json({
@@ -2200,6 +2429,7 @@ export class LeaderboardDO {
       country: record ? record.country : undefined, difficulty,
       public: !restricted,       // honest: no public rank is invented for a restricted player
       rank,
+      ...(st ? { total: st.total, countryRank: st.countryRank, countryTotal: st.countryTotal, above: st.above } : {}),
       tag: o.tag,
       ...(duplicate ? { duplicate: true } : {}),
     });
@@ -2490,7 +2720,7 @@ export class LeaderboardDO {
       };
       const st = this.state.storage;
       if (typeof st.transaction === "function") await st.transaction(apply); else await apply(st);
-      this.ready = false; this.tagCache = null; this.pidCache = new Map();
+      this.ready = false; this.tagCache = null; this.rowsCache = null; this.pidCache = new Map();
     });
     await this.load();
     return json({ ok: true, keys: entries.length });
@@ -2553,6 +2783,7 @@ const BK_MARK = "\u0000flux";              // marks a stored undefined / NaN / I
 function backupDO(env, path, init) {
   const headers = new Headers((init && init.headers) || {});
   headers.set(BACKUP_INSTANCE_HEADER, "backups");
+  useCount("d");
   return env.LEADERBOARD_DO.get(env.LEADERBOARD_DO.idFromName("backups")).fetch("https://do.internal/bk" + path, { ...(init || {}), headers });
 }
 async function bkListAll(st) {
@@ -3027,6 +3258,7 @@ function normaliseRecord(r, id) {
   if (r && Number.isFinite(r.score)) bests[d] = { score: r.score, level: r.level || 1, updatedAt: r.updatedAt || 0 };
   return { playerId: (r && r.playerId) || id, name: r && r.name, country: r && r.country, updatedAt: (r && r.updatedAt) || 0, bests };
 }
+function countryOf(r) { const c = String((r && r.country) || ""); return ISO2.test(c) ? c : "XX"; }
 function weightedBestOf(r, weights = DIFF_WEIGHT) {
   let best = null;
   for (const [d, b] of Object.entries((r && r.bests) || {})) {

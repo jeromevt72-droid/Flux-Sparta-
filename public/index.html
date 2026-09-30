@@ -68,6 +68,7 @@ try{
 <link rel="canonical" href="https://flux-sparta-3.jeromevt72.workers.dev/">
 <meta property="og:site_name" content="FLUX Sparta">
 <meta property="og:title" content="FLUX Sparta — The world is the scoreboard">
+<meta name="twitter:title" content="FLUX Sparta — The world is the scoreboard">
 <meta property="og:description" content="Free to play. No signup. Pick your country and climb the live Global Grid.">
 <meta property="og:url" content="https://flux-sparta-3.jeromevt72.workers.dev/">
 <meta property="og:image" content="https://flux-sparta-3.jeromevt72.workers.dev/og-image.jpg">
@@ -355,7 +356,8 @@ main{position:relative;z-index:3}
 /* Grid layout: mobile-first single column, richer multi-column on tablet/desktop */
 .gridLayout{margin-top:35px;display:grid;grid-template-columns:1fr;gap:28px}
 .scorersBlock{margin-top:44px}
-.scorersSub{color:#9aa4c7;font-size:14px;margin:6px 0 22px}
+.scorersSub{color:#9aa4c7;font-size:14px;margin:6px 0 14px}
+.planetSwitch{display:flex;gap:8px;margin:0 0 16px;flex-wrap:wrap}.planetBtn{flex:1;min-width:88px;padding:9px 6px;border-radius:12px;border:1px solid var(--pc);background:#ffffff08;color:#e8eeff;font:800 12px/1.15 inherit;letter-spacing:.1em;cursor:pointer}.planetBtn small{display:block;font-size:11px;font-weight:600;letter-spacing:.04em;margin-top:2px}.planetBtn .planetIc{display:inline-block;width:14px;height:14px;margin-right:6px;vertical-align:-2px}.planetBtn.on{background:var(--pc);color:#050a18}.planetBtn.on .planetIc{background:#050a18;border-radius:50%}
 .scorersScroll{max-height:420px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding-right:4px}
 .scorersScroll::-webkit-scrollbar{width:6px}
 .scorersScroll::-webkit-scrollbar-thumb{background:#ffffff22;border-radius:6px}
@@ -641,7 +643,7 @@ footer{position:relative;z-index:3;padding:40px 7vw 50px;color:#777;font-size:12
 <section class="grid" id="grid">
   <div class="kicker">GLOBAL GRID <span class="liveTag">● LIVE</span></div>
   <h2>The world is the scoreboard.</h2>
-  <p>Real totals, grouped by country. Each pilot's best score counts for their country — beat your best and your flag climbs. Scores are weighted by difficulty: Hard x1, Medium x0.21, Easy x0.09.</p>
+  <p>Real totals, grouped by country. Each pilot's best score counts for their country — beat your best and your flag climbs. Jupiter (Hard) counts the most.</p>
   <p class="gridCombinedNote" id="gridCombinedNote" hidden></p>
   <div class="gridLayout">
     <div id="gridRankArea">
@@ -650,8 +652,9 @@ footer{position:relative;z-index:3;padding:40px 7vw 50px;color:#777;font-size:12
     <div id="gridSideArea"></div>
   </div>
   <div class="scorersBlock">
-    <div class="kicker" style="margin-top:0">TOP SCORERS</div>
-    <p class="scorersSub">The individual pilots currently leading FLUX worldwide (weighted scores, all difficulties).</p>
+    <div class="kicker" style="margin-top:0">TOP PILOTS</div>
+    <p class="scorersSub">The pilots leading each planet: Earth (Easy), Mars (Medium) and Jupiter (Hard). Real points.</p>
+    <div class="planetSwitch" id="planetSwitch" role="tablist"></div>
     <div id="gridScorersArea"></div>
   </div>
 </section>
@@ -965,7 +968,7 @@ try{
       } else {
         var mine = countries[idx];
         var rankLine = meta2.flag+' <b>'+window.escapeHtml2(meta2.name.toUpperCase())+' — GLOBAL #'+(idx+1)+'</b>';
-        var statsLine = window.fmtScore(mine.totalScore)+' weighted points · '+mine.playerCount.toLocaleString('en-US')+' pilot'+(mine.playerCount===1?'':'s')
+        var statsLine = window.fmtScore(mine.totalScore)+' points · '+mine.playerCount.toLocaleString('en-US')+' pilot'+(mine.playerCount===1?'':'s')
           + (mine.topName ? (' · Local hero: <b>'+window.escapeHtml2(mine.topName)+(mine.topTag?' <small style="opacity:.55">#'+window.escapeHtml2(mine.topTag)+'</small>':'')+'</b> ('+window.fmtScore(mine.topScore)+' pts)') : '');
         if(idx===0){
           var second = countries.length>1 ? countries[1] : null;
@@ -1006,17 +1009,24 @@ try{
     window.renderScorers(data);
   };
 
-  // Top Scorers -- the real individual player rankings already present
-  // in the same API response (data.top), just not previously surfaced on
-  // the Gateway. Capped at 50 and genuinely scrollable (max-height +
-  // overflow-y:auto), reusing the existing rank-row visual language for
-  // consistency with the country list above it.
+  // LEADERBOARD REFRESH: Top Pilots per planet -- EARTH (Easy), MARS (Medium),
+  // JUPITER (Hard), real points of that difficulty only (data.boards, same
+  // response and cached copy as the game). The combined weighted board is gone.
+  var PLANETS = [['easy','EARTH','Easy','#3F8CFF'],['medium','MARS','Medium','#E4572E'],['hard','JUPITER','Hard','#F2C27A']];
+  var PLANET_SVG = {"easy": "<svg class=\"planetIc\" viewBox=\"0 0 20 20\" aria-hidden=\"true\"><circle cx=\"10\" cy=\"10\" r=\"9\" fill=\"#3F8CFF\"/><path d=\"M5 5.5c2-1 4.2-.2 4 1.8-.2 1.7-2 1.9-2.6 3.6-.5 1.4-2.2 1.3-2.4-.3-.2-1.9 0-4.3 1-5.1z\" fill=\"#4cc27f\"/><path d=\"M12.2 10.6c1.8-.4 3.4.6 3.1 2.4-.3 1.9-2.1 2.6-3.1 1.8-1-.8-1.3-3.9 0-4.2z\" fill=\"#4cc27f\"/><circle cx=\"10\" cy=\"10\" r=\"8.6\" fill=\"none\" stroke=\"#fff\" stroke-opacity=\".35\" stroke-width=\".8\"/></svg>", "medium": "<svg class=\"planetIc\" viewBox=\"0 0 20 20\" aria-hidden=\"true\"><circle cx=\"10\" cy=\"10\" r=\"9\" fill=\"#E4572E\"/><ellipse cx=\"10\" cy=\"2.9\" rx=\"3.3\" ry=\"1.2\" fill=\"#fbe6da\"/><path d=\"M3.6 8.6c3 1.4 8.6 1.4 12.8-.8\" fill=\"none\" stroke=\"#a83a1b\" stroke-width=\"1.2\" stroke-linecap=\"round\"/><circle cx=\"7\" cy=\"12.6\" r=\"1.6\" fill=\"#a83a1b\"/><circle cx=\"13.4\" cy=\"13.6\" r=\"1.1\" fill=\"#a83a1b\"/></svg>", "hard": "<svg class=\"planetIc\" viewBox=\"0 0 20 20\" aria-hidden=\"true\"><circle cx=\"10\" cy=\"10\" r=\"9\" fill=\"#F2C27A\"/><ellipse cx=\"10\" cy=\"6.3\" rx=\"7.8\" ry=\".9\" fill=\"#c98f4a\"/><ellipse cx=\"10\" cy=\"9.6\" rx=\"8.8\" ry=\".6\" fill=\"#e0a862\"/><ellipse cx=\"10\" cy=\"12.8\" rx=\"7.9\" ry=\"1\" fill=\"#c98f4a\"/><ellipse cx=\"12.8\" cy=\"12.8\" rx=\"1.9\" ry=\"1.2\" fill=\"#c4533a\"/></svg>"};
+  var scorersPlanet = null;
   window.renderScorers = function(data){
-    var area = document.getElementById('gridScorersArea');
+    var area = document.getElementById('gridScorersArea'), sw = document.getElementById('planetSwitch');
     if(!area) return;
-    var top = (data.top||[]).slice().sort(function(a,b){return b.score-a.score;}).slice(0,50);
+    if(!scorersPlanet){ var d0 = ''; try{ d0 = localStorage.getItem('fluxDifficulty') || ''; }catch(e){} scorersPlanet = /^(easy|medium|hard)$/.test(d0) ? d0 : 'hard'; }
+    if(sw){
+      sw.innerHTML = PLANETS.map(function(p){ return '<button type="button" role="tab" data-p="'+p[0]+'" aria-selected="'+(p[0]===scorersPlanet)+'" class="planetBtn'+(p[0]===scorersPlanet?' on':'')+'" style="--pc:'+p[3]+'">'+PLANET_SVG[p[0]]+p[1]+'<small>'+p[2]+'</small></button>'; }).join('');
+      var bs = sw.querySelectorAll('button');
+      for(var k = 0; k < bs.length; k++) bs[k].onclick = function(){ scorersPlanet = this.getAttribute('data-p'); window.renderScorers(data); };
+    }
+    var top = ((data.boards && data.boards[scorersPlanet]) || []).slice().sort(function(a,b){return b.score-a.score;}).slice(0,50);
     if(!top.length){
-      area.innerHTML = '<div class="gridState">No individual runs verified yet.</div>';
+      area.innerHTML = '<div class="gridState">'+(data.boards ? 'No runs on this planet yet.' : 'Loading the planet boards…')+'</div>';
       return;
     }
     var leaderScore = top[0].score || 1;
@@ -1034,18 +1044,48 @@ try{
     area.innerHTML = '<div class="rankTable scorersScroll">'+rows+'</div>';
   };
 
+  /* FREE PLAN: the World Grid and the game's Global Leaderboard share ONE
+     copy of the board in localStorage ("fluxLbCache", same origin, every tab).
+     It is shown at once; the server is asked again at most once a minute by
+     any view or tab ("fluxLbTry"), and RETRY inside that minute shows the
+     copy. Past the server's daily limit (Cloudflare's own error page) the
+     game pauses its calls ("fluxNetPause"); the Grid does too. */
+  var LB_KEY = 'fluxLbCache', LB_TRY = 'fluxLbTry', LB_TTL = 60000;
+  function lbCached(){ try{ var c = JSON.parse(localStorage.getItem(LB_KEY) || 'null'); if(c && c.data && c.data.boards && isFinite(c.at)) return c; }catch(e){} return null; }   // LEADERBOARD REFRESH: needs the planet boards
+  function lbNum(k){ try{ return +localStorage.getItem(k) || 0; }catch(e){ return 0; } }
   var gridFetchInFlight = false;
   window.fetchGlobalGrid = function(){
     if(gridFetchInFlight) return;
+    var cached = lbCached(), now = Date.now();
+    var fresh = cached && cached.at <= now && now - cached.at < LB_TTL;
+    var tried = lbNum(LB_TRY), held = lbNum('fluxNetPause') > now || navigator.onLine === false;
+    if(cached){
+      window.__gridData = cached.data;
+      window.renderGrid(cached.data);
+      window.applyPreferredCountryUI();
+    }
+    if(fresh || held || (tried <= now && now - tried < LB_TTL)){
+      if(!cached){
+        var ra = document.getElementById('gridRankArea');
+        if(ra) ra.innerHTML = gridErrorState(held ? 'The Grid is offline right now. Try again later.' : 'The Grid is refreshing. Try again in a minute.');
+        var rb = document.getElementById('gridRetryBtn');
+        if(rb) rb.onclick = window.fetchGlobalGrid;
+      }
+      return;
+    }
     gridFetchInFlight = true;
+    try{ localStorage.setItem(LB_TRY, String(now)); }catch(e){}
     var rankArea = document.getElementById('gridRankArea');
     var sideArea = document.getElementById('gridSideArea');
-    if(rankArea) rankArea.innerHTML = gridLoadingState();
-    if(sideArea) sideArea.innerHTML = '';
-    fetch(window.FLUX_ORIGIN + '/api/leaderboard?limit=50')
+    if(rankArea && !cached) rankArea.innerHTML = gridLoadingState();
+    if(sideArea && !cached) sideArea.innerHTML = '';
+    fetch(window.FLUX_ORIGIN + '/api/leaderboard?limit=50&boards=1')   // LEADERBOARD REFRESH: the game's URL too, so both share ONE cached copy
       .then(function(res){
         if(!res.ok){
           return res.json().catch(function(){return null;}).then(function(errBody){
+            if(!errBody && res.status === 429){   // FREE PLAN: Cloudflare's daily-limit page, not our JSON: pause until the reset (at most an hour)
+              var t = Date.now(); try{ localStorage.setItem('fluxNetPause', String(Math.min((Math.floor(t / 86400000) + 1) * 86400000, t + 3600000))); }catch(e){}
+            }
             var msg = (errBody && errBody.error) ? errBody.error : ('Server error ('+res.status+')');
             throw new Error(msg);
           });
@@ -1053,6 +1093,7 @@ try{
         return res.json();
       })
       .then(function(data){
+        try{ localStorage.setItem(LB_KEY, JSON.stringify({ at: Date.now(), data: data })); }catch(e){}
         window.__gridData = data;
         window.renderGrid(data);
         // Standing is only known once the Grid loads -- re-run so the hero
@@ -1060,6 +1101,7 @@ try{
         window.applyPreferredCountryUI();
       })
       .catch(function(err){
+        if(cached) return;   // FREE PLAN: the last copy stays on screen
         if(rankArea) rankArea.innerHTML = gridErrorState(err && err.message);
         var retryBtn = document.getElementById('gridRetryBtn');
         if(retryBtn) retryBtn.onclick = window.fetchGlobalGrid;

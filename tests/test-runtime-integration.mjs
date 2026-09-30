@@ -76,7 +76,7 @@ console.log('=== GATEWAY: initialisation order (AUDIT-F01) ===');
   // MERGE: Gateway and game now share one origin, so the leaderboard API is on
   // the page's OWN origin. The F01 invariant -- never built from undefined --
   // is asserted above and is unchanged.
-  ck('first request targets the leaderboard API', /\/api\/leaderboard\?limit=50$/.test(urlAtFirstFetch), urlAtFirstFetch);
+  ck('first request targets the leaderboard API', /\/api\/leaderboard\?limit=50&boards=1$/.test(urlAtFirstFetch), urlAtFirstFetch);
   ck('first request is on the page\'s own origin', urlAtFirstFetch.startsWith('https://gw.test/api/'), urlAtFirstFetch);
 }
 
