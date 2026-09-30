@@ -8,7 +8,7 @@ const g = fs.readFileSync(path.join(__dirname,'FLUX-Sparta','public','index.html
 let F=0; const ck=(l,c,x='')=>{console.log((c?'  PASS  ':'  FAIL  ')+l+(x?'  ['+x+']':''));if(!c)F++;};
 
 console.log('-- content is never deleted, only reflowed --');
-for(const el of ['Flow · Launch · Unite · Xcelerate','<div class="logo">FLUX</div>',
+for(const el of ['Flow · Launch · Unite · Xcelerate','<div class="logo">FLUX<span class="logoSparta">Sparta</span></div>',
                  'THE WORLD HAS ENTERED THE FLUX.','100% FREE TO PLAY'])
   ck('present: '+el.slice(0,30), g.includes(el));
 for(const t of ['t1','t2','t3']){

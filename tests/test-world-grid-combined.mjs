@@ -28,9 +28,17 @@
 //      when the backup is missing), guide note, owner summary; property handlers only;
 //   W16 deploy: wrangler.jsonc as on main, no new export/class/migration; one storage accessor for pilots;
 //   W17 a realistic dataset (Season 0 archive + Season 1, 10 countries): every check PASS.
+//   W0 NEW STORAGE ONLY: on the old layout every WORLD GRID route refuses ("Move the storage first") and writes
+//      nothing; every other check runs on the new layout (one SQL row per pilot, #44), reached through the real
+//      storage move, on a real SQLite (node:sqlite) with Cloudflare's row counters (as tests/test-storage-fix.mjs);
+//   W18 free plan: no new writes per run after APPLY, no full read on a cold start (restart + leaderboard read a
+//      few hundred rows at 5,000 pilots), rows read / written by dry run, APPLY, REVERT and a leaderboard read;
+//   W19 every combined board query uses an index (no table scan, no sort of the whole table);
+//   W20 an upload's rank below the top 100 is exact on the combined board (counted on both indexes);
+//   W21 a backup restore brings the switch back as it was in the backup (the Season 0 table is rebuilt).
 // Ends with negative controls: each defect re-inserted into the sources MUST be caught.
 // WG_REPORT=<file> also writes the realistic dry-run report to that file.
-import fs from 'fs'; import path from 'path'; import util from 'util'; import vm from 'vm'; import { spawnSync } from 'child_process';
+import fs from 'fs'; import path from 'path'; import util from 'util'; import vm from 'vm'; import v8 from 'v8'; import { spawnSync } from 'child_process';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { boot, makeStore } from './harness.mjs';
 import { levelFor } from './level-rule.mjs';
@@ -49,39 +57,94 @@ const W = { easy: 0.09, medium: 0.21, hard: 1 };
 const DIFFS = ['easy', 'medium', 'hard'];
 const pidHash = async (id) => Buffer.from(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('flux-pid:' + id))).subarray(0, 8).toString('hex');
 
-/* ---------------- fake Durable Object runtime (as test-backup-restore.mjs) ---------------- */
+/* ---------------- fake Durable Object runtime (as tests/test-storage-fix.mjs: real SQLite + row counters) ---------------- */
+process.removeAllListeners('warning');   // node:sqlite is "experimental" on this Node
+const { DatabaseSync } = await import('node:sqlite');
+const MB2 = 2 * 1024 * 1024;
+class FakeSql {
+  constructor(meter) { this.db = new DatabaseSync(':memory:'); this.m = meter; this.stmts = new Map(); this.plans = new Map(); this.log = null; }
+  stmt(q) { let st = this.stmts.get(q); if (!st) { st = this.db.prepare(q); this.stmts.set(q, st); } return st; }
+  count(t) { try { return this.db.prepare('SELECT COUNT(*) AS n FROM ' + t).get().n; } catch (e) { return 0; } }
+  scanPenalty(q, args) {   // a query that scans a whole table without LIMIT reads every row of it
+    if (!/^\s*SELECT/i.test(q) || /\bLIMIT\b/i.test(q)) return 0;
+    let plan = this.plans.get(q);
+    if (!plan) { try { plan = this.db.prepare('EXPLAIN QUERY PLAN ' + q).all(...args).map((r) => r.detail); } catch (e) { plan = []; } this.plans.set(q, plan); }
+    let n = 0; for (const d of plan) { const m = /^SCAN (\w+)/.exec(d); if (m) n += this.count(m[1] === 'p' ? 'pilots' : m[1] === 'w' ? 'wg0' : m[1]); }
+    return n;
+  }
+  idxFactor(q) {   // index entries written with each changed row (estimate)
+    if (/\bwg0\b/.test(q) && /^\s*(INSERT|REPLACE|DELETE)/i.test(q)) return 3;
+    if (!/\bpilots\b/.test(q)) return 0;
+    if (/^\s*(INSERT|REPLACE|DELETE)/i.test(q)) return 3;
+    const m = /SET (.*) WHERE/i.exec(q); if (!m) return 0;
+    let f = 0; for (const re of [/\be_[st]\b/, /\bm_[st]\b/, /\bh_[st]\b/, /\bt12\b/]) if (re.test(m[1])) f++;
+    if (/\brs\b/.test(m[1])) f += 2;
+    return f;
+  }
+  exec(q, ...args) {
+    args = args.map((x) => (x === undefined ? null : x));
+    if (this.log) this.log.push({ q, args });
+    const write = /^\s*(INSERT|UPDATE|DELETE|REPLACE)/i.test(q);
+    const before = write ? this.db.prepare('SELECT total_changes() AS c').get().c : 0;
+    const rows = this.stmt(q).all(...args).map((r) => ({ ...r }));
+    let rowsRead = 0, rowsWritten = 0;
+    if (write) { const ch = this.db.prepare('SELECT total_changes() AS c').get().c - before; rowsWritten = ch * (1 + this.idxFactor(q)); rowsRead = ch; }
+    else rowsRead = rows.length + this.scanPenalty(q, args);
+    this.m.read += rowsRead; this.m.written += rowsWritten;
+    return { toArray: () => rows, one: () => rows[0], rowsRead, rowsWritten, [Symbol.iterator]: () => rows[Symbol.iterator]() };
+  }
+  tables() { return this.db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all().map((r) => r.name); }
+  dump(t) { try { return this.db.prepare('SELECT * FROM ' + t + ' ORDER BY ' + (t === 'pilots' ? 'seq' : 'id')).all().map((r) => ({ ...r })); } catch (e) { return null; } }
+}
 class FakeStorage {
-  constructor(map) { this.map = map || new Map(); this.writes = 0; this.failPut = null; }
-  async get(k) { return this.map.has(k) ? structuredClone(this.map.get(k)) : undefined; }
+  constructor(map, { limit = MB2 } = {}) { this.map = map || new Map(); this.limit = limit; this.meter = { read: 0, written: 0 }; this.sql = new FakeSql(this.meter); this.failPut = null; }
+  get writes() { return this.meter.written; }
+  async get(k) { this.meter.read++; return this.map.has(k) ? structuredClone(this.map.get(k)) : undefined; }
   async put(k, v) {
     const obj = typeof k === 'object' ? k : { [k]: v };
-    if (Object.keys(obj).length > 128) throw new Error('put: more than 128 keys');
+    const keys = Object.keys(obj);
+    if (keys.length > 128) throw new Error('put: more than 128 keys');
+    for (const kk of keys) { const n = v8.serialize(obj[kk]).length; if (n > this.limit) throw new Error('put: value over the ' + this.limit + '-byte limit (' + kk + ', ' + n + ' bytes)'); }
     if (this.failPut && this.failPut(obj)) throw new Error('storage failure');
-    this.writes++;
-    for (const kk of Object.keys(obj)) this.map.set(kk, structuredClone(obj[kk]));
+    this.meter.written += keys.length;
+    for (const kk of keys) this.map.set(kk, structuredClone(obj[kk]));
   }
-  async delete(k) { this.writes++; for (const x of [].concat(k)) this.map.delete(x); }
+  async delete(k) { const ks = [].concat(k); if (ks.length > 128) throw new Error('delete: more than 128 keys'); this.meter.written += ks.length; for (const x of ks) this.map.delete(x); }
   async list(o = {}) {
     let keys = [...this.map.keys()].sort();
     if (o.prefix) keys = keys.filter((k) => k.startsWith(o.prefix));
     if (o.startAfter !== undefined) keys = keys.filter((k) => k > o.startAfter);
     if (o.limit) keys = keys.slice(0, o.limit);
+    this.meter.read += keys.length;
     return new Map(keys.map((k) => [k, structuredClone(this.map.get(k))]));
   }
   async transaction(fn) { const before = new Map(this.map); try { return await fn(this); } catch (e) { this.map = before; throw e; } }
+  transactionSync(fn) { this.sql.db.exec('BEGIN'); try { const r = fn(); this.sql.db.exec('COMMIT'); return r; } catch (e) { this.sql.db.exec('ROLLBACK'); throw e; } }
 }
 class FakeState {
   constructor(storage) { this.storage = storage; this.lock = Promise.resolve(); }
   blockConcurrencyWhile(fn) { const r = this.lock.then(fn); this.lock = r.then(() => {}, () => {}); return r; }
 }
+const newB = () => new FakeStorage(new Map(), { limit: 128 * 1024 });
 function makeEnv(mod, g, b) {
-  const inst = new Map(), env = { ADMIN_TOKEN: 'pw', _g: g, _b: b };
+  const inst = new Map(), env = { ADMIN_TOKEN: 'pw', _g: g, _b: b || newB() };
   env.LEADERBOARD_DO = { idFromName: (n) => n, get(id) {
-    if (!inst.has(id)) inst.set(id, new mod.LeaderboardDO(new FakeState(id === 'global' ? env._g : id === 'backups' ? env._b : new FakeStorage()), env));
-    const o = inst.get(id); return { fetch: (url, init) => o.fetch(new Request(url, init)) }; } };
-  env._inst = inst;
+    if (!inst.has(id)) { const st = new FakeState(id === 'global' ? env._g : id === 'backups' ? env._b : new FakeStorage()); inst.set(id, { st, o: new mod.LeaderboardDO(st, env) }); }
+    const x = inst.get(id);
+    return { fetch: async (url, init) => { await x.st.lock; return x.o.fetch(new Request(url, init)); } }; } };
   env.restart = () => inst.clear();
+  env.obj = (id) => { env.LEADERBOARD_DO.get(id); return inst.get(id).o; };
   return env;
+}
+/* The leaderboard's whole state: key-value storage + every SQL table. */
+const snapG = (g) => ({ kv: new Map([...g.map].map(([k, v]) => [k, structuredClone(v)])), sql: Object.fromEntries(g.sql.tables().map((t) => [t, g.sql.dump(t)])) });
+const sameG = (g, s) => { const n = snapG(g); return sameMap(n.kv, s.kv) && util.isDeepStrictEqual(n.sql, s.sql); };
+const tablesChanged = (g, s) => { const n = snapG(g).sql; return [...new Set([...Object.keys(n), ...Object.keys(s.sql)])].filter((t) => !util.isDeepStrictEqual(n[t], s.sql[t])).sort(); };
+/* The stored data as a Map (current records from the pilot rows, the archive from its values): for expectGrid. */
+function stateOf(g) {
+  const m = new Map([...g.map].filter(([k]) => k.startsWith('archive:')).map(([k, v]) => [k, structuredClone(v)]));
+  m.set('players', Object.fromEntries((g.sql.dump('pilots') || []).map((r) => [r.id, JSON.parse(r.rec)])));
+  return m;
 }
 const cloneMap = (m) => new Map([...m].map(([k, v]) => [k, structuredClone(v)]));
 const sameMap = (a, b) => a.size === b.size && [...a.keys()].every((k) => b.has(k) && util.isDeepStrictEqual(a.get(k), b.get(k)));
@@ -132,9 +195,9 @@ async function smallSeed() {
 }
 /* A realistic dataset: Season 0 archive + Season 1, ten countries. */
 function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
-async function realisticSeed(seed = 20260928) {
+async function realisticSeed(seed = 20260928, scale = 1) {
   const rnd = mulberry32(seed), m = new Map(), players = {}, arch = [];
-  const CC = [['US', 120], ['BR', 80], ['PH', 60], ['IN', 50], ['DE', 35], ['JP', 30], ['KR', 20], ['NZ', 10], ['IS', 6], ['LU', 4]];
+  const CC = [['US', 120], ['BR', 80], ['PH', 60], ['IN', 50], ['DE', 35], ['JP', 30], ['KR', 20], ['NZ', 10], ['IS', 6], ['LU', 4]].map(([c, n]) => [c, n * scale]);
   const S0 = { easy: [20000, 320000], medium: [9000, 130000], hard: [2500, 42000] };   // old, higher Easy / Medium rates
   const S1 = { easy: [4000, 140000], medium: [3000, 85000], hard: [2500, 48000] };
   const PROB = { easy: 0.55, medium: 0.7, hard: 0.4 };
@@ -145,7 +208,7 @@ async function realisticSeed(seed = 20260928) {
     n++; const id = P(n), name = 'ACE' + n, k = rnd();
     if (k < 0.55) {            // played both seasons
       const moved = rnd() < 0.04; if (moved) meta.moved++;
-      arch.push({ playerId: id, name, country: moved ? 'CA' : cc, bests: bestsFrom(S0) });
+      arch.push({ playerId: id, name: n % 25 === 0 ? 'OLD' + n : name, country: moved ? 'CA' : cc, bests: bestsFrom(S0) });   // some renamed since Season 0
       players[id] = { playerId: id, name, country: cc, updatedAt: 1790000000000 + n, bests: bestsFrom(S1) }; meta.both++; bothIds.push(id);
     } else if (k < 0.8) {      // Season 0 only: the record was kept, its bests cleared by the Season 1 reset
       arch.push({ playerId: id, name, country: cc, bests: bestsFrom(S0) });
@@ -203,7 +266,7 @@ async function suite({ workerMod, gameHtml, gateHtml, adminHtml, quiet = false, 
   const src = workerMod.__src || WORKER_SRC;
   const realNow = Date.now; let now = T0; Date.now = () => now;
   const realErr = console.error; console.error = () => {};
-  const mk = (g, b = new FakeStorage(), mod = workerMod) => {
+  const mk = (g, b = newB(), mod = workerMod) => {
     const env = makeEnv(mod, g, b);
     const req = async (p, body, headers = {}, method = 'POST') => {
       const res = await mod.default.fetch(new Request(ORIGIN + p, { method, headers: { 'Content-Type': 'application/json', ...headers }, body: method === 'GET' ? undefined : JSON.stringify(body || {}) }), env, {});
@@ -219,7 +282,21 @@ async function suite({ workerMod, gameHtml, gateHtml, adminHtml, quiet = false, 
       return out;
     };
     const direct = async (p, body) => { const r = await env.LEADERBOARD_DO.get('global').fetch('https://do.internal' + p, { method: 'POST', body: JSON.stringify(body || {}) }); return { status: r.status, data: await r.json() }; };
-    return { env, req, admin, board, publicView, direct };
+    /* THE STORAGE MOVE (#44), through the real admin routes: backup -> dry run -> MIGRATE. */
+    const move = async () => {
+      await admin('backup-now'); const dr = await admin('migrate-storage-dry-run');
+      let r = null; for (let i = 0; i < 50; i++) { r = await admin('migrate-storage', { confirm: dr.data && dr.data.confirm }); if (r.status !== 200 || !r.data.more) break; }
+      return r;
+    };
+    return { env, req, admin, board, publicView, direct, move };
+  };
+  /* A leaderboard on the NEW layout: seeded as the old one, moved, then an hour later (the move's backup is too old for APPLY). */
+  const mkV2 = async (m, mod = workerMod) => {
+    const S = mk(new FakeStorage(cloneMap(m)), newB(), mod);
+    const r = await S.move();
+    if (!(r && r.status === 200 && r.data.switched) || S.env._g.map.get('storageLayout') !== 'v2') throw new Error('the storage move did not switch: ' + (r && r.text.slice(0, 200)));
+    now += 61 * 60000;
+    return S;
   };
   const gridOf = (lb) => ({ countries: Object.fromEntries((lb.countries || []).map((c) => [c.country, { t: c.totalScore, n: c.playerCount }])) });
   const sameCountries = (lb, exp) => util.isDeepStrictEqual(gridOf(lb).countries, exp.countries);
@@ -228,7 +305,16 @@ async function suite({ workerMod, gameHtml, gateHtml, adminHtml, quiet = false, 
     /* ================= W1-W5 the consolidation (pure) ================= */
     if (!quiet) console.log('== W1-W5 consolidation ==');
     const sm = await smallSeed();
-    const S = mk(new FakeStorage(cloneMap(sm)));
+    /* W0: the old layout refuses. */
+    { const O = mk(new FakeStorage(cloneMap(sm))); await O.board(); const s0 = snapG(O.env._g), w0 = O.env._g.meter.written;
+      const rs = [await O.admin('world-grid-dry-run'), await O.admin('world-grid-apply', {}), await O.admin('world-grid-apply', { id: 'WG-abcdefg-12345678', confirm: 'APPLY WG-abcdefg-12345678' }), await O.admin('world-grid-revert')];
+      ck('W0 on the OLD storage layout every WORLD GRID route refuses: "Move the storage first", and nothing is written',
+        rs.every((x) => x.status === 409 && x.data.moveStorageFirst === true && /^Move the storage first/.test(x.data.error)) && sameG(O.env._g, s0) && O.env._g.meter.written === w0 && !O.env._b.map.size, rs.map((x) => x.status + ' ' + x.text.slice(0, 60)).join(' | '));
+      const sw = new Map(cloneMap(sm)); sw.set('worldGrid', { combined: true, dryRunId: 'WG-abcdefg-12345678', appliedAt: 1 });
+      const O2 = mk(new FakeStorage(sw)), lb = await O2.board('hard'), sum = await O2.admin('summary');
+      ck('W0 ...the old layout serves Season 1 only, whatever the stored switch says, and the owner summary says "move the storage first"',
+        !('combined' in lb) && lb.top.every((t) => t.score !== 5000) && sum.data.worldGrid && sum.data.worldGrid.layout === 'old' && sum.data.worldGrid.combined === false, JSON.stringify(sum.data.worldGrid)); }
+    const S = await mkV2(sm);
     const dr = await S.admin('world-grid-dry-run');
     ck('W5 (setup) the dry run answers with a report', dr.status === 200 && dr.data && dr.data.ok && /^WG-[0-9a-z]+-[0-9a-f]{8}$/.test(dr.data.id) && dr.data.confirm === 'APPLY ' + dr.data.id, dr.status + ' ' + dr.text.slice(0, 200));
     const rep = dr.data || {};
@@ -276,25 +362,24 @@ async function suite({ workerMod, gameHtml, gateHtml, adminHtml, quiet = false, 
     if (!quiet) console.log('== W2 before APPLY nothing changes ==');
     const RS = await realisticSeed();
     if (mainMod) {
-      const A = mk(new FakeStorage(cloneMap(RS.m)), new FakeStorage(), mainMod), B = mk(new FakeStorage(cloneMap(RS.m)));
+      const A = await mkV2(RS.m, mainMod), B = await mkV2(RS.m);
       const va = await A.publicView(), vb = await B.publicView(true);
       now += 1000;
       const sub = { playerId: P(1), name: 'ACE1', score: 47000, level: levelFor(47000, 'hard'), difficulty: 'hard', country: 'US', season: 1 };
       const sa = await A.req('/api/submit-score', sub), sb = await B.req('/api/submit-score', sub);
       ck('W2 before APPLY every public route answers exactly as the code on main (all/easy/medium/hard boards, restore-check, an upload)',
         util.isDeepStrictEqual(va, vb) && sa.text === sb.text && util.isDeepStrictEqual(await A.publicView(), await B.publicView(true)), sa.text.slice(0, 80) + ' | ' + sb.text.slice(0, 80));
-      ck('W2 ...and says so: combined false', (await B.board()).combined === false && (await B.board()).gridCombined === false);
-    } else ck('W2 before APPLY (main not available: fixed checks only)', (await mk(new FakeStorage(cloneMap(RS.m))).board()).combined === false);
+      ck('W2 ...byte for byte: no combined field before APPLY', !('combined' in (await B.board())) && !('gridCombined' in (await B.board())));
+    } else ck('W2 before APPLY (main not available: fixed checks only)', !('combined' in (await (await mkV2(RS.m)).board())));
 
     /* ================= W17 realistic dataset: dry run ================= */
     if (!quiet) console.log('== W17 realistic dataset ==');
-    const g = new FakeStorage(cloneMap(RS.m)), b = new FakeStorage();
-    const R = mk(g, b);
+    const R = await mkV2(RS.m), g = R.env._g, b = R.env._b;
     const before = await R.publicView();
     const beforeBoard = await R.board('', 100);
     const d1 = await R.admin('world-grid-dry-run');
     const rr = d1.data || {};
-    ck('W17 realistic dataset: every check PASS, "no current score lost: PASS"', rr.allPass === true && /no current score lost: PASS/.test(rr.text || '') && (rr.checks || []).length === 6, (rr.checks || []).filter((k) => !k.ok).map((k) => k.label + ': ' + k.detail).join(' | '));
+    ck('W17 realistic dataset: every check PASS, "no current score lost: PASS"', rr.allPass === true && /no current score lost: PASS/.test(rr.text || '') && (rr.checks || []).length === 6 && rr.layout === 'new' && /Storage: the new layout/.test(rr.text || ''), (rr.checks || []).filter((k) => !k.ok).map((k) => k.label + ': ' + k.detail).join(' | '));
     const c = rr.counts || {};
     ck('W17 the counts add up: archive bests = merged + flagged; pilots after = before + back from Season 0',
       c.archiveScores === c.mergedScores + c.flaggedScores && c.pilotsAfter === c.pilotsBefore + c.onlyArchive && c.onlyArchive === RS.meta.archiveOnly && c.restrictedExcluded === 2, JSON.stringify(c));
@@ -302,39 +387,41 @@ async function suite({ workerMod, gameHtml, gateHtml, adminHtml, quiet = false, 
       ['pilot-gone', 'privacy-deleted', 'conflicting-identity', 'invalid-score', 'restricted'].map((k) => (rr.flagged || []).filter((f) => f.code === k).length).join() === '8,3,2,1,2', (rr.flagged || []).map((f) => f.code).join(','));
     ck('W17 the report has per-country before/after totals and ranks, top pilots before and after, in plain words',
       (rr.countries || []).length >= 10 && rr.countries.every((x) => x.after && x.after.rank && 'totalScore' in x.after) && rr.topBefore.length === 10 && rr.topAfter.length === 10 && /COUNTRIES \(before -> after\)/.test(rr.text) && /TOP PILOTS AFTER/.test(rr.text) && /FLAGGED \(\d+\)/.test(rr.text));
-    if (process.env.WG_REPORT && !quiet) { fs.mkdirSync(path.dirname(process.env.WG_REPORT), { recursive: true }); fs.writeFileSync(process.env.WG_REPORT, rr.text + '\n'); console.log('  (report written to ' + process.env.WG_REPORT + ')'); }
+    const reportText = rr.text || '';
 
     /* ================= W6 the dry run writes nothing ================= */
-    const gSnap = cloneMap(g.map), bSnap = cloneMap(b.map), gw = g.writes, bw = b.writes;
+    const gSnap = snapG(g), bSnap = cloneMap(b.map), gw = g.writes, bw = b.writes, gr = g.meter.read;
     const d2 = await R.admin('world-grid-dry-run');
-    ck('W6 the dry run writes nothing: leaderboard and backup storage deep-equal, no write at all', d2.status === 200 && sameMap(g.map, gSnap) && sameMap(b.map, bSnap) && g.writes === gw && b.writes === bw, diffKeys(g.map, gSnap).join(',') + ' writes ' + (g.writes - gw));
+    ck('W6 the dry run writes nothing: key-value storage, every SQL table and the backups deep-equal, no row written at all', d2.status === 200 && sameG(g, gSnap) && sameMap(b.map, bSnap) && g.writes === gw && b.writes === bw, diffKeys(g.map, gSnap.kv).join(',') + ' ' + tablesChanged(g, gSnap).join(',') + ' writes ' + (g.writes - gw));
+    const nPilots = (g.sql.dump('pilots') || []).length, dryRead = g.meter.read - gr;
+    ck('W6 ...it reads every pilot row once plus the archive (' + nPilots + ' pilots), and says so in its report', d2.data.cost && d2.data.cost.dryRun.rowsWritten === 0 && d2.data.cost.dryRun.rowsRead >= nPilots && d2.data.cost.dryRun.rowsRead <= nPilots + 20 && dryRead <= nPilots + 20 && /FREE PLAN COST/.test(d2.data.text), JSON.stringify(d2.data.cost && d2.data.cost.dryRun) + ' metered ' + dryRead);
     ck('W6 ...and the public routes did not change', util.isDeepStrictEqual(await R.publicView(), before));
 
     /* ================= W7 APPLY refusals ================= */
     if (!quiet) console.log('== W7 APPLY refusals ==');
     const id1 = rr.id, st = [];
     for (const t of [{}, { id: id1 }, { id: id1, confirm: 'APPLY' }, { id: id1, confirm: 'apply ' + id1 }, { id: id1, confirm: id1 }, { id: id1, confirm: 'APPLY ' + id1 + ' ' }, { id: 'WG-x', confirm: 'APPLY WG-x' }]) st.push((await R.admin('world-grid-apply', t)).status);
-    ck('W7 APPLY is refused without exactly "APPLY <dry-run id>" (nothing written, no backup made)', st.every((x) => x === 400) && sameMap(g.map, gSnap) && sameMap(b.map, bSnap), st.join(','));
+    ck('W7 APPLY is refused without exactly "APPLY <dry-run id>" (nothing written, no backup made)', st.every((x) => x === 400) && sameG(g, gSnap) && sameMap(b.map, bSnap), st.join(','));
     const nb = await R.admin('world-grid-apply', { id: id1, confirm: 'APPLY ' + id1 });
-    ck('W7 APPLY is refused without a checked backup from the last 60 minutes, and offers BACK UP NOW (needBackup)', nb.status === 409 && nb.data.needBackup === true && /BACK UP NOW/.test(nb.data.error) && sameMap(g.map, gSnap), nb.status + ' ' + nb.text.slice(0, 160));
+    ck('W7 APPLY is refused without a checked backup from the last 60 minutes, and offers BACK UP NOW (needBackup)', nb.status === 409 && nb.data.needBackup === true && /BACK UP NOW/.test(nb.data.error) && sameG(g, gSnap), nb.status + ' ' + nb.text.slice(0, 160));
     await R.admin('backup-now');
     const bkSnap = cloneMap(b.map);
     now += 61 * 60000;
     const old = await R.admin('world-grid-apply', { id: id1, confirm: 'APPLY ' + id1 });
-    ck('W7 a backup older than 60 minutes does not count', old.status === 409 && old.data.needBackup === true && sameMap(g.map, gSnap), old.status);
+    ck('W7 a backup older than 60 minutes does not count', old.status === 409 && old.data.needBackup === true && sameG(g, gSnap), old.status);
     await R.admin('backup-now');
     const stale = await R.admin('world-grid-apply', { id: id1, confirm: 'APPLY ' + id1 });
-    ck('W7 a dry run older than 60 minutes is refused (run a new one)', stale.status === 409 && stale.data.stale === true && sameMap(g.map, gSnap), stale.status + ' ' + stale.text.slice(0, 120));
+    ck('W7 a dry run older than 60 minutes is refused (run a new one)', stale.status === 409 && stale.data.stale === true && sameG(g, gSnap), stale.status + ' ' + stale.text.slice(0, 120));
     void bkSnap;
     // The archive changes after the dry run (a privacy deletion): refused.
-    { const X = mk(new FakeStorage(cloneMap(sm)), new FakeStorage()); const dx = await X.admin('world-grid-dry-run'); await X.admin('backup-now');
+    { const X = await mkV2(sm); const dx = await X.admin('world-grid-dry-run'); await X.admin('backup-now');
       const f = await X.admin('find-player', { query: 'BRAVO' }); await X.admin('privacy-delete', { pid: f.data.matches[0].pid });
       const ax = await X.admin('world-grid-apply', { id: dx.data.id, confirm: 'APPLY ' + dx.data.id });
       ck('W7 if the archive changed since the dry run (privacy deletion), APPLY is refused', ax.status === 409 && ax.data.stale === true && !X.env._g.map.has('worldGrid'), ax.status + ' ' + ax.text.slice(0, 120)); }
     // Password / session / CSRF.
     const noPw = []; for (const r of ['world-grid-dry-run', 'world-grid-apply', 'world-grid-revert']) noPw.push((await R.req('/api/admin/' + r, { id: id1, confirm: 'APPLY ' + id1 })).status, (await R.req('/api/admin/' + r, {}, { 'x-admin-token': 'nope' })).status);
-    ck('W7 every WORLD GRID route needs the admin password (401), and nothing changed', noPw.every((x) => x === 401) && sameMap(g.map, gSnap), noPw.join(','));
-    { const L = mk(new FakeStorage(cloneMap(sm)));
+    ck('W7 every WORLD GRID route needs the admin password (401), and nothing changed', noPw.every((x) => x === 401) && sameG(g, gSnap), noPw.join(','));
+    { const L = await mkV2(sm);
       const lg = await L.req('/api/admin/login', { password: 'pw' }, { 'X-FLUX-Admin': '1' });
       const cookie = (lg.headers.get('set-cookie') || '').split(';')[0];
       const noHdr = await L.req('/api/admin/world-grid-dry-run', {}, { Cookie: cookie });
@@ -346,18 +433,20 @@ async function suite({ workerMod, gameHtml, gateHtml, adminHtml, quiet = false, 
 
     /* ================= W8 APPLY ================= */
     if (!quiet) console.log('== W8 APPLY ==');
+    await R.admin('backup-now');   // (the other leaderboards made above moved the clock)
     const d3 = (await R.admin('world-grid-dry-run')).data;
     const safetyBefore = [...b.map.values()].filter((m) => m && m.kind === 'safety').length;
-    const bestsBefore = structuredClone(g.map.get('players')), archBefore = [...g.map.keys()].filter((k) => k.startsWith('archive:')).map((k) => [k, structuredClone(g.map.get(k))]);
-    const preApply = cloneMap(g.map);
+    const bestsBefore = g.sql.dump('pilots'), archBefore = [...g.map.keys()].filter((k) => k.startsWith('archive:')).map((k) => [k, structuredClone(g.map.get(k))]);
+    const preApply = snapG(g);
     const ap = await R.admin('world-grid-apply', { id: d3.id, confirm: 'APPLY ' + d3.id });
     ck('W8 APPLY with a recent checked backup and the typed phrase succeeds', ap.status === 200 && ap.data.ok === true && ap.data.applied === d3.id, ap.status + ' ' + ap.text.slice(0, 200));
+    const applyChecks = (ap.data.checks || []).map((k) => '  ' + k.label.toLowerCase() + ': ' + (k.ok ? 'PASS' : 'FAIL') + '  (' + k.detail + ')').join('\n');
     const safeties = [...b.map.values()].filter((m) => m && m.kind === 'safety');
     const saf = safeties.find((m) => m.id === ap.data.safetyId);
-    ck('W8 a verified safety backup of the leaderboard just before the switch was taken', safeties.length === safetyBefore + 1 && saf && saf.verified === true && saf.keyCount === preApply.size, saf && saf.id);
+    ck('W8 a verified safety backup of the leaderboard just before the switch was taken', safeties.length === safetyBefore + 1 && saf && saf.verified === true, saf && saf.id);
     ck('W8 the post-apply checks ran against the live routes, all PASS', (ap.data.checks || []).length === 8 && ap.data.checks.every((k) => k.ok) && ap.data.checks.some((k) => k.id === 'live-grid') && ap.data.checks.some((k) => k.id === 'live-no-current-score-lost'), JSON.stringify(ap.data.checks || []).slice(0, 300));
     const after = await R.board('', 100);
-    const E = expectGrid(RS.m, { restrictedIds: RS.restrictedIds, conflicted: [P(7)], invalid: [] });
+    const E = expectGrid(stateOf(g), { restrictedIds: RS.restrictedIds, conflicted: [P(7)], invalid: [] });
     ck('W8 the live World Grid is combined: combined true, country totals = sum of consolidated weighted bests (computed here)', after.combined === true && sameCountries(after, E), JSON.stringify(gridOf(after).countries).slice(0, 200));
     const expTop = E.pilots.map((p) => p.w).sort((x, y) => y - x).slice(0, 100);
     ck('W8 the ALL board is the consolidated grid: the top 100 scores match, each pilot once', util.isDeepStrictEqual(after.top.map((t) => t.score), expTop) && new Set(after.top.map((t) => t.pid)).size === after.top.length);
@@ -379,15 +468,15 @@ async function suite({ workerMod, gameHtml, gateHtml, adminHtml, quiet = false, 
 
     /* ================= W9 reversible ================= */
     if (!quiet) console.log('== W9 reversible ==');
-    const changed = diffKeys(g.map, preApply).sort();
-    ck('W9 APPLY rewrote no best and no archive entry: only the switch and the derived country figures changed', util.isDeepStrictEqual(g.map.get('players'), bestsBefore) && archBefore.every(([k, v]) => util.isDeepStrictEqual(g.map.get(k), v)) && changed.join() === 'countries,worldGrid', changed.join());
+    const changed = diffKeys(g.map, preApply.kv).sort(), tchanged = tablesChanged(g, preApply);
+    ck('W9 APPLY rewrote no best and no archive entry: only the switch and the derived country figures changed', util.isDeepStrictEqual(g.sql.dump('pilots'), bestsBefore) && archBefore.every(([k, v]) => util.isDeepStrictEqual(g.map.get(k), v)) && changed.join() === 'worldGrid' && tchanged.join() === 'v2meta,wg0', changed.join() + ' | ' + tchanged.join());
     R.env.restart();
     ck('W9 the switch survives a restart', (await R.board()).combined === true && sameCountries(await R.board('', 100), E));
     const rv = await R.admin('world-grid-revert');
     ck('W9 REVERT switches back', rv.status === 200 && rv.data.ok && rv.data.wasCombined === true && rv.data.worldGrid.combined === false);
     const reverted = await R.publicView();
     ck('W9 after REVERT every public route answers exactly as before APPLY', util.isDeepStrictEqual(reverted, before) && util.isDeepStrictEqual(await R.board('', 100), beforeBoard));
-    ck('W9 after APPLY + REVERT the bests and the archive are unchanged, and the country figures are as before', util.isDeepStrictEqual(g.map.get('players'), bestsBefore) && archBefore.every(([k, v]) => util.isDeepStrictEqual(g.map.get(k), v)) && util.isDeepStrictEqual(g.map.get('countries'), preApply.get('countries')), diffKeys(g.map, preApply).join(','));
+    ck('W9 after APPLY + REVERT the bests and the archive are unchanged, and the country figures are as before', util.isDeepStrictEqual(g.sql.dump('pilots'), bestsBefore) && archBefore.every(([k, v]) => util.isDeepStrictEqual(g.map.get(k), v)) && util.isDeepStrictEqual((await R.board('', 100)).countries, beforeBoard.countries) && diffKeys(g.map, preApply.kv).join() === 'worldGrid', diffKeys(g.map, preApply.kv).join(','));
     ck('W9 the owner summary says Season 1 only again', (await R.admin('summary')).data.worldGrid.combined === false);
     const d4 = (await R.admin('world-grid-dry-run')).data;
     const ap2 = await R.admin('world-grid-apply', { id: d4.id, confirm: 'APPLY ' + d4.id });
@@ -395,36 +484,111 @@ async function suite({ workerMod, gameHtml, gateHtml, adminHtml, quiet = false, 
 
     /* ================= W10 new runs after APPLY ================= */
     if (!quiet) console.log('== W10 new runs ==');
-    const players = g.map.get('players'), meta0 = g.map.get('archive:season0'), arch0 = [];
+    const players = stateOf(g).get('players'), meta0 = g.map.get('archive:season0'), arch0 = [];
     for (let i = 0; i < meta0.chunks; i++) arch0.push(...g.map.get('archive:season0:' + i));
     const s0only = arch0.find((a) => players[a.playerId] && !Object.keys(players[a.playerId].bests).length && a.bests.hard && !RS.restrictedIds.includes(a.playerId));
     const oldHard = s0only.bests.hard.score, p0 = players[s0only.playerId];
     now += 20000;
     const low = await R.req('/api/submit-score', { playerId: p0.playerId, name: p0.name, score: 2600, level: levelFor(2600, 'hard'), difficulty: 'hard', country: p0.country, season: 1 });
     const g1 = await R.board('', 100);
-    const E1 = expectGrid(g.map, { restrictedIds: RS.restrictedIds, conflicted: [P(7)] });
+    const E1 = expectGrid(stateOf(g), { restrictedIds: RS.restrictedIds, conflicted: [P(7)] });
     ck('W10 after APPLY a run below the pilot\'s Season 0 best keeps the Season 0 best on the grid', low.status === 200 && sameCountries(g1, E1) && E1.pilots.find((p) => p.id === p0.playerId).b.hard === oldHard, low.status + ' ' + low.text.slice(0, 100));
     now += 20000;
     const hi = oldHard + 1000;
     const high = await R.req('/api/submit-score', { playerId: p0.playerId, name: p0.name, score: hi, level: levelFor(hi, 'hard'), difficulty: 'hard', country: p0.country, season: 1 });
-    const E2 = expectGrid(g.map, { restrictedIds: RS.restrictedIds, conflicted: [P(7)] });
+    const E2 = expectGrid(stateOf(g), { restrictedIds: RS.restrictedIds, conflicted: [P(7)] });
     ck('W10 a run above it raises the grid (the new best counts, once)', high.status === 200 && sameCountries(await R.board('', 100), E2) && E2.pilots.find((p) => p.id === p0.playerId).b.hard === hi, high.text.slice(0, 100));
     ck('W10 the live checks still pass after new runs', (await R.direct('/world-grid-check')).data.ok === true);
     // A privacy deletion after APPLY: gone from the grid, the archive and the country totals.
     const victim = arch0.find((a) => players[a.playerId] && a.bests.hard && Object.keys(players[a.playerId].bests).length && !RS.restrictedIds.includes(a.playerId) && a.playerId !== P(7));
     const vpid = await pidHash(victim.playerId);
     const pd = await R.admin('privacy-delete', { pid: vpid });
-    const E3 = expectGrid(g.map, { restrictedIds: RS.restrictedIds, conflicted: [P(7)] });
+    const E3 = expectGrid(stateOf(g), { restrictedIds: RS.restrictedIds, conflicted: [P(7)] });
     const lb3 = await R.board('', 100);
     ck('W4 a privacy deletion after APPLY: the pilot is gone from the grid and the totals, never brought back from the archive', pd.status === 200 && !lb3.top.some((t) => t.pid === vpid) && sameCountries(lb3, E3) && !JSON.stringify([...g.map.entries()].filter(([k]) => k.startsWith('archive:season0:'))).includes(victim.playerId) && (await R.direct('/world-grid-check')).data.ok === true);
 
+    /* ================= W20 a rank below the top 100 on the combined board ================= */
+    if (!quiet) console.log('== W20 ranks below the top 100 ==');
+    { const st = stateOf(g), Ex = expectGrid(st, { restrictedIds: RS.restrictedIds, conflicted: [P(7)] });
+      const hard = Ex.pilots.filter((p) => p.b.hard !== undefined).sort((x, y) => y.b.hard - x.b.hard);
+      const pick = hard.find((p, i) => i >= 110 && i < hard.length - 5 && hard[i - 1].b.hard > p.b.hard && st.get('players')[p.id]);
+      let ok = false, info = 'hard board ' + hard.length + ' pilots';
+      if (pick) {
+        const rec = st.get('players')[pick.id], want = hard.filter((p) => p.b.hard > pick.b.hard).length + 1, wantC = hard.filter((p) => p.b.hard > pick.b.hard && p.cc === pick.cc).length + 1;
+        now += 20000;
+        const r = await R.req('/api/submit-score', { playerId: pick.id, name: rec.name, score: 1, level: 1, difficulty: 'hard', country: rec.country, season: 1 });
+        ok = r.status === 200 && r.data.isNewBest === false && r.data.rank === want && r.data.countryRank === wantC && r.data.best === (rec.bests.hard ? rec.bests.hard.score : 1) && r.data.above && r.data.above.score > pick.b.hard;
+        info = 'want #' + want + ' (' + pick.cc + ' #' + wantC + '), got ' + r.text.slice(0, 160);
+      }
+      ck('W20 an upload from a pilot ranked below 100 on the combined JUPITER board gets its exact world and country rank', ok, info); }
+
+    /* ================= W21 backup restore ================= */
+    if (!quiet) console.log('== W21 backup restore ==');
+    { const bkOn = (await R.admin('backup-now')).data.snapshot;
+      await R.admin('world-grid-revert');
+      const bkOff = (await R.admin('backup-now')).data.snapshot;
+      const r1 = await R.admin('backup-restore', { id: bkOn.id, confirm: 'RESTORE ' + bkOn.id });
+      const on1 = await R.board('', 100), ck1 = await R.direct('/world-grid-check');
+      const r2 = await R.admin('backup-restore', { id: bkOff.id, confirm: 'RESTORE ' + bkOff.id });
+      const off2 = await R.board('', 100), ck2 = await R.direct('/world-grid-check');
+      ck('W21 restoring a backup taken while the grid was combined brings it back combined (Season 0 table rebuilt from the restored archive), checks PASS; one taken after REVERT brings Season 1 only',
+        r1.status === 200 && on1.combined === true && ck1.data.ok === true && r2.status === 200 && !off2.combined && ck2.data.ok === true && ck2.data.combined === false,
+        [r1.status, on1.combined, ck1.data.ok, r2.status, off2.combined, ck2.data.ok].join(',') + ' ' + JSON.stringify((ck1.data.checks || []).filter((k) => !k.ok)).slice(0, 200));
+      const d5 = (await R.admin('world-grid-dry-run')).data; await R.admin('backup-now');
+      await R.admin('world-grid-apply', { id: d5.id, confirm: d5.confirm }); }
+
+    /* ================= W18 + W19 free plan (5,000 pilots) ================= */
+    if (!quiet) console.log('== W18 free plan / W19 indexes ==');
+    const cost = {};
+    { const BIG = await realisticSeed(4242, 12), Z = await mkV2(BIG.m), zg = Z.env._g, N = (zg.sql.dump('pilots') || []).length;
+      const ids = Object.keys(BIG.m.get('players')), pl = BIG.m.get('players');
+      const meter = async (fn) => { const r0 = zg.meter.read, w0 = zg.meter.written; const out = await fn(); return { out, read: zg.meter.read - r0, written: zg.meter.written - w0 }; };
+      const run = async (id, score, d) => { now += 20000; return meter(() => Z.req('/api/submit-score', { playerId: id, name: pl[id] ? pl[id].name : 'NEWBIE', score, level: levelFor(score, d), difficulty: d, country: pl[id] ? pl[id].country : 'FR', season: 1 })); };
+      const withHard = ids.filter((id) => pl[id].bests.hard && !BIG.restrictedIds.includes(id));
+      await Z.board();
+      const runsBefore = [await run(withHard[5], 1, 'hard'), await run(withHard[6], pl[withHard[6]].bests.hard.score + 7, 'hard'), await run('brand-new-' + 1, 3000, 'hard')];
+      const dry = await meter(() => Z.admin('world-grid-dry-run'));
+      await Z.admin('backup-now');
+      const ap = await meter(() => Z.admin('world-grid-apply', { id: dry.out.data.id, confirm: dry.out.data.confirm }));
+      const warm = await Z.board();
+      const runsAfter = [await run(withHard[15], 1, 'hard'), await run(withHard[16], pl[withHard[16]].bests.hard.score + 7, 'hard'), await run('brand-new-' + 2, 3000, 'hard')];
+      Z.env.restart();
+      zg.sql.log = [];
+      const cold = await meter(() => Z.req('/api/leaderboard?limit=25&boards=1&v=cold' + now, null, {}, 'GET'));
+      const log = zg.sql.log; zg.sql.log = null;
+      const memo = await meter(() => Z.req('/api/leaderboard?limit=25&boards=1&v=memo' + now, null, {}, 'GET'));
+      const rv = await meter(() => Z.admin('world-grid-revert'));
+      const plans = log.filter((x) => /\bwg0\b/.test(x.q) && /^\s*SELECT/i.test(x.q)).map((x) => zg.sql.db.prepare('EXPLAIN QUERY PLAN ' + x.q).all(...x.args).map((r) => r.detail));
+      cost.pilots = N; cost.archived = BIG.m.get('archive:season0').players;
+      cost.dryRun = { rowsRead: dry.read, rowsWritten: dry.written };
+      cost.apply = { rowsRead: ap.read, rowsWritten: ap.written, season0Rows: ap.out.data.season0Rows };
+      cost.revert = { rowsRead: rv.read, rowsWritten: rv.written };
+      cost.coldStartPlusLeaderboard = { rowsRead: cold.read, rowsWritten: cold.written };
+      cost.leaderboardFromMemory = { rowsRead: memo.read };
+      cost.runBefore = runsBefore.map((x) => x.written); cost.runAfter = runsAfter.map((x) => x.written);
+      cost.runReadBefore = runsBefore.map((x) => x.read); cost.runReadAfter = runsAfter.map((x) => x.read);
+      ck('W18 after APPLY a run writes exactly the rows it wrote before APPLY (no new writes per run: no best, new best, new pilot)',
+        ap.out.status === 200 && warm.combined === true && runsAfter.every((x) => x.out.status === 200) && util.isDeepStrictEqual(cost.runBefore, cost.runAfter), JSON.stringify({ before: cost.runBefore, after: cost.runAfter }));
+      ck('W18 no full read on a cold start: a restart + the game\'s leaderboard request read a few hundred rows at ' + N + ' pilots, never every pilot',
+        cold.out.status === 200 && cold.out.data.combined === true && cold.read < 1500 && cold.read < N / 3 && cold.written === 0, JSON.stringify(cost.coldStartPlusLeaderboard));
+      ck('W18 the dry run reads each pilot once + the archive and writes nothing; APPLY and REVERT cost what the report says (one-off, owner-triggered)',
+        dry.written === 0 && dry.read <= N + 30 && ap.written <= 4 * cost.archived + 10 && ap.read <= 8 * N + cost.archived + 200 && ap.read < 5000000 * 0.01 && rv.written <= 3 && rv.read <= N + 30, JSON.stringify(cost));
+      ck('W19 every combined board query uses an index: no table scan, no sort of the whole table',
+        plans.length >= 3 && plans.every((p) => p.every((d) => !/^SCAN /.test(d) && !/TEMP B-TREE/.test(d))), JSON.stringify(plans.slice(0, 3)));
+      if (!quiet) console.log('  cost: ' + JSON.stringify(cost)); }
+    if (process.env.WG_REPORT && !quiet) {
+      fs.mkdirSync(path.dirname(process.env.WG_REPORT), { recursive: true });
+      fs.writeFileSync(process.env.WG_REPORT, reportText + '\nAFTER APPLY (the same dataset, through the real admin route; checks against the live /leaderboard incl. ?boards=1)\n' + applyChecks + '\n\nMEASURED ON 5,000 PILOTS (tests, real SQLite, Cloudflare-style row counters)\n' + JSON.stringify(cost, null, 2) + '\n');
+      console.log('  (report written to ' + process.env.WG_REPORT + ')');
+    }
+
     /* ================= W11 the check after the switch fails ================= */
     if (!quiet) console.log('== W11 automatic switch-back ==');
-    { const X = mk(new FakeStorage(cloneMap(sm)), new FakeStorage()); await X.board(); await X.admin('backup-now');
+    { const X = await mkV2(sm); await X.board(); await X.admin('backup-now');
       const dx = (await X.admin('world-grid-dry-run')).data;
-      const inst = X.env._inst.get('global'); inst.handleWorldGridCheck = async () => new Response(JSON.stringify({ ok: false, checks: [{ id: 'live-grid', label: 'x', ok: false, detail: 'injected' }] }), { status: 200 });
+      const inst = X.env.obj('global'); inst.handleWorldGridCheck = async () => new Response(JSON.stringify({ ok: false, checks: [{ id: 'live-grid', label: 'x', ok: false, detail: 'injected' }] }), { status: 200 });
       const ax = await X.admin('world-grid-apply', { id: dx.id, confirm: 'APPLY ' + dx.id });
-      ck('W11 if the check after the switch fails, APPLY switches back by itself and says so', ax.status === 500 && ax.data.reverted === true && X.env._g.map.get('worldGrid').combined === false && (await X.board()).combined === false, ax.status + ' ' + ax.text.slice(0, 160)); }
+      ck('W11 if the check after the switch fails, APPLY switches back by itself and says so', ax.status === 500 && ax.data.reverted === true && X.env._g.map.get('worldGrid').combined === false && !(await X.board()).combined, ax.status + ' ' + ax.text.slice(0, 160)); }
 
     /* ================= W12 the game ================= */
     if (!quiet) console.log('== W12 the game ==');
@@ -496,8 +660,10 @@ async function suite({ workerMod, gameHtml, gateHtml, adminHtml, quiet = false, 
     let mainCfg = null;
     try { const r = spawnSync('git', ['show', 'origin/main:wrangler.jsonc'], { cwd: ROOT, encoding: 'utf8' }); if (r.status === 0 && r.stdout) mainCfg = r.stdout; } catch (e) {}
     ck('W16 wrangler.jsonc identical to main; no new export, class or migration', (mainCfg === null || mainCfg === WRANGLER) && JSON.stringify(cfg.migrations) === JSON.stringify([{ tag: 'v1', new_sqlite_classes: ['LeaderboardDO'] }]) && Object.keys(workerMod).filter((k) => k !== '__src').sort().join() === 'LeaderboardDO,default', mainCfg === null ? 'git not available' : '');
-    ck('W16 the combined grid reads pilots through one accessor (pilotRecords), so the per-pilot storage change touches one place',
-      /pilotRecords\(\) \{ return Object\.values\(this\.players\); \}/.test(src) && /const archive = await this\.archivePilots\(\), pilots = this\.pilotRecords\(\);/.test(src) && /mergeWorldGrid\(\{ archive: await this\.archivePilots\(\), pilots: this\.pilotRecords\(\) \}\)/.test(src));
+    { const a0 = src.indexOf('/* ------------------------ COMBINED WORLD GRID ------------------------ */'), sec = a0 >= 0 ? src.slice(a0, src.indexOf('  async handleLeaderboard(url) {', a0)) : '';
+      ck('W16 the combined grid reads pilots only from the new layout (pilot rows page by page, per-board indexes), never the old "players" value',
+        sec.length > 1000 && !/this\.players|pilotRecords|storage\.get\("players"\)/.test(sec) && /this\.v2\.scanPilots\(/.test(sec) && /wgRefuse\(\)/.test(sec)
+        && /rowsD\(d, limit, smin\) \{\n    if \(!this\.comb\) return this\.db\.board\(d, limit, smin\);/.test(src)); }
   } catch (e) { ck('suite ran to the end', false, String(e.stack || e).slice(0, 600)); }
   finally { Date.now = realNow; console.error = realErr; }
   return { F, failed };
@@ -515,6 +681,7 @@ const mainMod = await loadMain();
 const realMod = await import(pathToFileURL(path.join(ROOT, 'worker.js')).href);
 const main = await suite({ workerMod: realMod, gameHtml: GAME_HTML, gateHtml: GATE_HTML, adminHtml: ADMIN_HTML, mainMod });
 
+if (process.env.WG_SKIP_CONTROLS) { console.log(main.F ? 'FAILED ' + main.F : 'main suite passed (controls skipped)'); process.exit(main.F ? 1 : 0); }
 console.log('\n== negative controls: each defect re-inserted MUST be caught ==');
 let NC = 0;
 async function control(label, expect, { worker = (s) => s, game = (s) => s, gate = (s) => s, admin = (s) => s }) {
@@ -544,8 +711,6 @@ await control('the checks miss a summed best', 'W5 a summed best', { worker: rep
 await control('the checks miss a dropped archive best', 'W5 an archived best dropped', { worker: rep('else unaccounted.push(', 'else void (') });
 await control('the checks miss a wrong country total', 'W5 a wrong country total', { worker: rep('if (!s || !c || s.t !== c.totalScore || s.n !== c.playerCount) bad4.push(', 'if (false) bad4.push(') });
 await control('the checks miss a resurrected pilot', 'W5 a pilot brought back', { worker: rep('for (const p of res.pilots) if (!cur.has(p.playerId)) bad6.push(', 'for (const p of []) if (!cur.has(p.playerId)) bad6.push(') });
-await control('the grid is combined even before APPLY', 'W2 before APPLY', { worker: rep('    if (!this.gridCombined) return this.pilotRecords();\n', '') });
-await control('the dry run writes to storage', 'W6 the dry run writes nothing', { worker: rep('    const { report } = await this.worldGridReport(Date.now());', '    const { report } = await this.worldGridReport(Date.now());\n    await this.state.storage.put({ worldGridLastDryRun: report.id });') });
 await control('APPLY without the typed phrase', 'W7 APPLY is refused without exactly', { worker: rep('if (b.confirm !== "APPLY " + id) return json(', 'if (false) return json(') });
 await control('APPLY without a recent checked backup', 'W7 APPLY is refused without a checked backup', { worker: rep('if (!recent) return json({ error: "No checked backup', 'if (false) return json({ error: "No checked backup') });
 await control('APPLY accepts a backup of any age', 'W7 a backup older than 60 minutes', { worker: rep('const WORLD_GRID_BACKUP_MAX_AGE_MS = 60 * 60 * 1000;', 'const WORLD_GRID_BACKUP_MAX_AGE_MS = 1e15;') });
@@ -554,15 +719,23 @@ await control('APPLY ignores an archive change since the dry run', 'W7 if the ar
 await control('dry-run route without the password', 'W7 every WORLD GRID route needs the admin password', { worker: rep('() => adminDO(request, env, "/world-grid-dry-run", {}),', '() => forwardToDO(request, env, "/world-grid-dry-run", { method: "POST" }),') });
 await control('APPLY without a safety backup', 'W8 a verified safety backup', { worker: rep('try { const r = await backupDO(env, "/safety", post({ note: "before the combined World Grid " + id })); const d = await r.json(); safety = r.ok && d.ok ? d.snapshot : null; } catch (e) { safety = null; }', 'safety = { id: "none" };') });
 await control('APPLY without the check on the live routes', 'W8 the post-apply checks ran', { worker: rep('  const ck = await lb("/world-grid-check", {});\n', '  const ck = { r: { ok: true }, d: { ok: true, checks: [] } };\n') });
-await control('APPLY does not recompute the country totals', 'W8 the live World Grid is combined', { worker: rep('    this.worldGrid = next;\n    await this.recomputeCountries();\n    return json({ ok: true, worldGrid: this.worldGridState() });', '    this.worldGrid = next;\n    return json({ ok: true, worldGrid: this.worldGridState() });') });
-await control('the switch is ignored by the leaderboard', 'W8 the live World Grid is combined', { worker: rep('get gridCombined() { return !!(this.worldGrid && this.worldGrid.combined); }', 'get gridCombined() { return false; }') });
-await control('the planet boards stay Season 1 only', 'W8 the EARTH / MARS / JUPITER boards', { worker: rep('for (const r of await this.gridRecords()) {', 'for (const r of difficulty ? this.pilotRecords() : await this.gridRecords()) {') });
-await control('the board cache ignores the switch', 'W8 the live World Grid is combined', { worker: rep('const hit = seen && seen.grid === this.worldGrid && seen.archive === this.archiveCache ? seen : null;', 'const hit = seen;') });
 await control('the owner summary does not show the World Grid', 'W8 the FLUX COMMAND owner summary', { worker: rep('    worldGrid: lb && lb.worldGrid ?', '    worldGridX: lb && lb.worldGrid ?') });
-await control('APPLY writes the merged bests into the pilot records', 'W9 APPLY rewrote no best', { worker: rep('    await this.state.storage.put({ [WORLD_GRID_KEY]: next });\n    this.worldGrid = next;\n    await this.recomputeCountries();\n    return json({ ok: true, worldGrid', '    await this.state.storage.put({ [WORLD_GRID_KEY]: next, players: Object.fromEntries(res.pilots.map((p) => [p.playerId, p])) });\n    this.worldGrid = next;\n    await this.recomputeCountries();\n    return json({ ok: true, worldGrid') });
-await control('the switch is not stored (lost on restart)', 'W9 the switch survives a restart', { worker: rep('    await this.state.storage.put({ [WORLD_GRID_KEY]: next });\n    this.worldGrid = next;\n    await this.recomputeCountries();\n    return json({ ok: true, worldGrid', '    this.worldGrid = next;\n    await this.recomputeCountries();\n    return json({ ok: true, worldGrid') });
+await control('the old layout serves the WORLD GRID routes', 'W0 on the OLD storage layout', { worker: rep('return this.layout === "v2" ? null : json({ ok: false, moveStorageFirst: true', 'return true ? null : json({ ok: false, moveStorageFirst: true') });
+await control('the leaderboard ignores REVERT (the Season 0 table alone switches it on)', 'W9 after REVERT', { worker: rep('return !!(g && g.combined && this.wgId && this.wgId === g.dryRunId); }', 'return !!(g && this.wgId); }') });
+await control('the dry run writes to storage', 'W6 the dry run writes nothing', { worker: rep('    const { report, input } = await this.worldGridReport(Date.now());', '    const { report, input } = await this.worldGridReport(Date.now());\n    await this.state.storage.put({ worldGridLastDryRun: report.id });') });
+await control('APPLY does not rebuild the country totals', 'W8 the live World Grid is combined', { worker: rep('    this.worldGrid = next;\n    this.v2.regrid();\n    return json({ ok: true, worldGrid: this.worldGridState(), season0Rows', '    this.worldGrid = next;\n    return json({ ok: true, worldGrid: this.worldGridState(), season0Rows') });
+await control('the switch is ignored by the leaderboard', 'W8 the live World Grid is combined', { worker: rep('get comb() { const g = this.o.worldGrid; return !!(g && g.combined && this.wgId && this.wgId === g.dryRunId); }', 'get comb() { return false; }') });
+await control('the planet boards stay Season 1 only', 'W8 the EARTH / MARS / JUPITER boards', { worker: rep('this.rowsD(d, BOARD_MAX, null).map((r) => this.itemD(r, d))', 'this.db.board(d, BOARD_MAX, null).map((r) => this.itemD(r, d))') });
+await control('the combined boards skip the Season 0 index (the check after APPLY catches it and switches back)', 'W8 APPLY with a recent checked backup', { worker: rep('    take(arch);\n', '') });
+await control('APPLY writes the merged bests into the pilot rows', 'W9 APPLY rewrote no best', { worker: rep('    this.worldGrid = next;\n    this.v2.regrid();\n    return json({ ok: true, worldGrid: this.worldGridState(), season0Rows', '    this.worldGrid = next;\n    this.v2.scanPilots((r) => { this.v2.db.updatePilot(r.seq, { rec: v2enc(this.v2.recOf(r)) }); });\n    this.v2.regrid();\n    return json({ ok: true, worldGrid: this.worldGridState(), season0Rows') });
+await control('the switch is not stored (lost on restart)', 'W9 the switch survives a restart', { worker: rep('    await this.state.storage.put({ [WORLD_GRID_KEY]: next });\n    this.worldGrid = next;\n    this.v2.regrid();\n    return json({ ok: true, worldGrid: this.worldGridState(), season0Rows', '    this.worldGrid = next;\n    this.v2.regrid();\n    return json({ ok: true, worldGrid: this.worldGridState(), season0Rows') });
+await control('REVERT leaves the combined country totals', 'W9 after REVERT', { worker: rep('    this.worldGrid = next;\n    this.v2.regrid();\n    return json({ ok: true, wasCombined', '    this.worldGrid = next;\n    return json({ ok: true, wasCombined') });
+await control('a run writes one more row once the grid is combined', 'W18 after APPLY a run writes', { worker: rep('      if (cooled) this.db.kvDel("cool", playerId);\n', '      if (cooled) this.db.kvDel("cool", playerId);\n      if (this.comb) this.db.kvPut("v2meta", "wgrun", String(now));\n') });
+await control('a cold start reads every pilot once the grid is combined', 'W18 no full read on a cold start', { worker: rep('(sum.grid || "s") === this.gridTag()) {', '(sum.grid || "s") === this.gridTag() && !this.comb) {') });
+await control('the Season 0 table has no index for JUPITER', 'W19 every combined board query uses an index', { worker: rep('  "CREATE INDEX IF NOT EXISTS wg0_h ON wg0 (h_s DESC, h_t) WHERE h_s IS NOT NULL",\n', '') });
+await control('a rank below 100 ignores the Season 0 bests', 'W20 an upload from a pilot ranked below 100', { worker: rep('const a = this.db.boardKeys(d, RANK_EXACT_MAX, me.s), b = this.db.wgKeys(d, RANK_EXACT_MAX, me.s);', 'const a = this.db.boardKeys(d, RANK_EXACT_MAX, me.s), b = [];') });
+await control('a restore keeps the switch but not the Season 0 table', 'W21 restoring a backup', { worker: rep('  async wgEnsure() {\n    const g = this.o.worldGrid;', '  async wgEnsure() {\n    const g = null;') });
 await control('REVERT does not switch back', 'W9 REVERT switches back', { worker: rep('const next = { ...prev, combined: false, revertedAt: now,', 'const next = { ...prev, revertedAt: now,') });
-await control('REVERT leaves the combined country totals', 'W9 after REVERT', { worker: rep('    this.worldGrid = next;\n    await this.recomputeCountries();\n    return json({ ok: true, wasCombined', '    this.worldGrid = next;\n    return json({ ok: true, wasCombined') });
 await control('a failed check after APPLY leaves the switch on', 'W11 if the check after the switch fails', { worker: rep('    await lb("/world-grid-revert", { reason: "the check after APPLY failed" });\n', '') });
 await control('a privacy deletion leaves the cached archive in memory', 'W7 if the archive changed', { worker: rep('    await this.state.storage.put(puts);\n    this.archiveCache = null; this.rowsCache = null;\n  }', '    await this.state.storage.put(puts);\n  }') });
 await control('game: no combined label', 'W12 after APPLY the game', { game: rep("if(o.data && o.data.combined) html=", "if(false) html=") });

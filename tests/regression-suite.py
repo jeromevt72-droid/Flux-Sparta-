@@ -163,7 +163,7 @@ ck('D-03 children: policy and terms both let kids play, marked for lawyer review
 ck('D-03 governing law set', 'State of California' in _tm and 'Alameda County' in _tm)
 
 print('\n--- D-19 / D-20 ---')
-ck('D-19 all four reveal elements', all(x in _gw for x in ['Flow \u00b7 Launch \u00b7 Unite \u00b7 Xcelerate','<div class="logo">FLUX</div>','THE WORLD HAS ENTERED THE FLUX.','100% FREE TO PLAY']))
+ck('D-19 all four reveal elements', all(x in _gw for x in ['Flow \u00b7 Launch \u00b7 Unite \u00b7 Xcelerate','<div class="logo">FLUX<span class="logoSparta">Sparta</span></div>','THE WORLD HAS ENTERED THE FLUX.','100% FREE TO PLAY']))
 _ph=re.sub(r'/\*[\s\S]*?\*/','', _gw[_gw.index('@media(max-width:700px){'):_gw.index('@media(max-width:700px){')+3000])
 ck('D-19 phone suppression removed', 'animation:none' not in _ph.split('@media')[1] if '@media' in _ph else True)
 ck('D-19 reveal animation still declared', 'body.anim .heroBrand{animation:heroBrandPulse var(--dur) ease-in-out infinite}' in _gw)
