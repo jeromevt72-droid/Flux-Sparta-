@@ -745,7 +745,7 @@ async function control(label, expect, parts, { worker = (s) => s, admin = (s) =>
   } finally { try { fs.unlinkSync(tmp); } catch (e) {} }
 }
 const rep = (a, b) => (s) => (s.includes(a) ? s.replace(a, b) : s);
-await control('a cold start reads every pilot (summary rebuilt each time)', 'SF8 a cold start', ['D'], { worker: rep('if (sum && sum.weights === JSON.stringify(DIFF_WEIGHT) && sum.bc) { this.sum = sum; this.sumText = raw; return; }', '') });
+await control('a cold start reads every pilot (summary rebuilt each time)', 'SF8 a cold start', ['D'], { worker: rep('if (sum && sum.weights === JSON.stringify(DIFF_WEIGHT) && sum.bc && (sum.grid || "s") === this.gridTag()) { this.sum = sum; this.sumText = raw; return; }', '') });
 await control('boards not kept in memory (every request reads rows)', 'SF5 a leaderboard request', ['D'], { worker: rep('board(d) { return this.boards[d] || (this.boards[d] =', 'board(d) { return (this.boards[d] =') });
 await control('the dry run writes live data', 'SF2 the dry run wrote nothing live', ['B'], { worker: rep('await this.state.storage.put(MIG_DRY_KEY, report);', 'await this.state.storage.put({ [MIG_DRY_KEY]: report, storageLayout: "v2-dry" });') });
 await control('the move without the typed confirmation', 'SF3 the move is refused without the exact typed phrase', ['B'], { worker: rep('if (b.confirm !== "MIGRATE " + dry.id) return', 'if (false) return') });

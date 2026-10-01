@@ -236,6 +236,9 @@ export default {
             "/api/admin/backup-import":      () => adminBackup(request, env, "/import"),      // BACKUPS: a downloaded file back in, as a snapshot
             "/api/admin/session":            () => adminSession(request, env),       // FLUX COMMAND: "am I still logged in?"
             "/api/admin/summary":            () => adminSummary(request, env),       // FLUX COMMAND: owner summary, one request
+            "/api/admin/world-grid-dry-run": () => adminDO(request, env, "/world-grid-dry-run", {}),   // COMBINED WORLD GRID: before/after report, writes nothing
+            "/api/admin/world-grid-apply":   () => adminWorldGridApply(request, env),                 // COMBINED WORLD GRID: typed APPLY <id> + recent checked backup
+            "/api/admin/world-grid-revert":  () => adminDO(request, env, "/world-grid-revert", { reason: "by the owner" }),   // COMBINED WORLD GRID: switch back
             "/api/admin/storage-status":          () => adminStorage(request, env, "status"),     // STORAGE FIX: layout, size, move progress
             "/api/admin/migrate-storage-dry-run": () => adminStorage(request, env, "dry-run"),    // STORAGE FIX: builds the new layout in memory; writes nothing live
             "/api/admin/migrate-storage":         () => adminStorage(request, env, "migrate"),    // STORAGE FIX: typed confirmation + backup < 60 min + safety backup
@@ -1278,6 +1281,8 @@ async function adminSummary(request, env) {
     backup: bk && bk.ok ? { ok: !!bk.lastDaily && !bk.stale && !bErr, stale: !!bk.stale,
       lastDailyAt: bk.lastDaily ? bk.lastDaily.createdAt : null, count: (bk.snapshots || []).length,
       lastError: bErr ? { at: bErr.at, error: String(bErr.error || "").slice(0, 200) } : null } : null,
+    // COMBINED WORLD GRID: is the combined grid (Season 0 + Season 1) live?
+    worldGrid: lb && lb.worldGrid ? { combined: !!lb.worldGrid.combined, appliedAt: lb.worldGrid.appliedAt, revertedAt: lb.worldGrid.revertedAt, layout: lb.worldGrid.layout, ready: lb.worldGrid.ready !== false } : null,
     // FREE PLAN: today's requests vs the free daily limits; alert from USAGE_ALERT_PCT (80%).
     usage: usage && usage.ok ? usage : null,
   });
@@ -1331,6 +1336,49 @@ async function adminBackup(request, env, doPath) {
   const headers = new Headers(resp.headers);
   headers.set("Cache-Control", "no-store");
   return new Response(resp.body, { status: resp.status, headers });
+}
+/* COMBINED WORLD GRID: APPLY, in this order, stopping at the first problem:
+     0. the leaderboard is on the new storage layout (else "Move the storage first");
+     1. the owner typed exactly "APPLY <dry-run id>";
+     2. a CHECKED backup (daily, manual or safety) exists from the last 60 minutes --
+        otherwise refused with needBackup, and the admin page offers BACK UP NOW;
+     3. the leaderboard re-runs the dry run: the id is under 60 minutes old, the
+        archive is unchanged since, and every check passes (writes nothing);
+     4. a safety backup of the leaderboard as it is now (verified), then the switch;
+     5. the same checks against the live /leaderboard route. If they fail, the
+        switch is turned back off at once and the answer says so.
+   Written: the switch, the Season 0 table (once, from the archive) and the
+   summary row -- no best, no archive entry, no pilot row is rewritten. */
+async function adminWorldGridApply(request, env) {
+  const denied = requireAdmin(request, env); if (denied) return denied;
+  if (!env.LEADERBOARD_DO) return json({ error: "Leaderboard storage is not configured (missing LEADERBOARD_DO binding)" }, 500);
+  const b = await adminBody(request);
+  const post = (body) => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+  const lb = async (path, body) => { const r = await forwardToDO(request, env, path, post(body)); return { r, d: await r.json().catch(() => ({})) }; };
+  const lay = await lb("/world-grid-apply", { stage: "layout" });   // the new storage layout only: "Move the storage first"
+  if (!lay.r.ok) return json(lay.d, lay.r.status);
+  const id = typeof b.id === "string" && WORLD_GRID_ID.test(b.id) ? b.id : "";
+  if (!id) return json({ error: "Run a DRY RUN first; applying needs its id." }, 400);
+  if (b.confirm !== "APPLY " + id) return json({ error: "To apply, type exactly: APPLY " + id }, 400);
+  let list = null;
+  try { const r = await backupDO(env, "/list", post({})); list = r.ok ? await r.json() : null; } catch (e) { list = null; }
+  if (!list) return json({ error: "Could not read the backups, so nothing was changed. Try again in a minute." }, 503);
+  const now = Date.now();
+  const recent = (list.snapshots || []).find((m) => m.verified && m.kind !== "imported" && now - m.createdAt <= WORLD_GRID_BACKUP_MAX_AGE_MS && m.createdAt <= now + 60000);
+  if (!recent) return json({ error: "No checked backup from the last 60 minutes, so nothing was changed. Press BACK UP NOW, then apply again.", needBackup: true }, 409);
+  const pre = await lb("/world-grid-apply", { id, stage: "check" });
+  if (!pre.r.ok) return json(pre.d, pre.r.status);
+  let safety = null;
+  try { const r = await backupDO(env, "/safety", post({ note: "before the combined World Grid " + id })); const d = await r.json(); safety = r.ok && d.ok ? d.snapshot : null; } catch (e) { safety = null; }
+  if (!safety) return json({ error: "The safety backup failed its check, so nothing was changed." }, 500);
+  const sw = await lb("/world-grid-apply", { id, stage: "switch", backupId: recent.id, safetyId: safety.id });
+  if (!sw.r.ok) return json({ ...sw.d, safetyId: safety.id }, sw.r.status);
+  const ck = await lb("/world-grid-check", {});
+  if (!ck.r.ok || !ck.d.ok) {
+    await lb("/world-grid-revert", { reason: "the check after APPLY failed" });
+    return json({ ok: false, reverted: true, error: "The check after switching failed, so the World Grid was switched back to Season 1 only. Nothing else changed.", checks: ck.d.checks || [], safetyId: safety.id }, 500);
+  }
+  return json({ ok: true, applied: id, backupId: recent.id, safetyId: safety.id, checks: ck.d.checks, worldGrid: sw.d.worldGrid });
 }
 /* STORAGE FIX (see PilotLayoutV2): the owner's storage move, one step per
    button, every step behind the admin password. The move itself refuses unless
@@ -1689,6 +1737,7 @@ export class LeaderboardDO {
       this.flags = (await this.state.storage.get("flags")) || [];
       const rl = await this.state.storage.get("restoreLog");
       this.restoreLog = Array.isArray(rl) ? rl : [];
+      this.archiveCache = null;
       if (!(await this.state.storage.get("nameRulesV1"))) await this.migrateNames();   // PILOT NAMES, once
       // DIFFICULTY WEIGHT: country totals stored under other weights (or none) are rebuilt once from the real points.
       if ((await this.state.storage.get("countriesWeights")) !== JSON.stringify(DIFF_WEIGHT)) await this.recomputeCountries();
@@ -1749,6 +1798,7 @@ export class LeaderboardDO {
     const meta = { season: 0, archivedAt: Date.now(), players: players.length, scores, chunks: chunks.length };
     const cleared = Object.create(null);
     for (const id of Object.keys(this.players)) cleared[id] = Object.assign(Object.create(null), this.players[id], { bests: Object.create(null) });
+    this.archiveCache = null;
     await this.state.storage.put({ players: cleared, countries: {}, [SEASON_ARCHIVE_KEY]: meta, season: SEASON });
     this.players = cleared;
     this.invalidateTags();
@@ -1782,6 +1832,7 @@ export class LeaderboardDO {
   }
   /* A privacy deletion also erases the pilot from the Season 0 archive. */
   async eraseFromSeasonArchive(playerId) {
+    if (this.layout === "v2" && this.v2) this.v2.wgForget(playerId);   // COMBINED WORLD GRID: the Season 0 row goes too
     const meta = await this.state.storage.get(SEASON_ARCHIVE_KEY);
     if (!meta) return;
     const puts = {};
@@ -1797,6 +1848,7 @@ export class LeaderboardDO {
     if (!removed) return;
     puts[SEASON_ARCHIVE_KEY] = { ...meta, players: Math.max(0, meta.players - removed), scores: Math.max(0, (meta.scores || 0) - lostScores) };
     await this.state.storage.put(puts);
+    this.archiveCache = null; this.rowsCache = null;
   }
 
   async pid(playerId) {
@@ -1866,6 +1918,10 @@ export class LeaderboardDO {
       "/admin-issue-restore": () => this.handleAdminIssueRestore(request),
       "/admin-season-archive": () => this.handleAdminSeasonArchive(),
       "/admin-summary": () => this.handleAdminSummary(),
+      "/world-grid-dry-run": () => this.handleWorldGridDryRun(),     // COMBINED WORLD GRID (admin; writes nothing)
+      "/world-grid-apply": () => this.handleWorldGridApply(request),
+      "/world-grid-check": () => this.handleWorldGridCheck(),
+      "/world-grid-revert": () => this.handleWorldGridRevert(request),
       "/backup-dump": () => this.handleBackupDump(),            // BACKUPS (internal: the worker never forwards these)
       "/backup-restore": () => this.handleBackupRestore(request),
     }[url.pathname];
@@ -2108,7 +2164,9 @@ export class LeaderboardDO {
      score just above are read in O(1) (a Map lookup), never with a new sort.
      Cost: one O(n log n) sort per board after a change (about 2-4 ms at 10,000
      pilots, which the old code already paid on EVERY leaderboard read), then
-     nothing until the next change. Memory only: nothing is ever written. */
+     nothing until the next change. Memory only: nothing is ever written.
+     COMBINED WORLD GRID: new storage layout only (PilotLayoutV2); the old
+     layout always serves this season's grid. */
   async publicRows(difficulty) { return (await this.boardIndex(difficulty)).rows; }
   async boardIndex(difficulty) {
     const key = difficulty || "all";
@@ -2183,6 +2241,207 @@ export class LeaderboardDO {
   }
   invalidateTags() { this.tagCache = null; this.rowsCache = null; }   // LEADERBOARD REFRESH: the cached boards too
 
+  /* ------------------------ COMBINED WORLD GRID ------------------------ */
+  /* NEW STORAGE LAYOUT ONLY (see PilotLayoutV2 and WG0_SCHEMA). On the old
+     layout every route below refuses with "Move the storage first" and the
+     leaderboards stay this season's. The admin routes read the Season 0
+     archive (a few chunk values) and every pilot row once, page by page; the
+     game's routes never do (they use the per-board indexes and the summary row).
+     Nothing here rewrites a best or the archive: APPLY writes the switch, the
+     Season 0 table (derived from the archive, once) and the summary row. */
+  worldGridState() {
+    const w = this.worldGrid || {}, v2 = this.layout === "v2" ? this.v2 : null, live = !!(v2 && v2.comb);
+    return { combined: live, layout: this.layout === "v2" ? "new" : "old", switchOn: !!w.combined, ready: !w.combined || live,
+      appliedAt: w.appliedAt || null, revertedAt: w.revertedAt || null, dryRunId: w.dryRunId || null,
+      backupId: w.backupId || null, safetyId: w.safetyId || null, log: (w.log || []).slice(-5).reverse() };
+  }
+  wgRefuse() {
+    return this.layout === "v2" ? null : json({ ok: false, moveStorageFirst: true, layout: "old", error: WORLD_GRID_MOVE_FIRST }, 409);
+  }
+  async archivePilots() {
+    if (!this.archiveCache) this.archiveCache = (await this.readSeasonArchive()).players;
+    return this.archiveCache;
+  }
+  wgUse() { const u = this.sqlUse || { read: 0, written: 0 }; return { read: u.read, written: u.written }; }
+  wgCost(u0, kvRead, kvWritten) {
+    const u = this.wgUse();
+    return { rowsRead: u.read - u0.read + (kvRead || 0), rowsWritten: u.written - u0.written + (kvWritten || 0) };
+  }
+  /* Every pilot row once (page by page), the archive, and the labels. */
+  async worldGridInput() {
+    const cached = !!this.archiveCache, archive = await this.archivePilots();
+    const meta = cached ? null : await this.state.storage.get(SEASON_ARCHIVE_KEY);
+    const pilots = [], restrictedIds = new Set(), erasedIds = new Set(), labels = new Map(), names = new Map();
+    const erasedPids = new Set(this.restoreLog.filter((e) => e && e.reason === "(erased on privacy request)").map((e) => e.pid));
+    this.v2.scanPilots((row) => {
+      const rec = v2dec(row.rec);
+      pilots.push({ playerId: row.id, name: rec.name, country: rec.country, updatedAt: rec.updatedAt || 0, bests: NP(rec.bests) });
+      if (row.rs || ownGet(this.restricted, row.pid)) restrictedIds.add(row.id);
+      labels.set(row.id, { pid: row.pid, tag: row.tag }); names.set(row.id, row.dname);
+    });
+    for (const a of archive) {
+      const id = a && a.playerId;
+      if (!validPlayerId(id) || labels.has(id)) continue;
+      const pid = await this.pid(id);
+      labels.set(id, { pid, tag: tagFromPid(pid, 7) });
+      if (erasedPids.has(pid)) erasedIds.add(id);
+    }
+    return { archive, pilots, restrictedIds, erasedIds, labels, weights: DIFF_WEIGHT, archiveReads: cached ? 0 : 1 + ((meta && meta.chunks) || 0),
+      nameOf: (r) => names.get(r.playerId) || cleanName(r.name),
+      labelOf: (id) => (labels.has(id) ? "#" + labels.get(id).tag : "an archive entry") };
+  }
+  async worldGridFingerprint(archive) {
+    return (await sha256Hex(JSON.stringify({ archive, weights: DIFF_WEIGHT }))).slice(0, 8);
+  }
+  /* The before/after report. Public hashes and tags only, never a playerId. */
+  async worldGridReport(now) {
+    const input = await this.worldGridInput();
+    const before = seasonGrid(input), after = consolidateWorldGrid(input);
+    const tagOf = (id) => (input.labels.get(id) || {}).tag || "";
+    const rank = (totals) => { const m = new Map(); Object.values(totals).sort((a, b) => b.totalScore - a.totalScore).forEach((c, i) => m.set(c.country, { rank: i + 1, totalScore: c.totalScore, playerCount: c.playerCount })); return m; };
+    const rb = rank(before.countries), ra = rank(after.countries);
+    const countries = [...new Set([...ra.keys(), ...rb.keys()])].map((cc) => {
+      const b = rb.get(cc) || null, a = ra.get(cc) || null;
+      return { country: cc, before: b, after: a, change: (a ? a.totalScore : 0) - (b ? b.totalScore : 0), rankChange: a && b ? b.rank - a.rank : 0 };
+    }).sort((x, y) => (x.after ? x.after.rank : 1e9) - (y.after ? y.after.rank : 1e9) || (x.before ? x.before.rank : 1e9) - (y.before ? y.before.rank : 1e9));
+    const top = (rows, withSeason) => rows.slice(0, 10).map((x, i) => ({ rank: i + 1, name: input.nameOf(x.r), tag: tagOf(x.r.playerId), country: x.r.country || "", score: x.score,
+      difficulty: x.difficulty, ...(withSeason ? { season: (ownGet(x.r.bests, x.difficulty) || {}).season } : {}) }));
+    const archiveScores = input.archive.reduce((n, a) => n + Object.keys((a && a.bests) || {}).length, 0);
+    const currentScores = input.pilots.reduce((n, r) => n + Object.keys(r.bests || {}).filter((d) => r.bests[d]).length, 0);
+    const beforeIds = new Set(before.rows.map((x) => x.r.playerId));
+    const fromS0 = { easy: 0, medium: 0, hard: 0 }, fromS1 = { easy: 0, medium: 0, hard: 0 };
+    let onlyArchive = 0, both = 0, raised = 0;
+    const cur = new Map(input.pilots.map((r) => [r.playerId, r]));
+    for (const x of after.rows) {
+      const p = x.r, c = cur.get(p.playerId);
+      let s0 = false;
+      for (const d of Object.keys(p.bests)) {
+        const b = p.bests[d];
+        if (b.season === 0) { s0 = true; fromS0[d] = (fromS0[d] || 0) + 1; if (c && ownGet(c.bests, d)) raised++; }
+        else fromS1[d] = (fromS1[d] || 0) + 1;
+      }
+      if (!beforeIds.has(p.playerId)) onlyArchive++;        // on the grid again thanks to Season 0 only
+      else if (s0) both++;                                  // Season 1 pilot whose Season 0 best is higher somewhere
+    }
+    const flaggedScores = after.flagged.filter((f) => f.code !== "restricted").reduce((n, f) => n + Object.keys(f.scores || {}).length, 0);
+    const sum = (t) => Object.values(t).reduce((n, c) => n + c.totalScore, 0);
+    const id = "WG-" + now.toString(36) + "-" + (await this.worldGridFingerprint(input.archive));
+    const r = {
+      id, confirm: "APPLY " + id, createdAt: now, dryRun: true, combinedNow: this.v2.comb, weights: { ...DIFF_WEIGHT }, layout: "new",
+      checks: after.checks, allPass: after.ok,
+      counts: {
+        currentPilots: input.pilots.length, currentScores, archivePilots: input.archive.length, archiveScores,
+        mergedScores: archiveScores - flaggedScores, flaggedScores, raisedScores: raised,
+        pilotsBefore: before.rows.length, pilotsAfter: after.rows.length, onlyArchive, both, onlyCurrent: after.rows.length - onlyArchive - both,
+        fromS0, fromS1, restrictedExcluded: input.restrictedIds.size, countriesBefore: rb.size, countriesAfter: ra.size, totalBefore: sum(before.countries), totalAfter: sum(after.countries),
+      },
+      notes: after.notes, countries,
+      topBefore: top(before.rows, false), topAfter: top(after.rows, true),
+      flagged: after.flagged.map((f) => ({ tag: f.playerId && input.labels.has(f.playerId) ? input.labels.get(f.playerId).tag : "", name: f.name ? cleanName(f.name) : "", country: f.country,
+        code: f.code, reason: WORLD_GRID_REASONS[f.code] || f.code, difficulty: f.difficulty, scores: f.scores })),
+    };
+    return { report: r, input, after };
+  }
+  /* DRY RUN: the report; writes NOTHING. Cost: every pilot row read once + the archive's chunk values. */
+  async handleWorldGridDryRun() {
+    const no = this.wgRefuse(); if (no) return no;
+    const u0 = this.wgUse();
+    const { report, input } = await this.worldGridReport(Date.now());
+    report.cost = { dryRun: this.wgCost(u0, input.archiveReads, 0), ...worldGridCosts(input.pilots.length, input.archive.length) };
+    report.text = worldGridReportText(report);
+    return json({ ok: true, ...report, worldGrid: this.worldGridState() });
+  }
+  /* APPLY (called by adminWorldGridApply after its backup checks): stage
+     "check" re-verifies and writes nothing; stage "switch" builds the Season 0
+     table from the archive (once; skipped when an earlier APPLY built it from
+     the same archive), turns the switch on and rebuilds the summary row. No
+     best and no archive entry is rewritten. */
+  async handleWorldGridApply(request) {
+    const no = this.wgRefuse(); if (no) return no;
+    const b = (await readJsonObject(request)) || {};
+    if (b.stage === "layout") return json({ ok: true, layout: "new" });
+    const id = typeof b.id === "string" && WORLD_GRID_ID.test(b.id) ? b.id : "";
+    if (!id) return json({ error: "Run a dry run first." }, 400);
+    const now = Date.now(), made = parseInt(id.split("-")[1], 36);
+    if (!(made <= now + 60000 && now - made <= WORLD_GRID_DRY_RUN_MAX_AGE_MS)) return json({ error: "This dry run is more than 60 minutes old. Run a new dry run, check it, then apply.", stale: true }, 409);
+    const u0 = this.wgUse();
+    const input = await this.worldGridInput();
+    if ((await this.worldGridFingerprint(input.archive)) !== id.slice(-8)) return json({ error: "The Season 0 archive changed since this dry run (a privacy deletion or a restore). Run a new dry run.", stale: true }, 409);
+    const res = consolidateWorldGrid(input);
+    if (!res.ok) return json({ error: "A check failed, so nothing was changed: " + res.checks.filter((k) => !k.ok).map((k) => k.label).join(", ") + ".", checks: res.checks }, 409);
+    if (b.stage !== "switch") return json({ ok: true, checked: true, checks: res.checks, cost: this.wgCost(u0, input.archiveReads, 0) });
+    const built = this.v2.wgBuild(input.archive, id);
+    const prev = this.worldGrid || {};
+    const next = { ...prev, combined: true, appliedAt: now, dryRunId: id, backupId: String(b.backupId || ""), safetyId: String(b.safetyId || ""),
+      log: [...(prev.log || []), { at: now, event: "applied", id, backupId: String(b.backupId || ""), safetyId: String(b.safetyId || "") }].slice(-WORLD_GRID_LOG_MAX) };
+    await this.state.storage.put({ [WORLD_GRID_KEY]: next });
+    this.worldGrid = next;
+    this.v2.regrid();
+    return json({ ok: true, worldGrid: this.worldGridState(), season0Rows: built, cost: this.wgCost(u0, input.archiveReads, 1) });
+  }
+  /* The same checks again, plus the LIVE routes: /leaderboard (what the game
+     and the gateway read, incl. ?boards=1) must serve exactly the consolidated grid. */
+  async handleWorldGridCheck() {
+    const no = this.wgRefuse(); if (no) return no;
+    const u0 = this.wgUse(), eng = this.v2, comb = eng.comb;
+    const input = await this.worldGridInput();
+    const res = consolidateWorldGrid(input), checks = res.checks.slice();
+    const want = comb ? res : seasonGrid(input);
+    const lbU = this.wgUse();
+    eng.dropCaches();   // measured from the rows, as after a restart
+    const live = await eng.leaderboard(new URL("https://do.internal/leaderboard?limit=100&boards=1")).json();
+    const lbCost = this.wgCost(lbU, 0, 0);
+    const pidOf = (id) => (input.labels.get(id) || {}).pid;
+    const cKey = (c) => c.country + ":" + c.totalScore + ":" + c.playerCount;
+    /* Same scores in the same order and the same pilots; pilots tied at the 100th place may be listed in another order. */
+    const sameBoard = (w, l) => {
+      if (JSON.stringify(w.map((x) => x.s)) !== JSON.stringify(l.map((x) => x.s))) return false;
+      const cut = w.length ? w[w.length - 1].s : 0, key = (a) => a.filter((x) => x.s > cut).map((x) => x.p + ":" + x.s).sort();
+      return JSON.stringify(key(w)) === JSON.stringify(key(l));
+    };
+    const bad = [];
+    if (!!live.combined !== comb) bad.push("the leaderboard says combined=" + live.combined);
+    const wc = Object.values(want.countries).map(cKey).sort(), lc = (live.countries || []).map(cKey).sort();
+    if (JSON.stringify(wc) !== JSON.stringify(lc)) bad.push("country totals differ from the consolidated ones");
+    if (!sameBoard(want.rows.slice(0, 100).map((x) => ({ p: pidOf(x.r.playerId), s: x.score })), (live.top || []).map((t) => ({ p: t.pid, s: t.score })))) bad.push("the top pilots differ from the consolidated ones");
+    const recs = (comb ? res.pilots : input.pilots).filter((p) => !input.restrictedIds.has(p.playerId));
+    for (const d of VALID_DIFFICULTIES) {   // the EARTH / MARS / JUPITER boards
+      const wd = boardRows(recs, d).slice(0, 100).map((x) => ({ p: pidOf(x.r.playerId), s: x.score })), ld = ((live.boards || {})[d] || []).map((t) => ({ p: t.pid, s: t.score }));
+      if (!sameBoard(wd, ld)) bad.push("the " + d + " board differs from the consolidated one");
+      if (((live.totals || {})[d] || 0) !== boardRows(recs, d).length) bad.push("the " + d + " board count differs");
+    }
+    checks.push({ id: "live-grid", label: "Live World Grid (game + gateway) serves the " + (comb ? "combined" : "Season 1") + " grid", ok: !bad.length, detail: bad.length ? bad.join("; ") : "countries, the ALL board and the easy / medium / hard boards match" });
+    // Every current best, per difficulty, as the live code reads it (the pilot row + its Season 0 row).
+    const lost = []; let n = 0;
+    eng.scanPilots((row) => {
+      if (row.rs || ownGet(this.restricted, row.pid)) return;
+      const rec = v2dec(row.rec), live2 = eng.recOf(row);
+      for (const d of Object.keys(rec.bests || {})) {
+        const cb = rec.bests[d]; if (!cb || !Number.isFinite(cb.score)) continue; n++;
+        const lb = ownGet(live2.bests, d);
+        if (!lb || !(lb.score >= cb.score)) lost.push(input.labelOf(row.id) + " " + d + " " + cb.score + " -> " + (lb ? lb.score : "missing"));
+      }
+      const w = weightedBestOf(rec), lw = weightedBestOf(live2);
+      if (w && !(lw && lw.weighted >= w.weighted)) lost.push(input.labelOf(row.id) + " ALL " + w.weighted + " -> " + (lw ? lw.weighted : "missing"));
+    });
+    checks.push({ id: "live-no-current-score-lost", label: "No current score lost on the live World Grid", ok: !lost.length, detail: lost.length ? lost.length + " problem(s): " + lost.slice(0, 5).join("; ") : "all " + n + " current bests checked" });
+    return json({ ok: checks.every((k) => k.ok), combined: comb, checks, cost: { check: this.wgCost(u0, input.archiveReads, 0), leaderboardAfterRestart: lbCost } });
+  }
+  /* REVERT: the switch back to this season only; the summary row is rebuilt.
+     The Season 0 table stays (APPLY re-uses it); nothing else changes. */
+  async handleWorldGridRevert(request) {
+    const no = this.wgRefuse(); if (no) return no;
+    const b = (await readJsonObject(request)) || {};
+    const u0 = this.wgUse();
+    const now = Date.now(), prev = this.worldGrid || {};
+    const next = { ...prev, combined: false, revertedAt: now,
+      log: [...(prev.log || []), { at: now, event: "reverted", reason: String(b.reason || "by the owner").slice(0, 120) }].slice(-WORLD_GRID_LOG_MAX) };
+    await this.state.storage.put({ [WORLD_GRID_KEY]: next });
+    this.worldGrid = next;
+    this.v2.regrid();
+    return json({ ok: true, wasCombined: !!prev.combined, worldGrid: this.worldGridState(), cost: this.wgCost(u0, 0, 1) });
+  }
+
   async handleLeaderboard(url) {
     const limit = clampInt(url.searchParams.get("limit"), 1, 100, 25);
     const difficulty = VALID_DIFFICULTIES.has(url.searchParams.get("difficulty")) ? url.searchParams.get("difficulty") : null;
@@ -2231,20 +2490,7 @@ export class LeaderboardDO {
      at their single best public WEIGHTED score (DIFF_WEIGHT); restricted
      players are excluded. */
   async recomputeCountries() {
-    const totals = Object.create(null);   // D-29
-    const leaders = Object.create(null);
-    for (const x of await this.publicRows(null)) {
-      const cc = ISO2.test(String(x.r.country || "")) ? x.r.country : "XX";
-      const c = totals[cc] || (totals[cc] = { country: cc, totalScore: 0, playerCount: 0, topScore: 0, topName: "", leaderId: "" });
-      c.totalScore += x.score;
-      c.playerCount += 1;
-      if (!leaders[cc] || x.score > leaders[cc].score) leaders[cc] = x;
-    }
-    for (const [cc, x] of Object.entries(leaders)) {
-        totals[cc].topScore = x.score;
-      totals[cc].topName = this.displayName(x.r);
-      totals[cc].leaderId = x.r.playerId;           // internal only: stripped from every response
-    }
+    const totals = countryTotals(await this.publicRows(null), (r) => this.displayName(r));   // COMBINED WORLD GRID: one function for both grids
     await this.state.storage.put({ countries: totals, countriesWeights: JSON.stringify(DIFF_WEIGHT) });
     this.countries = totals;
   }
@@ -2541,7 +2787,7 @@ export class LeaderboardDO {
     const now = Date.now(), dayStart = Math.floor(now / AN_DAY_MS) * AN_DAY_MS;
     let purchasesToday = 0;
     for (const k of Object.keys(this.seenSessions)) { const t = this.seenSessions[k]; if (typeof t === "number" && t >= dayStart) purchasesToday++; }
-    return json({ ok: true, flags: pruneFlags(this.flags, now).length, restrictedCount: Object.keys(this.restricted).length, purchasesToday });
+    return json({ ok: true, flags: pruneFlags(this.flags, now).length, restrictedCount: Object.keys(this.restricted).length, purchasesToday, worldGrid: this.worldGridState() });
   }
 
   async handleAdminOverview() {
@@ -2638,7 +2884,10 @@ export class LeaderboardDO {
     this.flags = (await st.get("flags")) || [];
     const rl = await st.get("restoreLog");
     this.restoreLog = Array.isArray(rl) ? rl : [];
+    this.worldGrid = (await st.get(WORLD_GRID_KEY)) || null;   // COMBINED WORLD GRID switch (off unless the owner applied it)
+    this.archiveCache = null;
     this.v2 = new PilotLayoutV2(this, this.sqlDb());
+    await this.v2.wgEnsure();   // 1 row when the switch is on; nothing when it is off
     this.v2.init();
     if (!((await st.get("season")) >= SEASON)) await this.v2.startSeason();   // a future season, on the new layout
   }
@@ -3026,7 +3275,7 @@ export class LeaderboardDO {
       const puts = want.filter(([k, v]) => !L.has(k) || !bkSame(L.get(k), v));
       for (let i = 0; i < puts.length; i += BACKUP_PUT_KEYS) { const o = Object.create(null); for (const [k, v] of puts.slice(i, i + BACKUP_PUT_KEYS)) o[k] = v; await st.put(o); }
       const db = this.sqlDb();
-      if (W.get(STORAGE_LAYOUT_KEY) === "v2") { const eng = new PilotLayoutV2(this, db); eng.retagAll(); eng.sum = eng.buildSum(); eng.saveSum(eng.sum, true); }
+      if (W.get(STORAGE_LAYOUT_KEY) === "v2") { const eng = new PilotLayoutV2(this, db); eng.retagAll(); eng.sum = eng.buildSum(); eng.saveSum(eng.sum, true); db.kvDel("v2meta", "wg"); }   // COMBINED WORLD GRID: rebuilt from the restored archive on load
       else db.drop();
       await st.delete(V2_RESTORING_KEY);
       this.restoring = false; this.bkSession = null;
@@ -3090,6 +3339,10 @@ export class LeaderboardDO {
     return json(v2SumEnd(acc));
   }
 }
+/* COMBINED WORLD GRID: the pure functions, for the tests and the World Grid
+   redesign (a static property: the module still exports only the worker and
+   LeaderboardDO). */
+LeaderboardDO.worldGrid = { mergeWorldGrid, checkWorldGrid, consolidateWorldGrid, seasonGrid, boardRows, countryTotals, worldGridReportText };
 
 /* ------------------------------------------------------------------ */
 /* BACKUPS                                                             */
@@ -3894,10 +4147,10 @@ function normaliseRecord(r, id) {
   return { playerId: (r && r.playerId) || id, name: r && r.name, country: r && r.country, updatedAt: (r && r.updatedAt) || 0, bests };
 }
 function countryOf(r) { const c = String((r && r.country) || ""); return ISO2.test(c) ? c : "XX"; }
-function weightedBestOf(r) {
+function weightedBestOf(r, weights = DIFF_WEIGHT) {
   let best = null;
   for (const [d, b] of Object.entries((r && r.bests) || {})) {
-    const w = b ? weightedScore(b.score, d) : -1;
+    const w = b ? Math.round((Number(b.score) || 0) * (weights[d] || 1)) : -1;
     if (b && (!best || w > best.weighted)) best = { ...b, difficulty: d, weighted: w };
   }
   return best;
@@ -3908,6 +4161,300 @@ function bestOf(r) {
     if (b && (!best || b.score > best.score)) best = { ...b, difficulty: d };
   }
   return best;
+}
+/* One board from pilot records (already filtered for restrictions): real
+   points on a difficulty board; no difficulty = the ALL board, each pilot's
+   best WEIGHTED score across difficulties (DIFF_WEIGHT). Highest first, the
+   earlier score first on a tie. */
+function boardRows(records, difficulty, weights = DIFF_WEIGHT) {
+  const rows = [];
+  for (const r of records) {
+    const b = difficulty ? ownGet(r.bests, difficulty) : weightedBestOf(r, weights);
+    if (!b) continue;
+    rows.push({ r, score: difficulty ? b.score : b.weighted, points: b.score, level: b.level, difficulty: difficulty || b.difficulty, updatedAt: b.updatedAt || r.updatedAt || 0 });
+  }
+  rows.sort((a, b) => b.score - a.score || a.updatedAt - b.updatedAt);
+  return rows;
+}
+/* D-25 country figures from ALL-board rows: each pilot counts once, at their
+   single best weighted score. leaderId is internal only (stripped from every
+   response). COMBINED WORLD GRID: the same function builds the Season 1 grid
+   and the combined grid; the World Grid redesign (every-run points) extends it. */
+function countryTotals(rows, nameOf = (r) => r.name) {
+  const totals = Object.create(null);   // D-29
+  const leaders = Object.create(null);
+  for (const x of rows) {
+    const cc = ISO2.test(String(x.r.country || "")) ? x.r.country : "XX";
+    const c = totals[cc] || (totals[cc] = { country: cc, totalScore: 0, playerCount: 0, topScore: 0, topName: "", leaderId: "" });
+    c.totalScore += x.score;
+    c.playerCount += 1;
+    if (!leaders[cc] || x.score > leaders[cc].score) leaders[cc] = x;
+  }
+  for (const [cc, x] of Object.entries(leaders)) {
+    totals[cc].topScore = x.score;
+    totals[cc].topName = nameOf(x.r);
+    totals[cc].leaderId = x.r.playerId;
+  }
+  return totals;
+}
+/* ------------------------------------------------------------------ */
+/* COMBINED WORLD GRID (owner)                                         */
+/* ------------------------------------------------------------------ */
+/* ONE World Grid from the Season 0 archive and this season's bests.
+   Per pilot and per difficulty the grid uses the HIGHER of the two bests,
+   never their sum; then, exactly like the ALL board and the country totals,
+   each pilot counts once at their single best weighted score (DIFF_WEIGHT).
+   Nothing is rewritten: the archive and the Season 1 bests stay as stored,
+   and the combined grid is computed from them on every read, behind one
+   stored switch (WORLD_GRID_KEY) that the owner turns on with APPLY and off
+   with REVERT. Archive entries that cannot be matched to a pilot who still
+   exists are FLAGGED and left out -- never guessed, never brought back:
+     pilot-gone            the pilot's record is gone (score removed, or deleted);
+     privacy-deleted       the restore log marks the pilot as privacy-deleted;
+     conflicting-identity  the archive holds the pilot twice with different data;
+     invalid-id / invalid-score  the entry or one score is not valid;
+     restricted            hidden from the boards and country totals, as today.
+   mergeWorldGrid() builds the grid, checkWorldGrid() checks it independently
+   (it does not reuse the merge), consolidateWorldGrid() does both. The World
+   Grid redesign (every-run country points) extends countryTotals(). */
+const WORLD_GRID_KEY = "worldGrid";                     // { combined, appliedAt, revertedAt, dryRunId, backupId, safetyId, log[] }
+const WORLD_GRID_DRY_RUN_MAX_AGE_MS = 60 * 60 * 1000;   // APPLY accepts a dry run made in the last 60 minutes
+const WORLD_GRID_BACKUP_MAX_AGE_MS = 60 * 60 * 1000;    // ...and needs a checked backup from the last 60 minutes
+const WORLD_GRID_ID = /^WG-[0-9a-z]{6,11}-[0-9a-f]{8}$/;
+const WORLD_GRID_LOG_MAX = 20;
+const WORLD_GRID_MOVE_FIRST = "Move the storage first: the combined World Grid works on the new storage layout only. Open STORAGE above, move it, then run the WORLD GRID dry run.";
+/* The Season 0 table (new layout only): one row per archived pilot with a valid
+   best, built from the archive by APPLY (never by a run), with one index per
+   difficulty -- so every combined board is two indexed reads of about 100 rows
+   (Season 1 rows + Season 0 rows), exactly like the Season 1 boards. */
+const WG0_SCHEMA = [
+  "CREATE TABLE IF NOT EXISTS wg0 (id TEXT PRIMARY KEY, e_s NUMERIC, e_t NUMERIC, e_l NUMERIC, m_s NUMERIC, m_t NUMERIC, m_l NUMERIC, h_s NUMERIC, h_t NUMERIC, h_l NUMERIC) WITHOUT ROWID",
+  "CREATE INDEX IF NOT EXISTS wg0_e ON wg0 (e_s DESC, e_t) WHERE e_s IS NOT NULL",
+  "CREATE INDEX IF NOT EXISTS wg0_m ON wg0 (m_s DESC, m_t) WHERE m_s IS NOT NULL",
+  "CREATE INDEX IF NOT EXISTS wg0_h ON wg0 (h_s DESC, h_t) WHERE h_s IS NOT NULL",
+];
+const WG0_COLS = ["e_s", "e_t", "e_l", "m_s", "m_t", "m_l", "h_s", "h_t", "h_l"];
+const WG0_SEL = "w.id AS w_id, " + WG0_COLS.map((k) => "w." + k + " AS w_" + k).join(", ");
+/* The Season 0 columns of a joined row, as row._w (null: no Season 0 row). */
+function wgSplit(r) {
+  if (!r || r._w !== undefined) return r;
+  const w = r.w_id != null ? {} : null;
+  for (const k of WG0_COLS) { if (w) w[k] = r["w_" + k]; delete r["w_" + k]; }
+  delete r.w_id; r._w = w;
+  return r;
+}
+/* The owner's cost table for the combined grid (rows; measured by the tests). */
+function worldGridCosts(pilots, archived) {
+  return {
+    apply: { rowsRead: 7 * pilots + archived + 50, rowsWritten: 4 * archived + 3, note: "reads every pilot about 7 times (re-check, safety backup, summary rebuild, the live check) + the archive; writes the Season 0 table once (each row + its 3 indexes), the switch and the summary row" },
+    revert: { rowsRead: pilots + 5, rowsWritten: 2, note: "the switch and the summary row" },
+    run: { rowsWritten: "unchanged (1-5)", rowsRead: "as today + 1 (the pilot's Season 0 row, once per pilot until a restart); + about 200 when a board changed; the rank floor below the top 100 reads 1,000 rows on each of the two indexes once per 10 minutes per board" },
+    leaderboard: { rowsRead: "0 from memory; about 200 per board after a restart (Season 1 rows + Season 0 rows), about 1,300 for the game's request at 5,000 pilots" },
+    coldStart: { rowsRead: "about 12 (the summary row + the Season 0 table's name; never the pilots)" },
+  };
+}
+const WORLD_GRID_REASONS = {
+  "pilot-gone": "pilot no longer exists (score removed or pilot deleted): not brought back",
+  "privacy-deleted": "pilot was privacy-deleted: never brought back",
+  "conflicting-identity": "archived more than once with different data: not merged (no guessing)",
+  "invalid-id": "archive entry without a valid pilot ID: not merged",
+  "invalid-score": "archived score is not valid for that difficulty: not merged",
+  "restricted": "pilot is restricted: hidden from the boards and country totals, as today",
+};
+function wgValidBest(d, b) {
+  return VALID_DIFFICULTIES.has(d) && !!b && typeof b === "object" && Number.isFinite(b.score) && b.score >= 0 && b.score <= MAX_SCORE;
+}
+function wgScores(a, d) {
+  const out = {};
+  for (const k of Object.keys((a && a.bests) || {})) if (!d || k === d) { const b = a.bests[k]; out[k] = b && Number.isFinite(b.score) ? b.score : null; }
+  return out;
+}
+/* archive: [{ playerId, name, country, bests }]  (the Season 0 archive)
+   pilots:  the current pilot records (LeaderboardDO.pilotRecords())
+   erasedIds: Set of archived playerIds the restore log marks as privacy-deleted
+   -> { pilots: consolidated records (current pilots only), flagged[], notes } */
+function mergeWorldGrid({ archive, pilots, erasedIds }) {
+  const erased = erasedIds || new Set();
+  const out = new Map();
+  for (const r of pilots) {
+    const bests = Object.create(null);
+    for (const d of Object.keys(r.bests || {})) { const b = r.bests[d]; if (b) bests[d] = { score: b.score, level: b.level, updatedAt: b.updatedAt || 0, season: SEASON }; }
+    out.set(r.playerId, { playerId: r.playerId, name: r.name, country: r.country, updatedAt: r.updatedAt || 0, bests });
+  }
+  const groups = new Map(), flagged = [];
+  const flag = (a, code, difficulty) => flagged.push({ playerId: a && typeof a.playerId === "string" ? a.playerId : "", name: code === "privacy-deleted" ? "" : String((a && a.name) || ""),
+    country: String((a && a.country) || ""), code, difficulty: difficulty || null, scores: wgScores(a, difficulty) });
+  for (const a of Array.isArray(archive) ? archive : []) {
+    if (!a || typeof a !== "object" || !validPlayerId(a.playerId)) { flag(a, "invalid-id"); continue; }
+    const g = groups.get(a.playerId);
+    if (g) g.push(a); else groups.set(a.playerId, [a]);
+  }
+  const notes = { countryChanged: 0, nameChanged: 0, repeatedSame: 0 };
+  for (const [id, list] of groups) {
+    if (!list.every((x) => JSON.stringify(x) === JSON.stringify(list[0]))) { for (const a of list) flag(a, "conflicting-identity"); continue; }
+    notes.repeatedSame += list.length - 1;
+    const a = list[0], m = out.get(id);
+    if (!m) { flag(a, erased.has(id) ? "privacy-deleted" : "pilot-gone"); continue; }
+    if (String(a.country || "") !== String(m.country || "")) notes.countryChanged++;   // counted for the pilot's CURRENT country
+    if (String(a.name || "") !== String(m.name || "")) notes.nameChanged++;             // shown under the pilot's CURRENT name
+    for (const d of Object.keys(a.bests || {})) {
+      const b = a.bests[d];
+      if (!wgValidBest(d, b)) { flag(a, "invalid-score", d); continue; }
+      const c = ownGet(m.bests, d);
+      if (!c || b.score > c.score) m.bests[d] = { score: b.score, level: b.level, updatedAt: b.updatedAt || 0, season: 0 };   // the higher best, never a sum
+    }
+  }
+  return { pilots: [...out.values()], flagged, notes };
+}
+/* The independent checks (owner): computed from the inputs, not from the merge. */
+function checkWorldGrid(input, res) {
+  const weights = input.weights || DIFF_WEIGHT, restricted = input.restrictedIds || new Set();
+  const label = input.labelOf || (() => "a pilot");
+  const cur = new Map(input.pilots.map((r) => [r.playerId, r]));
+  const outById = new Map(); let listedTwice = 0;
+  for (const p of res.pilots) { if (outById.has(p.playerId)) listedTwice++; outById.set(p.playerId, p); }
+  const rowById = new Map(); let rowsTwice = 0;
+  for (const x of res.rows) { if (rowById.has(x.r.playerId)) rowsTwice++; rowById.set(x.r.playerId, x); }
+  const flaggedKeys = new Set(res.flagged.filter((f) => f.code !== "restricted").map((f) => f.playerId + "|" + (f.difficulty || "*")));
+  const isFlagged = (id, d) => flaggedKeys.has(id + "|*") || flaggedKeys.has(id + "|" + d);
+  const archById = new Map();
+  for (const a of input.archive || []) { const id = a && typeof a.playerId === "string" ? a.playerId : ""; if (!archById.has(id)) archById.set(id, []); archById.get(id).push(a); }
+  const checks = [];
+  const add = (id, text, bad, total) => checks.push({ id, label: text, ok: bad.length === 0, detail: bad.length ? bad.length + " problem(s): " + bad.slice(0, 5).join("; ") : "all " + total + " checked" });
+  const wBest = (r) => { let w = -1; for (const d of Object.keys((r && r.bests) || {})) { const b = r.bests[d]; if (b && Number.isFinite(b.score)) w = Math.max(w, Math.round(b.score * (weights[d] || 1))); } return w; };
+
+  // 1. Every current best is still there, at least as high (per difficulty and on the ALL board).
+  const lost = []; let n1 = 0;
+  for (const r of input.pilots) {
+    for (const d of Object.keys(r.bests || {})) {
+      const b = r.bests[d]; if (!b || !Number.isFinite(b.score)) continue; n1++;
+      const o = outById.get(r.playerId), ob = o && ownGet(o.bests, d);
+      if (!ob || !(ob.score >= b.score)) lost.push(label(r.playerId) + " " + d + " " + b.score + " -> " + (ob ? ob.score : "missing"));
+    }
+    const w = wBest(r);
+    if (w >= 0 && !restricted.has(r.playerId)) { const x = rowById.get(r.playerId); if (!x || !(x.score >= w)) lost.push(label(r.playerId) + " ALL " + w + " -> " + (x ? x.score : "missing")); }
+  }
+  add("no-current-score-lost", "No current score lost", lost, n1 + " current bests");
+
+  // 2. Every archived best is merged (the grid holds at least that score) or flagged with a reason.
+  const unaccounted = []; let n2 = 0, merged = 0, flaggedScores = 0;
+  for (const a of input.archive || []) {
+    const id = a && typeof a.playerId === "string" ? a.playerId : "";
+    for (const d of Object.keys((a && a.bests) || {})) {
+      n2++;
+      if (isFlagged(id, d)) { flaggedScores++; continue; }
+      const o = outById.get(id), ob = o && ownGet(o.bests, d), ab = a.bests[d];
+      if (ob && ab && Number.isFinite(ab.score) && ob.score >= ab.score) merged++;
+      else unaccounted.push(label(id) + " " + d + " " + (ab && ab.score) + " -> " + (ob ? ob.score : "missing"));
+    }
+  }
+  add("archive-accounted", "Every Season 0 best merged or flagged", unaccounted, n2 + " archived bests (" + merged + " merged, " + flaggedScores + " flagged)");
+
+  // 3. No pilot counted twice: listed once, and every best IS one of its sources (the higher one), never a sum.
+  const twice = [];
+  if (listedTwice) twice.push(listedTwice + " pilot(s) listed twice");
+  if (rowsTwice) twice.push(rowsTwice + " pilot(s) twice on the ALL board");
+  for (const p of res.pilots) {
+    for (const d of Object.keys(p.bests || {})) {
+      const c = cur.get(p.playerId), cb = c && ownGet(c.bests, d);
+      const sources = [];
+      if (cb && Number.isFinite(cb.score)) sources.push(cb.score);
+      for (const a of archById.get(p.playerId) || []) { const ab = a.bests && a.bests[d]; if (ab && Number.isFinite(ab.score) && !isFlagged(p.playerId, d)) sources.push(ab.score); }
+      const ob = p.bests[d];
+      if (!sources.includes(ob.score) || ob.score !== Math.max(...sources)) twice.push(label(p.playerId) + " " + d + " " + ob.score + " is not the higher of " + (sources.join(" / ") || "nothing"));
+    }
+  }
+  add("no-double-count", "No pilot counted twice (best of both, never added)", twice, res.pilots.length + " pilots");
+
+  // 4. Country totals = the sum of the consolidated pilots' single best weighted score.
+  const sums = Object.create(null), bad4 = [];
+  for (const p of res.pilots) {
+    if (restricted.has(p.playerId)) continue;
+    const w = wBest(p); if (w < 0) continue;
+    const cc = ISO2.test(String(p.country || "")) ? p.country : "XX";
+    const s = sums[cc] || (sums[cc] = { t: 0, n: 0 }); s.t += w; s.n++;
+  }
+  for (const cc of new Set([...Object.keys(sums), ...Object.keys(res.countries)])) {
+    const s = sums[cc], c = res.countries[cc];
+    if (!s || !c || s.t !== c.totalScore || s.n !== c.playerCount) bad4.push(cc + " " + (c ? c.totalScore + "/" + c.playerCount : "missing") + " vs " + (s ? s.t + "/" + s.n : "no pilots"));
+  }
+  add("country-totals", "Country totals = sum of consolidated weighted bests", bad4, Object.keys(sums).length + " countries");
+
+  // 5. Restricted pilots are not on the board or in any country total, as today.
+  const bad5 = [];
+  for (const x of res.rows) if (restricted.has(x.r.playerId)) bad5.push(label(x.r.playerId) + " on the ALL board");
+  for (const c of Object.values(res.countries)) if (restricted.has(c.leaderId)) bad5.push(c.country + " led by a restricted pilot");
+  add("restricted-excluded", "Restricted pilots excluded (as today)", bad5, restricted.size + " restricted");
+
+  // 6. Nobody comes back from the archive: every pilot on the grid exists today.
+  const bad6 = [];
+  for (const p of res.pilots) if (!cur.has(p.playerId)) bad6.push(label(p.playerId) + " is not a current pilot");
+  for (const x of res.rows) if (!cur.has(x.r.playerId)) bad6.push(label(x.r.playerId) + " on the ALL board");
+  add("deleted-not-resurrected", "Deleted pilots never brought back", bad6, res.pilots.length + " pilots");
+  return checks;
+}
+/* The whole consolidation, with its checks. input = { archive, pilots,
+   restrictedIds, erasedIds, weights, nameOf, labelOf }. */
+function consolidateWorldGrid(input) {
+  const weights = input.weights || DIFF_WEIGHT, restricted = input.restrictedIds || new Set();
+  const m = mergeWorldGrid(input);
+  const archived = new Set((input.archive || []).map((a) => a && a.playerId));
+  for (const p of m.pilots) if (restricted.has(p.playerId) && archived.has(p.playerId)) m.flagged.push({ playerId: p.playerId, name: String(p.name || ""), country: String(p.country || ""), code: "restricted", difficulty: null, scores: {} });
+  const rows = boardRows(m.pilots.filter((p) => !restricted.has(p.playerId)), null, weights);
+  const res = { pilots: m.pilots, rows, countries: countryTotals(rows, input.nameOf), flagged: m.flagged, notes: m.notes };
+  res.checks = checkWorldGrid(input, res);
+  res.ok = res.checks.every((c) => c.ok);
+  return res;
+}
+/* Today's grid (this season only), from the same functions. */
+function seasonGrid(input) {
+  const restricted = input.restrictedIds || new Set();
+  const rows = boardRows(input.pilots.filter((p) => !restricted.has(p.playerId)), null, input.weights || DIFF_WEIGHT);
+  return { rows, countries: countryTotals(rows, input.nameOf) };
+}
+/* The dry-run report in plain words (the admin page shows the same). */
+function worldGridReportText(r) {
+  const n = (x) => Number(x || 0).toLocaleString("en-US");
+  const c = r.counts, L = [];
+  L.push("COMBINED WORLD GRID -- DRY RUN " + r.id + (r.dryRun ? " (nothing was changed)" : ""));
+  L.push("Made " + new Date(r.createdAt).toISOString() + ". The World Grid is now: " + (r.combinedNow ? "COMBINED (Season 0 + Season 1)" : "Season 1 only") + ".");
+  L.push("Storage: " + (r.layout === "new" ? "the new layout (one row per pilot)" : "the old layout") + ".");
+  L.push("Weights (ALL board and country totals, as today): Hard x" + r.weights.hard + ", Medium x" + r.weights.medium + ", Easy x" + r.weights.easy + ".");
+  L.push("");
+  L.push("CHECKS");
+  for (const k of r.checks) L.push("  " + k.label.toLowerCase() + ": " + (k.ok ? "PASS" : "FAIL") + "  (" + k.detail + ")");
+  L.push("  => " + (r.allPass ? "ALL CHECKS PASS. Safe to apply after your approval." : "A CHECK FAILED. Do not apply."));
+  L.push("");
+  L.push("COUNTS");
+  L.push("  Pilots today: " + n(c.currentPilots) + " (" + n(c.currentScores) + " Season 1 bests). Season 0 archive: " + n(c.archivePilots) + " pilots, " + n(c.archiveScores) + " bests.");
+  L.push("  Season 0 bests merged: " + n(c.mergedScores) + " (" + n(c.raisedScores) + " higher than the pilot's Season 1 best, so they now count). Flagged and left out: " + n(c.flaggedScores) + ".");
+  L.push("  On the World Grid (ALL board): " + n(c.pilotsBefore) + " pilots before -> " + n(c.pilotsAfter) + " after (" + n(c.onlyArchive) + " back from Season 0 only, " + n(c.both) + " raised by a Season 0 best, " + n(c.onlyCurrent) + " unchanged).");
+  L.push("  Best used per difficulty: easy " + n(c.fromS0.easy) + " from Season 0 / " + n(c.fromS1.easy) + " from Season 1; medium " + n(c.fromS0.medium) + " / " + n(c.fromS1.medium) + "; hard " + n(c.fromS0.hard) + " / " + n(c.fromS1.hard) + ".");
+  L.push("  Restricted pilots left out (as today): " + n(c.restrictedExcluded) + ". Countries: " + n(c.countriesBefore) + " -> " + n(c.countriesAfter) + ". World total (weighted): " + n(c.totalBefore) + " -> " + n(c.totalAfter) + ".");
+  if (r.notes.countryChanged || r.notes.nameChanged) L.push("  Changed since Season 0 (merged under the pilot's CURRENT name and country): " + n(r.notes.countryChanged) + " country, " + n(r.notes.nameChanged) + " name.");
+  L.push("");
+  L.push("COUNTRIES (before -> after)");
+  for (const x of r.countries) L.push("  " + (x.after ? "#" + x.after.rank : "--") + "  " + x.country + "  " + (x.before ? n(x.before.totalScore) + " (#" + x.before.rank + ", " + x.before.playerCount + " pilots)" : "not on the grid") + "  ->  " + (x.after ? n(x.after.totalScore) + " (#" + x.after.rank + ", " + x.after.playerCount + " pilots)" : "gone") + (x.rankChange ? "  rank " + (x.rankChange > 0 ? "up " : "down ") + Math.abs(x.rankChange) : ""));
+  L.push("");
+  L.push("TOP PILOTS BEFORE (Season 1 only)");
+  r.topBefore.forEach((p) => L.push("  #" + p.rank + " " + p.name + " #" + p.tag + " " + p.country + "  " + n(p.score)));
+  if (!r.topBefore.length) L.push("  (nobody yet)");
+  L.push("TOP PILOTS AFTER (combined)");
+  r.topAfter.forEach((p) => L.push("  #" + p.rank + " " + p.name + " #" + p.tag + " " + p.country + "  " + n(p.score) + "  (" + p.difficulty + ", Season " + p.season + ")"));
+  L.push("");
+  if (r.cost) {
+    const k = r.cost;
+    L.push("FREE PLAN COST (rows; free plan: " + n(FREE_PLAN.rowsReadPerDay) + " read, " + n(FREE_PLAN.rowsWrittenPerDay) + " written a day)");
+    L.push("  This dry run: " + n(k.dryRun.rowsRead) + " read, " + n(k.dryRun.rowsWritten) + " written.");
+    L.push("  APPLY (once): about " + n(k.apply.rowsRead) + " read, about " + n(k.apply.rowsWritten) + " written. REVERT: about " + n(k.revert.rowsRead) + " read, " + n(k.revert.rowsWritten) + " written.");
+    L.push("  After APPLY: a run writes the same rows as today (" + k.run.rowsWritten + "); reads " + k.run.rowsRead + ". A restart reads " + k.coldStart.rowsRead + ". A leaderboard: " + k.leaderboard.rowsRead + ".");
+    L.push("");
+  }
+  L.push("FLAGGED (" + r.flagged.length + ")" + (r.flagged.length ? "" : ": none"));
+  r.flagged.forEach((f) => L.push("  " + (f.name || "(erased)") + (f.tag ? " #" + f.tag : "") + " " + (f.country || "??") + (f.difficulty ? " " + f.difficulty : "") + "  " + Object.entries(f.scores || {}).map(([d, s]) => d + " " + n(s)).join(", ") + "  -- " + f.reason));
+  L.push("");
+  L.push("To apply: take a backup (BACK UP NOW), then type APPLY " + r.id + " within 60 minutes. REVERT switches back at any time; no score is rewritten or deleted either way.");
+  return L.join("\n");
 }
 /* Crockford base32 from the hex leaderboard hash (no I, L, O, U). */
 function tagFromPid(pidHex, len) {
@@ -4030,7 +4577,7 @@ const MIG_CHANGED_MAX = 5000;
 const V2_ROW_BYTES_EST = 310;                // one pilot in a backup (measured in the tests)
 const FREE_PLAN = { rowsReadPerDay: 5_000_000, rowsWrittenPerDay: 100_000, storageBytes: 5 * 1024 * 1024 * 1024, note: "Workers Free plan, SQLite Durable Objects -- check the current limits in the Cloudflare dashboard" };
 const V2_WRITE_ROUTES = new Set(["/submit", "/grant", "/revoke", "/import", "/recompute", "/admin-remove-score", "/admin-restrict", "/admin-unrestrict",
-  "/admin-privacy-delete", "/admin-name-ban", "/admin-name-unban", "/admin-dismiss-flag", "/admin-issue-restore"]);
+  "/admin-privacy-delete", "/admin-name-ban", "/admin-name-unban", "/admin-dismiss-flag", "/admin-issue-restore", "/world-grid-apply", "/world-grid-revert"]);
 const V2_TABLES = ["pilots", "ents", "seen", "cool"];       // backed up; v2meta (derived totals) is rebuilt instead
 const V2_ALL_TABLES = V2_TABLES.concat(["v2meta"]);
 const V2_BK_SKIP_KEYS = new Set([V2_RESTORING_KEY]);
@@ -4146,6 +4693,31 @@ class V2SqlDb {
     if (hi != null) { w.push("id <= ?"); a.push(hi); }
     return this.q(`SELECT ${t === "pilots" ? "*" : "id, v"} FROM ${t}${w.length ? " WHERE " + w.join(" AND ") : ""} ORDER BY id LIMIT ?`, ...a, limit);
   }
+  /* ---- COMBINED WORLD GRID: the Season 0 table (see WG0_SCHEMA) ---- */
+  wgCreate() { for (const x of WG0_SCHEMA) this.q(x); }
+  wgClear() { this.q("DELETE FROM wg0"); }
+  wgPut(r) { this.q("INSERT OR REPLACE INTO wg0 (id, " + WG0_COLS.join(", ") + ") VALUES (?, " + WG0_COLS.map(() => "?").join(", ") + ")", r.id, ...WG0_COLS.map((k) => (r[k] === undefined ? null : r[k]))); }
+  wgGet(id) { try { return this.q("SELECT * FROM wg0 WHERE id = ?", id)[0] || null; } catch (e) { return null; } }
+  wgDel(id) { try { this.q("DELETE FROM wg0 WHERE id = ?", id); } catch (e) { /* no table */ } }
+  /* Board d with each pilot's Season 0 row joined (Season 1 index order). */
+  boardW(d, limit, smin) {
+    const c = V2_COL[d], sel = `SELECT p.*, ${WG0_SEL} FROM pilots p LEFT JOIN wg0 w ON w.id = p.id WHERE p.${c}_s IS NOT NULL AND p.rs = 0`;
+    return smin == null ? this.q(sel + ` ORDER BY p.${c}_s DESC, p.${c}_t, p.seq LIMIT ?`, limit) : this.q(sel + ` AND p.${c}_s >= ? ORDER BY p.${c}_s DESC, p.${c}_t, p.seq LIMIT ?`, smin, limit);
+  }
+  /* Season 0 bests of current public pilots, best first (Season 0 index order), with the pilot row. */
+  wgBoard(d, limit, smin) {
+    const c = V2_COL[d], sel = `SELECT p.*, ${WG0_SEL} FROM wg0 w JOIN pilots p ON p.id = w.id WHERE w.${c}_s IS NOT NULL AND p.rs = 0`;
+    return smin == null ? this.q(sel + ` ORDER BY w.${c}_s DESC, w.${c}_t LIMIT ?`, limit) : this.q(sel + ` AND w.${c}_s >= ? ORDER BY w.${c}_s DESC, w.${c}_t LIMIT ?`, smin, limit);
+  }
+  wgTies(d, sc, t) {
+    const c = V2_COL[d];
+    return this.q(`SELECT p.*, ${WG0_SEL} FROM wg0 w JOIN pilots p ON p.id = w.id WHERE w.${c}_s = ? AND w.${c}_t = ? AND p.rs = 0 LIMIT ?`, sc, t, V2_TIE_MAX);
+  }
+  wgKeys(d, limit, smin) {
+    const c = V2_COL[d], sel = `SELECT w.${c}_s AS s, w.${c}_t AS t, p.seq AS seq, p.id AS id, p.cc AS cc FROM wg0 w JOIN pilots p ON p.id = w.id WHERE w.${c}_s IS NOT NULL AND p.rs = 0`;
+    return smin == null ? this.q(sel + ` ORDER BY w.${c}_s DESC, w.${c}_t LIMIT ?`, limit) : this.q(sel + ` AND w.${c}_s >= ? ORDER BY w.${c}_s DESC, w.${c}_t LIMIT ?`, smin, limit);
+  }
+  pilotPageW(afterSeq, limit) { return this.q(`SELECT p.*, ${WG0_SEL} FROM pilots p LEFT JOIN wg0 w ON w.id = p.id WHERE p.seq > ? ORDER BY p.seq LIMIT ?`, afterSeq, limit); }
   /* A privacy deletion while a move is half-copied: the copy loses the pilot too. */
   forget(id, removePurchases) {
     try { this.q("DELETE FROM pilots WHERE id = ?", id); this.q("DELETE FROM cool WHERE id = ?", id); if (removePurchases) this.q("DELETE FROM ents WHERE id = ?", id); } catch (e) { /* no copy yet */ }
@@ -4197,7 +4769,7 @@ class V2MemDb {
 
 /* ---- the new layout: every leaderboard answer, from rows (see the note above) ---- */
 class PilotLayoutV2 {
-  constructor(o, db) { this.o = o; this.db = db; this.sum = null; this.sumText = ""; this.boards = Object.create(null); this.floor = Object.create(null); }
+  constructor(o, db) { this.o = o; this.db = db; this.sum = null; this.sumText = ""; this.boards = Object.create(null); this.floor = Object.create(null); this.wgId = null; this.wgMemo = new Map(); }
 
   /* Cold start: the summary row only. The tables are created when missing; the
      summary is rebuilt from the rows only when it is missing or the difficulty
@@ -4206,17 +4778,18 @@ class PilotLayoutV2 {
     let raw = null;
     try { raw = this.db.kvGet("v2meta", "sum"); } catch (e) { this.db.create(); }
     const sum = raw ? v2dec(raw) : null;
-    if (sum && sum.weights === JSON.stringify(DIFF_WEIGHT) && sum.bc) { this.sum = sum; this.sumText = raw; return; }
+    if (sum && sum.weights === JSON.stringify(DIFF_WEIGHT) && sum.bc && (sum.grid || "s") === this.gridTag()) { this.sum = sum; this.sumText = raw; return; }
     this.sum = this.buildSum();
     this.saveSum(this.sum);
   }
   saveSum(sum, force) { const t = v2enc(sum); if (force || t !== this.sumText) this.db.kvPut("v2meta", "sum", t); this.sumText = t; }
 
   scanPilots(fn) {
+    const comb = this.comb;   // COMBINED WORLD GRID: each row comes with its Season 0 row (one joined read)
     let after = 0;
     for (;;) {
-      const rows = this.db.pilotPage(after, V2_SCAN_PAGE);
-      for (const r of rows) fn(r);
+      const rows = comb ? this.db.pilotPageW(after, V2_SCAN_PAGE) : this.db.pilotPage(after, V2_SCAN_PAGE);
+      for (const r of rows) fn(comb ? wgSplit(r) : r);
       if (rows.length < V2_SCAN_PAGE) return;
       after = rows[rows.length - 1].seq;
     }
@@ -4243,14 +4816,14 @@ class PilotLayoutV2 {
   /* The pilot's entry on the ALL board / in the country figures (public pilots with a best). */
   entryOf(row) {
     if (!row || row.rs) return null;
-    const rec = v2dec(row.rec), b = weightedBestOf(rec);
+    const rec = this.recOf(row), b = weightedBestOf(rec);
     if (!b) return null;
     return { id: row.id, leaderId: rec.playerId, cc: row.cc, s: b.weighted, t: b.updatedAt || rec.updatedAt || 0, seq: row.seq, dname: row.dname, tag: row.tag };
   }
 
   /* ---- country figures (same as recomputeCountries, kept up to date) ---- */
   buildSum() {
-    const sum = { v: 1, weights: JSON.stringify(DIFF_WEIGHT), n: 0, list: {}, lead: {}, bc: {}, bcc: {} };
+    const sum = { v: 1, weights: JSON.stringify(DIFF_WEIGHT), grid: this.gridTag(), n: 0, list: {}, lead: {}, bc: {}, bcc: {} };
     this.scanPilots((row) => { sum.n++; this.boardCount(sum, row, 1); const e = this.entryOf(row); if (e) this.ctryAdd(sum, e); });
     return sum;
   }
@@ -4259,7 +4832,7 @@ class PilotLayoutV2 {
     if (!row || row.rs) return;
     const bc = sum.bc || (sum.bc = {}), bcc = sum.bcc || (sum.bcc = {});
     for (const d of V2_DIFFS) {
-      if (row[V2_COL[d] + "_s"] == null) continue;
+      if (!this.keyOf(row, d)) continue;   // COMBINED WORLD GRID: a Season 0 best counts too once applied
       bc[d] = (bc[d] || 0) + sign;
       const m = bcc[d] || (bcc[d] = {});
       m[row.cc] = (m[row.cc] || 0) + sign;
@@ -4333,13 +4906,13 @@ class PilotLayoutV2 {
   }
 
   /* ---- boards ---- */
-  board(d) { return this.boards[d] || (this.boards[d] = d === "all" ? this.computeAll() : this.db.board(d, BOARD_MAX, null).map((r) => this.itemD(r, d))); }
+  board(d) { return this.boards[d] || (this.boards[d] = d === "all" ? this.computeAll() : this.rowsD(d, BOARD_MAX, null).map((r) => this.itemD(r, d))); }
   itemD(row, d) {
-    const rec = v2dec(row.rec), b = ownGet(rec.bests, d), c = V2_COL[d];
-    return { id: row.id, seq: row.seq, pid: row.pid, tag: row.tag, name: row.dname, country: rec.country, cc: row.cc, score: b.score, points: b.score, level: b.level, difficulty: d, s: row[c + "_s"], t: row[c + "_t"] };
+    const rec = this.recOf(row), b = ownGet(rec.bests, d), k = this.keyOf(row, d);
+    return { id: row.id, seq: row.seq, pid: row.pid, tag: row.tag, name: row.dname, country: rec.country, cc: row.cc, score: b.score, points: b.score, level: b.level, difficulty: d, s: k.s, t: k.t };
   }
   itemAll(row) {
-    const rec = v2dec(row.rec), b = weightedBestOf(rec);
+    const rec = this.recOf(row), b = weightedBestOf(rec);
     if (!b) return null;
     return { id: row.id, seq: row.seq, pid: row.pid, tag: row.tag, name: row.dname, country: rec.country, score: b.weighted, points: b.score, level: b.level, difficulty: b.difficulty, s: b.weighted, t: b.updatedAt || rec.updatedAt || 0 };
   }
@@ -4350,11 +4923,11 @@ class PilotLayoutV2 {
     const cand = new Map();
     const add = (rows) => { for (const r of rows) if (!cand.has(r.id)) { const it = this.itemAll(r); if (it) cand.set(r.id, it); } };
     const sorted = () => [...cand.values()].sort((a, b) => (v2KeyLess(a, b) ? -1 : v2KeyLess(b, a) ? 1 : 0));
-    for (const d of V2_DIFFS) add(this.db.board(d, BOARD_MAX, null));
+    for (const d of V2_DIFFS) add(this.rowsD(d, BOARD_MAX, null));
     let items = sorted();
     if (items.length >= BOARD_MAX) {
       const v = items[BOARD_MAX - 1].s;
-      for (const d of V2_DIFFS) add(this.db.board(d, V2_TIE_MAX, (v - 0.5) / (DIFF_WEIGHT[d] || 1) - 1e-6));
+      for (const d of V2_DIFFS) add(this.rowsD(d, V2_TIE_MAX, (v - 0.5) / (DIFF_WEIGHT[d] || 1) - 1e-6));
       items = sorted();
     }
     return items.slice(0, BOARD_MAX);
@@ -4363,8 +4936,8 @@ class PilotLayoutV2 {
   touch(id, row) {
     for (const d of V2_DIFFS) {
       const B = this.boards[d]; if (!B) continue;
-      const c = V2_COL[d], s = row && !row.rs ? row[c + "_s"] : null;
-      if (B.some((x) => x.id === id) || (s != null && (B.length < BOARD_MAX || v2KeyLess({ s, t: row[c + "_t"], seq: row.seq }, B[B.length - 1])))) delete this.boards[d];
+      const k = row && !row.rs ? this.keyOf(row, d) : null;
+      if (B.some((x) => x.id === id) || (k && (B.length < BOARD_MAX || v2KeyLess(k, B[B.length - 1])))) delete this.boards[d];
     }
     const A = this.boards.all;
     if (A) { const it = row && !row.rs ? this.itemAll(row) : null; if (A.some((x) => x.id === id) || (it && (A.length < BOARD_MAX || v2KeyLess(it, A[A.length - 1])))) delete this.boards.all; }
@@ -4377,8 +4950,8 @@ class PilotLayoutV2 {
      summary row. Same answer as the old layout's standing() within that range. */
   standing(d, row) {
     if (!row || row.rs) return null;
-    const c = V2_COL[d], s = row[c + "_s"];
-    if (s == null) return null;
+    const mk = this.keyOf(row, d);
+    if (!mk) return null;
     const total = (this.sum.bc || {})[d] || 0, countryTotal = ((this.sum.bcc || {})[d] || {})[row.cc] || 0;
     const B = this.board(d), i = B.findIndex((x) => x.id === row.id);
     let rank, countryRank = 1, up = null;
@@ -4388,22 +4961,161 @@ class PilotLayoutV2 {
       if (i > 0) up = B[i - 1];
     } else {
       if (B.length < BOARD_MAX) return null;
-      const me = { s, t: row[c + "_t"], seq: row.seq };
-      let f = this.floor[d];
-      if (!f || Date.now() - f.at > RANK_FLOOR_TTL_MS) {
+      const me = { s: mk.s, t: mk.t, seq: row.seq };
+      if (this.comb) {   // COMBINED WORLD GRID: counted on both indexes (Season 1 rows, Season 0 rows)
+        const far = this.farComb(d, row, me);
+        if (!far) return null;
+        ({ rank, countryRank, up } = far);
+      } else {
+        let f = this.floor[d];
+        if (!f || Date.now() - f.at > RANK_FLOOR_TTL_MS) {
         const keys = this.db.boardKeys(d, RANK_EXACT_MAX, null);
         f = this.floor[d] = { at: Date.now(), key: keys.length >= RANK_EXACT_MAX ? keys[keys.length - 1] : null };
       }
       if (f.key && v2KeyLess(f.key, me)) return null;
       let n = 0, last = null;
-      for (const k of this.db.boardKeys(d, RANK_EXACT_MAX, s)) { if (!v2KeyLess(k, me)) break; n++; last = k; if (k.cc === row.cc) countryRank++; }
+      for (const k of this.db.boardKeys(d, RANK_EXACT_MAX, mk.s)) { if (!v2KeyLess(k, me)) break; n++; last = k; if (k.cc === row.cc) countryRank++; }
       if (n >= RANK_EXACT_MAX) return null;
       rank = n + 1;
       const r = last ? this.db.pilot(last.id) : null;
       if (r) up = this.itemD(r, d);
+      }
     }
     const above = up ? { rank: rank - 1, name: up.name, tag: up.tag, country: up.cc, score: up.score } : null;
-    return { rank, total, country: row.cc, countryRank, countryTotal, score: row[c + "_s"], above };
+    return { rank, total, country: row.cc, countryRank, countryTotal, score: mk.s, above };
+  }
+  /* COMBINED WORLD GRID: the rank of a pilot below the top 100 = the pilots whose
+     Season 1 key OR Season 0 key beats theirs (each pilot once), counted on the two
+     indexes up to RANK_EXACT_MAX (no rank beyond, as on Season 1 only). */
+  farComb(d, row, me) {
+    const beatsMe = (k) => k.s > me.s || (k.s === me.s && k.t < me.t);   // Season 0 index order (score, time)
+    let f = this.floor["c:" + d];
+    if (!f || Date.now() - f.at > RANK_FLOOR_TTL_MS) {
+      const a = this.db.boardKeys(d, RANK_EXACT_MAX, null), b = this.db.wgKeys(d, RANK_EXACT_MAX, null);
+      f = this.floor["c:" + d] = { at: Date.now(), a: a.length >= RANK_EXACT_MAX ? a[a.length - 1] : null, b: b.length >= RANK_EXACT_MAX ? b[b.length - 1] : null };
+    }
+    if ((f.a && v2KeyLess(f.a, me)) || (f.b && beatsMe(f.b))) return null;
+    const a = this.db.boardKeys(d, RANK_EXACT_MAX, me.s), b = this.db.wgKeys(d, RANK_EXACT_MAX, me.s);
+    if ((a.length >= RANK_EXACT_MAX && v2KeyLess(a[a.length - 1], me)) || (b.length >= RANK_EXACT_MAX && !(me.s > b[b.length - 1].s || (me.s === b[b.length - 1].s && me.t < b[b.length - 1].t)))) return null;
+    const better = new Map();
+    for (const k of a.concat(b)) {
+      if (k.id === row.id || !v2KeyLess(k, me)) continue;
+      const o = better.get(k.id);
+      if (!o || v2KeyLess(k, o)) better.set(k.id, k);
+    }
+    if (better.size >= RANK_EXACT_MAX) return null;
+    let countryRank = 1, last = null;
+    for (const k of better.values()) { if (k.cc === row.cc) countryRank++; if (!last || v2KeyLess(last, k)) last = k; }
+    const r = last ? this.db.pilot(last.id) : null;
+    return { rank: better.size + 1, countryRank, up: r ? this.itemD(r, d) : null };
+  }
+  /* ---- COMBINED WORLD GRID (see WG0_SCHEMA): on only when the owner applied it
+     AND the Season 0 table was built for that APPLY. Off, every method below
+     answers exactly as Season 1 only. ---- */
+  get comb() { const g = this.o.worldGrid; return !!(g && g.combined && this.wgId && this.wgId === g.dryRunId); }
+  gridTag() { return this.comb ? "c:" + this.wgId : "s"; }
+  wgLoad() { try { const t = this.db.kvGet("v2meta", "wg"); return t ? v2dec(t) || null : null; } catch (e) { return null; } }
+  /* After a restart: 1 row (only when the switch is on). After a restore, the
+     table is rebuilt from the restored archive for the restored switch. */
+  async wgEnsure() {
+    const g = this.o.worldGrid;
+    if (!(g && g.combined && g.dryRunId)) return;
+    const m = this.wgLoad();
+    if (m && m.id === g.dryRunId) { this.wgId = m.id; return; }
+    this.wgBuild((await this.o.readSeasonArchive()).players, g.dryRunId);
+  }
+  /* The pilot's Season 0 row (null: none): joined rows carry it; else one read, remembered. */
+  wOf(row) {
+    if (!row || !this.comb) return null;
+    if (row._w !== undefined) return row._w;
+    if (this.wgMemo.has(row.id)) return this.wgMemo.get(row.id);
+    if (this.wgMemo.size > V2_PID_CACHE_MAX) this.wgMemo = new Map();
+    const w = this.db.wgGet(row.id), v = w ? { ...w } : null;
+    if (v) delete v.id;
+    this.wgMemo.set(row.id, v);
+    return v;
+  }
+  /* Board order key on difficulty d: the higher of the Season 1 and Season 0 bests (never their sum). */
+  keyOf(row, d) {
+    const c = V2_COL[d], s = row[c + "_s"], w = this.wOf(row), ws = w ? w[c + "_s"] : null;
+    if (ws != null && (s == null || ws > s)) return { s: ws, t: w[c + "_t"], seq: row.seq, s0: true };
+    return s == null ? null : { s, t: row[c + "_t"], seq: row.seq, s0: false };
+  }
+  /* The pilot's record as the grid shows it: per difficulty the higher best. */
+  recOf(row) {
+    const rec = v2dec(row.rec), w = this.wOf(row);
+    if (!w) return rec;
+    const bests = NP(rec.bests);
+    for (const d of V2_DIFFS) {
+      const c = V2_COL[d], ws = w[c + "_s"];
+      if (ws == null) continue;
+      const b = ownGet(bests, d);
+      if (!b || ws > (Number.isFinite(b.score) ? b.score : 0)) bests[d] = { score: ws, level: w[c + "_l"] == null ? undefined : w[c + "_l"], updatedAt: w[c + "_t"] || 0, season: 0 };
+    }
+    return { ...rec, bests };
+  }
+  /* Board d, best first, as rows. Combined: the top rows of the Season 1 index and
+     of the Season 0 index (+ rows tied with its last one), each pilot once at its
+     higher key -- exact, since any pilot in the combined top N is in the top N of
+     the index its key comes from. */
+  rowsD(d, limit, smin) {
+    if (!this.comb) return this.db.board(d, limit, smin);
+    const got = new Map(), c = V2_COL[d];
+    const take = (rows) => { for (const r of rows) { wgSplit(r); if (!got.has(r.id)) { got.set(r.id, r); if (this.wgMemo.size < V2_PID_CACHE_MAX) this.wgMemo.set(r.id, r._w); } } };
+    take(this.db.boardW(d, limit, smin));
+    const arch = this.db.wgBoard(d, limit, smin);
+    take(arch);
+    if (arch.length >= limit) { const L = arch[arch.length - 1]._w; take(this.db.wgTies(d, L[c + "_s"], L[c + "_t"])); }
+    const keyed = [];
+    for (const r of got.values()) { const k = this.keyOf(r, d); if (k) keyed.push({ r, k }); }
+    keyed.sort((x, y) => (v2KeyLess(x.k, y.k) ? -1 : v2KeyLess(y.k, x.k) ? 1 : 0));
+    return keyed.slice(0, limit).map((x) => x.r);
+  }
+  /* APPLY: the Season 0 table from the archive, with the same rules as
+     mergeWorldGrid (invalid ids and scores left out, a pilot archived twice with
+     different data left out). Pilots who no longer exist are left out by the join.
+     Skipped when an earlier APPLY built it from the same archive. */
+  wgBuild(archive, id) {
+    const m = this.wgLoad();
+    if (m && m.fp === id.slice(-8) && m.id) {
+      this.db.kvPut("v2meta", "wg", v2enc({ ...m, id }));
+      this.wgId = id; this.wgMemo = new Map();
+      return 0;
+    }
+    const groups = new Map();
+    for (const a of Array.isArray(archive) ? archive : []) {
+      if (!a || typeof a !== "object" || !validPlayerId(a.playerId)) continue;
+      const g = groups.get(a.playerId); if (g) g.push(a); else groups.set(a.playerId, [a]);
+    }
+    const rows = [];
+    for (const [pid, list] of groups) {
+      if (!list.every((x) => JSON.stringify(x) === JSON.stringify(list[0]))) continue;
+      const a = list[0], r = { id: pid };
+      let any = false;
+      for (const d of Object.keys(a.bests || {})) {
+        const b = a.bests[d];
+        if (!wgValidBest(d, b)) continue;
+        const c = V2_COL[d];
+        r[c + "_s"] = b.score; r[c + "_t"] = Number.isFinite(b.updatedAt) ? b.updatedAt : 0; r[c + "_l"] = Number.isFinite(b.level) ? b.level : null; any = true;
+      }
+      if (any) rows.push(r);
+    }
+    this.db.tx(() => {
+      this.db.wgCreate(); this.db.wgClear();
+      for (const r of rows) this.db.wgPut(r);
+      this.db.kvPut("v2meta", "wg", v2enc({ id, fp: id.slice(-8), at: Date.now(), n: rows.length }));
+    });
+    this.wgId = id; this.wgMemo = new Map();
+    return rows.length;
+  }
+  /* A privacy deletion: the pilot's Season 0 row goes with the archive entry. */
+  wgForget(id) { if (this.wgId || this.wgLoad()) this.db.wgDel(id); this.wgMemo.delete(id); }
+  /* APPLY / REVERT: the summary row (country totals, board counts) for the grid now live. */
+  regrid() {
+    this.wgMemo = new Map();
+    const sum = this.buildSum();
+    this.saveSum(sum, true); this.sum = sum; this.dropCaches();
+    return sum;
   }
   rankOf(d, row) { const st = this.standing(d, row); return st ? st.rank : null; }
 
@@ -4489,6 +5201,10 @@ class PilotLayoutV2 {
       "/admin-issue-restore": () => this.issueRestore(request),
       "/admin-season-archive": () => this.seasonArchive(),
       "/admin-summary": () => this.summary(),
+      "/world-grid-dry-run": () => o.handleWorldGridDryRun(),     // COMBINED WORLD GRID (admin; the dry run writes nothing)
+      "/world-grid-apply": () => o.handleWorldGridApply(request),
+      "/world-grid-check": () => o.handleWorldGridCheck(),
+      "/world-grid-revert": () => o.handleWorldGridRevert(request),
       "/backup-dump": () => json({ error: "The leaderboard uses the new layout; it is backed up page by page.", paged: true, layout: "v2" }, 409),
       "/backup-restore": () => o.handleBackupRestore(request),
     }[url.pathname];
@@ -4503,6 +5219,7 @@ class PilotLayoutV2 {
     }));
     const countries = this.countryList();
     const out = { top, countries, leadingCountry: countries[0] || null, difficulty, weighted: !difficulty, weights: { ...DIFF_WEIGHT } };
+    if (this.comb) { out.combined = true; out.gridCombined = true; }   // COMBINED WORLD GRID: the game and the gateway say so (absent = Season 1 only, as before)
     if (url.searchParams.get("boards") === "1") {   // LEADERBOARD REFRESH: the three boards in the same response
       out.boards = {}; out.totals = {};
       for (const d of VALID_DIFFICULTIES) {
@@ -4522,7 +5239,7 @@ class PilotLayoutV2 {
       if (rows.length < V2_SCAN_PAGE) break;
       after = rows[rows.length - 1].id;
     }
-    return json({ ok: true, flags: pruneFlags(o.flags, now).length, restrictedCount: Object.keys(o.restricted).length, purchasesToday });
+    return json({ ok: true, flags: pruneFlags(o.flags, now).length, restrictedCount: Object.keys(o.restricted).length, purchasesToday, worldGrid: o.worldGridState() });
   }
 
   async submit(request) {
@@ -4898,9 +5615,12 @@ function v2FirstDiff(a, b) {
 async function v2CheckGlobal(v1, eng, skip) {
   const out = [], add = (name, pass, detail) => out.push({ name, pass: !!pass, detail: String(detail || "") });
   const n = skip ? skip.size : 0;
+  // COMBINED WORLD GRID: the old layout only knows Season 1, so the comparison reads the new layout's Season 1 view.
+  let view = eng;
+  if (eng.comb) { view = new PilotLayoutV2(eng.o, eng.db); view.sum = view.buildSum(); }
   for (const d of ["", "easy", "medium", "hard"]) {
     const u = new URL("https://do.internal/leaderboard?limit=100" + (d ? "&difficulty=" + d : "&boards=1"));   // ALL request also carries the three boards (LEADERBOARD REFRESH)
-    const A = JSON.parse(await (await v1.handleLeaderboard(u)).text()), B = JSON.parse(await (await eng.leaderboard(u)).text());
+    const A = JSON.parse(await (await v1.handleLeaderboard(u)).text()), B = JSON.parse(await (await view.leaderboard(u)).text());
     const name = "Leaderboard " + (d ? d.toUpperCase() : "ALL (difficulty weights)") + ", top 100";
     if (!n) add(name, JSON.stringify(A) === JSON.stringify(B), JSON.stringify(A) === JSON.stringify(B) ? (A.top || []).length + " rows identical" : v2FirstDiff(A, B));
     else {

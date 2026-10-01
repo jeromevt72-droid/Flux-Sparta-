@@ -173,7 +173,7 @@ await control('server keeps the old Easy thresholds', { expect: 'S4', workerSrc:
 await control('server loosened to two levels either side', { expect: 'S4', workerSrc: rep('const LEVEL_TOLERANCE = 1;', 'const LEVEL_TOLERANCE = 2;') });
 await control('difficulty boards weighted too', { expect: 'W1', workerSrc: rep('rows.push({ r, score: difficulty ? b.score : b.weighted,', 'rows.push({ r, score: difficulty ? weightedScore(b.score, difficulty) : b.weighted,') });
 await control('ALL board by real points again', { expect: 'W2', workerSrc: rep('const b = difficulty ? r.bests[difficulty] : weightedBestOf(r);', 'const b = difficulty ? r.bests[difficulty] : bestOf(r);') });
-await control('country totals from real points', { expect: 'W3', workerSrc: rep('      c.totalScore += x.score;', '      c.totalScore += x.points;') });
+await control('country totals from real points', { expect: 'W3', workerSrc: rep('    c.totalScore += x.score;', '    c.totalScore += x.points;') });   // COMBINED WORLD GRID: country totals now built by countryTotals()
 await control('stale country totals never rebuilt', { expect: 'W3', workerSrc: rep('      if ((await this.state.storage.get("countriesWeights")) !== JSON.stringify(DIFF_WEIGHT)) await this.recomputeCountries();', '') });
 await control('server weights differ from the game', { expect: 'W4', workerSrc: rep('const DIFF_WEIGHT = { easy: 0.09, medium: 0.21, hard: 1 };', 'const DIFF_WEIGHT = { easy: 0.1, medium: 0.21, hard: 1 };') });
 await control('the weighted All board comes back', { expect: 'W4', game: rep("function fluxBoardHtml(v){\n", "function fluxBoardHtml(v){\n  if(v.weighted) return '<div class=\"lbSectionLabel\">ALL DIFFICULTIES \u00b7 WEIGHTED: HARD x1</div>';\n") });

@@ -355,6 +355,8 @@ main{position:relative;z-index:3}
 .comingSoonTag{font-size:10px;letter-spacing:.15em;font-weight:900;padding:5px 11px;border-radius:999px;background:#ffffff18;border:1px solid #ffffff35}
 .grid h2{font-size:clamp(38px,6vw,70px);margin:8px 0 16px}
 .grid p{max-width:650px;color:#b9b9c8;line-height:1.6}
+.grid p.gridCombinedNote{color:#62eaff;font-weight:700;letter-spacing:.02em;margin-top:-4px}
+.grid p.gridCombinedNote[hidden]{display:none}
 
 /* Grid layout: mobile-first single column, richer multi-column on tablet/desktop */
 .gridLayout{margin-top:35px;display:grid;grid-template-columns:1fr;gap:28px}
@@ -647,6 +649,7 @@ footer{position:relative;z-index:3;padding:40px 7vw 50px;color:#777;font-size:12
   <div class="kicker">GLOBAL GRID <span class="liveTag">● LIVE</span></div>
   <h2>The world is the scoreboard.</h2>
   <p>Real totals, grouped by country. Each pilot's best score counts for their country — beat your best and your flag climbs. Jupiter (Hard) counts the most.</p>
+  <p class="gridCombinedNote" id="gridCombinedNote" hidden></p>
   <div class="gridLayout">
     <div id="gridRankArea">
       <div class="gridState" id="gridLoading"><div class="spinner"></div>Loading the Global Grid…</div>
@@ -913,6 +916,10 @@ try{
     var sideArea = document.getElementById('gridSideArea');
     if(!rankArea || !sideArea) return;
     var countries = (data.countries||[]).slice().sort(function(a,b){return b.totalScore-a.totalScore;});
+    // COMBINED WORLD GRID: once the owner applies it, this ONE grid (no tabs) is each
+    // pilot's best of Season 0 and Season 1, counted once. The server says which.
+    var combinedNote = document.getElementById('gridCombinedNote');
+    if(combinedNote){ combinedNote.hidden = !data.combined; combinedNote.textContent = data.combined ? 'Season 0 and Season 1 combined: each pilot\'s best of both counts once.' : ''; }
 
     if(!countries.length){
       rankArea.innerHTML = gridEmptyState();
