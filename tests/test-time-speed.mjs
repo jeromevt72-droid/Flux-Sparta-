@@ -65,8 +65,9 @@ function suite(gameHtml, quiet = false, only = '') {
     g.ctx.newGame(); run('playing=true; paused=false;');
     return { g, run, mem, texts };
   };
-  // A calm frame: no orbs, the ball crosses sideways (no catches, misses or points).
-  const calm = (b, n = 1) => { for (let i = 0; i < n; i++) { b.run('if(!playing){playing=true;paused=false;} targets=[]; ball.y=H*.4; ball.vy=0; if(Math.abs(ball.vx)<1)ball.vx=4;'); b.g.ctx.update(1 / 60); } };
+  // A calm frame: no orbs, the ball crosses sideways (no catches, misses or points). It stands for
+  // run time with a player in control, so the ball counts as touched (the stall pause is in test-ball-stall).
+  const calm = (b, n = 1) => { for (let i = 0; i < n; i++) { b.run('if(!playing){playing=true;paused=false;} targets=[]; ballIdle=0; ball.y=H*.4; ball.vy=0; if(Math.abs(ball.vx)<1)ball.vx=4;'); b.g.ctx.update(1 / 60); } };
   const crossing = (b) => b.run('playAreaHeight()/(normalMaxSpeed()*60)');
   // Measured crossing: the ball flies straight up at the limit for 20 real frames.
   const measured = (b) => { b.run('targets=[]; ball.x=W/2; ball.y=paddle.y-60; ball.vx=0; ball.vy=-normalMaxSpeed(); var __y0=ball.y;');
