@@ -213,6 +213,8 @@ export default {
           const admin = {
             "/api/admin/find-player":       () => adminFind(request, env),
             "/api/admin/remove-score":      () => adminPidAction(request, env, "/admin-remove-score"),
+            "/api/admin/remove-pilots-dry-run": () => adminRemovePilots(request, env, false),   // REMOVE PILOTS: exact NAME #TAG lines, report only, writes nothing
+            "/api/admin/remove-pilots":     () => adminRemovePilots(request, env, true),        // REMOVE PILOTS: typed REMOVE <id> + backup < 60 min + same pilots as the dry run
             "/api/admin/restrict":          () => adminPidAction(request, env, "/admin-restrict", (b) => ({ reason: b.reason })),
             "/api/admin/unrestrict":        () => adminPidAction(request, env, "/admin-unrestrict"),
             "/api/admin/privacy-delete":    () => adminPrivacyDelete(request, env),   // BACKUPS: also erases the pilot from every backup
@@ -1380,6 +1382,53 @@ async function adminWorldGridApply(request, env) {
   }
   return json({ ok: true, applied: id, backupId: recent.id, safetyId: safety.id, checks: ck.d.checks, worldGrid: sw.d.worldGrid });
 }
+/* REMOVE PILOTS (owner): take test pilots off the leaderboard, safely.
+     DRY RUN: each pasted "NAME #TAG" line must match exactly ONE pilot (exact
+       name, full #TAG); the report lists bests, Season 0 bests, country,
+       purchases and the effect on country totals and boards. Writes nothing.
+     REMOVE: refused unless, in this order: the owner typed exactly
+       "REMOVE <dry-run id>"; a checked backup is less than 60 minutes old (else
+       needBackup: the page offers BACK UP NOW); the listed pilots are exactly as
+       in the dry run (the id is a fingerprint of them). Then a safety backup, and
+       each pilot is removed as REMOVE SCORE does (purchases and cooldown kept)
+       plus its Season 0 row. A post-check answers PASS / FAIL per check.
+   There is no un-remove: undo = restore the backup taken just before. */
+const RP_ID = /^[0-9A-Z]{8}$/;
+const RP_MAX_LINES = 50;
+function rpLines(v) {
+  const list = (Array.isArray(v) ? v : typeof v === "string" ? v.split(/\r?\n/) : null);
+  if (!list) return null;
+  const out = list.map((x) => String(x == null ? "" : x).replace(/\s+/g, " ").trim().slice(0, 80)).filter(Boolean);
+  return out.length && out.length <= RP_MAX_LINES ? out : null;
+}
+function rpHash(t) {
+  let h1 = 0x811c9dc5, h2 = 0x9747b28c ^ t.length;
+  for (let i = 0; i < t.length; i++) { const c = t.charCodeAt(i); h1 = Math.imul(h1 ^ c, 16777619); h2 = Math.imul(h2 ^ c, 2246822507); }
+  return (h1 >>> 0).toString(36) + "." + (h2 >>> 0).toString(36);
+}
+async function adminRemovePilots(request, env, real) {
+  const denied = requireAdmin(request, env); if (denied) return denied;
+  if (!env.LEADERBOARD_DO) return json({ error: "Leaderboard storage is not configured (missing LEADERBOARD_DO binding)" }, 500);
+  const b = await adminBody(request), nostore = { "Cache-Control": "no-store" };
+  const lines = rpLines(b.lines);
+  if (!lines) return json({ error: "Paste one pilot per line as NAME #TAG (1 to " + RP_MAX_LINES + " lines)." }, 400, nostore);
+  const call = (path, body) => forwardToDO(request, env, path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+  const out = (resp) => { const h = new Headers(resp.headers); h.set("Cache-Control", "no-store"); return new Response(resp.body, { status: resp.status, headers: h }); };
+  if (!real) return out(await call("/admin-remove-pilots-dry-run", { lines }));
+  const id = typeof b.id === "string" && RP_ID.test(b.id) ? b.id : "";
+  if (!id) return json({ error: "Run a DRY RUN first; removing needs its id." }, 400, nostore);
+  if (b.confirm !== "REMOVE " + id) return json({ error: "Nothing was removed. To remove, type exactly: REMOVE " + id }, 400, nostore);
+  const bk = await sfLatestBackup(env);
+  if (!bk.fresh) return json({ ok: false, needBackup: true, backup: bk,
+    error: "Nothing was removed: removing needs a checked backup from the last 60 minutes" + (bk.createdAt ? " (the newest is " + bk.ageMin + " minutes old)" : "") + ". Press BACK UP NOW, then REMOVE NOW again." }, 409, nostore);
+  const pre = await call("/admin-remove-pilots", { lines, id, stage: "check" });
+  if (!pre.ok) return out(pre);
+  const sf = await sfSafety(env, "before REMOVE PILOTS " + id);
+  if (!sf.ok) return json({ ok: false, error: "The safety backup failed its check, so nothing was removed." + (sf.error ? " (" + sf.error + ")" : "") }, 500, nostore);
+  const r = await call("/admin-remove-pilots", { lines, id });
+  const d = await r.json().catch(() => ({ ok: false, error: "no answer" }));
+  return json({ ...d, backupId: bk.id, safetyId: sf.id }, r.status, nostore);
+}
 /* STORAGE FIX (see PilotLayoutV2): the owner's storage move, one step per
    button, every step behind the admin password. The move itself refuses unless
    a verified backup of the leaderboard is less than 60 minutes old, takes its
@@ -1908,6 +1957,8 @@ export class LeaderboardDO {
       "/recompute": () => this.handleRecompute(),
       "/admin-find": () => this.handleAdminFind(request),
       "/admin-remove-score": () => this.handleAdminRemoveScore(request),
+      "/admin-remove-pilots-dry-run": () => json({ ok: false, moveStorageFirst: true, error: RP_MOVE_FIRST }, 409),   // REMOVE PILOTS: new layout only
+      "/admin-remove-pilots": () => json({ ok: false, moveStorageFirst: true, error: RP_MOVE_FIRST }, 409),
       "/admin-restrict": () => this.handleAdminRestrict(request, true),
       "/admin-unrestrict": () => this.handleAdminRestrict(request, false),
       "/admin-privacy-delete": () => this.handleAdminPrivacyDelete(request),
@@ -4222,6 +4273,7 @@ const WORLD_GRID_DRY_RUN_MAX_AGE_MS = 60 * 60 * 1000;   // APPLY accepts a dry r
 const WORLD_GRID_BACKUP_MAX_AGE_MS = 60 * 60 * 1000;    // ...and needs a checked backup from the last 60 minutes
 const WORLD_GRID_ID = /^WG-[0-9a-z]{6,11}-[0-9a-f]{8}$/;
 const WORLD_GRID_LOG_MAX = 20;
+const RP_MOVE_FIRST = "Move the storage first: REMOVE PILOTS works on the new storage layout only (STORAGE above). Until then, use REMOVE SCORE on each pilot's card.";
 const WORLD_GRID_MOVE_FIRST = "Move the storage first: the combined World Grid works on the new storage layout only. Open STORAGE above, move it, then run the WORLD GRID dry run.";
 /* The Season 0 table (new layout only): one row per archived pilot with a valid
    best, built from the archive by APPLY (never by a run), with one index per
@@ -4576,7 +4628,7 @@ const MIG_CHECK_SAMPLE = 200;
 const MIG_CHANGED_MAX = 5000;
 const V2_ROW_BYTES_EST = 310;                // one pilot in a backup (measured in the tests)
 const FREE_PLAN = { rowsReadPerDay: 5_000_000, rowsWrittenPerDay: 100_000, storageBytes: 5 * 1024 * 1024 * 1024, note: "Workers Free plan, SQLite Durable Objects -- check the current limits in the Cloudflare dashboard" };
-const V2_WRITE_ROUTES = new Set(["/submit", "/grant", "/revoke", "/import", "/recompute", "/admin-remove-score", "/admin-restrict", "/admin-unrestrict",
+const V2_WRITE_ROUTES = new Set(["/submit", "/grant", "/revoke", "/import", "/recompute", "/admin-remove-score", "/admin-remove-pilots", "/admin-restrict", "/admin-unrestrict",
   "/admin-privacy-delete", "/admin-name-ban", "/admin-name-unban", "/admin-dismiss-flag", "/admin-issue-restore", "/world-grid-apply", "/world-grid-revert"]);
 const V2_TABLES = ["pilots", "ents", "seen", "cool"];       // backed up; v2meta (derived totals) is rebuilt instead
 const V2_ALL_TABLES = V2_TABLES.concat(["v2meta"]);
@@ -5191,6 +5243,8 @@ class PilotLayoutV2 {
       "/recompute": () => this.recompute(),
       "/admin-find": () => this.find(request),
       "/admin-remove-score": () => this.removeScore(request),
+      "/admin-remove-pilots-dry-run": () => this.removePilotsDryRun(request),   // REMOVE PILOTS (writes nothing)
+      "/admin-remove-pilots": () => this.removePilots(request),
       "/admin-restrict": () => this.restrict(request, true),
       "/admin-unrestrict": () => this.restrict(request, false),
       "/admin-privacy-delete": () => this.privacyDelete(request),
@@ -5422,6 +5476,7 @@ class PilotLayoutV2 {
     this.db.tx(() => {
       this.dropPilot(sum, row);
       if (row.ls != null) this.db.kvPut("cool", row.id, row.ls);   // the cooldown is kept
+      this.wgForget(row.id);   // its Season 0 row goes too (after dropPilot, which counted it): a new run can't bring those bests back
       this.saveSum(sum);
     });
     const saving = o.state.storage.put({ flags: nextFlags });
@@ -5430,6 +5485,142 @@ class PilotLayoutV2 {
     o.flags = nextFlags;
     await o.migTouched(pid);
     return json({ ok: true, removed: { name: cleanName(rec.name), country: rec.country } });
+  }
+  /* ---- REMOVE PILOTS (see adminRemovePilots) ---- */
+  /* One "NAME #TAG" line -> exactly one pilot (exact name, full #TAG), or why not. */
+  rpLookup(line) {
+    const raw = String(line || "").toUpperCase().replace(/\s+/g, " ").trim();
+    const m = /^(.+?) ?# ?([0-9A-Z]+)$/.exec(raw);
+    if (!m || !m[1].trim()) return { line: raw, status: "invalid", why: "Write it as NAME #TAG, for example TITAN #QGAC1ZN." };
+    const name = m[1].trim(), tag = m[2];
+    if (tag.length !== 7 && tag.length !== 12) return { line: raw, status: "invalid", why: "Not a full #TAG: a #TAG has 7 characters (12 when pilots share a name and tag)." };
+    const named = this.db.pilotsT12(tag.slice(0, 7), tag.slice(0, 7) + "~")
+      .filter((r) => String(cleanName(v2dec(r.rec).name)).toUpperCase() === name || r.dname === name);
+    const exact = named.filter((r) => r.tag === tag || r.t12 === tag);
+    if (exact.length === 1) return { line: raw, status: "found", row: exact[0] };
+    if (exact.length > 1 || named.length) return { line: raw, status: "ambiguous", why: "More than one pilot is " + name + " #" + tag.slice(0, 7) + ": type the full 12-character #TAG shown on its card." };
+    return { line: raw, status: "not-found", why: "No pilot is exactly " + name + " #" + tag + " (name and #TAG must both match)." };
+  }
+  rpPilot(row) {
+    const rec = v2dec(row.rec), w = this.db.wgGet(row.id), owned = this.ents(row.id);
+    const skus = Array.isArray(owned) ? owned.filter((x) => typeof x === "string") : [];
+    const bests = {}, season0 = {}, boards = [];
+    for (const d of V2_DIFFS) {
+      const b = ownGet(rec.bests, d), c = V2_COL[d];
+      if (b) bests[d] = { score: b.score, level: b.level };
+      if (w && w[c + "_s"] != null) season0[d] = { score: w[c + "_s"], level: w[c + "_l"] };
+      if (!row.rs && this.keyOf(row, d)) { const i = this.board(d).findIndex((x) => x.id === row.id); boards.push({ board: d, rank: i >= 0 ? i + 1 : null }); }
+    }
+    const e = this.entryOf(row);
+    if (e) { const i = this.board("all").findIndex((x) => x.id === row.id); boards.push({ board: "all", rank: i >= 0 ? i + 1 : null }); }
+    return { pid: row.pid, tag: row.tag, name: cleanName(rec.name), shownAs: row.dname, country: row.cc, restricted: !!row.rs,
+      bests, season0, counted: e ? e.s : 0, boards, purchases: skus.length, skus };
+  }
+  /* The dry run: lines -> report + an id that fingerprints the listed pilots exactly as they are now. */
+  async rpPlan(lines) {
+    const list = [], seen = new Set();
+    for (const line of Array.isArray(lines) ? lines.slice(0, RP_MAX_LINES) : []) {
+      const x = this.rpLookup(line);
+      if (x.status === "found" && seen.has(x.row.id)) { x.status = "duplicate"; x.why = "Listed twice."; delete x.row; }
+      if (x.row) seen.add(x.row.id);
+      list.push(x);
+    }
+    const found = list.filter((x) => x.status === "found"), per = new Map();
+    for (const x of found) {
+      const e = this.entryOf(x.row);
+      if (!e) continue;
+      const c = per.get(e.cc) || { minus: 0, pilots: 0 }; c.minus += e.s; c.pilots++; per.set(e.cc, c);
+    }
+    const countries = [...per].map(([cc, c]) => {
+      const b = this.sum.list[cc] || { totalScore: 0, playerCount: 0 };
+      return { country: cc, before: { totalScore: b.totalScore, playerCount: b.playerCount }, after: { totalScore: b.totalScore - c.minus, playerCount: b.playerCount - c.pilots }, change: -c.minus };
+    }).sort((a, b) => a.country < b.country ? -1 : 1);
+    const pilots = list.map((x) => (x.row ? { line: x.line, status: x.status, ...this.rpPilot(x.row) } : { line: x.line, status: x.status, why: x.why }));
+    const boardsAffected = [...new Set(pilots.flatMap((p) => (p.boards || []).map((b) => b.board)))];
+    const warnings = [];
+    for (const p of pilots) {
+      if (p.purchases) warnings.push(p.name + " #" + p.tag + " OWNS " + p.purchases + " SKIN" + (p.purchases > 1 ? "S" : "") + " (" + p.skus.join(", ") + "). Is this really a test pilot? Its purchases are kept, but its scores go.");
+      if (p.restricted) warnings.push(p.name + " #" + p.tag + " is restricted: it is not on any public board, so no total changes.");
+    }
+    const sig = list.map((x) => (x.row ? [x.line, x.row.id, x.row.rec, x.row.rs, x.row.cc, x.row.ls, x.row.tag, JSON.stringify(this.db.wgGet(x.row.id)), this.db.kvGet("ents", x.row.id)] : [x.line, x.status]));
+    const hex = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(sig))))].map((b) => b.toString(16).padStart(2, "0")).join("");
+    const id = tagFromPid(hex.slice(0, 16), 8);
+    const canRemove = found.length > 0 && found.length === list.length;
+    return { ok: true, dryRun: true, id, confirm: "REMOVE " + id, canRemove, rows: found.map((x) => x.row),
+      counts: { lines: list.length, found: found.length, refused: list.length - found.length },
+      pilots, countries, boardsAffected, warnings,
+      note: canRemove ? "Nothing was changed. To remove these pilots, type " + "REMOVE " + id + " and press REMOVE NOW." : "Nothing was changed. Every line must match exactly one pilot before REMOVE NOW is allowed: fix the list and run the dry run again." };
+  }
+  async removePilotsDryRun(request) {
+    const b = await request.json().catch(() => ({}));
+    const { rows, ...plan } = await this.rpPlan(b.lines);
+    return json(plan);
+  }
+  /* Every pilot not in the list: id -> a short fingerprint of what the boards use (record, restriction, country, shown name, Season 0 row). */
+  rpOthers(skip) {
+    const out = new Map();
+    let after = 0, joined = true;
+    for (;;) {
+      let rows;
+      if (joined) { try { rows = this.db.pilotPageW(after, V2_SCAN_PAGE); } catch (e) { joined = false; } }
+      if (!joined) rows = this.db.pilotPage(after, V2_SCAN_PAGE);
+      for (const r of rows) {
+        if (skip.has(r.id)) continue;
+        const w = joined ? WG0_COLS.map((k) => r["w_" + k]) : [];
+        out.set(r.id, rpHash([r.rec, r.rs, r.cc, r.dname, r.e_s, r.m_s, r.h_s].concat(w).join("|")));
+      }
+      if (rows.length < V2_SCAN_PAGE) return out;
+      after = rows[rows.length - 1].seq;
+    }
+  }
+  async removePilots(request) {
+    const o = this.o, b = await request.json().catch(() => ({}));
+    const plan = await this.rpPlan(b.lines);
+    if (plan.id !== b.id) return json({ ok: false, changed: true, error: "Nothing was removed: the pilots (or the list) changed since that dry run. Run a new DRY RUN." }, 409);
+    if (!plan.canRemove) return json({ ok: false, error: "Nothing was removed: every line must match exactly one pilot. Fix the list and run a new DRY RUN." }, 409);
+    if (b.stage === "check") return json({ ok: true, id: plan.id });
+    const ids = new Set(plan.rows.map((r) => r.id)), pids = plan.rows.map((r) => r.pid);
+    const othersBefore = this.rpOthers(ids);
+    const kept = new Map(plan.rows.map((r) => [r.id, { ents: this.db.kvGet("ents", r.id), ls: r.ls }]));
+    const nextFlags = o.flags.filter((f) => !pids.includes(f.pid));
+    const sum = structuredClone(this.sum);
+    this.db.tx(() => {
+      for (const id of ids) {
+        const row = this.db.pilot(id);   // read again: removing one pilot can change another listed pilot's #TAG
+        this.dropPilot(sum, row);
+        if (row.ls != null) this.db.kvPut("cool", row.id, row.ls);   // the cooldown is kept (as REMOVE SCORE)
+        this.wgForget(row.id);   // and its Season 0 row goes, so those bests can't come back
+      }
+      this.saveSum(sum);
+    });
+    const saving = o.state.storage.put({ flags: nextFlags });
+    this.sum = sum; this.dropCaches();
+    await saving;
+    o.flags = nextFlags;
+    await o.migTouched(pids);
+    /* post-check */
+    const checks = [], add = (id, label, ok, detail) => checks.push({ id, label, ok: !!ok, detail });
+    const still = plan.pilots.filter((p) => this.rpLookup(p.line).status !== "not-found" || this.db.pilot(plan.rows.find((r) => r.pid === p.pid).id));
+    add("gone", "Each removed pilot is not found", !still.length, still.length ? "still found: " + still.map((p) => p.line).join(", ") : plan.rows.length + " of " + plan.rows.length + " not found");
+    const s0 = plan.rows.filter((r) => this.db.wgGet(r.id));
+    add("season0", "Their Season 0 bests are gone too", !s0.length, s0.length ? s0.length + " Season 0 row(s) left" : "no Season 0 row left");
+    const lost = plan.rows.filter((r) => this.db.kvGet("ents", r.id) !== kept.get(r.id).ents || (r.ls != null && this.db.kvGet("cool", r.id) !== r.ls));
+    add("kept", "Purchases and cooldowns are kept", !lost.length, lost.length ? "changed for " + lost.length : "unchanged");
+    const re = this.buildSum(), bad = [];
+    for (const cc of new Set([...Object.keys(re.list), ...Object.keys(this.sum.list)])) {
+      const x = this.sum.list[cc], y = re.list[cc];
+      if (!x || !y || Math.abs(x.totalScore - y.totalScore) > 1e-6 * Math.max(1, Math.abs(y.totalScore)) || x.playerCount !== y.playerCount || x.leaderId !== y.leaderId) bad.push(cc);
+    }
+    const canon = (v) => (v && typeof v === "object" ? JSON.stringify(Object.keys(v).sort().filter((k) => !(v[k] === 0 || (v[k] && typeof v[k] === "object" && !Object.keys(v[k]).length))).map((k) => [k, canon(v[k])])) : String(v));
+    if (canon(re.bc) !== canon(this.sum.bc) || canon(re.bcc) !== canon(this.sum.bcc)) bad.push("board counts");
+    add("countries", "Country totals match a full recount", !bad.length, bad.length ? "differ: " + bad.join(", ") : Object.keys(re.list).length + " countries recounted, all equal");
+    const after = this.rpOthers(ids), diff = [];
+    for (const [id, h] of othersBefore) if (after.get(id) !== h) diff.push(id);
+    const okOthers = !diff.length && after.size === othersBefore.size;
+    add("others", "Every other pilot is unchanged", okOthers, okOthers ? after.size + " other pilots: same count, same bests" : (othersBefore.size - after.size) + " fewer pilots, " + diff.length + " changed");
+    const pass = checks.every((c) => c.ok);
+    return json({ ok: pass, removed: plan.pilots.map((p) => ({ name: p.name, tag: p.tag, country: p.country })), checks,
+      countries: plan.countries.map((c) => ({ ...c, now: this.sum.list[c.country] ? { totalScore: this.sum.list[c.country].totalScore, playerCount: this.sum.list[c.country].playerCount } : { totalScore: 0, playerCount: 0 } })) }, pass ? 200 : 500);
   }
   async restrict(request, on) {
     const o = this.o, { pid, reason } = await request.json();
