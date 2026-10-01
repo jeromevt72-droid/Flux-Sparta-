@@ -239,6 +239,12 @@ export default {
             "/api/admin/world-grid-dry-run": () => adminDO(request, env, "/world-grid-dry-run", {}),   // COMBINED WORLD GRID: before/after report, writes nothing
             "/api/admin/world-grid-apply":   () => adminWorldGridApply(request, env),                 // COMBINED WORLD GRID: typed APPLY <id> + recent checked backup
             "/api/admin/world-grid-revert":  () => adminDO(request, env, "/world-grid-revert", { reason: "by the owner" }),   // COMBINED WORLD GRID: switch back
+            "/api/admin/founding-status":    () => adminFounding(request, env, "status"),      // FOUNDING PILOT: counter, exclusions, log
+            "/api/admin/founding-dry-run":   () => adminFounding(request, env, "dry-run"),     // FOUNDING PILOT: who WOULD be numbered; writes nothing
+            "/api/admin/founding-switch":    () => adminFounding(request, env, "switch"),      // FOUNDING PILOT: ON (typed + backup < 60 min) / OFF
+            "/api/admin/founding-continue":  () => adminFounding(request, env, "continue"),    // FOUNDING PILOT: resume numbering (ON only)
+            "/api/admin/founding-exclude":   () => adminFounding(request, env, "exclude"),     // FOUNDING PILOT: exclusion list by #TAG
+            "/api/admin/founding-take-back": () => adminFounding(request, env, "take-back"),   // FOUNDING PILOT: typed TAKE BACK #TAG
             "/api/admin/storage-status":          () => adminStorage(request, env, "status"),     // STORAGE FIX: layout, size, move progress
             "/api/admin/migrate-storage-dry-run": () => adminStorage(request, env, "dry-run"),    // STORAGE FIX: builds the new layout in memory; writes nothing live
             "/api/admin/migrate-storage":         () => adminStorage(request, env, "migrate"),    // STORAGE FIX: typed confirmation + backup < 60 min + safety backup
@@ -1281,6 +1287,8 @@ async function adminSummary(request, env) {
     backup: bk && bk.ok ? { ok: !!bk.lastDaily && !bk.stale && !bErr, stale: !!bk.stale,
       lastDailyAt: bk.lastDaily ? bk.lastDaily.createdAt : null, count: (bk.snapshots || []).length,
       lastError: bErr ? { at: bErr.at, error: String(bErr.error || "").slice(0, 200) } : null } : null,
+    // FOUNDING PILOT: the counter (given / 1,000, spots left) on the first screen
+    founding: lb && lb.founding ? lb.founding : null,
     // COMBINED WORLD GRID: is the combined grid (Season 0 + Season 1) live?
     worldGrid: lb && lb.worldGrid ? { combined: !!lb.worldGrid.combined, appliedAt: lb.worldGrid.appliedAt, revertedAt: lb.worldGrid.revertedAt, layout: lb.worldGrid.layout, ready: lb.worldGrid.ready !== false } : null,
     // FREE PLAN: today's requests vs the free daily limits; alert from USAGE_ALERT_PCT (80%).
@@ -1434,6 +1442,44 @@ async function adminStorage(request, env, action) {
   }
   return json({ error: "Not found" }, 404);
 }
+/* FOUNDING PILOT (see FND_SCHEMA): the owner's switch, one step per button, every step behind
+   the admin login. ON needs the typed "FOUNDING ON" and a verified backup from the last 60
+   minutes; it numbers the existing pilots in batches (resumable: "more" -> CONTINUE). OFF,
+   the dry run, the exclusion list and the status need neither. */
+async function adminFounding(request, env, action) {
+  const denied = requireAdmin(request, env); if (denied) return denied;
+  if (!env.LEADERBOARD_DO) return json({ error: "Leaderboard storage is not configured (missing LEADERBOARD_DO binding)" }, 500);
+  const b = await adminBody(request);
+  const call = async (path, body) => {
+    const r = await forwardToDO(request, env, path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+    return { status: r.status, d: await r.json().catch(() => ({ ok: false, error: "No answer from the leaderboard." })) };
+  };
+  const out = (x) => json(x.d, x.status);
+  const tag = String(b.tag || "").slice(0, 40);
+  if (action === "status") { const x = await call("/founding-status"); if (x.status === 200) x.d.backup = await sfLatestBackup(env); return out(x); }
+  if (action === "dry-run") return out(await call("/founding-dry-run"));
+  if (action === "exclude") return out(await call("/founding-exclude", { tag, remove: !!b.remove }));
+  if (action === "take-back") return out(await call("/founding-take-back", { tag, confirm: String(b.confirm || "").slice(0, 60) }));
+  if (action === "switch" && !b.on) return out(await call("/founding-switch", { on: false }));
+  if (action === "switch") {
+    if (String(b.confirm || "").trim() !== FOUNDING_CONFIRM) return json({ error: "To switch the offer ON, type exactly: " + FOUNDING_CONFIRM }, 400);
+    const st = await call("/founding-status");
+    if (st.status !== 200) return out(st);
+    if (st.d.layout !== "new") return json({ error: FOUNDING_MOVE_FIRST }, 409);
+    const bk = await sfLatestBackup(env);
+    if (!bk.fresh) return json({ ok: false, needBackup: true, backup: bk,
+      error: "Switching ON needs a verified backup taken in the last 60 minutes" + (bk.createdAt ? " (the newest is " + bk.ageMin + " minutes old)" : "") + ". Press BACK UP NOW, then try again." }, 409);
+  }
+  let x = null, numbered = 0, rows = 0;
+  for (let i = 0; i < FOUNDING_CALLS_PER_REQUEST; i++) {
+    x = await call(i === 0 && action === "switch" ? "/founding-switch" : "/founding-continue", { on: true, limit: b.limit });
+    if (x.status !== 200) break;
+    numbered += x.d.numbered || 0; rows += x.d.rowsWritten || 0;
+    if (!x.d.more) break;
+  }
+  if (x.status === 200) { x.d.numbered = numbered; x.d.rowsWritten = rows; }
+  return out(x);
+}
 /* The newest verified backup that is a copy of the live leaderboard (daily,
    BACK UP NOW or a safety copy -- not an uploaded file), and whether it is
    recent enough for the storage move. */
@@ -1530,7 +1576,7 @@ async function stripeGet(env, pathAndQuery) {
 }
 async function ownsSku(env, playerId, sku) {
   const stub = leaderboardStub(env);
-  const r = await stub.fetch("https://do.internal/entitlements?playerId=" + encodeURIComponent(playerId));
+  const r = await stub.fetch("https://do.internal/entitlements?paid=1&playerId=" + encodeURIComponent(playerId));   // FOUNDING PILOT: Stripe purchases only
   const d = await r.json();
   return (d.skus || []).includes(sku);
 }
@@ -1922,6 +1968,12 @@ export class LeaderboardDO {
       "/world-grid-apply": () => this.handleWorldGridApply(request),
       "/world-grid-check": () => this.handleWorldGridCheck(),
       "/world-grid-revert": () => this.handleWorldGridRevert(request),
+      "/founding-status": () => json({ ok: true, layout: "old", on: false, given: 0, cap: FOUNDING_CAP, left: FOUNDING_CAP, excluded: [], log: [] }),   // FOUNDING PILOT: new layout only
+      "/founding-dry-run": () => json({ error: FOUNDING_MOVE_FIRST }, 409),
+      "/founding-switch": () => json({ error: FOUNDING_MOVE_FIRST }, 409),
+      "/founding-continue": () => json({ error: FOUNDING_MOVE_FIRST }, 409),
+      "/founding-exclude": () => json({ error: FOUNDING_MOVE_FIRST }, 409),
+      "/founding-take-back": () => json({ error: FOUNDING_MOVE_FIRST }, 409),
       "/backup-dump": () => this.handleBackupDump(),            // BACKUPS (internal: the worker never forwards these)
       "/backup-restore": () => this.handleBackupRestore(request),
     }[url.pathname];
@@ -2887,8 +2939,13 @@ export class LeaderboardDO {
     this.worldGrid = (await st.get(WORLD_GRID_KEY)) || null;   // COMBINED WORLD GRID switch (off unless the owner applied it)
     this.archiveCache = null;
     this.v2 = new PilotLayoutV2(this, this.sqlDb());
+    this.fcfg = undefined;      // FOUNDING PILOT settings: read when first needed (admin, exclusions)
     await this.v2.wgEnsure();   // 1 row when the switch is on; nothing when it is off
     this.v2.init();
+    if (this.v2.foLost) {       // FOUNDING PILOT: only when the summary had to be rebuilt without its counter
+      const fo = this.v2.foRebuild(await st.get(FOUNDING_KEY));
+      if (fo) { this.v2.sum.fo = fo; this.v2.saveSum(this.v2.sum, true); }
+    }
     if (!((await st.get("season")) >= SEASON)) await this.v2.startSeason();   // a future season, on the new layout
   }
   writesBlocked() {
@@ -3275,7 +3332,7 @@ export class LeaderboardDO {
       const puts = want.filter(([k, v]) => !L.has(k) || !bkSame(L.get(k), v));
       for (let i = 0; i < puts.length; i += BACKUP_PUT_KEYS) { const o = Object.create(null); for (const [k, v] of puts.slice(i, i + BACKUP_PUT_KEYS)) o[k] = v; await st.put(o); }
       const db = this.sqlDb();
-      if (W.get(STORAGE_LAYOUT_KEY) === "v2") { const eng = new PilotLayoutV2(this, db); eng.retagAll(); eng.sum = eng.buildSum(); eng.saveSum(eng.sum, true); db.kvDel("v2meta", "wg"); }   // COMBINED WORLD GRID: rebuilt from the restored archive on load
+      if (W.get(STORAGE_LAYOUT_KEY) === "v2") { const eng = new PilotLayoutV2(this, db); eng.retagAll(); eng.sum = eng.buildSum(); const fo = eng.foRebuild(W.get(FOUNDING_KEY)); if (fo) eng.sum.fo = fo; eng.saveSum(eng.sum, true); db.kvDel("v2meta", "wg"); }   // FOUNDING PILOT: the counter as restored   // COMBINED WORLD GRID: rebuilt from the restored archive on load
       else db.drop();
       await st.delete(V2_RESTORING_KEY);
       this.restoring = false; this.bkSession = null;
@@ -4060,13 +4117,13 @@ class BackupStore {
         if (!p.t) { kvEntries = entries; continue; }
         for (const [k, row] of entries) {
           const id = v2RowId(p.t, k);
-          if (p.t === "pilots" ? row.pid === pid : (p.t === "ents" || p.t === "cool") && (await pidHash(id)) === pid) ids.add(id);
+          if (p.t === "pilots" ? row.pid === pid : (p.t === "ents" || p.t === "cool" || p.t === "fnd") && (await pidHash(id)) === pid) ids.add(id);
         }
       }
     } catch (e) { await this.deleteSnapshot(m); return "deleted"; }
     const kvOut = await v2EraseKv(kvEntries || [], pid, ids, removePurchases);
     if (!ids.size && !kvOut) return "unchanged";
-    const drop = (t, id) => ids.has(id) && (t !== "ents" || removePurchases), self = this;
+    const drop = (t, id) => ids.has(id) && ((t !== "ents" && t !== "fnd") || removePurchases), self = this;   // FOUNDING PILOT: like a purchase
     const meta = await this.finishPaged(await this.writePagedRaw({ ...m, purgedAt: Date.now() }, (async function* () {
       for await (const { p, entries, text } of self.readPages(m)) {
         if (!p.t) { yield { t: "", text: kvOut ? bkEncode(kvOut) : text }; continue; }
@@ -4577,12 +4634,37 @@ const MIG_CHANGED_MAX = 5000;
 const V2_ROW_BYTES_EST = 310;                // one pilot in a backup (measured in the tests)
 const FREE_PLAN = { rowsReadPerDay: 5_000_000, rowsWrittenPerDay: 100_000, storageBytes: 5 * 1024 * 1024 * 1024, note: "Workers Free plan, SQLite Durable Objects -- check the current limits in the Cloudflare dashboard" };
 const V2_WRITE_ROUTES = new Set(["/submit", "/grant", "/revoke", "/import", "/recompute", "/admin-remove-score", "/admin-restrict", "/admin-unrestrict",
-  "/admin-privacy-delete", "/admin-name-ban", "/admin-name-unban", "/admin-dismiss-flag", "/admin-issue-restore", "/world-grid-apply", "/world-grid-revert"]);
-const V2_TABLES = ["pilots", "ents", "seen", "cool"];       // backed up; v2meta (derived totals) is rebuilt instead
+  "/admin-privacy-delete", "/admin-name-ban", "/admin-name-unban", "/admin-dismiss-flag", "/admin-issue-restore", "/world-grid-apply", "/world-grid-revert",
+  "/founding-switch", "/founding-continue", "/founding-exclude", "/founding-take-back"]);
+const V2_TABLES = ["pilots", "ents", "seen", "cool", "fnd"];   // backed up; v2meta (derived totals) is rebuilt instead
 const V2_ALL_TABLES = V2_TABLES.concat(["v2meta"]);
 const V2_BK_SKIP_KEYS = new Set([V2_RESTORING_KEY]);
 const V2_DIFFS = ["easy", "medium", "hard"];
 const V2_COL = { easy: "e", medium: "m", hard: "h" };
+/* FOUNDING PILOT (owner): the first FOUNDING_CAP pilots, in creation order (seq), get the
+   whole Solar Inferno package free forever -- the "solar" sku, which unlocks everything the
+   paid Solar Inferno unlocks in the game (SKINS.solar: its five orb colours, its orange
+   launcher, and the Solar Inferno backdrop in WORLD). The grant is its OWN row in "fnd" (id =
+   playerId, v = { n, at, src: "founding" } -- never a Stripe purchase, never in "ents"); the
+   public /entitlements and /restore-check answers add "solar" for an active grant, so every
+   device and every restore code brings it back exactly like a purchase. Numbering only on the
+   new storage layout; OFF (the default) changes nothing anywhere.
+     KV "founding" (backed up): { on, given, cur, done, excl: { pid: { tag, name, at } }, onAt, offAt, log }
+     summary row (v2meta "sum").fo = { on, given, cur, done }: the live counter, read with the
+     summary at a cold start (no extra row) and written with it (a run already writes it).
+   given = numbers handed out (never reused, never lowered); cur = the last seq looked at;
+   done = every pilot up to cur was looked at, so a NEW pilot gets the next number at creation. */
+const FND_SCHEMA = "CREATE TABLE IF NOT EXISTS fnd (id TEXT PRIMARY KEY, v TEXT NOT NULL) WITHOUT ROWID";
+const FOUNDING_CAP = 1000;
+const FOUNDING_KEY = "founding";
+const FOUNDING_SRC = "founding";
+const FOUNDING_LOG_MAX = 30;
+const FOUNDING_EXCL_MAX = 500;
+const FOUNDING_LIST_SHOWN = 50;
+const FOUNDING_CONFIRM = "FOUNDING ON";
+const FOUNDING_CALLS_PER_REQUEST = 10;
+const FOUNDING_MOVE_FIRST = "Move the storage first: Founding Pilot works on the new storage layout only (STORAGE above).";
+function foOf(cfg) { return cfg && typeof cfg === "object" ? { on: cfg.on ? 1 : 0, given: Math.max(0, cfg.given | 0), cur: Math.max(0, cfg.cur | 0), done: cfg.done ? 1 : 0 } : undefined; }
 const V2_PILOT_COLS = ["seq", "id", "pid", "t12", "tag", "dname", "nb1", "nb2", "cc", "rs", "ls", "e_s", "e_t", "m_s", "m_t", "h_s", "h_t", "rec"];
 const V2_SCHEMA = [
   "CREATE TABLE IF NOT EXISTS pilots (seq INTEGER PRIMARY KEY, id TEXT NOT NULL UNIQUE, pid TEXT NOT NULL, t12 TEXT NOT NULL, tag TEXT NOT NULL, dname TEXT NOT NULL, nb1 TEXT NOT NULL, nb2 TEXT NOT NULL, cc TEXT NOT NULL, rs INTEGER NOT NULL, ls TEXT, e_s NUMERIC, e_t NUMERIC, m_s NUMERIC, m_t NUMERIC, h_s NUMERIC, h_t NUMERIC, rec TEXT NOT NULL)",
@@ -4594,6 +4676,7 @@ const V2_SCHEMA = [
   "CREATE TABLE IF NOT EXISTS seen (id TEXT PRIMARY KEY, v TEXT NOT NULL) WITHOUT ROWID",
   "CREATE TABLE IF NOT EXISTS cool (id TEXT PRIMARY KEY, v TEXT NOT NULL) WITHOUT ROWID",
   "CREATE TABLE IF NOT EXISTS v2meta (id TEXT PRIMARY KEY, v TEXT NOT NULL) WITHOUT ROWID",
+  FND_SCHEMA,
 ];
 
 /* Values stored as text keep undefined / NaN / Infinity, exactly like a backup. */
@@ -4693,6 +4776,17 @@ class V2SqlDb {
     if (hi != null) { w.push("id <= ?"); a.push(hi); }
     return this.q(`SELECT ${t === "pilots" ? "*" : "id, v"} FROM ${t}${w.length ? " WHERE " + w.join(" AND ") : ""} ORDER BY id LIMIT ?`, ...a, limit);
   }
+  /* ---- FOUNDING PILOT (see FND_SCHEMA): a missing table reads as empty ---- */
+  fndEnsure() { this.q(FND_SCHEMA); }
+  fndMany(ids) {
+    const out = new Map();
+    for (let i = 0; i < ids.length; i += 100) {
+      const part = ids.slice(i, i + 100);
+      try { for (const r of this.q(`SELECT id, v FROM fnd WHERE id IN (${part.map(() => "?").join(", ")})`, ...part)) out.set(r.id, v2dec(r.v)); } catch (e) { /* no table yet */ }
+    }
+    return out;
+  }
+  lastSeq() { const r = this.q("SELECT seq FROM pilots ORDER BY seq DESC LIMIT 1")[0]; return r ? r.seq : 0; }
   /* ---- COMBINED WORLD GRID: the Season 0 table (see WG0_SCHEMA) ---- */
   wgCreate() { for (const x of WG0_SCHEMA) this.q(x); }
   wgClear() { this.q("DELETE FROM wg0"); }
@@ -4727,7 +4821,10 @@ class V2SqlDb {
 /* ---- the same tables in memory: the dry run builds the new layout here ---- */
 class V2MemDb {
   constructor() { this.use = { read: 0, written: 0 }; this.drop(); }
-  drop() { this.rows = new Map(); this.ids = new Map(); this.tabs = { ents: new Map(), seen: new Map(), cool: new Map(), v2meta: new Map() }; this.max = 0; this.sorted = null; }
+  drop() { this.rows = new Map(); this.ids = new Map(); this.tabs = { ents: new Map(), seen: new Map(), cool: new Map(), fnd: new Map(), v2meta: new Map() }; this.max = 0; this.sorted = null; }
+  fndEnsure() {}
+  fndMany(ids) { const out = new Map(); for (const id of ids) { const v = this.tabs.fnd.get(id); if (v !== undefined) out.set(id, v2dec(v)); } return out; }
+  lastSeq() { let m = 0; for (const k of this.rows.keys()) if (k > m) m = k; return m; }
   create() {}
   exists() { return true; }
   tx(fn) { return fn(); }
@@ -4777,9 +4874,12 @@ class PilotLayoutV2 {
   init() {
     let raw = null;
     try { raw = this.db.kvGet("v2meta", "sum"); } catch (e) { this.db.create(); }
+    try { this.db.fndEnsure(); } catch (e) { /* FOUNDING PILOT: a missing table reads as empty */ }
     const sum = raw ? v2dec(raw) : null;
     if (sum && sum.weights === JSON.stringify(DIFF_WEIGHT) && sum.bc && (sum.grid || "s") === this.gridTag()) { this.sum = sum; this.sumText = raw; return; }
     this.sum = this.buildSum();
+    if (sum && sum.fo) this.sum.fo = sum.fo;   // FOUNDING PILOT: the counter survives a rebuild
+    this.foLost = !(sum && sum.fo);            // rebuilt without it: loadV2 reads it back from "founding"
     this.saveSum(this.sum);
   }
   saveSum(sum, force) { const t = v2enc(sum); if (force || t !== this.sumText) this.db.kvPut("v2meta", "sum", t); this.sumText = t; }
@@ -4824,6 +4924,7 @@ class PilotLayoutV2 {
   /* ---- country figures (same as recomputeCountries, kept up to date) ---- */
   buildSum() {
     const sum = { v: 1, weights: JSON.stringify(DIFF_WEIGHT), grid: this.gridTag(), n: 0, list: {}, lead: {}, bc: {}, bcc: {} };
+    if (this.sum && this.sum.fo) sum.fo = Object.assign({}, this.sum.fo);   // FOUNDING PILOT: not derived from the pilots; kept
     this.scanPilots((row) => { sum.n++; this.boardCount(sum, row, 1); const e = this.entryOf(row); if (e) this.ctryAdd(sum, e); });
     return sum;
   }
@@ -4906,7 +5007,16 @@ class PilotLayoutV2 {
   }
 
   /* ---- boards ---- */
-  board(d) { return this.boards[d] || (this.boards[d] = d === "all" ? this.computeAll() : this.rowsD(d, BOARD_MAX, null).map((r) => this.itemD(r, d))); }
+  board(d) { return this.boards[d] || (this.boards[d] = this.markFounders(d === "all" ? this.computeAll() : this.rowsD(d, BOARD_MAX, null).map((r) => this.itemD(r, d)))); }
+  /* FOUNDING PILOT: the badge on a board row (fp). Read only once a number was ever given:
+     one lookup of the board's ids, cached with the board. */
+  markFounders(items) {
+    const fo = this.sum && this.sum.fo;
+    if (!fo || !fo.given || !items.length) return items;
+    const f = this.db.fndMany(items.map((x) => x.id));
+    for (const x of items) { const v = f.get(x.id); if (v && !v.off) x.fp = 1; }
+    return items;
+  }
   itemD(row, d) {
     const rec = this.recOf(row), b = ownGet(rec.bests, d), k = this.keyOf(row, d);
     return { id: row.id, seq: row.seq, pid: row.pid, tag: row.tag, name: row.dname, country: rec.country, cc: row.cc, score: b.score, points: b.score, level: b.level, difficulty: d, s: k.s, t: k.t };
@@ -5166,15 +5276,191 @@ class PilotLayoutV2 {
     const row = this.pilotByPid(pid);
     if (row) return row.id;
     if (!PID_RE.test(String(pid || ""))) return null;
-    let after = null;
-    for (;;) {
-      const rows = this.db.rowsById("ents", after, null, V2_SCAN_PAGE);
-      for (const r of rows) if ((await this.o.pid(r.id)) === pid) return r.id;
-      if (rows.length < V2_SCAN_PAGE) return null;
-      after = rows[rows.length - 1].id;
+    for (const t of ["ents", "fnd"]) {   // FOUNDING PILOT: a grant without a pilot row (score removed) is found too
+      let after = null;
+      for (;;) {
+        let rows = [];
+        try { rows = this.db.rowsById(t, after, null, V2_SCAN_PAGE); } catch (e) { break; }
+        for (const r of rows) if ((await this.o.pid(r.id)) === pid) return r.id;
+        if (rows.length < V2_SCAN_PAGE) break;
+        after = rows[rows.length - 1].id;
+      }
     }
+    return null;
   }
   ents(id) { const v = this.db.kvGet("ents", id); return v == null ? undefined : v2dec(v); }
+
+  /* ---- FOUNDING PILOT (see FND_SCHEMA) ---- */
+  fndActive(id) {   // the pilot's grant, unless the owner took it back; no read before a number was ever given
+    const fo = this.sum && this.sum.fo;
+    if (!fo || !fo.given || !validPlayerId(id)) return null;
+    const v = this.db.fndMany([id]).get(id);
+    return v && !v.off && Number.isFinite(v.n) ? v : null;
+  }
+  foundingLeft() { const fo = this.sum && this.sum.fo; return fo && fo.on ? Math.max(0, FOUNDING_CAP - fo.given) : null; }
+  foundingInfo() { const fo = (this.sum && this.sum.fo) || foOf({}); return { on: !!fo.on, given: fo.given, cap: FOUNDING_CAP, left: Math.max(0, FOUNDING_CAP - fo.given), done: !!fo.done }; }
+  /* The counter from the stored "founding" value and the grants (after a restore, or a rebuilt summary). */
+  foRebuild(cfg) {
+    const fo = foOf(cfg);
+    if (!fo) return undefined;
+    let after = null;
+    for (;;) {
+      let rows = [];
+      try { rows = this.db.rowsById("fnd", after, null, V2_SCAN_PAGE); } catch (e) { break; }
+      for (const r of rows) { const v = v2dec(r.v); if (v && v.n > fo.given) fo.given = v.n; }
+      if (rows.length < V2_SCAN_PAGE) break;
+      after = rows[rows.length - 1].id;
+    }
+    if (fo.done) fo.cur = Math.max(fo.cur, this.db.lastSeq());
+    return fo;
+  }
+  /* The stored settings (exclusions, log), read once; the counter always comes from the summary row. */
+  async fLoad() {
+    const o = this.o;
+    if (o.fcfg === undefined) { const v = await o.state.storage.get(FOUNDING_KEY); if (o.fcfg === undefined) o.fcfg = v && typeof v === "object" ? v : null; }
+  }
+  fCfg() {
+    const c = this.o.fcfg || {}, fo = (this.sum && this.sum.fo) || foOf(c) || foOf({});
+    return { onAt: c.onAt || null, offAt: c.offAt || null, excl: NP(c.excl), log: Array.isArray(c.log) ? c.log : [], on: !!fo.on, given: fo.given, cur: fo.cur, done: !!fo.done };
+  }
+  fState(cfg) {
+    return { layout: "new", on: cfg.on, given: cfg.given, cap: FOUNDING_CAP, left: Math.max(0, FOUNDING_CAP - cfg.given), done: cfg.done, onAt: cfg.onAt, offAt: cfg.offAt,
+      excluded: Object.keys(cfg.excl).map((pid) => ({ tag: cfg.excl[pid].tag, name: cfg.excl[pid].name, at: cfg.excl[pid].at })), log: cfg.log.slice(-FOUNDING_LOG_MAX) };
+  }
+  fLogged(cfg, now, event) { return cfg.log.concat([{ at: now, event }]).slice(-FOUNDING_LOG_MAX); }
+  /* Who gets the next numbers: pilots after cur, in creation order (seq), skipping restricted
+     pilots, the owner's exclusion list and pilots who already have a number; at most `limit`
+     and never past FOUNDING_CAP. Removed and privacy-deleted pilots have no pilot row, so they
+     are never looked at. Synchronous: the caller writes in the same turn (nothing else runs). */
+  fPlan(cfg, limit) {
+    const have = new Set();
+    let after = null;
+    for (;;) {
+      let rows = [];
+      try { rows = this.db.rowsById("fnd", after, null, V2_SCAN_PAGE); } catch (e) { break; }
+      for (const r of rows) have.add(r.id);
+      if (rows.length < V2_SCAN_PAGE) break;
+      after = rows[rows.length - 1].id;
+    }
+    const take = [], skipped = [];
+    let cur = cfg.cur, done = false, full = cfg.given >= FOUNDING_CAP;
+    if (!full) scan: for (;;) {
+      const rows = this.db.pilotPage(cur, V2_SCAN_PAGE);
+      for (const r of rows) {
+        if (cfg.given + take.length >= FOUNDING_CAP) { full = true; break scan; }
+        if (take.length >= limit) break scan;
+        cur = r.seq;
+        const why = have.has(r.id) ? "already a Founding Pilot" : r.rs || ownGet(this.o.restricted, r.pid) ? "restricted" : ownGet(cfg.excl, r.pid) ? "on your exclusion list" : "";
+        if (why) skipped.push({ tag: r.tag, name: r.dname, why });
+        else take.push({ id: r.id, tag: r.tag, name: r.dname, n: cfg.given + take.length + 1 });
+      }
+      if (rows.length < V2_SCAN_PAGE) { done = true; break; }
+    }
+    if (full) done = true;
+    return { take, skipped, cur, done, full };
+  }
+  fShow(list) { return list.map((x) => ({ n: x.n, name: x.name, tag: x.tag })); }
+  async fStatus() { await this.fLoad(); return json({ ok: true, ...this.fState(this.fCfg()) }); }
+  async fDryRun() {
+    await this.fLoad();
+    const cfg = this.fCfg(), p = this.fPlan(cfg, FOUNDING_CAP), t = p.take;
+    return json({ ok: true, dryRun: true, wroteNothing: true, ...this.fState(cfg), wouldNumber: t.length,
+      from: t.length ? t[0].n : null, to: t.length ? t[t.length - 1].n : null,
+      first: this.fShow(t.slice(0, 5)), last: this.fShow(t.length > 5 ? t.slice(-5) : []),
+      excludedCount: p.skipped.length, skipped: p.skipped.slice(0, FOUNDING_LIST_SHOWN),
+      rowsWouldWrite: t.length + 2, leftAfter: Math.max(0, FOUNDING_CAP - cfg.given - t.length), confirm: FOUNDING_CONFIRM });
+  }
+  async fSwitch(request) {
+    const b = (await request.json().catch(() => null)) || {};
+    await this.fLoad();
+    const cfg = this.fCfg(), now = Date.now();   // from here on, nothing awaits until the write
+    if (!b.on) {
+      if (!cfg.on) return json({ ok: true, changed: false, numbered: 0, rowsWritten: 0, ...this.fState(cfg) });
+      return this.fWrite({ ...cfg, on: false, offAt: now, log: this.fLogged(cfg, now, "switched OFF") }, [], now);
+    }
+    const next = cfg.on ? cfg : { ...cfg, on: true, onAt: now, log: this.fLogged(cfg, now, "switched ON") };
+    return this.fNumber(next, b.limit, now);
+  }
+  async fContinue(request) {
+    const b = (await request.json().catch(() => null)) || {};
+    await this.fLoad();
+    const cfg = this.fCfg();
+    if (!cfg.on) return json({ error: "The Founding Pilot offer is OFF." }, 409);
+    return this.fNumber(cfg, b.limit, Date.now());
+  }
+  fNumber(cfg, limit, now) {
+    const p = this.fPlan(cfg, clampInt(String(limit == null ? "" : limit), 1, FOUNDING_CAP, FOUNDING_CAP));
+    const next = { ...cfg, given: cfg.given + p.take.length, cur: p.cur, done: p.done };
+    if (p.take.length) next.log = this.fLogged(next, now, "numbered #" + (cfg.given + 1) + " to #" + next.given + " (" + p.take.length + " pilots)");
+    return this.fWrite(next, p.take, now, p);
+  }
+  /* ONE transaction: a grant row per pilot + the summary row; the settings value in the same turn. */
+  async fWrite(next, take, now, plan) {
+    const o = this.o, sum = structuredClone(this.sum), u = o.sqlUse || { written: 0 }, w0 = u.written;
+    sum.fo = foOf(next);
+    this.db.tx(() => {
+      this.db.fndEnsure();
+      for (const x of take) this.db.kvPut("fnd", x.id, v2enc({ n: x.n, at: now, src: FOUNDING_SRC }));
+      this.saveSum(sum, true);
+    });
+    const stored = next;
+    const saving = o.state.storage.put(FOUNDING_KEY, stored);
+    o.fcfg = stored; this.sum = sum;
+    if (take.length) this.dropCaches();
+    await saving;
+    return json({ ok: true, changed: true, numbered: take.length, first: this.fShow(take.slice(0, 5)), last: this.fShow(take.length > 5 ? take.slice(-5) : []),
+      skippedCount: plan ? plan.skipped.length : 0, more: !!(next.on && !next.done), rowsWritten: u.written - w0 + 1, ...this.fState(next) });
+  }
+  fTagOf(b) { return String((b && b.tag) || "").toUpperCase().replace(/^.*#/, "").replace(/[^0-9A-Z]/g, ""); }
+  async fExclude(request) {
+    const b = (await request.json().catch(() => null)) || {};
+    const t = this.fTagOf(b);
+    if (t.length < 4 || t.length > 12) return json({ error: "Type the pilot's #TAG as the leaderboard shows it, e.g. #K7Q2MX8." }, 400);
+    await this.fLoad();
+    const o = this.o, cfg = this.fCfg(), now = Date.now(), excl = { ...cfg.excl };
+    let note = "", event;
+    if (b.remove) {
+      const pids = Object.keys(excl).filter((pid) => tagFromPid(pid, 12).startsWith(t));
+      if (!pids.length) return json({ error: "#" + t + " is not on the exclusion list." }, 404);
+      for (const pid of pids) delete excl[pid];
+      event = "#" + t + " removed from the exclusion list";
+    } else {
+      const rows = this.db.pilotsT12(t, t + "~");
+      if (!rows.length) return json({ error: "No pilot has the tag #" + t + "." }, 404);
+      if (rows.length > 1) return json({ error: "Several pilots start with #" + t + ". Type more of the tag (FIND A PLAYER shows the longer one)." }, 409);
+      const r = rows[0];
+      if (!ownGet(excl, r.pid) && Object.keys(excl).length >= FOUNDING_EXCL_MAX) return json({ error: "The exclusion list is full (" + FOUNDING_EXCL_MAX + ")." }, 409);
+      excl[r.pid] = { tag: r.tag, name: r.dname, at: now };
+      const f = this.db.fndMany([r.id]).get(r.id);
+      if (f && !f.off) note = r.dname + " #" + r.tag + " is already Founding Pilot #" + f.n + ". Excluding stops nothing already given; use TAKE BACK to remove it.";
+      event = "#" + r.tag + " added to the exclusion list";
+    }
+    const stored = { ...cfg, excl, log: this.fLogged(cfg, now, event) };
+    const saving = o.state.storage.put(FOUNDING_KEY, stored);
+    o.fcfg = stored;
+    await saving;
+    return json({ ok: true, note, ...this.fState(this.fCfg()) });
+  }
+  /* The owner's explicit action: the grant is marked taken back (Solar Inferno goes with it,
+     unless bought); the number is never given again. */
+  async fTakeBack(request) {
+    const b = (await request.json().catch(() => null)) || {};
+    const t = this.fTagOf(b);
+    if (t.length < 4 || t.length > 12) return json({ error: "Type the pilot's #TAG." }, 400);
+    if (String(b.confirm || "").trim() !== "TAKE BACK #" + t) return json({ error: "To take the number back, type exactly: TAKE BACK #" + t }, 400);
+    await this.fLoad();
+    const rows = this.db.pilotsT12(t, t + "~");
+    if (rows.length !== 1) return json({ error: rows.length ? "Several pilots start with #" + t + ". Type more of the tag." : "No pilot has the tag #" + t + "." }, rows.length ? 409 : 404);
+    const r = rows[0], f = this.db.fndMany([r.id]).get(r.id);
+    if (!f || f.off) return json({ error: r.dname + " #" + r.tag + " is not a Founding Pilot." }, 404);
+    const o = this.o, cfg = this.fCfg(), now = Date.now();
+    this.db.kvPut("fnd", r.id, v2enc({ ...f, off: now }));
+    const stored = { ...cfg, log: this.fLogged(cfg, now, "#" + f.n + " taken back from #" + r.tag) };
+    const saving = o.state.storage.put(FOUNDING_KEY, stored);
+    o.fcfg = stored; this.dropCaches();
+    await saving;
+    return json({ ok: true, takenBack: f.n, ...this.fState(this.fCfg()) });
+  }
 
   /* ---- routes (same answers as the old layout) ---- */
   fetch(request, url) {
@@ -5183,8 +5469,8 @@ class PilotLayoutV2 {
     const route = {
       "/leaderboard": () => this.leaderboard(url),
       "/submit": () => this.submit(request),
-      "/entitlements": () => this.entitlements(url),
-      "/restore-check": () => this.restoreCheck(request),
+      "/entitlements": () => this.entitlements(url, true),
+      "/restore-check": () => this.restoreCheck(request, true),
       "/grant": () => this.grant(request),
       "/revoke": () => this.revoke(request),
       "/import": () => this.importRecords(request),
@@ -5205,6 +5491,12 @@ class PilotLayoutV2 {
       "/world-grid-apply": () => o.handleWorldGridApply(request),
       "/world-grid-check": () => o.handleWorldGridCheck(),
       "/world-grid-revert": () => o.handleWorldGridRevert(request),
+      "/founding-status": () => this.fStatus(),                  // FOUNDING PILOT (admin)
+      "/founding-dry-run": () => this.fDryRun(),                 //   writes nothing
+      "/founding-switch": () => this.fSwitch(request),
+      "/founding-continue": () => this.fContinue(request),
+      "/founding-exclude": () => this.fExclude(request),
+      "/founding-take-back": () => this.fTakeBack(request),
       "/backup-dump": () => json({ error: "The leaderboard uses the new layout; it is backed up page by page.", paged: true, layout: "v2" }, 409),
       "/backup-restore": () => o.handleBackupRestore(request),
     }[url.pathname];
@@ -5215,15 +5507,17 @@ class PilotLayoutV2 {
     const limit = clampInt(url.searchParams.get("limit"), 1, 100, 25);
     const difficulty = VALID_DIFFICULTIES.has(url.searchParams.get("difficulty")) ? url.searchParams.get("difficulty") : null;
     const top = this.board(difficulty || "all").slice(0, limit).map((x) => ({
-      pid: x.pid, tag: x.tag, name: x.name, country: x.country, score: x.score, points: x.points, level: x.level, difficulty: x.difficulty,
+      pid: x.pid, tag: x.tag, name: x.name, country: x.country, score: x.score, points: x.points, level: x.level, difficulty: x.difficulty, ...(x.fp ? { fp: 1 } : {}),
     }));
     const countries = this.countryList();
     const out = { top, countries, leadingCountry: countries[0] || null, difficulty, weighted: !difficulty, weights: { ...DIFF_WEIGHT } };
+    const left = this.foundingLeft();
+    if (left != null) out.foundingLeft = left;   // FOUNDING PILOT: spots left while the offer is ON (absent = OFF)
     if (this.comb) { out.combined = true; out.gridCombined = true; }   // COMBINED WORLD GRID: the game and the gateway say so (absent = Season 1 only, as before)
     if (url.searchParams.get("boards") === "1") {   // LEADERBOARD REFRESH: the three boards in the same response
       out.boards = {}; out.totals = {};
       for (const d of VALID_DIFFICULTIES) {
-        out.boards[d] = this.board(d).slice(0, limit).map((x) => ({ pid: x.pid, tag: x.tag, name: x.name, country: x.country, score: x.score, points: x.points, level: x.level, difficulty: x.difficulty }));
+        out.boards[d] = this.board(d).slice(0, limit).map((x) => ({ pid: x.pid, tag: x.tag, name: x.name, country: x.country, score: x.score, points: x.points, level: x.level, difficulty: x.difficulty, ...(x.fp ? { fp: 1 } : {}) }));
         out.totals[d] = (this.sum.bc || {})[d] || 0;
       }
     }
@@ -5239,7 +5533,7 @@ class PilotLayoutV2 {
       if (rows.length < V2_SCAN_PAGE) break;
       after = rows[rows.length - 1].id;
     }
-    return json({ ok: true, flags: pruneFlags(o.flags, now).length, restrictedCount: Object.keys(o.restricted).length, purchasesToday, worldGrid: o.worldGridState() });
+    return json({ ok: true, flags: pruneFlags(o.flags, now).length, restrictedCount: Object.keys(o.restricted).length, purchasesToday, worldGrid: o.worldGridState(), founding: this.foundingInfo() });
   }
 
   async submit(request) {
@@ -5267,11 +5561,19 @@ class PilotLayoutV2 {
     if (isNewBest) record.bests[difficulty] = { score, level, updatedAt: now };
     const flag = this.maybeFlag(pid, playerId, name, difficulty, score, prevBest, now);
     const nextFlags = flag ? pruneFlags([...o.flags.filter((f) => f.id !== flag.id), flag], now) : o.flags;
+    // FOUNDING PILOT: a NEW pilot gets the next number while the offer is ON, every earlier pilot was
+    // looked at (done) and spots remain -- in the same transaction as the pilot row (no await from here).
+    const fo = this.sum.fo, fHave = fo && fo.given ? this.db.fndMany([playerId]).get(playerId) : undefined;
+    const fnum = !row && fo && fo.on && fo.done && fo.given < FOUNDING_CAP && !cooled && !fHave && !ownGet(o.restricted, pid) && !ownGet((o.fcfg || {}).excl, pid) ? fo.given + 1 : 0;
     const sum = structuredClone(this.sum);
     let res;
     this.db.tx(() => {
       res = this.putPilot(sum, row, record, playerId, pid, v2enc(now));
       if (cooled) this.db.kvDel("cool", playerId);
+      if (fnum) {
+        this.db.kvPut("fnd", playerId, v2enc({ n: fnum, at: now, src: FOUNDING_SRC }));
+        sum.fo = { ...sum.fo, given: fnum, cur: Math.max(sum.fo.cur, res.cur.seq) };
+      }
       this.saveSum(sum);
     });
     const kv = {};
@@ -5281,10 +5583,11 @@ class PilotLayoutV2 {
     this.commit(sum, playerId, res);
     if (saving) await saving;
     o.flags = nextFlags;
-    return this.submitReply(res.cur, pid, difficulty, isNewBest, false, score);
+    const fn = fnum || (fHave && !fHave.off ? fHave.n : 0);
+    return this.submitReply(res.cur, pid, difficulty, isNewBest, false, score, fn ? { founding: fn } : null);   // FOUNDING PILOT: the badge / the one-time message at the run's end
   }
   /* The same reply shape as the old layout's submitReply (LEADERBOARD REFRESH standing included). */
-  submitReply(row, pid, difficulty, isNewBest, duplicate, score) {
+  submitReply(row, pid, difficulty, isNewBest, duplicate, score, extra) {
     const rec = v2dec(row.rec), restricted = !!ownGet(this.o.restricted, pid);
     const st = restricted ? null : this.standing(difficulty, row);
     const b = ownGet(rec.bests, difficulty);
@@ -5296,6 +5599,7 @@ class PilotLayoutV2 {
       ...(st ? { total: st.total, countryRank: st.countryRank, countryTotal: st.countryTotal, above: st.above } : {}),
       tag: row.tag,
       ...(duplicate ? { duplicate: true } : {}),
+      ...(extra || {}),
     });
   }
   maybeFlag(pid, playerId, name, difficulty, score, prevBest, now) {
@@ -5309,14 +5613,16 @@ class PilotLayoutV2 {
     return { id: pid + ":" + difficulty, pid, name: cleanName(name), difficulty, score, prevBest, boardTop, reason, at: now };
   }
 
-  async restoreCheck(request) {
+  async restoreCheck(request, pub) {
     let body = null;
     try { body = await request.json(); } catch (e) {}
     const playerId = body && typeof body.playerId === "string" ? body.playerId : "";
     if (!validPlayerId(playerId)) return json({ error: "Missing or invalid playerId" }, 400);
     const row = this.db.pilot(playerId), rec = row ? v2dec(row.rec) : null;
     const owned = this.ents(playerId);
-    const skus = Array.isArray(owned) ? owned.filter((s) => VALID_SKUS.has(s)) : [];
+    let skus = Array.isArray(owned) ? owned.filter((s) => VALID_SKUS.has(s)) : [];
+    const fnd = pub ? this.fndActive(playerId) : null;   // FOUNDING PILOT: a restore code brings Solar Inferno back like a purchase
+    if (fnd && !skus.includes("solar")) skus = skus.concat(["solar"]);
     if (!rec && !skus.length) return json({ found: false });
     const bests = {};
     if (rec) for (const d of VALID_DIFFICULTIES) {
@@ -5330,11 +5636,18 @@ class PilotLayoutV2 {
       country: rec && ISO2.test(String(rec.country || "")) ? rec.country : "",
       bests,
       skus,
+      ...(fnd ? { founding: fnd.n } : {}),
     });
   }
-  entitlements(url) {
+  /* pub: the game's own request (FOUNDING PILOT added); without it (or with paid=1) only the
+     Stripe purchases -- what the admin purchase tools and the storage checks compare. */
+  entitlements(url, pub) {
     const playerId = url.searchParams.get("playerId") || "";
-    return json({ playerId, skus: this.ents(playerId) || [] });
+    const skus = this.ents(playerId) || [];
+    if (!pub || url.searchParams.get("paid") === "1") return json({ playerId, skus });
+    const fnd = this.fndActive(playerId), left = this.foundingLeft();
+    return json({ playerId, skus: fnd && !skus.includes("solar") ? skus.concat(["solar"]) : skus,
+      ...(fnd ? { founding: fnd.n } : {}), ...(left != null ? { foundingLeft: left } : {}) });
   }
   async grant(request) {
     const o = this.o, { playerId, sku, sessionId, force } = await request.json();
@@ -5411,7 +5724,13 @@ class PilotLayoutV2 {
     if (both) for (const row of this.db.pilotsT12(both[2], both[2] + "~")) test(row);   // "NAME #TAG": the tag index, a few rows
     else this.scanPilots(test);                                                          // anything else: every pilot is read once
     matches.sort((a, b) => (bestOf({ bests: b.bests }) || { score: 0 }).score - (bestOf({ bests: a.bests }) || { score: 0 }).score);
-    return json({ ok: true, matches: matches.slice(0, 25) });
+    const shown = matches.slice(0, 25);
+    if (this.sum.fo && this.sum.fo.given && shown.length) {   // FOUNDING PILOT: the number beside the pilot (admin only)
+      const ids = new Map(); for (const v of shown) { const r = this.pilotByPid(v.pid); if (r) ids.set(v.pid, r.id); }
+      const f = this.db.fndMany([...ids.values()]);
+      for (const v of shown) { const x = f.get(ids.get(v.pid)); if (x) v.founding = { n: x.n, takenBack: !!x.off }; }
+    }
+    return json({ ok: true, matches: shown });
   }
   async removeScore(request) {
     const o = this.o, { pid } = await request.json();
@@ -5460,17 +5779,21 @@ class PilotLayoutV2 {
     const nextLog = o.restoreLog.map((e) => (e.pid === pid ? { at: e.at, pid: e.pid, tag: e.tag, name: "", reason: "(erased on privacy request)" } : e));
     await o.eraseFromSeasonArchive(id);                        // SEASON 1: the archived Season 0 scores go too
     const old = await o.v1ValuesWithout(id, !!removePurchases);   // and the old layout's values, kept until CLEAN UP
+    await this.fLoad();
+    const fc = o.fcfg && o.fcfg.excl && ownGet(o.fcfg.excl, pid) ? { ...o.fcfg, excl: dropKey(o.fcfg.excl, pid) } : null;   // FOUNDING PILOT: off the exclusion list
     if ((await o.state.storage.get("runs:" + pid)) !== undefined) await o.state.storage.delete("runs:" + pid);   // REPLAY PROTECTION: accepted run ids go too
     const sum = structuredClone(this.sum);
     this.db.tx(() => {
       if (row) this.dropPilot(sum, row);
       this.db.kvDel("cool", id);
-      if (removePurchases) this.db.kvDel("ents", id);
+      if (removePurchases) { this.db.kvDel("ents", id); try { this.db.kvDel("fnd", id); } catch (e) { /* no table */ } }   // FOUNDING PILOT: goes with the purchases (the number is not reused)
       this.saveSum(sum);
     });
     const saving = o.state.storage.put({ flags: nextFlags, restoreLog: nextLog, ...old });
+    const fSaving = fc ? o.state.storage.put(FOUNDING_KEY, fc) : null;   // same turn: written together
     this.sum = sum; this.dropCaches();
-    await saving;
+    if (fc) o.fcfg = fc;
+    await saving; if (fSaving) await fSaving;
     o.flags = nextFlags; o.restoreLog = nextLog; o.twin = null;
     await o.migTouched(pid);
     return json({ ok: true, purchasesRemoved, restrictionKept: !!ownGet(o.restricted, pid) });
@@ -5684,6 +6007,8 @@ async function v2EraseKv(entries, pid, ids, removePurchases) {
     });
     if (hit) { touched = true; cur = cur.map(([k, v]) => (k === SEASON_ARCHIVE_KEY ? [k, { ...v, players: Math.max(0, v.players - removed), scores: Math.max(0, (v.scores || 0) - lost) }] : [k, v])); }
   }
+  const fk = cur.findIndex(([k]) => k === FOUNDING_KEY), fv = fk >= 0 ? cur[fk][1] : null;   // FOUNDING PILOT: off the exclusion list too
+  if (fv && fv.excl && ownGet(fv.excl, pid)) { cur = cur.slice(); cur[fk] = [FOUNDING_KEY, { ...fv, excl: dropKey(fv.excl, pid) }]; touched = true; }
   if (!touched) return null;
   if (layout) cur = cur.concat([layout]).sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
   return cur;
