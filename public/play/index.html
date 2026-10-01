@@ -1317,7 +1317,7 @@ function registerMiss(){
  }
  resetFieldAfterMiss();
  // Restart the orb from a calm launch point.
- ball.x=paddle.x;ball.y=paddle.y-28;ball.vx=rand(-3.4,3.4);ball.vy=-launchSpeed(Math.max(6.0,6.0+level*.12)*DIFFICULTY[difficulty].speed);ball.trail=[];
+ ballTouched();ball.x=paddle.x;ball.y=paddle.y-28;ball.vx=rand(-3.4,3.4);ball.vy=-launchSpeed(Math.max(6.0,6.0+level*.12)*DIFFICULTY[difficulty].speed);ball.trail=[];
  updateHud();
 }
 // One free revive per run: watch a rewarded ad, get one miss back, keep playing.
@@ -1333,7 +1333,7 @@ function offerRevive(){
  const grantRevive=()=>{
    revivesUsedThisRun++;misses=2;missNotice=0;paused=false;last=performance.now();
    resetFieldAfterMiss();
-   ball.x=paddle.x;ball.y=paddle.y-28;ball.vx=rand(-3.4,3.4);ball.vy=-launchSpeed(Math.max(6.0,6.0+level*.12)*DIFFICULTY[difficulty].speed);ball.trail=[];
+   ballTouched();ball.x=paddle.x;ball.y=paddle.y-28;ball.vx=rand(-3.4,3.4);ball.vy=-launchSpeed(Math.max(6.0,6.0+level*.12)*DIFFICULTY[difficulty].speed);ball.trail=[];
    updateHud();popup(W/2,H*.4,'REVIVED','#62eaff');burst(W/2,H*.4,'#62eaff',24);
  };
  const d=document.createElement('div');
@@ -1687,6 +1687,7 @@ function tickSpeed(dt){
   if(speedShown<speedStep) speedShown=Math.min(speedStep,speedShown+dt/SPEED_RAMP_S);   // the new speed arrives over ~1 s
   if(lostBallHold>0) lostBallHold=Math.max(0,lostBallHold-dt);
   if(recoverLeft>0) recoverLeft=Math.max(0,recoverLeft-dt);
+  if(ballStalled()) return;   // BALL NEVER STALLS: no run time, no SPEED UP while the ball touches nothing
   if(speedCountdown>0){
     if(missNotice>0) return;   // a miss notice has the slot: the count waits so it is always seen
     speedCountdown-=dt;
@@ -1700,6 +1701,36 @@ function tickSpeed(dt){
   if(speedDue()) startSpeedCountdown();
 }
 function slowToSpeedHelp(dt){ const k=speedHelp(); if(k===1 || !ball) return; const n=normalMaxSpeed(), lim=n*k, sp=Math.hypot(ball.vx,ball.vy); if(sp>lim && sp<=n+1e-9){ const nsp=Math.max(lim,sp-n*2.2*dt); ball.vx*=nsp/sp; ball.vy*=nsp/sp; } }
+/* BALL NEVER STALLS (owner, Hard + Solar Inferno: the ball skimmed wall to wall above the
+   orbs for ~36 s while SPEED UP kept firing). Three guards:
+   - the ball never travels flatter than BALL_MIN_ANGLE from horizontal, after any bounce
+     (walls, ceiling, orbs, a grown orb's burst). Speed is kept; a paddle shot is never that
+     flat (its widest angle is ~30 deg), so normal play is unchanged;
+   - after BALL_STEER_S without touching the paddle or an orb, the ball is turned gently
+     toward the paddle, only until it is heading down at 45 deg (a nudge, not a homing shot);
+   - from BALL_PAUSE_S without a touch, the run clock and a SPEED UP count stop. */
+const BALL_MIN_ANGLE=27*Math.PI/180, BALL_STEER_S=5, BALL_PAUSE_S=3, BALL_STEER_RATE=2.5;
+let ballIdle=0;   // seconds since the ball last touched the paddle or an orb
+function ballTouched(){ ballIdle=0; }
+function ballStalled(){ return ballIdle>=BALL_PAUSE_S; }
+function keepBallAngle(){
+  const sp=Math.hypot(ball.vx,ball.vy); if(sp<1e-6) return;
+  const minVy=sp*Math.sin(BALL_MIN_ANGLE);
+  if(Math.abs(ball.vy)>=minVy) return;
+  const down=ball.vy>0 || Math.abs(ball.vy)<1e-9;   // flat: send it down
+  ball.vy=(down?1:-1)*minVy;
+  ball.vx=(ball.vx<0?-1:1)*sp*Math.cos(BALL_MIN_ANGLE);
+}
+function steerStalledBall(dt){
+  ballIdle+=dt;
+  if(ballIdle<BALL_STEER_S) return;
+  const sp=Math.hypot(ball.vx,ball.vy); if(sp<1e-6) return;
+  if(ball.vy>0 && ball.vy/sp>=Math.SQRT1_2) return;   // already heading down at 45 deg or steeper
+  const a=Math.atan2(ball.vy,ball.vx), b=Math.atan2(paddle.y-ball.y,paddle.x-ball.x);
+  let d=b-a; while(d>Math.PI) d-=2*Math.PI; while(d<-Math.PI) d+=2*Math.PI;
+  const step=Math.max(-BALL_STEER_RATE*dt,Math.min(BALL_STEER_RATE*dt,d)), n=a+step;
+  ball.vx=Math.cos(n)*sp; ball.vy=Math.sin(n)*sp;
+}
 function update(dt){
  if(levelBanner>0) levelBanner=Math.max(0,levelBanner-dt);
  if(colorHintLeft>0) colorHintLeft=Math.max(0,colorHintLeft-dt);
@@ -1760,6 +1791,7 @@ function update(dt){
  // matching orb behind a wrong-color one is never silently skipped.
  for(const t of [...targets]){
    if(dist(ball,t)<ball.r+t.r){
+     ballTouched();
      if(t.bonus){popBonus(t);continue}
      if(t.growing && t.matured){burstGrowing(t,maxSpeed);continue}
      if(t.color===ball.color){fuse(t)}
@@ -1795,7 +1827,7 @@ function update(dt){
  // paddle collision: angle determined by hit position
  if(ball.vy>0 && ball.y+ball.r>=paddle.y-paddle.h/2 && ball.y<paddle.y+18 &&
     ball.x>paddle.x-paddle.w/2-ball.r-catchMargin() && ball.x<paddle.x+paddle.w/2+ball.r+catchMargin()){   // catchMargin() is 0 except a player's first 3 runs
-   ball.y=paddle.y-paddle.h/2-ball.r;
+   ball.y=paddle.y-paddle.h/2-ball.r; ballTouched();
    const marginCatch=Math.abs(ball.x-paddle.x)>paddle.w/2+ball.r;   // GENEROUS CATCH: saved by the margin -- no points, never perfect
    const hit=clampCatchHit((ball.x-paddle.x)/(paddle.w/2));
    const speed=Math.min(maxSpeed,Math.max(7*DIFFICULTY[difficulty].speed,Math.hypot(ball.vx,ball.vy)*1.035));
@@ -1819,7 +1851,8 @@ function update(dt){
    if(targets.length<targetCap())spawnTarget();
    updateHud();
  }
- if(ball.y-ball.r>H){registerMiss();if(!playing)return;ball.x=paddle.x;ball.y=paddle.y-28;ball.vx=rand(-3.8,3.8);ball.vy=-launchSpeed(Math.max(6.2,6.0+level*.15)*DIFFICULTY[difficulty].speed);ball.trail=[];}
+ steerStalledBall(dt); keepBallAngle();   // BALL NEVER STALLS
+ if(ball.y-ball.r>H){registerMiss();ballTouched();if(!playing)return;ball.x=paddle.x;ball.y=paddle.y-28;ball.vx=rand(-3.8,3.8);ball.vy=-launchSpeed(Math.max(6.2,6.0+level*.15)*DIFFICULTY[difficulty].speed);ball.trail=[];}
  // particles
  particles.forEach(p=>{p.x+=p.vx*dt*60;p.y+=p.vy*dt*60;p.vy+=.08*dt*60;p.life-=dt*1.8});particles=particles.filter(p=>p.life>0);
  texts.forEach(t=>{t.y-=.6*dt*60;t.life-=dt});texts=texts.filter(t=>t.life>0);
