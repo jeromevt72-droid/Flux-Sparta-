@@ -306,7 +306,7 @@ async function suite({ workerMod, adminHtml, quiet = false }) {
     ck('R8 the REMOVE PILOTS panel sits under FIND A PLAYER: lines, DRY RUN, phrase, REMOVE NOW, undo note via backup',
       /<h2>REMOVE PILOTS<\/h2>/.test(sec) && /id="rpLines"/.test(sec) && /id="rpDry"/.test(sec) && /id="rpConfirm"/.test(sec) && /id="rpRemove" class="danger" disabled/.test(sec)
       && /no un-remove/.test(sec) && /DRY RUN<\/b> → <b>RESTORE NOW/.test(sec));
-    ck('R8 a missing backup offers BACK UP NOW right there; a changed pilot asks for a new dry run', /if \(o\.data\.needBackup\) \{[\s\S]{0,200}btn\('BACK UP NOW', 'go'[\s\S]{0,120}call\('backup-now'\)/.test(A) && /if \(o\.data\.changed\)/.test(A));
+    ck('R8 a missing backup offers BACK UP NOW right there; a changed pilot asks for a new dry run', /if \(o\.data\.needBackup === true\) \{[\s\S]{0,260}btn\('BACK UP NOW', 'go'[\s\S]{0,120}call\('backup-now'\)/.test(A) && /if \(o\.data\.changed\)/.test(A));
     const guide = adminHtml.slice(adminHtml.indexOf('<details id="guide"'));
     ck('R8 guide: "Removing test pilots: REMOVE PILOTS" (backup first, exact name + #TAG, check, undo via backup)',
       /<h3>Removing test pilots: REMOVE PILOTS<\/h3>/.test(guide) && /Back up first/.test(guide) && /TITAN #QGAC1ZN/.test(guide) && /TITAN #KH2K8J7/.test(guide) && /PASS/.test(guide) && /RESTORE NOW/.test(guide));
@@ -349,6 +349,7 @@ await control('REMOVE SCORE leaves the wg0 row (as before this change)', 'R6 REM
 await control('no admin password on the routes', 'R7 auth', { worker: rep('async function adminRemovePilots(request, env, real) {\n  const denied = requireAdmin(request, env); if (denied) return denied;', 'async function adminRemovePilots(request, env, real) {\n  const denied = null;') });
 await control('page: REMOVE NOW enabled before the phrase is exact', 'R8 page: REMOVE NOW stays disabled', { admin: rep("$('rpConfirm').oninput = function () { $('rpRemove').disabled = !rpDry || $('rpConfirm').value !== rpDry.confirm; };", "$('rpConfirm').oninput = function () { $('rpRemove').disabled = !rpDry; };") });
 await control('page: an event listener instead of a property handler', 'R8 addEventListener', { admin: rep("$('rpDry').onclick = guard(rpDryRun);", "$('rpDry').addEventListener('click', guard(rpDryRun));") });
+await control('page: no BACK UP NOW offer when the backup is missing', 'R8 a missing backup', { admin: rep('if (o.data.needBackup === true) {', 'if (false) {') });
 await control('page: undo note dropped', 'R8 the REMOVE PILOTS panel', { admin: rep('<p class="note"><b>Undo:</b> there is no un-remove.', '<p class="note">') });
 
 console.log(main.F || NC ? '\nFAILED: ' + main.F + ' check(s), ' + NC + ' control(s) not caught' : '\nALL PASS (remove pilots) + every negative control caught');

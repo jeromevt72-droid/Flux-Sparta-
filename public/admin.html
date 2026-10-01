@@ -1088,7 +1088,7 @@
       var o = await post('remove-pilots', { lines: rpDry.lines, id: rpDry.id, confirm: $('rpConfirm').value });
       if (o.status === 401) { sessionEnded(); throw new Error('Your session ended. Log in again — what you typed is kept.'); }
       res.textContent = ''; b.textContent = 'REMOVE NOW'; b.disabled = $('rpConfirm').value !== (rpDry && rpDry.confirm);
-      if (o.data.needBackup) {
+      if (o.data.needBackup === true) {   // REMOVE PILOTS: same offer as WORLD GRID
         res.appendChild(el('p', 'note err', o.data.error));
         res.appendChild(btn('BACK UP NOW', 'go', function () { var bb = this; act(bb, 'BACKING UP…', async function () {
           var k = await call('backup-now'); bb.remove(); say('Backup ' + k.snapshot.id + ' saved and checked ✓ Press REMOVE NOW again.', 'ok'); }); }));
