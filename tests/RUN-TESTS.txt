@@ -71,3 +71,4 @@ and should not be uploaded to Cloudflare or GitHub.
 
 Every suite must pass before any future FLUX build is accepted.
 D-01 through D-15 are permanent regression entries. Old bugs stay dead.
+node test-ball-stall.mjs           # ball never stalls: min angle, steer after 5 s untouched, no SPEED UP while stalled

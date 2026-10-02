@@ -41,7 +41,7 @@ const GAMEPLAY_TRACE = 'a10f5daa3edb0f02a0c4e0a5';
 const GAMEPLAY_NAMES = ['DIFFICULTY', 'LEVEL_SCORE_THRESHOLDS', 'LEVEL_SCORE_MULT', 'DIFF_WEIGHT', 'SPEED_CURVE', 'SKINS', 'ORB_GAP', 'ORB_OUTLINE', 'RUN_SCORE_CAP',
   'levelScoreAt', 'levelForScore', 'fieldCapAt', 'setPaddle', 'playGameOver', 'haptic', 'newGame', 'addTarget', 'easyPickColour', 'capScore', 'registerMiss',
   'launchSpeed', 'speedAfterLostBall', 'update', 'currentPalette', 'weighted'];
-const GAMEPLAY_SRC = '19517b31288af1844da3ec88';
+const GAMEPLAY_SRC = 'bc7dc982268a2a77e65ac5b8';   // BALL NEVER STALLS (owner-requested fix): update() + tickSpeed() changed; the seeded frame trace below is unchanged
 
 /* ---------------- fake Durable Object runtime (test-season-reset pattern) ---------------- */
 class FakeStorage {

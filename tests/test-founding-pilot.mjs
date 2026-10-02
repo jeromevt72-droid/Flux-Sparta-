@@ -354,6 +354,24 @@ async function suite({ mod, main, game = GAME_HTML, adminHtml = ADMIN_HTML, gate
       ck('FP5 OFF: new pilots get no number; ON again continues with the next one', a1.data.founding === 6 && a2.data.founding === undefined, a1.data.founding + ' / ' + a2.data.founding);
       await T.admin('founding-switch', { on: true, confirm: 'FOUNDING ON' });
       ck('FP5 ...the pilot who joined while OFF is numbered next when ON again (creation order)', (await T.ent('t-new-2')).data.founding === 7, '');
+      /* REMOVE PILOTS (#49): a removed test pilot never takes a spot, even when it plays again (one that played, one imported) */
+      const R = mk(mod, newStorage()); now = T0 + 3e7; await R.seed(1, 5);
+      await R.submit('test-pilot', 400, { name: 'TITAN' }); now += 2 * 60 * 1000;
+      const rLines = ['TITAN #' + tagFromPid(pidHashSync('test-pilot'), 7), 'PILOT2 #' + tagOf(2)];
+      await R.admin('backup-now');
+      const rd = await R.admin('remove-pilots-dry-run', { lines: rLines });
+      const rr = await R.admin('remove-pilots', { lines: rLines, id: rd.data && rd.data.id, confirm: rd.data && rd.data.confirm });
+      await R.admin('backup-now');
+      const rOn = await R.admin('founding-switch', { on: true, confirm: 'FOUNDING ON' });
+      const notNumbered = !fndRows(R.g).some((r) => r.id === 'test-pilot' || r.id === P(2));
+      now += 2 * 60 * 1000; const back1 = await R.submit('test-pilot', 450, { name: 'TITAN' }), back2 = await R.submit(P(2), 460, { name: 'PILOT2' });
+      now += 2 * 60 * 1000; const back3 = await R.submit('test-pilot', 470, { name: 'TITAN' });
+      const eT = await R.ent('test-pilot'), eP = await R.ent(P(2));
+      ck('FP5 pilots removed with REMOVE PILOTS are not numbered at ON, and get no number when they play again (played or imported)',
+        rr.status === 200 && rOn.status === 200 && rOn.data.given === 4 && notNumbered && back1.status === 200 && back2.status === 200 && back3.status === 200 &&
+        [back1, back2, back3].every((x) => x.data.founding === undefined) && eT.data.founding === undefined && eP.data.founding === undefined &&
+        !eT.data.skus.includes('solar') && fndRows(R.g).length === 4,
+        JSON.stringify({ rr: rr.status, on: rOn.data && rOn.data.given, b: [back1, back2, back3].map((x) => x.status + ':' + x.data.founding), fnd: fndRows(R.g).length }));
     }
 
     /* ================= FP9 the game ================= */
@@ -478,6 +496,7 @@ await control('board rows without the badge flag', 'FP8 leaderboard rows carry',
 await control('numbering not atomic (a wait between the plan and the write)', 'FP4 concurrent', ['C'], { worker: rep('  fNumber(cfg, limit, now) {\n    const p = this.fPlan(', '  async fNumber(cfg, limit, now) {\n    await new Promise((r) => setTimeout(r, 2));\n    const p = this.fPlan(') });
 await control('new pilots not numbered', 'FP5 new pilots get the next numbers', ['D'], { worker: rep('const fnum = !row && fo && fo.on', 'const fnum = false && fo && fo.on') });
 await control('new pilots numbered past 1,000', 'FP5 new pilots get the next numbers', ['D'], { worker: rep('fo.done && fo.given < FOUNDING_CAP && !cooled', 'fo.done && !cooled') });
+await control('a removed pilot leaves no cooldown row', 'FP5 pilots removed with REMOVE PILOTS', ['D'], { worker: rep('this.db.kvPut("cool", row.id, row.ls != null ? row.ls : v2enc(0));   // the cooldown is kept (as REMOVE SCORE), always a row', 'if (row.ls != null) this.db.kvPut("cool", row.id, row.ls);') });
 await control('the counter kept outside the summary row (a cold start reads it)', 'FP8 a cold start reads the same rows', ['D'], { worker: rep('    this.v2.init();\n    if (this.v2.foLost) {', '    this.v2.init();\n    if (await st.get(FOUNDING_KEY), this.v2.foLost) {') });
 await control('every run rewrites the settings value', 'FP8 a run by an existing pilot', ['D'], { worker: rep('    const saving = Object.keys(kv).length ? o.state.storage.put(kv) : null;   // same moment', '    if (this.sum.fo) kv[FOUNDING_KEY] = { ...(o.fcfg || {}), ...this.sum.fo };\n    const saving = Object.keys(kv).length ? o.state.storage.put(kv) : null;   // same moment') });
 await control('the message text changed', 'FP9 the one-time message', ['E'], { game: rep("return \"You're Founding Pilot #\"+n+\"! Solar Inferno is yours.\";", "return \"Founding Pilot #\"+n+\"! Solar Inferno is yours.\";") });

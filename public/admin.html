@@ -104,6 +104,9 @@
   .meter{margin:12px 0}.meter .lbl{display:flex;justify-content:space-between;gap:10px;font-size:13px;margin-bottom:6px}
   .meter .lbl span{color:var(--dim)}.meter .bar{height:10px;background:var(--panel2);border:1px solid var(--line);border-radius:99px;overflow:hidden}
   .meter .fill{height:100%;background:var(--cyan);border-radius:99px}.meter.hot .fill{background:var(--pink)}.meter.warm .fill{background:var(--amber)}
+  textarea{width:100%;background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:12px;padding:12px 14px;font:16px/1.5 ui-monospace,Menlo,monospace;outline:none;resize:vertical;margin:0 0 10px}
+  textarea:focus{border-color:var(--cyan)}
+  .rpWarn{background:rgba(255,79,152,.12);border:1px solid var(--pink);color:#ffd1e4;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.5;margin:8px 0}
   .logrow{color:var(--dim);font-size:12px;line-height:1.5;padding:6px 0;border-top:1px solid var(--line);white-space:pre-line}
 </style>
 </head>
@@ -155,6 +158,26 @@
   purchases — and they can post new scores. For repeated abuse, use <b>Restrict</b>: they keep playing,
   but nothing they submit appears publicly. Restrictions follow a player's device identity; if they clear
   their browser data, they return with a new tag.</p>
+
+  <h2>REMOVE PILOTS</h2>
+  <p class="note">Takes test pilots off every board and out of the country totals, several at once, with a check after.
+  One pilot per line: its <b>exact name and full #TAG</b> (for example <b>TITAN #QGAC1ZN</b>). <b>DRY RUN</b> changes nothing and
+  shows what would go. Removing needs a checked backup from the last 60 minutes and the phrase the dry run shows.
+  Purchases are kept. See <b>Removing test pilots: REMOVE PILOTS</b> in the guide.</p>
+  <textarea id="rpLines" rows="4" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Pilots to remove, one NAME #TAG per line" placeholder="TITAN #QGAC1ZN&#10;TESTER #VNXB79C"></textarea>
+  <div class="row"><button id="rpDry" class="go" style="flex:1">DRY RUN</button></div>
+  <div id="rpReport"></div>
+  <div id="rpGo" hidden>
+    <p id="rpAsk" class="note"></p>
+    <div class="row">
+      <input id="rpConfirm" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Type the phrase to remove">
+      <button id="rpRemove" class="danger" disabled>REMOVE NOW</button>
+    </div>
+  </div>
+  <div id="rpResult"></div>
+  <p class="note"><b>Undo:</b> there is no un-remove. Restore the backup taken just before: BACKUPS → <b>SHOW BACKUPS</b> →
+  on that backup (or the safety copy REMOVE NOW made) press <b>DRY RUN</b> → <b>RESTORE NOW</b>. A restore puts everything back
+  as it was at that backup, so do it right away.</p>
 
   <h2>PLAYER STATS</h2>
   <p class="note">Anonymous, counted on our own server. See the guide below for what each number means.</p>
@@ -243,6 +266,35 @@
       <b>RESTORE A DIFFERENT PILOT</b>) and paste the code. Their pilot, scores and skins come back.</li>
     </ol>
 
+    <h3>Removing test pilots (and what to do about a cheater)</h3>
+    <p><b>Remove score</b> takes a pilot off every public board and out of the country totals. It is meant for your own
+    test pilots and mistakes. <b>Restrict</b> is for a suspected cheater: they keep playing, but nothing they submit
+    shows publicly, and you can lift it any time with <b>UNRESTRICT</b>. <b>PRIVACY DELETE</b> is only for a player's
+    deletion request: it erases everything, also from backups, and cannot be undone.</p>
+    <ol>
+      <li><b>Back up first:</b> BACKUPS → <b>BACK UP NOW</b>. Wait for the new backup to show ✓ (verified).</li>
+      <li><b>Note the country total:</b> in the game, LEADERBOARD → <b>WORLD</b>, write down your country's points
+      (the board refreshes about once a minute).</li>
+      <li><b>Find the exact pilot:</b> FIND A PLAYER → type the name <b>and</b> its #TAG, e.g. <code>TITAN #QGAC1ZN</code> →
+      <b>FIND</b>. Check the card shows that exact #TAG. Never act on a card whose #TAG you did not type: pilots can
+      share a name.</li>
+      <li><b>Remove it:</b> on that card press <b>REMOVE SCORE</b>, read the box, press OK. Repeat for each test pilot.</li>
+      <li><b>Check:</b> FIND the same name and #TAG again: it should say nothing was found. After a minute, LEADERBOARD →
+      WORLD: your country's total dropped by that pilot's counted score. Look up your real pilot too and make sure it is
+      still there.</li>
+    </ol>
+    <p><b>Season 0 scores:</b> with the combined World Grid on, a removed pilot's Season 0 bests leave the boards and
+    the country totals too. Don't play on a removed test pilot again: if it posts a new score, its Season 0 bests come
+    back with it.</p>
+    <p><b>Removed the wrong pilot?</b> There is no "un-remove" button. Do this at once: BACKUPS → <b>SHOW BACKUPS</b> →
+    on the backup you took in step 1 press <b>DRY RUN</b> (it changes nothing and lists what a restore would change) →
+    if it only brings that pilot back plus the few minutes since, type the phrase shown (<code>RESTORE …</code>) and
+    press <b>RESTORE NOW</b>. A restore puts back <b>everything</b> as it was at that backup, so scores other players
+    posted since then are lost: that is why you back up right before removing, and restore right away.</p>
+    <p><b>Spotting test pilots:</b> names like TEST, TESTER, QA, ADMIN or your own name with a different #TAG; pilots
+    from your country that played only on the days you were testing; several pilots with the same name. Search the
+    name alone (e.g. <code>TITAN</code>) to see every pilot using it, then decide by #TAG.</p>
+
     <h3>Pilot names</h3>
     <ul>
       <li>Every new pilot starts with a <b>preset name</b> from a safe word list, like SWIFT COMET 42.</li>
@@ -266,6 +318,27 @@
       stats are unchanged. Players who had played before see "Season 1: new point rates on Easy and Medium." once; their phone's old bests are cleared to match.</li>
       <li>A game page left open from before Season 1 cannot post old-rate scores; it is refused until the page reloads.</li>
     </ul>
+
+    <h3>Removing test pilots: REMOVE PILOTS</h3>
+    <ol>
+      <li><b>Back up first:</b> BACKUPS → <b>BACK UP NOW</b>. Wait for the new backup to show ✓ (verified).</li>
+      <li><b>List the exact pilots:</b> under REMOVE PILOTS paste one per line, the name <b>and</b> its full #TAG, e.g.
+      <code>TITAN #QGAC1ZN</code>. A line that is not exactly one pilot (a name alone, part of a #TAG, a name shared by
+      two pilots with the same short #TAG) is refused, never guessed.</li>
+      <li><b>DRY RUN</b> (changes nothing). Check every line says FOUND, the bests and country are the test pilot's, and
+      that your real pilot (e.g. <code>TITAN #KH2K8J7</code>) is <b>not</b> in the report. A pink box means that pilot owns
+      skins: stop and check before going on.</li>
+      <li>Type the phrase shown (<code>REMOVE …</code>) and press <b>REMOVE NOW</b>. If the pilots changed since the dry run,
+      or the backup is older than 60 minutes, nothing is removed and it says what to do.</li>
+      <li><b>Check:</b> the post-check must say <b>PASS</b> on every line: each removed pilot not found, Season 0 bests gone,
+      purchases kept, country totals equal a full recount, every other pilot unchanged. FIND your real pilot to see it
+      is still there.</li>
+    </ol>
+    <p>Removed pilots lose their Season 0 bests too, so they can't come back if that device plays again (it starts again
+    from zero). Purchases and the upload cooldown are kept, as with REMOVE SCORE.</p>
+    <p><b>Removed the wrong pilot?</b> There is no "un-remove". At once: BACKUPS → <b>SHOW BACKUPS</b> → on the backup you
+    took in step 1 (or the safety copy REMOVE NOW made) press <b>DRY RUN</b> → type the phrase shown (<code>RESTORE …</code>)
+    → <b>RESTORE NOW</b>. Scores posted after that backup are lost, so restore right away.</p>
 
     <h3>Backups and restore</h3>
     <ul>
@@ -505,9 +578,10 @@
     b.disabled = false;
   }
   function wipe() {
-    ['summary', 'usage', 'exceptions', 'results', 'stats', 'season0', 'purchases', 'bans', 'wgState', 'wgReport', 'fpState', 'fpReport', 'fpExcl'].forEach(function (id) { $(id).textContent = ''; });
+    ['summary', 'usage', 'exceptions', 'results', 'stats', 'season0', 'purchases', 'bans', 'wgState', 'wgReport', 'rpReport', 'rpResult', 'fpState', 'fpReport', 'fpExcl'].forEach(function (id) { $(id).textContent = ''; });
     $('usageAlert').classList.add('hidden');
-    ['q', 'pq', 'banName', 'fpConfirm', 'fpTag'].forEach(function (id) { $(id).value = ''; });
+    ['q', 'pq', 'banName', 'rpLines', 'rpConfirm', 'fpConfirm', 'fpTag'].forEach(function (id) { $(id).value = ''; });
+    rpDry = null; $('rpGo').hidden = true;
     say('');
   }
   async function logout() {
@@ -1041,6 +1115,74 @@
       row.appendChild(document.createTextNode(' ' + k.label + ' — ' + k.detail)); box.appendChild(row);
     });
   }
+  /* ---------------- REMOVE PILOTS ---------------- */
+  var rpDry = null;
+  function rpLinesNow() { return $('rpLines').value.split('\n').map(function (x) { return x.trim(); }).filter(Boolean); }
+  function rpBests(b) { var k = Object.keys(b || {}); return k.length ? k.map(function (d) { return d + ' ' + fmt(b[d].score); }).join(', ') : 'none'; }
+  function rpReset() { rpDry = null; $('rpGo').hidden = true; $('rpConfirm').value = ''; $('rpRemove').disabled = true; $('rpResult').textContent = ''; }
+  async function rpDryRun() {
+    var lines = rpLinesNow();
+    if (!lines.length) { say('Paste one pilot per line: NAME #TAG.', 'err'); return; }
+    rpReset(); $('rpReport').textContent = ''; say('Running the dry run…');
+    var r = await call('remove-pilots-dry-run', { lines: lines });
+    var out = $('rpReport'), box = el('div', 'card' + (r.canRemove ? '' : ' restricted'));
+    box.appendChild(el('div', 'name', 'DRY RUN · nothing was changed'));
+    box.appendChild(el('div', 'meta', r.id + ' · ' + fmt(r.counts.found) + ' of ' + fmt(r.counts.lines) + ' lines found' + (r.counts.refused ? ' · ' + fmt(r.counts.refused) + ' refused' : '')));
+    (r.warnings || []).forEach(function (w) { box.appendChild(el('div', 'rpWarn', '⚠ ' + w)); });
+    (r.pilots || []).forEach(function (p) {
+      var c = el('div', 'meta'), ok = p.status === 'found';
+      c.appendChild(el('span', 'pill ' + (ok ? 'amber' : 'pink'), ok ? 'FOUND' : p.status === 'not-found' ? 'NOT FOUND' : p.status.toUpperCase()));
+      c.appendChild(document.createTextNode(' ' + p.line + (ok
+        ? '\nWill remove ' + p.name + ' #' + p.tag + (p.shownAs !== p.name ? ' (shown as ' + p.shownAs + ')' : '') + ' · ' + (p.country || '??') + (p.restricted ? ' · restricted' : '') +
+          '\nBests: ' + rpBests(p.bests) + '\nSeason 0 bests: ' + rpBests(p.season0) +
+          '\nPurchases: ' + (p.purchases ? fmt(p.purchases) + ' (' + p.skus.join(', ') + ') — kept' : 'none') +
+          '\nOn boards: ' + ((p.boards || []).map(function (b) { return b.board.toUpperCase() + (b.rank ? ' #' + b.rank : ''); }).join(', ') || 'none') +
+          (p.counted ? ' · counts ' + fmt(p.counted) + ' in its country' : '')
+        : '\nRefused: ' + p.why)));
+      box.appendChild(c);
+    });
+    box.appendChild(el('div', 'name', 'Country totals'));
+    if (!(r.countries || []).length) box.appendChild(el('div', 'empty', 'No country total changes.'));
+    else box.appendChild(table(['Country', 'Now', 'After', 'Change'], r.countries.map(function (x) {
+      return [x.country, fmt(Math.round(x.before.totalScore)) + ' · ' + fmt(x.before.playerCount) + ' pilots', fmt(Math.round(x.after.totalScore)) + ' · ' + fmt(x.after.playerCount) + ' pilots', fmt(Math.round(x.change))]; })));
+    box.appendChild(el('div', 'meta', 'Boards affected: ' + ((r.boardsAffected || []).map(function (b) { return b.toUpperCase(); }).join(', ') || 'none') + '\n' + r.note));
+    out.appendChild(box);
+    if (r.canRemove) {
+      rpDry = { id: r.id, confirm: r.confirm, lines: lines };
+      $('rpAsk').textContent = 'Check your real pilot is NOT listed above. Then type ' + r.confirm + ' and press REMOVE NOW. A checked backup from the last 60 minutes is needed.';
+      $('rpConfirm').placeholder = r.confirm; $('rpGo').hidden = false;
+    }
+    say('Dry run done. Nothing was changed.', 'ok');
+  }
+  async function rpRemoveNow() {
+    var b = $('rpRemove'), res = $('rpResult');
+    if (!rpDry || $('rpConfirm').value !== rpDry.confirm) { say('Type ' + (rpDry ? rpDry.confirm : 'the phrase from the dry run') + ' exactly.', 'err'); return; }
+    await act(b, 'REMOVING…', async function () {
+      var o = await post('remove-pilots', { lines: rpDry.lines, id: rpDry.id, confirm: $('rpConfirm').value });
+      if (o.status === 401) { sessionEnded(); throw new Error('Your session ended. Log in again — what you typed is kept.'); }
+      res.textContent = ''; b.textContent = 'REMOVE NOW'; b.disabled = $('rpConfirm').value !== (rpDry && rpDry.confirm);
+      if (o.data.needBackup === true) {   // REMOVE PILOTS: same offer as WORLD GRID
+        res.appendChild(el('p', 'note err', o.data.error));
+        res.appendChild(btn('BACK UP NOW', 'go', function () { var bb = this; act(bb, 'BACKING UP…', async function () {
+          var k = await call('backup-now'); bb.remove(); say('Backup ' + k.snapshot.id + ' saved and checked ✓ Press REMOVE NOW again.', 'ok'); }); }));
+        say(o.data.error, 'err'); return;
+      }
+      if (o.data.changed) { rpReset(); res.appendChild(el('p', 'note err', o.data.error)); say(o.data.error, 'err'); return; }
+      if (!o.data.checks) throw new Error(o.data.error || ('Error ' + o.status));
+      var box = el('div', 'card' + (o.data.ok ? '' : ' restricted'));
+      box.appendChild(el('div', 'name' + (o.data.ok ? ' ok' : ' err'), o.data.ok ? 'REMOVED ✓ · post-check PASS' : 'REMOVED · a post-check FAILED'));
+      box.appendChild(el('div', 'meta', 'Removed: ' + (o.data.removed || []).map(function (p) { return p.name + ' #' + p.tag; }).join(', ') +
+        '\nBackup checked: ' + o.data.backupId + '\nSafety copy just before: ' + o.data.safetyId +
+        (o.data.ok ? '' : '\nRestore the safety copy (BACKUPS → DRY RUN → RESTORE NOW) and send this report to the developer.')));
+      wgChecks(box, o.data.checks);
+      if ((o.data.countries || []).length) box.appendChild(table(['Country', 'Before', 'Now'], o.data.countries.map(function (x) {
+        return [x.country, fmt(Math.round(x.before.totalScore)), fmt(Math.round(x.now.totalScore)) + ' · ' + fmt(x.now.playerCount) + ' pilots']; })));
+      res.appendChild(box);
+      $('rpGo').hidden = true; $('rpConfirm').value = ''; rpDry = null;
+      say(o.data.ok ? 'Removed and checked: every check PASS.' : 'Removed, but a check FAILED. See below.', o.data.ok ? 'ok' : 'err');
+    });
+  }
+
   async function wgDryRun() {
     say('Running the dry run…');
     var r = await call('world-grid-dry-run');
@@ -1340,6 +1482,10 @@
   $('bkNow').onclick = guard(backupNow);
   $('bkUpload').onclick = guard(uploadBackup);
   $('wgDry').onclick = guard(wgDryRun);
+  $('rpDry').onclick = guard(rpDryRun);
+  $('rpRemove').onclick = guard(rpRemoveNow);
+  $('rpConfirm').oninput = function () { $('rpRemove').disabled = !rpDry || $('rpConfirm').value !== rpDry.confirm; };
+  $('rpLines').oninput = function () { if (rpDry) { rpReset(); $('rpReport').textContent = ''; } };
   $('wgRevert').onclick = guard(wgRevert);
   $('sgLoad').onclick = guard(loadStorage);
   $('fpLoad').onclick = guard(fpLoad);
