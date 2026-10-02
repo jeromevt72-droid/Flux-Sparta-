@@ -227,6 +227,29 @@
   </div>
   <div id="wgReport"></div>
 
+  <h2>FOUNDING PILOT</h2>
+  <p class="note">The first <b>1,000 pilots</b>, in the order they joined, get the whole <b>Solar Inferno</b> package free forever: its orb colours,
+  its orange launcher and its backdrop, on every device and through their restore code. Stripe purchases are not touched. It is <b>OFF</b> until you
+  switch it on. <b>DRY RUN</b> changes nothing. Switching ON needs a checked backup from the last hour and the phrase <b>FOUNDING ON</b>.
+  See <b>Founding Pilot</b> in the guide below.</p>
+  <div id="fpState"></div>
+  <div class="row">
+    <button id="fpLoad" class="ghost" style="flex:1">SHOW</button>
+    <button id="fpDry" class="go">DRY RUN</button>
+  </div>
+  <div id="fpReport"></div>
+  <div class="row">
+    <input id="fpConfirm" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Type FOUNDING ON" aria-label="Confirmation phrase">
+    <button id="fpOn" class="danger" disabled>TURN ON</button>
+  </div>
+  <div class="row"><button id="fpOff" class="ghost" style="flex:1">TURN OFF</button></div>
+  <p class="note"><b>Exclusion list</b> (your test pilots): a pilot on it never gets a number. Add them before you switch ON.</p>
+  <div class="row">
+    <input id="fpTag" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="#TAG" aria-label="Pilot #TAG">
+    <button id="fpAdd" class="go">EXCLUDE</button>
+  </div>
+  <div id="fpExcl"></div>
+
   <details id="guide" class="guide">
     <summary>GUIDE</summary>
 
@@ -337,6 +360,23 @@
       last 3 days are delivered again by the automatic payment check; older ones can be looked up in the purchase records under ADVANCED.
       Anonymous PLAYER STATS are not part of backups.</li>
       <li>A <b>privacy deletion</b> also removes the pilot from every backup on the server, so a restore never brings them back.</li>
+    </ul>
+
+    <h3>Founding Pilot</h3>
+    <ul>
+      <li><b>What it gives:</b> the complete <b>Solar Inferno</b> package (its five orb colours, its orange launcher and the Solar Inferno
+      backdrop) free forever, to pilots <b>#1 to #1,000</b>. It is recorded as a <b>Founding Pilot grant</b>, never as a Stripe purchase: PURCHASE
+      RECORDS, grants and revokes of real purchases work exactly as before. The pilot's restore code brings it back on any device.</li>
+      <li><b>Who counts:</b> pilots in the order they joined (every difficulty). Existing pilots are numbered when you switch ON (one batch);
+      after that each new pilot gets the next number until #1,000. Never numbered: restricted pilots, removed or privacy-deleted pilots, and
+      pilots on your <b>exclusion list</b>. A number is never given twice and never taken back, unless you press <b>TAKE BACK</b> (it then stays used).</li>
+      <li><b>Steps:</b> (1) <b>BACK UP NOW</b> under BACKUPS. (2) <b>DRY RUN</b>: check how many pilots would be numbered, the first and last ones and
+      who is left out and why. (3) Add your test pilots by <b>#TAG</b> to the exclusion list and run the dry run again. (4) Type <b>FOUNDING ON</b>
+      and press <b>TURN ON</b>. (5) Check the counter here and on the first screen; the game shows "Founding Pilot spots left" in the menu.</li>
+      <li><b>Players see:</b> a FOUNDING PILOT badge on their menu and their leaderboard rows, and once: "You're Founding Pilot #N! Solar Inferno
+      is yours." Nothing changes in the game itself. <b>TURN OFF</b> stops new numbers and hides the spots-left line; numbers already given stay.</li>
+      <li><b>Free plan:</b> switching ON writes one row per numbered pilot plus 2 (1,002 rows for 1,000 pilots, of the 100,000 a day) and reads
+      each pilot once. A new pilot's first run writes 1 more row (their grant). Runs, restarts and the leaderboard cost what they cost today.</li>
     </ul>
 
     <h3>Combined World Grid</h3>
@@ -538,9 +578,9 @@
     b.disabled = false;
   }
   function wipe() {
-    ['summary', 'usage', 'exceptions', 'results', 'stats', 'season0', 'purchases', 'bans', 'wgState', 'wgReport', 'rpReport', 'rpResult'].forEach(function (id) { $(id).textContent = ''; });
+    ['summary', 'usage', 'exceptions', 'results', 'stats', 'season0', 'purchases', 'bans', 'wgState', 'wgReport', 'rpReport', 'rpResult', 'fpState', 'fpReport', 'fpExcl'].forEach(function (id) { $(id).textContent = ''; });
     $('usageAlert').classList.add('hidden');
-    ['q', 'pq', 'banName', 'rpLines', 'rpConfirm'].forEach(function (id) { $(id).value = ''; });
+    ['q', 'pq', 'banName', 'rpLines', 'rpConfirm', 'fpConfirm', 'fpTag'].forEach(function (id) { $(id).value = ''; });
     rpDry = null; $('rpGo').hidden = true;
     say('');
   }
@@ -603,6 +643,10 @@
       ' · Durable Object requests ' + Math.round(d.usage.pct.doRequests) + '% · rows written ' + Math.round(d.usage.pct.rowsWritten) + '%' +
       (d.usage.alert ? '\nAbove ' + d.usage.alertPct + '% of a free daily limit. See FREE PLAN USAGE below.' : '')));
     box.appendChild(uc);
+    var fc = el('div', 'card');   // FOUNDING PILOT: the counter on the first screen
+    fc.appendChild(el('div', 'name', 'Founding Pilot'));
+    fc.appendChild(el('div', 'meta', fpCounterText(d.founding)));
+    box.appendChild(fc);
     var wg = d.worldGrid, wc = el('div', 'card');   // COMBINED WORLD GRID: is it live?
     wc.appendChild(el('div', 'name', 'World Grid'));
     wc.appendChild(el('div', 'meta', wgStateText(wg)));
@@ -1211,6 +1255,96 @@
     say(o.wasCombined ? 'Switched back: the World Grid shows Season 1 only.' : 'The World Grid already showed Season 1 only.', 'ok');
   }
 
+  /* ---------------- FOUNDING PILOT ---------------- */
+  function fpCounterText(f) {
+    if (!f) return 'Unavailable right now.';
+    if (f.layout === 'old') return 'Needs the new storage layout (STORAGE above).';
+    return (f.on ? 'ON' : 'OFF') + ' · ' + fmt(f.given) + ' / ' + fmt(f.cap) + ' given · ' + fmt(f.left) + ' spot' + (f.left === 1 ? '' : 's') + ' left' +
+      (f.on && f.done === false ? '\nNumbering not finished: press CONTINUE under FOUNDING PILOT.' : '');
+  }
+  function renderFp(f) {
+    var box = $('fpState'); box.textContent = '';
+    var c = el('div', 'card'), h = el('div');
+    h.appendChild(el('span', 'name', 'Founding Pilot'));
+    h.appendChild(el('span', 'pill ' + (f && f.on ? 'amber' : 'pink'), f && f.on ? 'ON' : 'OFF'));
+    c.appendChild(h); c.appendChild(el('div', 'meta', fpCounterText(f)));
+    if (f && f.on && f.done === false) { var a = el('div', 'actions'); a.appendChild(btn('CONTINUE', 'go', function () { var b = this; act(b, 'NUMBERING…', async function () { fpDone(await call('founding-continue', {})); }); })); c.appendChild(a); }
+    (f && f.log || []).slice(-8).forEach(function (x) { c.appendChild(el('div', 'logrow', when(x.at) + ' · ' + x.event)); });
+    box.appendChild(c);
+    var ex = $('fpExcl'); ex.textContent = '';
+    var list = (f && f.excluded) || [];
+    if (!list.length) ex.appendChild(el('div', 'empty', 'Nobody is on the exclusion list.'));
+    list.forEach(function (x) {
+      var r = el('div', 'card'); r.appendChild(el('div', 'name', x.name + ' #' + x.tag)); r.appendChild(el('div', 'meta', 'excluded ' + when(x.at)));
+      var a = el('div', 'actions');
+      a.appendChild(btn('REMOVE', 'ghost', function () { var b = this; act(b, 'SAVING…', async function () { renderFp(await call('founding-exclude', { tag: x.tag, remove: true })); say('#' + x.tag + ' can be numbered again.', 'ok'); }); }));
+      a.appendChild(btn('TAKE BACK', 'danger', function () { fpTakeBack(x.tag); }));
+      r.appendChild(a); ex.appendChild(r);
+    });
+  }
+  function fpPilots(list) { return (list || []).map(function (p) { return '#' + p.n + ' ' + p.name + ' #' + p.tag; }).join('\n') || '—'; }
+  async function fpLoad() { say('Loading…'); renderFp(await call('founding-status')); say(''); }
+  async function fpDry() {
+    say('Running the dry run…');
+    var r = await call('founding-dry-run');
+    renderFp(r);
+    var out = $('fpReport'); out.textContent = '';
+    var c = el('div', 'card');
+    c.appendChild(el('div', 'name', 'DRY RUN · nothing was changed'));
+    c.appendChild(el('div', 'meta', (r.wouldNumber ? fmt(r.wouldNumber) + ' pilots would be numbered #' + r.from + ' to #' + r.to : 'Nobody would be numbered now.') +
+      '\nRows it would write: ' + fmt(r.wouldNumber ? r.rowsWouldWrite : 0) + ' (one per pilot + 2) · spots left after: ' + fmt(r.leftAfter) +
+      '\nLeft out: ' + fmt(r.excludedCount) + ' · removed and privacy-deleted pilots are never counted'));
+    c.appendChild(el('div', 'name', 'First'));
+    c.appendChild(el('div', 'meta', fpPilots(r.first)));
+    if ((r.last || []).length) { c.appendChild(el('div', 'name', 'Last')); c.appendChild(el('div', 'meta', fpPilots(r.last))); }
+    c.appendChild(el('div', 'name', 'Left out (' + fmt(r.excludedCount) + ')'));
+    if (!(r.skipped || []).length) c.appendChild(el('div', 'empty', 'Nobody.'));
+    else c.appendChild(table(['Pilot', 'Why'], r.skipped.map(function (x) { return [x.name + ' #' + x.tag, x.why]; })));
+    out.appendChild(c);
+    say('Dry run done. Nothing was changed.', 'ok');
+  }
+  function fpDone(d) {
+    renderFp(d);
+    say('Numbered ' + fmt(d.numbered) + ' pilot' + (d.numbered === 1 ? '' : 's') + ' · ' + fmt(d.rowsWritten) + ' rows written · ' + fmt(d.left) + ' spots left.' + (d.more ? ' Press CONTINUE.' : ''), 'ok');
+  }
+  async function fpOn() {
+    var inp = $('fpConfirm'), b = $('fpOn');
+    if (inp.value.trim() !== 'FOUNDING ON') { say('Type FOUNDING ON exactly.', 'err'); return; }
+    b.disabled = true; b.textContent = 'TURNING ON…';
+    try {
+      var o = await post('founding-switch', { on: true, confirm: inp.value.trim() });
+      if (o.status === 401) { sessionEnded(); throw new Error('Your session ended. Log in again — what you typed is kept.'); }
+      if (o.data && o.data.needBackup === true) {
+        var res = $('fpReport'); res.textContent = '';
+        res.appendChild(el('p', 'note err', o.data.error));
+        res.appendChild(btn('BACK UP NOW', 'go', function () { var bb = this; act(bb, 'BACKING UP…', async function () {
+          var k = await call('backup-now'); bb.remove(); say('Backup ' + k.snapshot.id + ' saved and checked ✓ Press TURN ON again.', 'ok'); }); }));
+        throw new Error(o.data.error);
+      }
+      if (!o.ok) throw new Error(o.data.error || ('Error ' + o.status));
+      inp.value = ''; fpDone(o.data);
+    } finally { b.textContent = 'TURN ON'; b.disabled = inp.value.trim() !== 'FOUNDING ON'; }
+  }
+  async function fpOff() {
+    if (!confirm('Turn the Founding Pilot offer OFF?\n\nNo new numbers are given and the spots-left line is hidden. Numbers already given stay.')) return;
+    renderFp(await call('founding-switch', { on: false }));
+    say('The offer is OFF. Numbers already given stay.', 'ok');
+  }
+  async function fpAdd() {
+    var t = $('fpTag').value.trim();
+    if (!t) { say('Type the pilot\u2019s #TAG.', 'err'); return; }
+    var d = await call('founding-exclude', { tag: t });
+    $('fpTag').value = ''; renderFp(d);
+    say(d.note || 'Added to the exclusion list.', d.note ? 'err' : 'ok');
+  }
+  async function fpTakeBack(tag) {
+    var phrase = 'TAKE BACK #' + String(tag).replace(/^#/, '').toUpperCase();
+    var typed = prompt('Take this pilot\u2019s Founding Pilot number back? Their free Solar Inferno goes too (a purchase stays). The number is never given again.\n\nType ' + phrase);
+    if (typed == null) return;
+    try { var d = await call('founding-take-back', { tag: tag, confirm: typed.trim() }); renderFp(d); say('#' + d.takenBack + ' taken back.', 'ok'); }
+    catch (e) { say(e.message, 'err'); }
+  }
+
   /* ---------------- storage (the 2 MB move) ---------------- */
   var SG = null;
   function pct(x) { return (Math.round(x * 10) / 10) + '%'; }
@@ -1354,6 +1488,12 @@
   $('rpLines').oninput = function () { if (rpDry) { rpReset(); $('rpReport').textContent = ''; } };
   $('wgRevert').onclick = guard(wgRevert);
   $('sgLoad').onclick = guard(loadStorage);
+  $('fpLoad').onclick = guard(fpLoad);
+  $('fpDry').onclick = guard(fpDry);
+  $('fpOn').onclick = guard(fpOn);
+  $('fpOff').onclick = guard(fpOff);
+  $('fpAdd').onclick = guard(fpAdd);
+  $('fpConfirm').oninput = function () { $('fpOn').disabled = this.value.trim() !== 'FOUNDING ON'; };
   $('loadEx').onclick = guard(loadExceptions);
   $('find').onclick = guard(find);
   $('q').addEventListener('keydown', function (e) { if (e.key === 'Enter') guard(find)(); });

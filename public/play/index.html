@@ -138,7 +138,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 .shopInfo span{display:block;font-size:11px;letter-spacing:.1em;color:#7f93bd;margin-top:2px}
 .shopRow button{padding:8px 12px;font-size:11px;white-space:nowrap}
 .shopRow button:disabled{opacity:.55;box-shadow:none}
-.profileTag{opacity:.55;font-weight:600;letter-spacing:.06em;margin-left:2px;font-size:11px}.lbTag{opacity:.5;font-weight:600;font-size:11px;letter-spacing:.04em}.shopNote{display:inline-block;margin-top:6px;font-size:12px;opacity:.7;line-height:1.4}.uploadStatus{min-height:14px;margin:6px 0 0;font-size:11px;letter-spacing:.12em;color:#8fa3d8;text-align:center}
+.profileTag{opacity:.55;font-weight:600;letter-spacing:.06em;margin-left:2px;font-size:11px}/* FOUNDING PILOT: cosmetic badge + spots-left line */.foundingBadge{display:table;margin:8px auto 0;padding:3px 11px;border:1px solid #ff7a18;border-radius:999px;background:#2a1206cc;color:#ffb36b;font-size:11px;font-weight:900;letter-spacing:.14em}.foundingLeft{margin:8px 0 0;color:#ffb36b;font-size:13px;font-weight:800;letter-spacing:.04em;text-align:center}.lbFounder{display:block;margin-top:1px;color:#ff9a4a;font-size:9px;font-weight:900;letter-spacing:.12em}.lbTag{opacity:.5;font-weight:600;font-size:11px;letter-spacing:.04em}.shopNote{display:inline-block;margin-top:6px;font-size:12px;opacity:.7;line-height:1.4}.uploadStatus{min-height:14px;margin:6px 0 0;font-size:11px;letter-spacing:.12em;color:#8fa3d8;text-align:center}
 #profileEditor{flex-wrap:wrap}.nameHint{flex:1 1 100%;margin:0 2px;font-size:12px;font-weight:700;letter-spacing:.02em;color:#ff8fb8;text-align:left}#callsign.nameBad,#callsign.nameBad:focus{border-color:#ff4f98!important;outline:2px solid #ff4f98!important;outline-offset:0;box-shadow:none}
 .restoreLink{display:block;width:100%;margin:-4px 0 12px;flex:none}#profileEditor.hidden+.restoreLink{display:none}.restoreOverlay .panel{max-height:88vh;overflow:auto}.restoreWho{font-size:12px;letter-spacing:.12em;color:#eaf7ff;margin:6px 0 10px}.restoreText{font-size:12px;line-height:1.55;color:#b9c6e6;margin:0 0 10px}.restoreWarn{font-size:11px;line-height:1.5;color:#ffd08a;margin:0 0 10px}.restoreMsg{font-size:12px;line-height:1.5;color:#ff9fc6;min-height:1.5em;margin:4px 0 8px}.restoreCode{font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.5;word-break:break-all;user-select:all;-webkit-user-select:all;background:#050a22;border:1px solid #2c4b87;border-radius:12px;padding:10px;margin:0 0 10px;color:#9ff3ff}.restoreInput{width:100%;box-sizing:border-box;font-family:ui-monospace,Menlo,monospace;font-size:16px;background:#050a22;color:#eaf7ff;border:1px solid #2c4b87;border-radius:12px;padding:10px;margin:0 0 6px;resize:none}.restoreRow{display:flex;gap:8px}.restoreRow button{flex:1}.restoreOverlay button{margin-top:8px}.restoreOther{display:block;width:100%}
 .goName{margin:6px 0 10px;padding:12px;border:1px solid #2c6bff;border-radius:16px;background:rgba(18,32,77,.55)}.goNameT{font-size:11px;letter-spacing:.16em;color:#5ff3ff;font-weight:800;margin-bottom:8px}.goNameRow{display:flex;gap:8px;margin-bottom:8px}.goNameRow input,.goNameRow select{min-width:0;background:#050a22;color:#eaf7ff;border:1px solid #2c4b87;border-radius:12px;padding:10px 12px;font:700 16px system-ui,sans-serif;text-transform:uppercase}.goNameRow input{flex:1}.goNameRow select{flex:0 0 42%;font-size:14px}.goNameRow input::placeholder{color:#6d7fa8}.goNameNote{font-size:11px;color:#9fb3d9;margin-top:6px}
@@ -381,7 +381,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 <option value="VN">🇻🇳 VIETNAM</option>
 <option value="YE">🇾🇪 YEMEN</option>
 <option value="ZM">🇿🇲 ZAMBIA</option>
-<option value="ZW">🇿🇼 ZIMBABWE</option><option value="OTHER">🌎 OTHER</option></select><div id="nameHint" class="nameHint hidden" role="alert">One word only, e.g. TITAN</div></div><button type="button" class="linkBtn restoreLink" id="restoreLink">HAVE A RESTORE CODE?</button><div id="profileSaved" class="profileSaved hidden"><span>PILOT <b id="profileName">PLAYER</b><small id="profileTag" class="profileTag"></small> • <b id="profileCountry">🇺🇸</b></span><button class="editProfile" id="editProfile">EDIT</button></div><button id="startBtn">ENTER THE FLUX</button><button type="button" id="playingFor" class="playingFor hidden">Playing for <span id="playingForWho">🇺🇸 United States</span> · <u>change</u></button><div class="menuTiles"><div><span>PERSONAL BEST</span><b id="menuBest">0</b></div><div><span>BEST LEVEL</span><b id="menuLevel">1</b></div></div><button type="button" class="gridCard" id="gridCard" aria-label="Open the World Grid"><span class="gcK">WORLD GRID</span></button><div id="uploadStatus" class="uploadStatus" aria-live="polite"></div><div class="menuLinks"><button class="linkBtn" id="leaderBtn">🌎 GLOBAL LEADERBOARD</button><button class="linkBtn" id="skinsBtn">✦ THEMES & SKINS</button></div><button type="button" class="linkBtn installBtn hidden" id="bringPilotBtn">📋 BRING MY PILOT FROM SAFARI</button><p class="offline" id="offlineClaim">● PERSONAL BEST SAVES ON THIS DEVICE</p></div></div>
+<option value="ZW">🇿🇼 ZIMBABWE</option><option value="OTHER">🌎 OTHER</option></select><div id="nameHint" class="nameHint hidden" role="alert">One word only, e.g. TITAN</div></div><button type="button" class="linkBtn restoreLink" id="restoreLink">HAVE A RESTORE CODE?</button><div id="profileSaved" class="profileSaved hidden"><span>PILOT <b id="profileName">PLAYER</b><small id="profileTag" class="profileTag"></small> • <b id="profileCountry">🇺🇸</b></span><button class="editProfile" id="editProfile">EDIT</button></div><div id="foundingBadge" class="foundingBadge hidden"></div><button id="startBtn">ENTER THE FLUX</button><div id="foundingLeft" class="foundingLeft hidden" aria-live="polite"></div><button type="button" id="playingFor" class="playingFor hidden">Playing for <span id="playingForWho">🇺🇸 United States</span> · <u>change</u></button><div class="menuTiles"><div><span>PERSONAL BEST</span><b id="menuBest">0</b></div><div><span>BEST LEVEL</span><b id="menuLevel">1</b></div></div><button type="button" class="gridCard" id="gridCard" aria-label="Open the World Grid"><span class="gcK">WORLD GRID</span></button><div id="uploadStatus" class="uploadStatus" aria-live="polite"></div><div class="menuLinks"><button class="linkBtn" id="leaderBtn">🌎 GLOBAL LEADERBOARD</button><button class="linkBtn" id="skinsBtn">✦ THEMES & SKINS</button></div><button type="button" class="linkBtn installBtn hidden" id="bringPilotBtn">📋 BRING MY PILOT FROM SAFARI</button><p class="offline" id="offlineClaim">● PERSONAL BEST SAVES ON THIS DEVICE</p></div></div>
 <div id="fluxNetNote" role="status" aria-live="polite">OFFLINE — SCORES WILL UPLOAD LATER</div>
 <div id="gameover" class="hidden">
  <div class="panel">
@@ -2615,6 +2615,7 @@ function flushSubmitQueue(){
           if(b.tag && /^[0-9A-Z]{6,}$/.test(b.tag)){ try{ localStorage.fluxPublicTag=b.tag; }catch(e){} }
           lastUploadResult=b;
           if(typeof rankSnapSave==='function'){ rankSnapSave(b,item); showGoRank(); }   // LEADERBOARD REFRESH: the server's rank reply, for the game-over line and the pinned rows
+          if(typeof fluxFoundingRun==='function') fluxFoundingRun(b,item);   // FOUNDING PILOT: a number in the run's own reply (no extra request)
         } else if(r.kind==='stale'){
           dequeueSubmission(item.id);
         } else if(r.kind==='permanent'){
@@ -2814,12 +2815,14 @@ function fluxBoardView(data,d,scope,me){
   const rows=inCountry ? all.filter(function(r){ return r.country===me.country; }) : all;
   const myI=me.pid ? rows.findIndex(function(r){ return r.pid===me.pid; }) : -1;
   const shown=rows.slice(0,FLUX_LB_SHOW).map(function(r,i){ return { rank:i+1, name:r.name, tag:r.tag, country:r.country, score:r.score, mine:i===myI }; });
+  shown.forEach(function(x,i){ x.fp=!!rows[i].fp; });   // FOUNDING PILOT: the badge (server's fp)
   const v={ d:d, scope:scope, rows:shown, pinned:null, unplayed:null, empty:null };
   const snap=rankSnap(d);
   const localBest=storedBestScore(d);
   if(myI>=FLUX_LB_SHOW){
     const up=rows[myI-1];
     v.pinned={ rank:myI+1, score:rows[myI].score, name:rows[myI].name, tag:rows[myI].tag, country:rows[myI].country, toRank:myI, toPts:up.score-rows[myI].score+1 };
+    v.pinned.fp=!!rows[myI].fp;
   }else if(myI<0 && (snap || localBest>0)){
     const score=snap && snap.best>0 ? snap.best : localBest;
     const known=snap ? (inCountry ? snap.countryRank : snap.rank) : 0;
@@ -2827,7 +2830,7 @@ function fluxBoardView(data,d,scope,me){
     let toRank=0, toPts=0;
     if(!inCountry && snap && snap.above && rank && snap.above.score>=score && snap.above.rank>rows.length){ toRank=snap.above.rank; toPts=snap.above.score-score+1; }
     else if(rows.length){ toRank=rows.length; toPts=Math.max(1,rows[rows.length-1].score-score+1); }
-    v.pinned={ rank:rank, rankText:rank ? '#'+rank : '#'+(rows.length+1)+'+', score:score, name:callsign||'YOU', tag:'', country:me.country, toRank:toRank, toPts:toPts };
+    v.pinned={ rank:rank, rankText:rank ? '#'+rank : '#'+(rows.length+1)+'+', score:score, name:callsign||'YOU', tag:'', country:me.country, toRank:toRank, toPts:toPts, fp:typeof fluxFoundingNum==='function' && fluxFoundingNum()>0 };
   }else if(myI<0){
     const p=planetOf(d);
     v.unplayed="You haven't reached "+p.word+" yet. Play "+p.sub+" to get on this board.";
@@ -2871,14 +2874,14 @@ function showGoRank(){
 }
 let goRankDiff=null;                                    // the difficulty of the run on the game-over screen
 /* HTML */
-function lbRowHtml(rank,flag,name,tag,score,cls,extra){
-  return '<div class="lbRow'+(cls?' '+cls:'')+'"><span class="lbRank">'+rank+'</span><span class="lbFlag">'+flag+'</span><span class="lbName">'+escapeHtml(name)+(tag?'<small class="lbTag"> #'+escapeHtml(tag)+'</small>':'')+(extra?'<small class="lbGap">'+escapeHtml(extra)+'</small>':'')+'</span><span class="lbScore">'+fluxFmt(score)+'</span></div>';
+function lbRowHtml(rank,flag,name,tag,score,cls,extra,fp){
+  return '<div class="lbRow'+(cls?' '+cls:'')+'"><span class="lbRank">'+rank+'</span><span class="lbFlag">'+flag+'</span><span class="lbName">'+escapeHtml(name)+(tag?'<small class="lbTag"> #'+escapeHtml(tag)+'</small>':'')+(fp?'<small class="lbFounder">FOUNDING PILOT</small>':'')+(extra?'<small class="lbGap">'+escapeHtml(extra)+'</small>':'')+'</span><span class="lbScore">'+fluxFmt(score)+'</span></div>';
 }
 function fluxBoardHtml(v){
   let h='<div class="lbScope" role="group" aria-label="Board"><button type="button" data-scope="world" class="'+(v.scope!=='country'?'on':'')+'">WORLD</button><button type="button" data-scope="country" class="'+(v.scope==='country'?'on':'')+'">MY COUNTRY</button></div>';
   if(v.empty) h+='<p class="lbEmpty">'+escapeHtml(v.empty)+'</p>';
-  if(v.rows.length) h+='<div class="lbList">'+v.rows.map(function(r){ return lbRowHtml('#'+r.rank,flagOf(r.country),r.name,r.tag,r.score,r.mine?'lbMine':''); }).join('')+'</div>';
-  if(v.pinned){ const p=v.pinned; h+='<div class="lbPinned">'+lbRowHtml(p.rankText||('#'+p.rank),flagOf(p.country),p.name,p.tag,p.score,'lbMine',p.toRank ? fluxFmt(p.toPts)+' points to #'+p.toRank : '')+'</div>'; }
+  if(v.rows.length) h+='<div class="lbList">'+v.rows.map(function(r){ return lbRowHtml('#'+r.rank,flagOf(r.country),r.name,r.tag,r.score,r.mine?'lbMine':'','',r.fp); }).join('')+'</div>';
+  if(v.pinned){ const p=v.pinned; h+='<div class="lbPinned">'+lbRowHtml(p.rankText||('#'+p.rank),flagOf(p.country),p.name,p.tag,p.score,'lbMine',p.toRank ? fluxFmt(p.toPts)+' points to #'+p.toRank : '',p.fp)+'</div>'; }
   if(v.unplayed) h+='<p class="lbUnplayed">'+escapeHtml(v.unplayed)+'</p>';
   return h;
 }
@@ -2907,6 +2910,7 @@ function refreshGridCard(){
     el.innerHTML='<span class="gcK">WORLD GRID</span><span class="gcL">#1 '+flagOf(t.country)+' '+escapeHtml(t.country)+' · '+fluxFmt(t.totalScore)+'</span>'
       +'<span class="gcM">'+(m ? (m.rank===1 ? flagOf(m.c.country)+' You lead the Grid' : flagOf(m.c.country)+' #'+m.rank+' · '+fluxFmt(m.behind)+' behind #'+(m.rank-1)) : flagOf(country)+' not on the Grid yet')+' ›</span>';
   }catch(e){}
+  finally{ if(typeof fluxFoundingRefresh==='function') fluxFoundingRefresh(); }   // FOUNDING PILOT: badge + spots-left line, from data already here
 }
 function openLeaderboard(tab){
   tab=FLUX_LB_TABS.indexOf(tab)>=0 ? tab : fluxLbDefaultTab();
@@ -3036,6 +3040,7 @@ async function syncEntitlements() {
     // T-9: the server just spoke. Record its answer as the verified cache so
     // these skins keep working offline.
     writeVerifiedEntitlements(d.skus);
+    if (typeof fluxFoundingSave === 'function') fluxFoundingSave(Number.isFinite(d.founding) ? d.founding : 0, Number.isFinite(d.foundingLeft) ? d.foundingLeft : null);   // FOUNDING PILOT
 
     // T-9: reconcile this device against the server. A paid SKU the server
     // does NOT list must stop counting as ownership here -- that is how an old
@@ -3997,6 +4002,77 @@ function fluxSeasonToast(){
   };
 })();
 try{ if(localStorage.fluxNameNotice==='1') fluxNameToast("Your name didn't fit the new name rules, so we picked one for you. Tap Edit to change it.", 9000, function(){ try{ localStorage.removeItem('fluxNameNotice'); }catch(e){} fluxSeasonToast(); }); else fluxSeasonToast(); }catch(e){}
+
+/* FOUNDING PILOT (owner): the first 1,000 pilots get the whole Solar Inferno package free
+   forever. The server adds "solar" to this pilot's entitlements (the same path as a purchase,
+   so every device and every restore code brings it back); here only what the pilot SEES:
+     - "FOUNDING PILOT #N" under the pilot's name in the menu, and a badge on their board rows
+       (the server marks them: fp) -- cosmetic only, gameplay never reads any of it;
+     - once per pilot: "You're Founding Pilot #N! Solar Inferno is yours." in the usual toast,
+       on the menu or the game-over screen, never during a run;
+     - "Founding Pilot spots left: X" in the menu while the offer is ON and spots remain.
+   Data: the entitlements answer (founding, foundingLeft), the run's own reply (founding) and
+   the shared once-a-minute board copy (foundingLeft) -- no extra request, no polling. */
+var FLUX_FOUNDING_KEY='fluxFounding', FLUX_FOUNDING_LEFT_KEY='fluxFoundingLeft', FLUX_FOUNDING_SHOWN_KEY='fluxFoundingShown';
+function fluxFoundingMsg(n){ return "You're Founding Pilot #"+n+"! Solar Inferno is yours."; }
+function fluxFoundingNum(){
+  try{ const o=JSON.parse(localStorage.getItem(FLUX_FOUNDING_KEY)||'null'); return o && o.pid===playerId && Number.isFinite(o.n) && o.n>0 ? o.n : 0; }catch(e){ return 0; }
+}
+/* Spots left: the newer of the board copy and the last entitlements answer (null = offer OFF). */
+function fluxFoundingLeftNow(){
+  let best=null;
+  try{ const c=fluxLbCached(); if(c && c.data) best={ at:c.at, left:Number.isFinite(c.data.foundingLeft) ? c.data.foundingLeft : null }; }catch(e){}
+  try{ const e=JSON.parse(localStorage.getItem(FLUX_FOUNDING_LEFT_KEY)||'null'); if(e && Number.isFinite(e.at) && (!best || e.at>best.at)) best={ at:e.at, left:Number.isFinite(e.left) ? e.left : null }; }catch(x){}
+  return best ? best.left : null;
+}
+function fluxFoundingView(n,left){
+  return { badge:n>0 ? 'FOUNDING PILOT #'+n : '', line:Number.isFinite(left) && left>0 ? 'Founding Pilot spots left: '+left.toLocaleString('en-US') : '' };
+}
+function fluxFoundingSave(n,left){
+  try{
+    if(n>0) localStorage.setItem(FLUX_FOUNDING_KEY,JSON.stringify({ pid:playerId, n:n }));
+    else localStorage.removeItem(FLUX_FOUNDING_KEY);
+    localStorage.setItem(FLUX_FOUNDING_LEFT_KEY,JSON.stringify({ left:left, at:Date.now() }));
+  }catch(e){}
+  fluxFoundingRefresh();
+}
+/* The run's reply names the number: kept, and Solar Inferno unlocked by one entitlements read
+   the first time only (the pilot did not own it yet). */
+function fluxFoundingRun(b,item){
+  try{
+    if(!b || !item || item.playerId!==playerId || !(Number.isFinite(b.founding) && b.founding>0)) return;
+    localStorage.setItem(FLUX_FOUNDING_KEY,JSON.stringify({ pid:playerId, n:b.founding }));
+    if(!ownsSkin('solar') && typeof syncEntitlements==='function') syncEntitlements();
+  }catch(e){}
+  fluxFoundingRefresh();
+}
+function fluxFoundingRefresh(){
+  const v=fluxFoundingView(fluxFoundingNum(),fluxFoundingLeftNow());
+  try{ const b=document.getElementById('foundingBadge'); if(b){ b.textContent=v.badge; b.classList.toggle('hidden',!v.badge); } }catch(e){}
+  try{ const l=document.getElementById('foundingLeft'); if(l){ l.textContent=v.line; l.classList.toggle('hidden',!v.line); } }catch(e){}
+  fluxFoundingToast();
+}
+/* The one-time message: the menu or the game-over screen only (a run is never interrupted). */
+function fluxFoundingToast(){
+  try{
+    const n=fluxFoundingNum(); if(!n || fluxFoundingToast.on) return;
+    if(localStorage.getItem(FLUX_FOUNDING_SHOWN_KEY)===playerId) return;
+    const shown=function(id){ const e=document.getElementById(id); return !!e && e.classList.contains('hidden')!==true; };
+    if(!shown('start') && !shown('gameover')) return;            // a run is on: next time
+    if(fluxSeasonToast.on) return;                                // the season message first
+    localStorage.setItem(FLUX_FOUNDING_SHOWN_KEY,playerId);
+    fluxFoundingToast.on=true;
+    fluxNameToast(fluxFoundingMsg(n), 8000, function(){ fluxFoundingToast.on=false; });
+  }catch(e){}
+}
+['startBtn','againBtn'].forEach(function(id){   // a run starting closes the message (handler properties, not listeners)
+  const b=document.getElementById(id); if(!b) return; const prev=b.onclick;
+  b.onclick=function(e){
+    if(fluxFoundingToast.on){ try{ const t=document.getElementById('fluxNameToast'); if(t && t.onclick) t.onclick(); }catch(x){} }
+    if(typeof prev==='function') return prev.call(this,e);
+  };
+});
+fluxFoundingRefresh();
 
 /* ==================================================================
    RC2.8.6 -- D-47 INSTALL AFTER FIRST PLAY, D-48 BRING MY PILOT,

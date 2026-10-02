@@ -111,7 +111,7 @@ async function suite({ adminHtml, workerMod, quiet = false }) {
     ck('G2 the guide says how to read GAMEPLAY for tuning (hit rate, misses and lives lost per minute, time at each step, what a jump means)',
       /Reading GAMEPLAY/.test(guide) && /Hit rate/.test(guide) && /Lives lost \/ min/.test(guide) && /Time at step/.test(guide) && /too big a jump/.test(guide) && /nothing about a person/.test(guide));
     ck('G3 the guide says how to remove a test pilot (backup first, exact name + #TAG, REMOVE SCORE, check), Remove vs Restrict vs Privacy delete, Season 0 scores, and how to undo with a backup',
-      /Removing test pilots/.test(guide) && /BACK UP NOW/.test(guide) && /TITAN #QGAC1ZN/.test(guide) && /REMOVE SCORE/.test(guide) && /UNRESTRICT/.test(guide)
+      /Removing test pilots \(and what to do about a cheater\)/.test(guide) && /BACK UP NOW/.test(guide) && /TITAN #QGAC1ZN/.test(guide) && /REMOVE SCORE/.test(guide) && /UNRESTRICT/.test(guide)
       && /PRIVACY DELETE/.test(guide) && /Season 0 bests leave the boards/.test(guide) && /RESTORE NOW/.test(guide) && /Never act on a card whose #TAG you did not type/.test(guide));
   } catch (e) { ck('dashboard section ran', false, String(e.stack || e).slice(0, 300)); }
   return { F, failed };
