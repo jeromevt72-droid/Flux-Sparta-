@@ -429,6 +429,11 @@ async function suite({ mod, main, game = GAME_HTML, adminHtml = ADMIN_HTML, gate
       const html = A.run('fluxBoardHtml(fluxBoardView(' + JSON.stringify(data) + ",'medium','world',{ pid:'zz', country:'US' }))");
       ck('FP9 a founder\'s leaderboard row shows the FOUNDING PILOT badge; other rows do not', (html.match(/FOUNDING PILOT/g) || []).length === 1 && /ACE<small class="lbTag"> #AAAAAAA<\/small><small class="lbFounder">FOUNDING PILOT<\/small>/.test(html), html.slice(0, 200));
       ck('FP9 the Gateway\'s pilot rows show the badge too', /p\.fp\?' <span[^>]*>FOUNDING PILOT<\/span>'/.test(gate), '');
+      const px = (re, h) => { const m = re.exec(h); return m ? Number(m[1]) : 0; };
+      const sizes = { menu: px(/\.foundingBadge\{[^}]*font-size:([\d.]+)px/, game), rows: px(/\.lbFounder\{[^}]*font-size:([\d.]+)px/, game), gateway: px(/p\.fp\?' <span style="[^"]*font-size:([\d.]+)px[^"]*">FOUNDING PILOT/, gate) };
+      ck('FP9 the FOUNDING PILOT badge text is at least 11 px everywhere (menu, board rows, Gateway)', Object.values(sizes).every((v) => v >= 11), JSON.stringify(sizes));
+      const iStart = game.indexOf('<button id="startBtn">'), iFor = game.indexOf('id="playingFor"'), iLeft = game.indexOf('id="foundingLeft"');
+      ck('FP9 menu order: ENTER THE FLUX, then "Playing for" directly below it, then the spots-left line', /ENTER THE FLUX<\/button><button type="button" id="playingFor"/.test(game) && iStart > 0 && iStart < iFor && iFor < iLeft, [iStart, iFor, iLeft].join(' < '));
       ck('FP9 the share card shows no pilot name or tag, so no badge is added there', !/FOUNDING/.test((/function drawShareCard[\s\S]*?\n}\n/.exec(game) || [''])[0]), '');
       ck('FP9 the game keeps 17 addEventListener( (property handlers only)', (game.match(/addEventListener\(/g) || []).length === 17, (game.match(/addEventListener\(/g) || []).length);
     }
@@ -464,13 +469,13 @@ console.log('\n== costs (fake row counter; the Cloudflare dashboard is the autho
 if (process.env.FP_NO_NC) process.exit(res.F ? 1 : 0);
 console.log('\n== negative controls: each defect re-inserted MUST be caught ==');
 let NC = 0;
-async function control(label, expect, parts, { worker = (s) => s, game = (s) => s, admin = (s) => s }) {
-  const w2 = worker(WORKER_SRC), g2 = game(GAME_HTML), a2 = admin(ADMIN_HTML);
-  if (w2 === WORKER_SRC && g2 === GAME_HTML && a2 === ADMIN_HTML) { console.log('  FAIL  control did not apply: ' + label); NC++; return; }
+async function control(label, expect, parts, { worker = (s) => s, game = (s) => s, admin = (s) => s, gate = (s) => s }) {
+  const w2 = worker(WORKER_SRC), g2 = game(GAME_HTML), a2 = admin(ADMIN_HTML), gt2 = gate(GATE_HTML);
+  if (w2 === WORKER_SRC && g2 === GAME_HTML && a2 === ADMIN_HTML && gt2 === GATE_HTML) { console.log('  FAIL  control did not apply: ' + label); NC++; return; }
   let mod = realMod, tmp = null;
   if (w2 !== WORKER_SRC) { tmp = path.join(__dirname, '.nc-founding-' + Math.random().toString(16).slice(2) + '.mjs'); fs.writeFileSync(tmp, w2); mod = await import(pathToFileURL(tmp).href); }
   try {
-    const r = await suite({ mod, main: mainMod, game: g2, adminHtml: a2, quiet: true, parts });
+    const r = await suite({ mod, main: mainMod, game: g2, adminHtml: a2, gate: gt2, quiet: true, parts });
     const hit = r.failed.filter((f) => f.startsWith(expect)); const ok = hit.length > 0;
     console.log((ok ? '  PASS  ' : '  FAIL  ') + 'caught: ' + label + '  [' + (ok ? hit[0] : 'expected ' + expect + '; failed: ' + (r.failed.join(' | ') || 'none')) + ']');
     if (!ok) NC++;
@@ -503,6 +508,9 @@ await control('the message text changed', 'FP9 the one-time message', ['E'], { g
 await control('the message shown every time', 'FP9 ...and never again', ['E'], { game: rep('    if(localStorage.getItem(FLUX_FOUNDING_SHOWN_KEY)===playerId) return;\n', '') });
 await control('the message shown during a run', 'FP9 never during a run', ['E'], { game: rep("    if(!shown('start') && !shown('gameover')) return;            // a run is on: next time\n", '') });
 await control('the spots-left line shown at 0', 'FP9 line rules', ['E'], { game: rep("line:Number.isFinite(left) && left>0 ?", "line:Number.isFinite(left) && left>=0 ?") });
+await control('board-row badge back to 9 px', 'FP9 the FOUNDING PILOT badge text is at least 11 px', ['E'], { game: rep('.lbFounder{display:block;margin-top:1px;color:#ff9a4a;font-size:11px;', '.lbFounder{display:block;margin-top:1px;color:#ff9a4a;font-size:9px;') });
+await control('Gateway badge back to .62em', 'FP9 the FOUNDING PILOT badge text is at least 11 px', ['E'], { gate: rep('color:#ff9a4a;font-size:11px;font-weight:900', 'color:#ff9a4a;font-size:.62em;font-weight:900') });
+await control('spots-left line above "Playing for"', 'FP9 menu order', ['E'], { game: rep('</button><button type="button" id="playingFor" class="playingFor hidden">Playing for <span id="playingForWho">🇺🇸 United States</span> · <u>change</u></button><div id="foundingLeft" class="foundingLeft hidden" aria-live="polite"></div>', '</button><div id="foundingLeft" class="foundingLeft hidden" aria-live="polite"></div><button type="button" id="playingFor" class="playingFor hidden">Playing for <span id="playingForWho">🇺🇸 United States</span> · <u>change</u></button>') });
 await control('board rows lose the badge', 'FP9 a founder\'s leaderboard row', ['E'], { game: rep("(fp?'<small class=\"lbFounder\">FOUNDING PILOT</small>':'')", "''") });
 await control('the menu badge missing', 'FP9 the menu shows the badge', ['E'], { game: rep("badge:n>0 ? 'FOUNDING PILOT #'+n : ''", "badge:''") });
 await control('a request at every founder run', 'FP9 a founder\'s run reply makes no request', ['E'], { game: rep("if(!ownsSkin('solar') && typeof syncEntitlements==='function') syncEntitlements();", "if(typeof syncEntitlements==='function') syncEntitlements();") });

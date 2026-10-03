@@ -1041,7 +1041,7 @@ try{
       return '<div class="rankRow'+(i===0?' leader':'')+'">'
         + '<div class="pos">'+(i===0?'👑':('#'+(i+1)))+'</div>'
         + '<div class="flagIc">'+meta.flag+'</div>'
-        + '<div class="cName">'+window.escapeHtml2(p.name||'PILOT')+(p.tag?' <span style="opacity:.5;font-size:.8em">#'+window.escapeHtml2(p.tag)+'</span>':'')+(p.fp?' <span style="color:#ff9a4a;font-size:.62em;font-weight:900;letter-spacing:.1em;white-space:nowrap">FOUNDING PILOT</span>':'')+'<small>'+window.escapeHtml2(meta.name)+'</small></div>'
+        + '<div class="cName">'+window.escapeHtml2(p.name||'PILOT')+(p.tag?' <span style="opacity:.5;font-size:.8em">#'+window.escapeHtml2(p.tag)+'</span>':'')+(p.fp?' <span style="color:#ff9a4a;font-size:11px;font-weight:900;letter-spacing:.1em;white-space:nowrap">FOUNDING PILOT</span>':'')+'<small>'+window.escapeHtml2(meta.name)+'</small></div>'
         + '<div class="cScore">'+window.fmtScore(p.score)+'</div>'
         + '<div class="rankBarTrack"><div class="rankBarFill" style="width:'+pct+'%"></div></div>'
         + '</div>';
