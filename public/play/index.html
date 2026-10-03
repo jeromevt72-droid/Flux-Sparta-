@@ -452,7 +452,7 @@ if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D
     this.arcTo(x, y + h, x, y, rr); this.arcTo(x, y, x + w, y, rr); this.closePath(); return this;
   };
 }
-const c=document.getElementById('game'),ctx=c.getContext('2d');
+const c=document.getElementById('game'); let ctx=c.getContext('2d');   // BATTERY (menus): let, so the field can be drawn once into its copy (stampField)
 /* D-46 (RC2.8.6) LITE GRAPHICS -- decided on an earlier visit and remembered. */
 window.__fluxLite = (function(){ try{ return localStorage.getItem('fluxLite') === '1'; }catch(e){ return false; } })();
 function fluxApplyLite(){
@@ -1761,7 +1761,7 @@ function update(dt){
  else if(combo>1){combo=Math.max(1,Math.floor(combo/2));streak=0;comboTimer=combo>1?COMBO_TIME_S:0;popup(W/2,150,'COMBO HALVED','#8da0c8');updateHud();}   // COMBO HALVES: a broken chain keeps half (x8 -> x4), not x1
  if(perfectFlash>0)perfectFlash-=dt;
  const maxSpeed=normalMaxSpeed()*speedHelp(); slowToSpeedHelp(dt);   // x1 unless a speed help is on (see SPEED HELP)
- if(fluxMode>0){fluxMode-=dt;document.getElementById('app').style.filter='brightness(1.18) saturate(1.35)';document.getElementById('fluxGlow').classList.add('on');}else{document.getElementById('app').style.filter='none';document.getElementById('fluxGlow').classList.remove('on');}
+ if(fluxMode>0){fluxMode-=dt;fluxModeLook(true);}else{fluxModeLook(false);}
  let sp=Math.hypot(ball.vx,ball.vy);
  if(sp<maxSpeed) {
    // Snap back to full speed quickly (under a second) instead of the old
@@ -1932,6 +1932,15 @@ function draw(){
  ctx.clearRect(0,0,W,H);
  // celestial background — drifting nebula glow + slow-scrolling, twinkling starfield
  const nowT=performance.now()*.001;
+ drawSky(nowT);
+ if(reduceMotion) shake=0;   // REDUCE MOTION: no screen shake
+ const sx=shake?rand(-shake,shake):0,sy=shake?rand(-shake,shake):0;ctx.save();ctx.translate(sx,sy);
+ drawCeiling(nowT);
+ if(fieldIsStill()) stampField(); else drawField();   // BATTERY (menus): a still field is stamped from its copy
+ ctx.restore();
+ drawSlotBanners();
+}
+function drawSky(nowT){
  ctx.save();
  for(const nb of nebulae){
    const nx=((nb.x+nb.vx*nowT)%W+W)%W, ny=((nb.y+nb.vy*nowT)%H+H)%H;
@@ -1947,8 +1956,8 @@ function draw(){
    ctx.beginPath();ctx.arc(sx,sy,s.r,0,Math.PI*2);ctx.fill();
  }
  ctx.restore();
- if(reduceMotion) shake=0;   // REDUCE MOTION: no screen shake
- const sx=shake?rand(-shake,shake):0,sy=shake?rand(-shake,shake):0;ctx.save();ctx.translate(sx,sy);
+}
+function drawCeiling(nowT){
  // ceiling -- a soft gradient band at the exact height the ball/orbs
  // actually bounce off, so the boundary reads as an intentional part of
  // the field rather than an invisible wall. Purely decorative -- draws at
@@ -1970,6 +1979,8 @@ function draw(){
    ctx.beginPath();ctx.moveTo(18,ceilY);ctx.lineTo(W-18,ceilY);ctx.stroke();
    ctx.restore();
  }
+}
+function drawField(){
  drawJuiceUnderOrbs();   // INTENSITY: edge light (outside the orb field) and trail glow (never behind an orb)
  // targets
  for(const t of targets){
@@ -2086,7 +2097,8 @@ function draw(){
  if(perfectFlash>0){
    ctx.save();ctx.globalAlpha=perfectFlash/.18;ctx.strokeStyle='#ffffff';ctx.lineWidth=3;ctx.shadowBlur=25;ctx.shadowColor='#ffffff';ctx.beginPath();ctx.arc(ball.x,ball.y,ball.r+12+(1-perfectFlash/.18)*22,0,Math.PI*2);ctx.stroke();ctx.restore();
  }
- ctx.restore();
+}
+function drawSlotBanners(){
  // Miss notice: same HUD-strip slot as the level banner, drawn after the shake
  // transform is undone. While it shows it takes the slot; the LEVEL box still
  // shows any SPEED UP countdown.
@@ -2177,8 +2189,23 @@ function setPaused(next){
  }
 }
 
+/* BATTERY / HEAT (owner, PR A -- lifecycle). Same FLUX, less wasted work:
+   - HIDDEN: while the page is hidden nothing is simulated or drawn.
+   - PAUSED (pause button, revive offer): the last frame stays on the canvas under the pause screen and
+     nothing is redrawn.
+   - After either, the first frame re-anchors the clock (dt = one normal frame): no physics, spawn or
+     timer jump. Score, combo, lives and every state are untouched; audio behaves as before.
+   - MENUS / GAME OVER (no run on screen, nothing simulated): the field -- orbs, ball, launcher,
+     particles, texts -- cannot change, so it is drawn once into a copy and stamped each frame
+     (stampField); the sky and the ceiling shimmer still move exactly as before, and the game-over
+     shake still shakes. A bonus orb or a lightning orb pulses with the clock, so with one on the field
+     the field is drawn live as before. The copy is redrawn as soon as anything drawn in it changes.
+   The loop itself keeps its D-45 shape: the next frame is always scheduled first. */
+let fluxLoopIdle=false;   // the last frame drew nothing (hidden or paused): re-anchor the clock on the next one
 function loop(ts){
  requestAnimationFrame(loop);   // D-45: next frame first, so one bad frame can never freeze the game
+ if(document.hidden || paused){ fluxLoopIdle=true; last=ts; return; }   // BATTERY: hidden or paused -- nothing simulated, nothing redrawn
+ if(fluxLoopIdle){ fluxLoopIdle=false; last=ts; }   // BATTERY: back -- this frame is one normal step (dt .016), never a jump
  const dt=Math.min(.032,(ts-last)/1000||.016);
  if(playing && !paused) fluxPerfSample(ts-last);   // D-46
  last=ts;
@@ -2191,6 +2218,53 @@ function loop(ts){
  draw();
 }
 requestAnimationFrame(loop);
+/* BATTERY (menus): the field copy. FIELD_PAD covers the largest shake (18 px at game over), so a shaken
+   copy never shows a cut edge. fieldStillKey() lists everything drawField() reads (the clock aside);
+   the copy is redrawn whenever one of them changes. */
+const FIELD_PAD=24;
+let fieldCopy=null, fieldCopyKey=null;
+function fieldIsStill(){
+ if(playing || levelHold>0) return false;   // a run (or the level-up banner) is on screen: drawn live
+ for(const t of targets) if(t.bonus || (t.growing && t.matured)) return false;   // these pulse with the clock
+ return true;
+}
+function fieldStillKey(){
+ const k=[W,H,dpr,activeSkin,colors,window.__fluxLite?1:0,level,fluxMode>0?Math.ceil(fluxMode):0,perfectFlash,juice,
+   paddle.x,paddle.y,paddle.w,paddle.h,paddle.hitFlash||0,targets.length,particles.length,texts.length,maxHudBottom()];
+ if(ball){ k.push(ball.x,ball.y,ball.r,ball.color,ball.vx,ball.vy,ball.trail.length); for(const q of ball.trail) k.push(q.x,q.y); }
+ for(const t of targets) k.push(t.x,t.y,t.r,t.color,t.phase,t.spin,t.danger?1:0,t.hint?1:0,t.growing?1:0,t.matured?1:0,t.hitPulse||0,t.age||0);
+ for(const q of particles) k.push(q.x,q.y,q.life,q.col);
+ for(const q of texts) k.push(q.s,q.x,q.y,q.life,q.col);
+ return k;
+}
+function sameKey(a,b){ if(!a || a.length!==b.length) return false; for(let i=0;i<a.length;i++) if(a[i]!==b[i]) return false; return true; }
+const FIELD_STATE=['fillStyle','strokeStyle','lineWidth','lineCap','lineJoin','miterLimit','font','textAlign','textBaseline','globalAlpha','shadowBlur','shadowColor','shadowOffsetX','shadowOffsetY','globalCompositeOperation','imageSmoothingEnabled','lineDashOffset'];
+function stampField(){
+ const key=fieldStillKey();
+ if(!fieldCopy || !sameKey(fieldCopyKey,key)){
+   const pw=Math.round((W+2*FIELD_PAD)*dpr), ph=Math.round((H+2*FIELD_PAD)*dpr);
+   if(!fieldCopy) fieldCopy=document.createElement('canvas');
+   if(fieldCopy.width!==pw || fieldCopy.height!==ph){ fieldCopy.width=pw; fieldCopy.height=ph; }
+   const fc=fieldCopy.getContext('2d');
+   fc.setTransform(1,0,0,1,0,0); fc.clearRect(0,0,pw,ph);
+   for(const k of FIELD_STATE) fc[k]=ctx[k];   // the same drawing state the live field would start from
+   fc.setLineDash(ctx.getLineDash());
+   fc.setTransform(dpr,0,0,dpr,FIELD_PAD*dpr,FIELD_PAD*dpr);
+   const live=ctx; ctx=fc;
+   try{ drawField(); } finally { ctx=live; }
+   fieldCopyKey=key;
+ }
+ ctx.drawImage(fieldCopy,-FIELD_PAD,-FIELD_PAD,W+2*FIELD_PAD,H+2*FIELD_PAD);
+}
+/* BATTERY: FLUX MODE's look (the #app filter and the glow layer) is written once when FLUX MODE starts and
+   once when it ends, not on every frame. Same values, same moments. */
+let fluxModeLookOn=null;
+function fluxModeLook(on){
+ if(on===fluxModeLookOn) return;
+ fluxModeLookOn=on;
+ document.getElementById('app').style.filter=on?'brightness(1.18) saturate(1.35)':'none';
+ document.getElementById('fluxGlow').classList.toggle('on',on);
+}
 /* PADDLE CONTROL. A finger that starts in the bottom 40% of the screen (on the
    round grip or anywhere else there) moves the launcher.
    UNDER THE THUMB (players hold the round grip): the launcher's centre IS the
