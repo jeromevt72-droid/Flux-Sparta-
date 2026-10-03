@@ -124,6 +124,7 @@ const RATE_LIMITS = {
   events:  { ip: 120, player: 20 },
   restore: { ip: 30,  player: 20 },
   admin:   { ip: 30 },
+  help:    { ip: 10,  player: 3 },        // HELP: a tap on a topic in the game menu
 };
 /* Replay protection. Each finished run's upload carries a random run id
    (runId), reused on every retry of that same upload. The leaderboard keeps the
@@ -192,6 +193,9 @@ export default {
         if (path === "/api/restore-check" && request.method === "POST") {
           return withCors(await restoreCheck(request, env));   // D-35
         }
+        if (path === "/api/help" && request.method === "POST") {
+          return withCors(await submitHelp(request, env));     // HELP: one topic from the game menu, no personal data
+        }
         if (path === "/api/create-checkout-session" && request.method === "POST") {
           return withCors(await createCheckout(request, env));
         }
@@ -221,6 +225,7 @@ export default {
             "/api/admin/name-ban":          () => adminNameBan(request, env, true),
             "/api/admin/name-unban":        () => adminNameBan(request, env, false),
             "/api/admin/exceptions":        () => adminExceptions(request, env),
+            "/api/admin/help-done":         () => adminHelpDone(request, env),           // HELP: the owner marks a help request done
             "/api/admin/dismiss-flag":      () => adminDismissFlag(request, env),
             "/api/admin/resolve-delivery":  () => adminResolveDelivery(request, env),
             "/api/admin/purchases":         () => adminPurchases(request, env),
@@ -247,6 +252,8 @@ export default {
             "/api/admin/founding-continue":  () => adminFounding(request, env, "continue"),    // FOUNDING PILOT: resume numbering (ON only)
             "/api/admin/founding-exclude":   () => adminFounding(request, env, "exclude"),     // FOUNDING PILOT: exclusion list by #TAG
             "/api/admin/founding-take-back": () => adminFounding(request, env, "take-back"),   // FOUNDING PILOT: typed TAKE BACK #TAG
+            "/api/admin/founding-grant-check": () => adminFoundingGrant(request, env, false),   // FOUNDING PILOT by hand: why NAME #TAG has no number (writes nothing)
+            "/api/admin/founding-grant":     () => adminFoundingGrant(request, env, true),      // FOUNDING PILOT by hand: typed GIVE <id> + backup < 60 min + same as the check
             "/api/admin/storage-status":          () => adminStorage(request, env, "status"),     // STORAGE FIX: layout, size, move progress
             "/api/admin/migrate-storage-dry-run": () => adminStorage(request, env, "dry-run"),    // STORAGE FIX: builds the new layout in memory; writes nothing live
             "/api/admin/migrate-storage":         () => adminStorage(request, env, "migrate"),    // STORAGE FIX: typed confirmation + backup < 60 min + safety backup
@@ -405,6 +412,37 @@ function cleanEvent(e) {
     out.hit = anInt(e.hit, 0, 5000); out.wrong = anInt(e.wrong, 0, 5000); out.lost = anInt(e.lost, 0, 4);
   }
   return out;
+}
+/* HELP (game menu): the player taps ONE topic; FLUX COMMAND shows it under EXCEPTIONS NEEDING ATTENTION
+   with the pilot's name and #TAG. No free text, no email, no contact details: nothing personal can be
+   sent. Kept in its own "help" instance as one stored value: at most HELP_MAX open requests, none older
+   than HELP_MAX_AGE_MS; the same topic from the same pilot again only refreshes its time. */
+const HELP_TOPICS = { badge: "Founding Pilot badge missing", lost: "Lost my pilot", bug: "Something is broken", other: "Something else" };
+const HELP_KEY = "help", HELP_MAX = 200, HELP_MAX_AGE_MS = 90 * 86400000;
+function helpDO(env, path, init) {
+  useCount("d");
+  return env.LEADERBOARD_DO.get(env.LEADERBOARD_DO.idFromName("help")).fetch("https://do.internal" + path, init);
+}
+async function submitHelp(request, env) {
+  try {
+    const body = await readJsonObject(request);
+    if (!body) return json({ ok: false }, 400);
+    const playerId = typeof body.playerId === "string" ? body.playerId.trim() : "";
+    const topic = typeof body.topic === "string" && ownGet(HELP_TOPICS, body.topic) ? body.topic : "";
+    if (!validPlayerId(playerId) || !topic) return json({ ok: false, error: "Bad request" }, 400);
+    if (!env.LEADERBOARD_DO) return json({ ok: false }, 500);
+    const pid = await pidHash(playerId);
+    const r = await rlFromDO(await helpDO(env, "/help-add", { method: "POST", headers: await rlHeaders("help", request, pid, { "Content-Type": "application/json" }),
+      body: JSON.stringify({ pid, topic, name: cleanName(body.name) }) }));
+    if (r.status === 429) return r;
+    return json({ ok: r.ok }, r.ok ? 200 : 500);
+  } catch (e) { return json({ ok: false }, 500); }
+}
+async function adminHelpDone(request, env) {
+  const denied = requireAdmin(request, env); if (denied) return denied;
+  const b = await adminBody(request);
+  const r = await helpDO(env, "/help-done", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: String(b.id || "").slice(0, 16) }) });
+  return json(await r.json().catch(() => ({ ok: false })), r.status);
 }
 async function ingestEvents(request, env) {
   try {
@@ -1333,6 +1371,7 @@ async function adminPrivacyDelete(request, env) {
     backups = await r.json();
     if (!r.ok) backups = { ok: false, error: backups.error || "backup clean-up failed" };
   } catch (e) { backups = { ok: false, error: "backup clean-up failed: " + (e && e.message) }; }
+  try { await helpDO(env, "/help-purge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pid: b.pid }) }); } catch (e) { /* HELP: best effort */ }
   const out = await live.json().catch(() => ({}));
   if (live.status === 404 && backups.ok && backups.changed > 0) return json({ ok: true, liveFound: false, purchasesRemoved: 0, restrictionKept: false, backups });
   return json({ ...out, backups }, live.status);
@@ -1529,6 +1568,59 @@ async function adminFounding(request, env, action) {
   if (x.status === 200) { x.d.numbered = numbered; x.d.rowsWritten = rows; }
   return out(x);
 }
+/* FOUNDING PILOT by hand: ONE pilot the owner names exactly (NAME #TAG). CHECK writes nothing: it says
+   why that pilot has no number and what GIVE would do. A removed pilot (no row any more) is looked up
+   in the newest checked backups, and GIVE first brings it back from the newest one that holds it.
+   GIVE needs the phrase CHECK shows (GIVE <id>), a checked backup from the last 60 minutes, and the
+   same answer as the check (nothing about the pilot or the offer changed); a safety backup comes first. */
+function fgParse(line) {
+  const raw = String(line || "").toUpperCase().replace(/\s+/g, " ").trim().slice(0, 60);
+  const m = /^(.+?) ?# ?([0-9A-Z]+)$/.exec(raw);
+  if (!m || !m[1].trim()) return { error: "Type the pilot as NAME #TAG, for example TITAN #KH2K8J7." };
+  if (m[2].length !== 7 && m[2].length !== 12) return { error: "Not a full #TAG: a #TAG has 7 characters (12 when pilots share a name and tag)." };
+  return { line: m[1].trim() + " #" + m[2], name: m[1].trim(), tag: m[2] };
+}
+async function adminFoundingGrant(request, env, real) {
+  const denied = requireAdmin(request, env); if (denied) return denied;
+  if (!env.LEADERBOARD_DO) return json({ error: "Leaderboard storage is not configured (missing LEADERBOARD_DO binding)" }, 500);
+  const b = await adminBody(request), nostore = { "Cache-Control": "no-store" };
+  const who = fgParse(b.line);
+  if (who.error) return json({ error: who.error }, 400, nostore);
+  const call = async (path, body) => {
+    const r = await forwardToDO(request, env, path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+    return { status: r.status, d: await r.json().catch(() => ({ ok: false, error: "No answer from the leaderboard." })) };
+  };
+  const inBackups = async (seq) => {
+    try {
+      const r = await backupDO(env, "/find-pilot", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: who.name, tag: who.tag, seq }) });
+      const d = await r.json();
+      return r.ok ? d : { found: false, scanned: 0, error: d.error || "could not read the backups" };
+    } catch (e) { return { found: false, scanned: 0, error: "could not read the backups" }; }
+  };
+  const plan = async () => {   // the leaderboard first; the backups only when the pilot has no number
+    const x = await call("/founding-grant-plan", { line: who.line });
+    if (x.status !== 200 || !x.d.lookBackups) return x;
+    const bk = await inBackups(Number.isInteger(x.d.seq) ? x.d.seq : null);
+    const y = await call("/founding-grant-plan", { line: who.line, bk });
+    y.bk = bk;
+    return y;
+  };
+  if (!real) { const x = await plan(); return json(x.d, x.status, nostore); }
+  const id = typeof b.id === "string" && RP_ID.test(b.id) ? b.id : "";
+  if (!id) return json({ error: "Press CHECK first; giving a number needs its id." }, 400, nostore);
+  if (String(b.confirm || "").trim() !== "GIVE " + id) return json({ error: "Nothing was changed. To give the number, type exactly: GIVE " + id }, 400, nostore);
+  const bk = await sfLatestBackup(env);
+  if (!bk.fresh) return json({ ok: false, needBackup: true, backup: bk,
+    error: "Nothing was changed: giving a number needs a checked backup from the last 60 minutes" + (bk.createdAt ? " (the newest is " + bk.ageMin + " minutes old)" : "") + ". Press BACK UP NOW, then GIVE NUMBER again." }, 409, nostore);
+  const pre = await plan();
+  if (pre.status !== 200) return json(pre.d, pre.status, nostore);
+  if (pre.d.id !== id) return json({ ok: false, changed: true, error: "Nothing was changed: this pilot or the offer changed since the check. Press CHECK again." }, 409, nostore);
+  if (!pre.d.canGive) return json({ ok: false, error: "Nothing was changed: " + pre.d.why }, 409, nostore);
+  const sf = await sfSafety(env, "before FOUNDING PILOT by hand " + id);
+  if (!sf.ok) return json({ ok: false, error: "The safety backup failed its check, so nothing was changed." + (sf.error ? " (" + sf.error + ")" : "") }, 500, nostore);
+  const r = await call("/founding-grant", { line: who.line, id, bk: pre.bk || null });
+  return json({ ...r.d, backupId: bk.id, safetyId: sf.id }, r.status, nostore);
+}
 /* The newest verified backup that is a copy of the live leaderboard (daily,
    BACK UP NOW or a safety copy -- not an uploaded file), and whether it is
    recent enough for the storage move. */
@@ -1595,6 +1687,14 @@ async function adminExceptions(request, env) {
   const resp = await forwardToDO(request, env, "/admin-overview", { method: "POST" });
   const overview = await resp.json();
   overview.delivery = await listDeliveryExceptions(env);
+  try {   // HELP: open requests from the game menu
+    const h = await helpDO(env, "/help-list", { method: "POST" });
+    if (h.ok) overview.help = (await h.json()).open || [];
+  } catch (e) { /* the rest of the page still works */ }
+  try {   // FOUNDING PILOT: pilots that should have a number but do not (reads every pilot once, only when you press CHECK EXCEPTIONS)
+    const g = await forwardToDO(request, env, "/founding-gaps", { method: "POST" });
+    if (g.ok) overview.founding = await g.json();
+  } catch (e) { /* the rest of the page still works */ }
   return json(overview);
 }
 async function adminDismissFlag(request, env) {
@@ -1975,6 +2075,7 @@ export class LeaderboardDO {
     if (url0.pathname.startsWith("/an-")) return this.handleAnalytics(request, url0);   // STATS instance: never loads the leaderboard
     if (url0.pathname.startsWith("/auth-")) return this.handleCommandAuth(request, url0);   // FLUX COMMAND instance: never loads the leaderboard
     if (url0.pathname.startsWith("/bk/")) return this.handleBackups(request, url0);    // BACKUPS instance: never loads the leaderboard
+    if (url0.pathname.startsWith("/help-")) return this.handleHelp(request, url0);    // HELP instance: never loads the leaderboard
     // BACKUPS: the "backups" instance never serves leaderboard routes.
     if (this.role === undefined) this.role = (await this.state.storage.get(BACKUP_ROLE_KEY)) || "";
     if (this.role) return json({ error: "Not found" }, 404);
@@ -2025,6 +2126,9 @@ export class LeaderboardDO {
       "/founding-continue": () => json({ error: FOUNDING_MOVE_FIRST }, 409),
       "/founding-exclude": () => json({ error: FOUNDING_MOVE_FIRST }, 409),
       "/founding-take-back": () => json({ error: FOUNDING_MOVE_FIRST }, 409),
+      "/founding-grant-plan": () => json({ error: FOUNDING_MOVE_FIRST }, 409),
+      "/founding-grant": () => json({ error: FOUNDING_MOVE_FIRST }, 409),
+      "/founding-gaps": () => json({ layout: "old", count: 0, gaps: [] }),
       "/backup-dump": () => this.handleBackupDump(),            // BACKUPS (internal: the worker never forwards these)
       "/backup-restore": () => this.handleBackupRestore(request),
     }[url.pathname];
@@ -2119,6 +2223,34 @@ export class LeaderboardDO {
       this.bk = new BackupStore(this.state, this.env);
     }
     return this.bk.fetch(request, url.pathname.slice(3));
+  }
+
+  /* HELP (see submitHelp): the open requests, one stored value, one request at a time. */
+  handleHelp(request, url) {
+    const run = async () => {
+      try {
+        const st = this.state.storage, b = (await request.json().catch(() => null)) || {}, now = Date.now();
+        const stored = await st.get(HELP_KEY), all = Array.isArray(stored) ? stored : [];
+        const list = all.filter((x) => x && now - (x.last || x.at || 0) < HELP_MAX_AGE_MS);
+        const save = async (next) => { if (next.length !== all.length || next !== list) await st.put(HELP_KEY, next); };
+        if (url.pathname === "/help-list") { if (list.length !== all.length) await st.put(HELP_KEY, list); return json({ ok: true, open: list.slice().reverse() }); }
+        if (url.pathname === "/help-add") {
+          if (typeof b.pid !== "string" || !/^[0-9a-f]{16}$/.test(b.pid) || !ownGet(HELP_TOPICS, b.topic)) return json({ ok: false }, 400);
+          const i = list.findIndex((x) => x.pid === b.pid && x.topic === b.topic), old = i >= 0 ? list[i] : null;
+          const id = old ? old.id : [...crypto.getRandomValues(new Uint8Array(5))].map((v) => v.toString(16).padStart(2, "0")).join("");
+          const item = { id, pid: b.pid, tag: tagFromPid(b.pid, 7), name: String(b.name || "PILOT").slice(0, 24), topic: b.topic, label: HELP_TOPICS[b.topic],
+            at: old ? old.at : now, last: now, times: (old ? old.times : 0) + 1 };
+          await save(list.filter((x) => x !== old).concat([item]).slice(-HELP_MAX));
+          return json({ ok: true });
+        }
+        if (url.pathname === "/help-done") { await save(list.filter((x) => x.id !== b.id)); return json({ ok: true }); }
+        if (url.pathname === "/help-purge") { await save(list.filter((x) => x.pid !== b.pid)); return json({ ok: true }); }   // privacy deletion
+        return json({ error: "Not found" }, 404);
+      } catch (e) { return json({ ok: false, error: "help failed" }, 500); }
+    };
+    const p = (this.helpChain || Promise.resolve()).then(run, run);
+    this.helpChain = p.then(() => {}, () => {});
+    return p;
   }
 
   /* STATS (see the note at AN_EVENTS). One request at a time, in order. */
@@ -3669,6 +3801,7 @@ class BackupStore {
       case "/import": return this.importFile(body);
       case "/purge-player": return this.purgePlayer(String(body.pid || ""), !!body.removePurchases);
       case "/safety": return this.safety(String(body.note || "safety copy"));   // STORAGE FIX: before the storage move / rollback / clean-up
+      case "/find-pilot": return this.findPilot(String(body.name || ""), String(body.tag || ""), Number.isInteger(body.seq) ? body.seq : null);   // FOUNDING PILOT by hand: a removed pilot (reads only)
     }
     return json({ error: "Not found" }, 404);
   }
@@ -4185,6 +4318,30 @@ class BackupStore {
     if (!meta.verified) { await this.deleteSnapshot(meta); return "deleted"; }
     return "changed";
   }
+  /* FOUNDING PILOT by hand: the newest checked backup (of the new layout) that holds the pilot NAME #TAG,
+     exact name and full #TAG, and that pilot's row. With seq (the pilot is on the server now): the newest
+     copy where it had another row, i.e. from before it was removed and came back. Newest first, at most
+     FG_BACKUPS_SCANNED copies; reads only. */
+  async findPilot(name, tag, seq) {
+    if (!name || name.length > 60 || !/^[0-9A-Z]{7}([0-9A-Z]{5})?$/.test(tag)) return json({ error: "Type the pilot as NAME #TAG." }, 400);
+    let scanned = 0;
+    for (const m of await this.metas()) {
+      if (scanned >= FG_BACKUPS_SCANNED) break;
+      if (!m.verified || m.schema !== 2) continue;
+      scanned++;
+      try {
+        for await (const { p, entries } of this.readPages(m)) {
+          if (p.t !== "pilots") continue;
+          for (const [, row] of entries) {
+            if (!row || typeof row.pid !== "string" || !row.rec || tagFromPid(row.pid, tag.length) !== tag) continue;
+            if (String(cleanName(row.rec.name)).toUpperCase() !== name || (seq != null && row.seq === seq)) continue;
+            return json({ ok: true, found: true, backupId: m.id, createdAt: m.createdAt, kind: m.kind || "", row, scanned });
+          }
+        }
+      } catch (e) { /* a damaged copy is skipped */ }
+    }
+    return json({ ok: true, found: false, scanned });
+  }
 }
 
 /* Records: legacy single-score -> per-difficulty bests. */
@@ -4687,7 +4844,7 @@ const V2_ROW_BYTES_EST = 310;                // one pilot in a backup (measured 
 const FREE_PLAN = { rowsReadPerDay: 5_000_000, rowsWrittenPerDay: 100_000, storageBytes: 5 * 1024 * 1024 * 1024, note: "Workers Free plan, SQLite Durable Objects -- check the current limits in the Cloudflare dashboard" };
 const V2_WRITE_ROUTES = new Set(["/submit", "/grant", "/revoke", "/import", "/recompute", "/admin-remove-score", "/admin-remove-pilots", "/admin-restrict", "/admin-unrestrict",
   "/admin-privacy-delete", "/admin-name-ban", "/admin-name-unban", "/admin-dismiss-flag", "/admin-issue-restore", "/world-grid-apply", "/world-grid-revert",
-  "/founding-switch", "/founding-continue", "/founding-exclude", "/founding-take-back"]);
+  "/founding-switch", "/founding-continue", "/founding-exclude", "/founding-take-back", "/founding-grant"]);
 const V2_TABLES = ["pilots", "ents", "seen", "cool", "fnd"];   // backed up; v2meta (derived totals) is rebuilt instead
 const V2_ALL_TABLES = V2_TABLES.concat(["v2meta"]);
 const V2_BK_SKIP_KEYS = new Set([V2_RESTORING_KEY]);
@@ -4715,6 +4872,7 @@ const FOUNDING_EXCL_MAX = 500;
 const FOUNDING_LIST_SHOWN = 50;
 const FOUNDING_CONFIRM = "FOUNDING ON";
 const FOUNDING_CALLS_PER_REQUEST = 10;
+const FG_BACKUPS_SCANNED = 40;   // FOUNDING PILOT by hand: checked backups searched for a removed pilot (every kept copy; about 20 are kept)
 const FOUNDING_MOVE_FIRST = "Move the storage first: Founding Pilot works on the new storage layout only (STORAGE above).";
 function foOf(cfg) { return cfg && typeof cfg === "object" ? { on: cfg.on ? 1 : 0, given: Math.max(0, cfg.given | 0), cur: Math.max(0, cfg.cur | 0), done: cfg.done ? 1 : 0 } : undefined; }
 const V2_PILOT_COLS = ["seq", "id", "pid", "t12", "tag", "dname", "nb1", "nb2", "cc", "rs", "ls", "e_s", "e_t", "m_s", "m_t", "h_s", "h_t", "rec"];
@@ -5514,6 +5672,156 @@ class PilotLayoutV2 {
     return json({ ok: true, takenBack: f.n, ...this.fState(this.fCfg()) });
   }
 
+  /* ---- FOUNDING PILOT consistency check (EXCEPTIONS NEEDING ATTENTION) ----
+     While the offer is ON, numbering is done and spots remain, every pilot on the server that is not
+     restricted and not on the exclusion list should have a number. Lists the ones that do not (oldest
+     first) and why that probably happened, and counts removed pilots (never numbered on purpose).
+     Reads every pilot and every grant once; writes nothing. */
+  async fGaps() {
+    await this.fLoad();
+    const o = this.o, cfg = this.fCfg(), out = { layout: "new", on: cfg.on, given: cfg.given, cap: FOUNDING_CAP, left: Math.max(0, FOUNDING_CAP - cfg.given), count: 0, gaps: [] };
+    let removed = 0, ca = null;
+    for (;;) {   // removed pilots that have not played since (REMOVE PILOTS / REMOVE SCORE keep a cooldown row)
+      let rows = [];
+      try { rows = this.db.rowsById("cool", ca, null, V2_SCAN_PAGE); } catch (e) { break; }
+      removed += rows.length;
+      if (rows.length < V2_SCAN_PAGE) break;
+      ca = rows[rows.length - 1].id;
+    }
+    out.removed = removed;
+    if (!cfg.on || !cfg.done || cfg.given >= FOUNDING_CAP) return json({ ...out, note: !cfg.on ? "The offer is OFF: nothing to check." : !cfg.done ? "Numbering is not finished: press CONTINUE under FOUNDING PILOT." : "All numbers are given." });
+    const have = new Set();
+    let after = null;
+    for (;;) {
+      let rows = [];
+      try { rows = this.db.rowsById("fnd", after, null, V2_SCAN_PAGE); } catch (e) { break; }
+      for (const r of rows) have.add(r.id);   // a number taken back on purpose is not a gap
+      if (rows.length < V2_SCAN_PAGE) break;
+      after = rows[rows.length - 1].id;
+    }
+    let seq = 0;
+    for (;;) {
+      const rows = this.db.pilotPage(seq, V2_SCAN_PAGE);
+      for (const r of rows) {
+        if (have.has(r.id) || r.rs || ownGet(o.restricted, r.pid) || ownGet(cfg.excl, r.pid)) continue;
+        out.count++;
+        if (out.gaps.length < FOUNDING_LIST_SHOWN) out.gaps.push({ name: r.dname, tag: r.tag, why: r.seq <= cfg.cur
+          ? "left out when the offer numbered the pilots (restricted or excluded then)"
+          : "joined later without a number (removed earlier and played again, or joined while the offer was OFF)" });
+      }
+      if (rows.length < V2_SCAN_PAGE) break;
+      seq = rows[rows.length - 1].seq;
+    }
+    return json(out);
+  }
+
+  /* ---- FOUNDING PILOT by hand (see adminFoundingGrant) ---- */
+  /* One NAME #TAG -> why it has no number, and whether GIVE may give it the next one. First pass
+     (no b.bk): if it has no number, the answer asks the Worker to look in the backups ("lookBackups")
+     and ask again with what it found. The id fingerprints everything GIVE depends on. */
+  async fgPlan(b) {
+    await this.fLoad();
+    const o = this.o, cfg = this.fCfg(), x = this.rpLookup(b.line);
+    const out = { ok: true, dryRun: true, wroteNothing: true, line: x.line,
+      offer: { on: cfg.on, given: cfg.given, cap: FOUNDING_CAP, left: Math.max(0, FOUNDING_CAP - cfg.given) } };
+    if (x.status === "invalid" || x.status === "ambiguous") return { ...out, status: x.status, canGive: false, why: x.why };
+    const row = x.row || null, fLive = row ? this.db.fndMany([row.id]).get(row.id) : undefined;
+    const bk = b.bk && typeof b.bk === "object" ? b.bk : null;
+    if (!bk && !(fLive && !fLive.off)) return { ...out, lookBackups: true, seq: row ? row.seq : null };
+    const bRow = bk && bk.found && bk.row && validPlayerId(bk.row.id) && typeof bk.row.pid === "string" && bk.row.rec && typeof bk.row.rec === "object" ? bk.row : null;
+    const backup = bRow ? { id: String(bk.backupId || ""), createdAt: Number(bk.createdAt) || 0 } : null;
+    if (!row && bRow && this.db.pilot(bRow.id)) return { ...out, status: "changed", canGive: false, why: "That pilot now plays under another name. Press CHECK with its current name." };
+    const id = row ? row.id : bRow ? bRow.id : null, pid = row ? row.pid : bRow ? bRow.pid : null;
+    const f = row ? fLive : id ? this.db.fndMany([id]).get(id) : undefined;
+    const restricted = row ? !!row.rs || !!ownGet(o.restricted, row.pid) : !!(pid && ownGet(o.restricted, pid));
+    const excluded = !!(pid && ownGet(cfg.excl, pid));
+    const cool = !row && id ? this.db.kvGet("cool", id) : null;
+    const day = (t) => (t ? new Date(t).toISOString().slice(0, 16).replace("T", " ") + " UTC" : "unknown");
+    const rec = row ? v2dec(row.rec) : bRow ? bRow.rec : null;
+    const pilot = rec ? { name: cleanName(rec.name), tag: row ? row.tag : tagFromPid(pid, 7), country: rec.country || "",
+      bests: Object.fromEntries(V2_DIFFS.filter((d) => ownGet(rec.bests, d)).map((d) => [d, rec.bests[d].score])),
+      onServer: !!row, purchases: id && Array.isArray(this.ents(id)) ? this.ents(id).length : 0 } : null;
+    const n = cfg.given + 1, scanned = bk ? Number(bk.scanned) || 0 : 0;
+    let status, why, canGive = false;
+    if (f && !f.off) { status = "numbered"; why = "It is already Founding Pilot #" + f.n + " (given " + day(f.at) + "). Nothing to do: open FLUX once on that device while online and the badge appears."; }
+    else if (!row && !bRow) {
+      status = "not-found";
+      why = "No pilot is exactly " + x.line + " on the server or in the newest " + scanned + " checked backup" + (scanned === 1 ? "" : "s") + ". Check the name and #TAG on that device's menu (PILOT NAME #TAG)." +
+        " If that device never uploaded a score, play one run on it while the offer is ON: it gets the next number by itself.";
+    } else if (restricted) { status = "restricted"; why = "It is restricted, so it never gets a number. If that is a mistake, UNRESTRICT it under FIND A PLAYER first, then CHECK again."; }
+    else if (cfg.given >= FOUNDING_CAP) { status = "full"; why = "All " + FOUNDING_CAP.toLocaleString("en-US") + " numbers are given (it joined after the spots ran out, or was left out before): there is no number left to give."; }
+    else {
+      canGive = true;
+      if (!row) {
+        status = "removed";
+        why = "It was removed (REMOVE PILOTS or REMOVE SCORE)" + (cool != null ? "" : " or never came back after a restore") + ", so it had no pilot row when the offer numbered the pilots. " +
+          "It is in backup " + backup.id + " (" + day(backup.createdAt) + "): GIVE brings it back from there with those scores, then gives it #" + n + ".";
+      } else if (f && f.off) { status = "taken-back"; why = "Its number #" + f.n + " was taken back with TAKE BACK. GIVE gives it #" + n + " (#" + f.n + " stays retired)."; }
+      else if (excluded) { status = "excluded"; why = "It is on your exclusion list, so switching ON skipped it. GIVE takes it off the list and gives it #" + n + "."; }
+      else if (bRow && bRow.seq !== row.seq) {
+        status = "came-back";
+        why = "It was removed (REMOVE PILOTS or REMOVE SCORE) and then played again from its device. A removed pilot never takes a spot by itself, so it got no number. GIVE gives it #" + n + "." +
+          " Its scores from before the removal are in backup " + backup.id + " (" + day(backup.createdAt) + ") and are not brought back.";
+      } else if (cfg.done && row.seq <= cfg.cur) { status = "skipped"; why = "It existed when the offer numbered the pilots but was left out then (restricted or on the exclusion list at that time). GIVE gives it #" + n + "."; }
+      else if (!cfg.onAt) { status = "offer-never-on"; why = "The offer has never been switched ON, so nobody has a number yet. GIVE gives it #" + n + " now."; }
+      else { status = "missed"; why = "It joined after the offer numbered the pilots but got no number then (the offer was OFF or full when it joined). GIVE gives it #" + n + "."; }
+    }
+    const steps = !canGive ? [] : [
+      ...(row ? [] : ["bring the pilot back from backup " + backup.id + ": its name, country, scores and restore code; other pilots are not touched (Season 0 bests are not brought back)"]),
+      ...(excluded ? ["take it off your exclusion list"] : []),
+      "give it Founding Pilot #" + n + " (Solar Inferno free, on every device and through its restore code)",
+      "spots left: " + (FOUNDING_CAP - cfg.given) + " -> " + (FOUNDING_CAP - n)];
+    const sig = [x.line, status, canGive, row ? [row.id, row.rec, row.rs, row.seq, row.ls, row.cc] : null, bRow ? [backup.id, bRow.id, bRow.seq, bRow.ls, JSON.stringify(bRow.rec)] : null,
+      cool, f ? JSON.stringify(f) : null, excluded, restricted, cfg.given, cfg.on];
+    const hex = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(sig))))].map((v) => v.toString(16).padStart(2, "0")).join("");
+    const pid8 = tagFromPid(hex.slice(0, 16), 8);
+    return { ...out, status, canGive, why, pilot, backup, scannedBackups: scanned, restore: canGive && !row, excluded, wouldGet: canGive ? n : null,
+      rowsWouldWrite: canGive ? (row ? 2 : 7) : 0, steps, id: pid8, confirm: canGive ? "GIVE " + pid8 : "", restoreRow: canGive && !row ? bRow : null,
+      note: canGive ? "Nothing was changed. To go ahead, type GIVE " + pid8 + " and press GIVE NUMBER." : "Nothing was changed." };
+  }
+  async fgGive(request) {
+    const b = (await request.json().catch(() => null)) || {};
+    const p = await this.fgPlan({ line: b.line, bk: b.bk });
+    if (p.lookBackups || p.id !== b.id) return json({ ok: false, changed: true, error: "Nothing was changed: this pilot or the offer changed since the check. Press CHECK again." }, 409);
+    if (!p.canGive) return json({ ok: false, error: "Nothing was changed: " + p.why }, 409);
+    const o = this.o, cfg = this.fCfg(), now = Date.now(), n = cfg.given + 1, sum = structuredClone(this.sum), bRow = p.restoreRow;
+    const before = this.rpLookup(p.line), id = before.row ? before.row.id : bRow.id;
+    this.db.tx(() => {   // ONE transaction: the pilot (if it comes back), its grant and the counter
+      if (bRow) {
+        const c = this.db.kvGet("cool", bRow.id);
+        this.putPilot(sum, null, bRow.rec, bRow.id, bRow.pid, c != null ? c : bRow.ls == null ? null : bRow.ls);
+        if (c != null) this.db.kvDel("cool", bRow.id);
+      }
+      this.db.fndEnsure();
+      this.db.kvPut("fnd", id, v2enc({ n, at: now, src: FOUNDING_SRC, by: "owner" }));
+      sum.fo = { ...(sum.fo || foOf(cfg)), given: n };
+      this.saveSum(sum, true);
+    });
+    const row = this.db.pilot(id), excl = { ...cfg.excl };
+    if (row) delete excl[row.pid];
+    const event = "#" + n + " given by hand to " + p.pilot.name + " #" + p.pilot.tag + (bRow ? " (brought back from backup " + p.backup.id + ")" : "") + (p.excluded ? " (taken off the exclusion list)" : "");
+    const stored = { ...cfg, given: n, excl, log: this.fLogged(cfg, now, event) };
+    const saving = o.state.storage.put(FOUNDING_KEY, stored);
+    o.fcfg = stored; this.sum = sum; this.dropCaches();
+    await saving;
+    if (row) await o.migTouched([row.pid]);
+    /* post-check */
+    const checks = [], add = (key, label, ok, detail) => checks.push({ id: key, label, ok: !!ok, detail });
+    const now2 = this.rpLookup(p.line), f = this.fndActive(id);
+    add("found", "The pilot is on the server as " + p.line, now2.status === "found" && now2.row.id === id, now2.status);
+    add("number", "It is Founding Pilot #" + n + " (Solar Inferno on every device)", f && f.n === n, f ? "#" + f.n : "no grant");
+    add("counter", "The counter says " + n + " given, " + (FOUNDING_CAP - n) + " spots left", this.sum.fo && this.sum.fo.given === n, this.sum.fo ? this.sum.fo.given + " given" : "no counter");
+    add("excl", "It is not on the exclusion list", !(row && ownGet(this.fCfg().excl, row.pid)), "");
+    const re = this.buildSum(), bad = [];
+    for (const cc of new Set([...Object.keys(re.list), ...Object.keys(this.sum.list)])) {
+      const a = this.sum.list[cc], c = re.list[cc];
+      if (!a || !c || Math.abs(a.totalScore - c.totalScore) > 1e-6 * Math.max(1, Math.abs(c.totalScore)) || a.playerCount !== c.playerCount || a.leaderId !== c.leaderId) bad.push(cc);
+    }
+    add("countries", "Country totals match a full recount", !bad.length, bad.length ? "differ: " + bad.join(", ") : Object.keys(re.list).length + " countries recounted, all equal");
+    const pass = checks.every((c) => c.ok);
+    return json({ ok: true, given: n, restored: !!bRow, pilot: p.pilot, pass, checks, ...this.fState(this.fCfg()) });
+  }
+
   /* ---- routes (same answers as the old layout) ---- */
   fetch(request, url) {
     const o = this.o;
@@ -5551,6 +5859,9 @@ class PilotLayoutV2 {
       "/founding-continue": () => this.fContinue(request),
       "/founding-exclude": () => this.fExclude(request),
       "/founding-take-back": () => this.fTakeBack(request),
+      "/founding-grant-plan": async () => { const p = await this.fgPlan(await request.json().catch(() => ({}))); delete p.restoreRow; return json(p); },
+      "/founding-grant": () => this.fgGive(request),
+      "/founding-gaps": () => this.fGaps(),
       "/backup-dump": () => json({ error: "The leaderboard uses the new layout; it is backed up page by page.", paged: true, layout: "v2" }, 409),
       "/backup-restore": () => o.handleBackupRestore(request),
     }[url.pathname];

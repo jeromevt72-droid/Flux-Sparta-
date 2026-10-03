@@ -249,6 +249,21 @@
     <button id="fpAdd" class="go">EXCLUDE</button>
   </div>
   <div id="fpExcl"></div>
+  <p class="note"><b>Give a number by hand</b> (one pilot that was missed, e.g. your own second pilot): type its exact <b>NAME #TAG</b> and
+  press <b>CHECK</b>. CHECK changes nothing: it says why that pilot has no number and what GIVE would do. A removed pilot is brought back
+  from the newest backup that holds it first. Giving needs a checked backup from the last 60 minutes and the phrase CHECK shows.</p>
+  <div class="row">
+    <input id="fgLine" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="NAME #TAG" aria-label="Pilot to give a number, as NAME #TAG">
+    <button id="fgCheck" class="go">CHECK</button>
+  </div>
+  <div id="fgReport"></div>
+  <div id="fgGo" hidden>
+    <div class="row">
+      <input id="fgConfirm" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Type the phrase to give the number">
+      <button id="fgGive" class="danger" disabled>GIVE NUMBER</button>
+    </div>
+  </div>
+  <div id="fgResult"></div>
 
   <details id="guide" class="guide">
     <summary>GUIDE</summary>
@@ -377,6 +392,18 @@
       is yours." Nothing changes in the game itself. <b>TURN OFF</b> stops new numbers and hides the spots-left line; numbers already given stay.</li>
       <li><b>Free plan:</b> switching ON writes one row per numbered pilot plus 2 (1,002 rows for 1,000 pilots, of the 100,000 a day) and reads
       each pilot once. A new pilot's first run writes 1 more row (their grant). Runs, restarts and the leaderboard cost what they cost today.</li>
+      <li><b>A pilot was missed (give a number by hand):</b> (1) <b>BACK UP NOW</b>. (2) Under FOUNDING PILOT type its exact <b>NAME #TAG</b>
+      (the device's menu shows it) and press <b>CHECK</b>. It changes nothing and says why: already numbered, on your exclusion list, removed
+      (REMOVE PILOTS / REMOVE SCORE), removed and then played again, restricted, or not found (that device never uploaded a score: play one run
+      on it while the offer is ON). (3) If GIVE is offered, read what it will do, type the phrase it shows (<b>GIVE …</b>) and press
+      <b>GIVE NUMBER</b>. A removed pilot is first brought back from the newest backup that holds it (its scores and restore code; Season 0
+      bests are not). A safety backup is taken first; the check after must say PASS. Undo: BACKUPS → DRY RUN → RESTORE NOW with that safety backup.</li>
+      <li><b>Checks for you:</b> CHECK EXCEPTIONS lists every pilot that should have a number but has none (offer ON, spots left, not
+      restricted, not excluded), with a CHECK button for each. Removed pilots are counted but not listed: they are left out on purpose.</li>
+      <li><b>Help requests:</b> the game menu has a <b>HELP</b> button. A player taps one topic (Founding Pilot badge missing, lost pilot,
+      something broken, something else); you see it under EXCEPTIONS NEEDING ATTENTION with their pilot name and #TAG. They cannot type
+      anything, so no personal data is ever sent, and you cannot reply in the game: fix what you can (CHECK / GIVE, a restore code) and press
+      <b>DONE</b>. Requests are deleted after 90 days, and with a privacy deletion.</li>
     </ul>
 
     <h3>Combined World Grid</h3>
@@ -578,10 +605,10 @@
     b.disabled = false;
   }
   function wipe() {
-    ['summary', 'usage', 'exceptions', 'results', 'stats', 'season0', 'purchases', 'bans', 'wgState', 'wgReport', 'rpReport', 'rpResult', 'fpState', 'fpReport', 'fpExcl'].forEach(function (id) { $(id).textContent = ''; });
+    ['summary', 'usage', 'exceptions', 'results', 'stats', 'season0', 'purchases', 'bans', 'wgState', 'wgReport', 'rpReport', 'rpResult', 'fpState', 'fpReport', 'fpExcl', 'fgReport', 'fgResult'].forEach(function (id) { $(id).textContent = ''; });
     $('usageAlert').classList.add('hidden');
-    ['q', 'pq', 'banName', 'rpLines', 'rpConfirm', 'fpConfirm', 'fpTag'].forEach(function (id) { $(id).value = ''; });
-    rpDry = null; $('rpGo').hidden = true;
+    ['q', 'pq', 'banName', 'rpLines', 'rpConfirm', 'fpConfirm', 'fpTag', 'fgLine', 'fgConfirm'].forEach(function (id) { $(id).value = ''; });
+    rpDry = null; $('rpGo').hidden = true; fgReset();
     say('');
   }
   async function logout() {
@@ -664,8 +691,10 @@
     var box = $('exceptions'); box.textContent = '';
     say('Checking…');
     var d = await call('exceptions');
-    var flags = d.flags || [], delivery = d.delivery || [];
-    if (!flags.length && !delivery.length) { box.appendChild(el('div', 'empty', 'Nothing needs attention.')); say(''); renderBans(d.nameBans || []); renderRestoreLog(d.restoreLog || []); return; }
+    var flags = d.flags || [], delivery = d.delivery || [], fgaps = d.founding && d.founding.count ? d.founding : null, help = d.help || [];
+    renderHelp(box, help);
+    if (fgaps) renderFoundingGaps(box, fgaps);
+    if (!flags.length && !delivery.length && !fgaps && !help.length) { box.appendChild(el('div', 'empty', 'Nothing needs attention.')); say(''); renderBans(d.nameBans || []); renderRestoreLog(d.restoreLog || []); return; }
     delivery.forEach(function (x) {
       var c = el('div', 'card');
       c.appendChild(el('div', 'name', 'Payment not delivered'));
@@ -694,6 +723,42 @@
       c.appendChild(a); box.appendChild(c);
     });
     say(''); renderBans(d.nameBans || []); renderRestoreLog(d.restoreLog || []);
+  }
+  /* HELP: what players asked for from the game menu (a topic only, with their pilot name and #TAG). */
+  var HELP_HINT = { badge: 'Press CHECK: it fills "Give a number by hand" under FOUNDING PILOT and says why there is no number.',
+    lost: 'They are on a new pilot now. See "A player lost their pilot" in the guide; FIND shows this pilot.',
+    bug: 'Look at GAMEPLAY / STATS for anything unusual on their difficulty.', other: 'Nothing specific to do; FIND shows this pilot.' };
+  function renderHelp(box, list) {
+    list.forEach(function (x) {
+      var c = el('div', 'card'), h = el('div');
+      h.appendChild(el('span', 'name', 'Help: ' + x.label));
+      h.appendChild(el('span', 'pill amber', 'HELP'));
+      c.appendChild(h);
+      c.appendChild(el('div', 'meta', x.name + ' #' + x.tag + ' · asked ' + when(x.at) + (x.times > 1 ? ' · ' + x.times + ' times, last ' + when(x.last) : '') + '\n' + (HELP_HINT[x.topic] || '')));
+      var a = el('div', 'actions');
+      if (x.topic === 'badge') a.appendChild(btn('CHECK', 'go', function () { $('fgLine').value = x.name + ' #' + x.tag; guard(fgCheck)(); try { $('fgLine').scrollIntoView({ block: 'center' }); } catch (e) {} }));
+      a.appendChild(btn('FIND', 'ghost', function () { $('q').value = '#' + x.tag; guard(find)(); }));
+      a.appendChild(btn('DONE', 'ghost', function () { var b = this; act(b, 'SAVING…', async function () { await call('help-done', { id: x.id }); c.remove(); say('Marked done.', 'ok'); }); }));
+      c.appendChild(a); box.appendChild(c);
+    });
+  }
+  /* FOUNDING PILOT consistency check: pilots that should have a number but do not. CHECK fills the
+     "give a number by hand" box under FOUNDING PILOT and runs its check (which changes nothing). */
+  function renderFoundingGaps(box, f) {
+    var c = el('div', 'card'), h = el('div');
+    h.appendChild(el('span', 'name', 'Founding Pilot: ' + fmt(f.count) + ' pilot' + (f.count === 1 ? '' : 's') + ' without a number'));
+    h.appendChild(el('span', 'pill amber', 'CHECK'));
+    c.appendChild(h);
+    c.appendChild(el('div', 'meta', 'The offer is ON with ' + fmt(f.left) + ' spots left, so these pilots should have a number (they are not restricted and not on your exclusion list).' +
+      (f.removed ? '\n' + fmt(f.removed) + ' removed pilot' + (f.removed === 1 ? ' is' : 's are') + ' never numbered on purpose (not listed).' : '') +
+      '\nCHECK says why and offers GIVE NUMBER under FOUNDING PILOT; nothing changes until you type the phrase.'));
+    (f.gaps || []).forEach(function (x) {
+      var r = el('div', 'logrow', x.name + ' #' + x.tag + ' · ' + x.why + ' ');
+      r.appendChild(btn('CHECK', 'ghost', function () { $('fgLine').value = x.name + ' #' + x.tag; guard(fgCheck)(); try { $('fgLine').scrollIntoView({ block: 'center' }); } catch (e) {} }));
+      c.appendChild(r);
+    });
+    if (f.count > (f.gaps || []).length) c.appendChild(el('div', 'meta', 'Showing the oldest ' + fmt(f.gaps.length) + ' of ' + fmt(f.count) + '.'));
+    box.appendChild(c);
   }
   /* D-37: every restore code ever issued, newest first. Never shows a code. */
   function renderRestoreLog(log) {
@@ -1345,6 +1410,64 @@
     catch (e) { say(e.message, 'err'); }
   }
 
+  /* FOUNDING PILOT by hand: CHECK (writes nothing), then GIVE NUMBER with the phrase CHECK showed. */
+  var fgPlan = null;
+  function fgReset() { fgPlan = null; $('fgGo').hidden = true; $('fgConfirm').value = ''; $('fgGive').disabled = true; }
+  var FG_STATUS = { numbered: 'ALREADY A FOUNDING PILOT', 'not-found': 'NOT FOUND', restricted: 'RESTRICTED', full: 'NO NUMBER LEFT', removed: 'REMOVED',
+    'taken-back': 'NUMBER TAKEN BACK', excluded: 'ON THE EXCLUSION LIST', 'came-back': 'REMOVED, THEN PLAYED AGAIN', skipped: 'LEFT OUT AT SWITCH-ON',
+    'offer-never-on': 'OFFER NEVER ON', missed: 'JOINED WITHOUT A NUMBER', invalid: 'CHECK THE LINE', ambiguous: 'MORE THAN ONE PILOT', changed: 'RENAMED' };
+  async function fgCheck() {
+    var line = $('fgLine').value.trim();
+    if (!line) { say('Type the pilot as NAME #TAG.', 'err'); return; }
+    fgReset(); $('fgResult').textContent = ''; say('Checking…');
+    var r = await call('founding-grant-check', { line: line });
+    var out = $('fgReport'); out.textContent = '';
+    var c = el('div', 'card'), h = el('div');
+    h.appendChild(el('span', 'name', 'CHECK · nothing was changed'));
+    h.appendChild(el('span', 'pill ' + (r.canGive ? 'amber' : 'pink'), FG_STATUS[r.status] || r.status));
+    c.appendChild(h);
+    var p = r.pilot, lines = [];
+    if (p) {
+      var b = Object.keys(p.bests || {}).map(function (d) { return d + ' ' + fmt(p.bests[d]); }).join(' · ') || 'no scores';
+      lines.push(p.name + ' #' + p.tag + ' · ' + (p.country || '—') + ' · ' + b + (p.onServer ? '' : ' (in the backup)') + (p.purchases ? ' · owns ' + p.purchases + ' purchase(s)' : ''));
+    }
+    lines.push('Why: ' + r.why);
+    if (r.canGive) lines.push('\nGIVE NUMBER would:\n' + r.steps.map(function (x, i) { return (i + 1) + '. ' + x; }).join('\n') + '\nRows it would write: ' + fmt(r.rowsWouldWrite) + ' · a safety backup is taken first.');
+    lines.push('Offer: ' + (r.offer.on ? 'ON' : 'OFF') + ' · ' + fmt(r.offer.given) + ' / ' + fmt(r.offer.cap) + ' given');
+    c.appendChild(el('div', 'meta', lines.join('\n')));
+    out.appendChild(c);
+    if (r.canGive) { fgPlan = { line: line, id: r.id, confirm: r.confirm }; $('fgGo').hidden = false; $('fgConfirm').placeholder = 'Type ' + r.confirm; }
+    say(r.note || 'Nothing was changed.', 'ok');
+  }
+  async function fgGive() {
+    if (!fgPlan) return;
+    var inp = $('fgConfirm'), b = $('fgGive');
+    if (inp.value.trim() !== fgPlan.confirm) { say('Type ' + fgPlan.confirm + ' exactly.', 'err'); return; }
+    b.disabled = true; b.textContent = 'GIVING…';
+    var res = $('fgResult'); res.textContent = '';
+    try {
+      var o = await post('founding-grant', { line: fgPlan.line, id: fgPlan.id, confirm: inp.value.trim() });
+      if (o.status === 401) { sessionEnded(); throw new Error('Your session ended. Log in again — what you typed is kept.'); }
+      if (o.data && o.data.needBackup === true) {
+        res.appendChild(el('p', 'note err', o.data.error));
+        res.appendChild(btn('BACK UP NOW', 'go', function () { var bb = this; act(bb, 'BACKING UP…', async function () {
+          var k = await call('backup-now'); bb.remove(); say('Backup ' + k.snapshot.id + ' saved and checked ✓ Press GIVE NUMBER again.', 'ok'); }); }));
+        throw new Error(o.data.error);
+      }
+      if (!o.ok) { if (o.data && o.data.changed) fgReset(); throw new Error(o.data.error || ('Error ' + o.status)); }
+      var d = o.data, c = el('div', 'card'), h = el('div');
+      h.appendChild(el('span', 'name', 'Founding Pilot #' + d.given + ' · ' + d.pilot.name + ' #' + d.pilot.tag));
+      h.appendChild(el('span', 'pill ' + (d.pass ? 'amber' : 'pink'), d.pass ? 'CHECK PASS ✓' : 'CHECK FAIL ✗'));
+      c.appendChild(h);
+      c.appendChild(el('div', 'meta', (d.restored ? 'Brought back from the backup, then numbered.\n' : '') + 'Backup ' + d.backupId + ' · safety backup ' + d.safetyId +
+        '\nOn that device: open FLUX while online; the badge and the one-time message appear.'));
+      (d.checks || []).forEach(function (x) { c.appendChild(el('div', 'logrow', (x.ok ? 'PASS ✓ ' : 'FAIL ✗ ') + x.label + (x.detail ? '\n' + x.detail : ''))); });
+      res.appendChild(c);
+      renderFp(d); fgReset(); $('fgReport').textContent = '';
+      say(d.pass ? 'Founding Pilot #' + d.given + ' given. Every check passed.' : 'Given, but a check FAILED: see below.', d.pass ? 'ok' : 'err');
+    } finally { b.textContent = 'GIVE NUMBER'; b.disabled = !fgPlan || inp.value.trim() !== (fgPlan && fgPlan.confirm); }
+  }
+
   /* ---------------- storage (the 2 MB move) ---------------- */
   var SG = null;
   function pct(x) { return (Math.round(x * 10) / 10) + '%'; }
@@ -1494,6 +1617,10 @@
   $('fpOff').onclick = guard(fpOff);
   $('fpAdd').onclick = guard(fpAdd);
   $('fpConfirm').oninput = function () { $('fpOn').disabled = this.value.trim() !== 'FOUNDING ON'; };
+  $('fgCheck').onclick = guard(fgCheck);
+  $('fgGive').onclick = guard(fgGive);
+  $('fgConfirm').oninput = function () { $('fgGive').disabled = !fgPlan || this.value.trim() !== fgPlan.confirm; };
+  $('fgLine').oninput = function () { if (fgPlan) { fgReset(); $('fgReport').textContent = ''; } };
   $('loadEx').onclick = guard(loadExceptions);
   $('find').onclick = guard(find);
   $('q').addEventListener('keydown', function (e) { if (e.key === 'Enter') guard(find)(); });
