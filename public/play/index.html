@@ -1115,11 +1115,12 @@ function maxHudBottom(){
   for(let i=0;i<cachedHudRects.length;i++){ m=Math.max(m,cachedHudRects[i].bottom+12); }
   return m;
 }
-function safeSpawnPoint(r=20){
- const pad=isPhone()?34:42, top=maxHudBottom(), bottom=Math.max(top+80,H*.79);
+function safeSpawnPoint(r=20,zone=null){
+ const pad=isPhone()?34:42, top=zone?zone.top:maxHudBottom(), bottom=zone?zone.bottom:Math.max(top+80,H*.79);
+ const xLo=zone?zone.left:pad, xHi=zone?zone.right:W-pad;   // LIGHTNING ZONE: the growing orb's spawn area
  const hudRects=hudExclusionRects();
  for(let tries=0;tries<40;tries++){
-   const x=rand(pad,W-pad), y=rand(top,bottom);
+   const x=rand(xLo,xHi), y=rand(top,bottom);
    if(pointHitsHud(x,y,r,hudRects)) continue;
    const minGap=(isPhone()?58:72);
    if(!targets.some(t=>Math.hypot(t.x-x,t.y-y)<minGap+t.r+r*.45)) return [x,y];
@@ -1130,12 +1131,12 @@ function safeSpawnPoint(r=20){
  // the drift step below then opens the gap to ORB_GAP.
  let best=null, bestRoom=-Infinity;
  for(let tries=0;tries<30;tries++){
-   const x=rand(pad,W-pad), y=rand(top,bottom);
+   const x=rand(xLo,xHi), y=rand(top,bottom);
    if(pointHitsHud(x,y,r,hudRects)) continue;
    const room=targets.reduce((m,t)=>Math.min(m,Math.hypot(t.x-x,t.y-y)-t.r-r),Infinity);
    if(room>bestRoom){ best=[x,y]; bestRoom=room; }
  }
- return best || [rand(pad,W-pad),Math.max(top,bottom-40)];
+ return best || [rand(xLo,xHi),Math.max(top,bottom-40)];
 }
 function spawnTarget(forceColor=null){
  if(targets.length>=targetCap()) return;
@@ -1156,9 +1157,17 @@ function spawnBonusOrb(){
 // While charging it behaves like a normal orb (still needs color match).
 // Once matured it pulses to signal "pop me now": any contact bursts it for a
 // big score bonus and kicks the ball onto a new trajectory based on impact angle.
+/* LIGHTNING ZONE (owner): the growing orb spawns, grows and turns into a lightning orb (⚡) only in
+   the upper-middle of the play field: from the bottom of the score bar down to halfway to the
+   launcher, and 10-90% of the screen width. It bounces off the zone's edges like a wall, and as a
+   safety net it only turns into ⚡ while its centre is inside the zone (if it was pushed out, it
+   waits at full size until it drifts back). So a lightning burst never fires the ball from low on
+   the screen. Timer, one-at-a-time, 4.2 s growth, bonus and kick are unchanged; regular orbs too. */
+function lightningZone(){ const top=maxHudBottom(); return { left:W*.10, right:W*.90, top:top, bottom:Math.max(top+60,top+(paddle.y-top)/2) }; }
+function inLightningZone(t){ const z=lightningZone(); return t.x>=z.left && t.x<=z.right && t.y>=z.top && t.y<=z.bottom; }
 function spawnGrowingOrb(){
  if(targets.some(t=>t.growing)) return;
- const [x,y]=safeSpawnPoint(30);
+ const [x,y]=safeSpawnPoint(30,lightningZone());
  const color=Math.floor(Math.random()*coloursInPlay());
  const maxR=isPhone()?34:40;
  targets.push({x,y,r:12,maxR,color,spin:rand(0,6),vx:rand(-.22,.22),vy:rand(-.18,.18),phase:rand(0,Math.PI*2),age:0,growing:true,matured:false,danger:false});
@@ -1777,9 +1786,14 @@ function update(dt){
    const topBound=maxHudBottom()+t.r, botBound=Math.max(topBound+60,H*.79)-t.r;
    if(t.x<t.r+16 || t.x>W-t.r-16){t.vx*=-1;t.x=Math.max(t.r+16,Math.min(W-t.r-16,t.x));}
    if(t.y<topBound || t.y>botBound){t.vy*=-1;t.y=Math.max(topBound,Math.min(botBound,t.y));}
+   if(t.growing){   // LIGHTNING ZONE: the growing / lightning orb keeps its centre in the zone
+     const z=lightningZone();
+     if(t.x<z.left || t.x>z.right){t.vx=(t.x<z.left?1:-1)*Math.abs(t.vx);t.x=Math.max(z.left,Math.min(z.right,t.x));}
+     if(t.y<z.top || t.y>z.bottom){t.vy=(t.y<z.top?1:-1)*Math.abs(t.vy);t.y=Math.max(z.top,Math.min(z.bottom,t.y));}
+   }
    if(t.growing && !t.matured){
      t.r=Math.min(t.maxR,12+(t.age/4.2)*(t.maxR-12));
-     if(t.r>=t.maxR){t.matured=true;burst(t.x,t.y,'#fff',10);haptic(20);}
+     if(t.r>=t.maxR && inLightningZone(t)){t.matured=true;burst(t.x,t.y,'#fff',10);haptic(20);}   // LIGHTNING ZONE: only inside the zone
    }
    if(t.hitPulse>0) t.hitPulse=Math.max(0,t.hitPulse-dt);
    if(t.grazeCooldown>0) t.grazeCooldown=Math.max(0,t.grazeCooldown-dt);

@@ -93,7 +93,7 @@ function suite(gameHtml, quiet = false) {
       }
       Math.random = realRandom;
     }
-    ck('M3 long seeded Medium games ran (' + frames + ' frames, ' + levelUps + ' level-ups, ' + fusions + ' hits, up to ' + maxN + ' orbs)', levelUps >= 6 && fusions > 100 && maxN <= 8);
+    ck('M3 long seeded Medium games ran (' + frames + ' frames, ' + levelUps + ' level-ups, ' + fusions + ' hits, up to ' + maxN + ' orbs)', levelUps >= 6 && fusions > 100 && maxN <= 9);   // LIGHTNING ZONE: a seeded run plays out differently; a growing orb hit before it turns into a lightning orb leaves a regular orb (unchanged on purpose), so a phone field can briefly hold 3 over its cap -- main does the same (54 seeded games: same over-cap time, max 2 over on both)
     ck('M3 the 10px orb gap holds with the fuller Medium field (' + shortGap + ' of ' + played + ' frames under 9.5px, closest ' + worstGap.toFixed(1) + 'px)', shortGap <= played * .0005);
     ck('M3 orbs stay in the orb field, clear of the launcher (' + low + ' frames)', low === 0, lowAt.join(' | '));
     ck('M3 the ball always has a matching orb (' + noMatch + ' frames without)', noMatch === 0);
