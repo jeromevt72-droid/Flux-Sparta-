@@ -517,7 +517,7 @@ async function suite({ workerMod, adminHtml, quiet = false, parts = null, small 
       const frId = P(Number(/^PILOT(\d+)$/.exec(frLead.topName)[1]));
       step(); await cmp('submit: a country leader moves to another country (the old one looks its leader up again)', (X) => X.submit(frId, 300, 'easy', { name: frLead.topName, country: 'JP' }));
       step(); await cmp('submit: a flagged jump (exceptions list)', (X) => X.submit(P(15), 180000, 'medium', { name: 'PILOT15', country: 'US' }));
-      await cmp('admin: exceptions (flags)', (X) => X.admin('exceptions'));
+      await cmp('admin: exceptions (flags)', async (X) => { const r = await X.admin('exceptions'), d = JSON.parse(r.text); delete d.founding; return { status: r.status, text: JSON.stringify(d) }; });   // the Founding Pilot gaps exist on the new layout only
       const topHard = JSON.parse((await O.req('/api/leaderboard?difficulty=hard&limit=5', null, {}, 'GET')).text).top[0];
       await cmp('admin: restrict the Hard #1', (X) => X.admin('restrict', { pid: topHard.pid, reason: 'test' }));
       await cmp('admin: unrestrict', (X) => X.admin('unrestrict', { pid: topHard.pid }));
