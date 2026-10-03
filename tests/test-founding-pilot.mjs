@@ -15,6 +15,9 @@
 //        of a real purchase work as before, the purchase tools see Stripe purchases only;
 //   FP8  free plan: no new request per run, no extra row written per run (one grant per new founder),
 //        cold start reads unchanged; leaderboard rows carry the badge (fp), the summary the counter;
+//   FP10 discoverability: the one-time message is a card with TRY IT NOW (puts the whole package on)
+//        and LATER, seen only once a button is pressed (a run just hides it); THEMES & SKINS says
+//        FOUNDING PILOT · FREE with EQUIP; a NEW dot on THEMES & SKINS until it is opened once;
 //   FP9  the game: the full package unlocks (orb colours, launcher, backdrop), badge on the menu and on
 //        board rows, the one-time message (exact text, once, never during a run), the spots-left line
 //        (hidden at 0 / OFF); FLUX COMMAND section, first-screen counter, guide; listener counts kept.
@@ -383,10 +386,10 @@ async function suite({ mod, main, game = GAME_HTML, adminHtml = ADMIN_HTML, gate
         const fetchImpl = (u) => { calls.push(String(u)); const body = String(u).includes('/api/entitlements') ? ents : {}; return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body), clone() { return this; }, headers: { get: () => null } }); };
         const { store } = makeStore({ fluxPlayerId: 'pilot-a', fluxCallsign: 'ACE', fluxProfileComplete: '1', fluxColorHintSeen: '1', fluxRunsPlayed: '5', ...extra });
         const g = boot(scripts, { origin: 'https://x.test', path: '/play/', store, fetchImpl });
-        const toasts = []; g.ctx.fluxNameToast = (m) => { toasts.push(m); };
+        const toasts = [], notes = []; g.ctx.fluxFoundingCard = (m) => { toasts.push(m); }; g.ctx.fluxNameToast = (m) => { notes.push(m); };
         vm.runInContext('fluxSeasonToast.on=false', g.ctx);   // the harness never times the season message out
         for (let i = 0; i < 20; i++) await new Promise((r) => setTimeout(r, 1));
-        return { g, store, toasts, calls, run: (c) => vm.runInContext(c, g.ctx) };
+        return { g, store, toasts, notes, calls, run: (c) => vm.runInContext(c, g.ctx) };
       };
       const A = await start({ playerId: 'pilot-a', skus: ['solar'], founding: 7, foundingLeft: 993 });
       ck('FP9 the game boots without errors', A.g.errors.length === 0, A.g.errors.join(' | '));
@@ -417,6 +420,38 @@ async function suite({ mod, main, game = GAME_HTML, adminHtml = ADMIN_HTML, gate
       elOf('gameover').classList = { contains: () => false, toggle() {}, add() {}, remove() {} };
       D.run('fluxFoundingRefresh();');
       ck('FP9 never during a run: the message waits for the game-over screen / menu', during === 0 && D.toasts.length === 1 && D.toasts[0] === MSG(12), during + ' then ' + JSON.stringify(D.toasts));
+      /* FP10 discoverability */
+      const cls = () => { const set = new Set(); return { set, contains: (c) => set.has(c), add: (c) => set.add(c), remove: (c) => set.delete(c), toggle: (c, on) => { (on === undefined ? !set.has(c) : on) ? set.add(c) : set.delete(c); return set.has(c); } }; };
+      const E1 = await start({ playerId: 'pilot-a', skus: ['solar'], founding: 7, foundingLeft: 993 });
+      const fwT = E1.run(`({ t:document.getElementById('fwTry').textContent, l:document.getElementById('fwLater').textContent })`);
+      ck('FP10 the message is a card with TRY IT NOW and LATER (exact text, once)', /<button type="button" id="fwTry">TRY IT NOW<\/button><button type="button" id="fwLater">LATER<\/button>/.test(game) && E1.toasts.length === 1 && E1.toasts[0] === MSG(7), JSON.stringify(E1.toasts) + JSON.stringify(fwT));
+      E1.run(`document.getElementById('fwTry').onclick()`);
+      for (let i = 0; i < 20; i++) await new Promise((r) => setTimeout(r, 1));
+      const t1 = E1.run(`({ skin:activeSkin, bg:activeBackground, launcher:launcherColour(), seen:localStorage.getItem('fluxFoundingShown') })`);
+      ck('FP10 TRY IT NOW puts the whole package on now (orb colours, orange launcher, backdrop) and marks it seen', t1.skin === 'solar' && t1.bg === 'solar' && t1.launcher === '#ff7a18' && t1.seen === 'pilot-a' && /Solar Inferno is on/.test(E1.notes.join('|')), JSON.stringify(t1));
+      const E1b = await start({ playerId: 'pilot-a', skus: ['solar'], founding: 7 }, { fluxFoundingShown: 'pilot-a' });
+      ck('FP10 ...and the card never comes back after a choice', E1b.toasts.length === 0, JSON.stringify(E1b.toasts));
+      const E2 = await start({ playerId: 'pilot-a', skus: ['solar'], founding: 8 });
+      E2.run(`document.getElementById('fwLater').onclick()`);
+      const t2 = E2.run(`({ skin:activeSkin, bg:activeBackground, seen:localStorage.getItem('fluxFoundingShown') })`);
+      ck('FP10 LATER changes nothing in the game and marks it seen', t2.skin !== 'solar' && t2.bg !== 'solar' && t2.seen === 'pilot-a', JSON.stringify(t2));
+      const E3 = await start({ playerId: 'pilot-a', skus: ['solar'], founding: 9 });
+      E3.run(`document.getElementById('startBtn').onclick()`);
+      const t3 = E3.run(`({ on:!!fluxFoundingToast.on, seen:localStorage.getItem('fluxFoundingShown') })`);
+      E3.run('fluxFoundingRefresh();');
+      ck('FP10 a run starting only hides it (not a choice): it comes back on the next menu', t3.on === false && t3.seen === null && E3.toasts.length === 2, JSON.stringify(t3) + ' ' + E3.toasts.length);
+      const E4 = await start({ playerId: 'pilot-a', skus: ['solar'], founding: 7 });
+      const sk = E4.run("document.getElementById('skinsBtn')"); sk.classList = cls();
+      E4.run('fluxFoundingRefresh();');
+      const dot1 = sk.classList.contains('newDot');
+      E4.run(`document.getElementById('skinsBtn').onclick()`);
+      const dot2 = sk.classList.contains('newDot'), seenK = E4.run(`localStorage.getItem('fluxSkinsSeen')`);
+      E4.run('fluxFoundingRefresh();');
+      const E5 = await start({ playerId: 'pilot-a', skus: [] });
+      const sk5 = E5.run("document.getElementById('skinsBtn')"); sk5.classList = cls(); E5.run('fluxFoundingRefresh();');
+      ck('FP10 NEW dot on THEMES & SKINS for a Founding Pilot until opened once, then gone for good; none without a number', dot1 && !dot2 && seenK === 'pilot-a' && !sk.classList.contains('newDot') && !sk5.classList.contains('newDot'), [dot1, dot2, seenK].join(','));
+      ck('FP10 THEMES & SKINS: Solar Inferno says FOUNDING PILOT · FREE with EQUIP for a Founding Pilot (not COMING SOON)', /\$\{founder\?'FOUNDING PILOT · FREE':owned\?/.test(game) && /else if\(founder\)\{btn\.textContent='EQUIP';/.test(game), '');
+      ck('FP10 the D-36 menu row is unchanged (the dot is a class on the button, no new element)', /id="skinsBtn">[^<]*<\/button><\/div>/.test(game), '');
       /* no extra request per run */
       const n0 = D.calls.length; D.run(`fluxFoundingRun({ founding: 12 }, { playerId: playerId }); fluxFoundingRun({ founding: 12 }, { playerId: playerId });`);
       await new Promise((r) => setTimeout(r, 5));
@@ -511,6 +546,11 @@ await control('the spots-left line shown at 0', 'FP9 line rules', ['E'], { game:
 await control('board-row badge back to 9 px', 'FP9 the FOUNDING PILOT badge text is at least 11 px', ['E'], { game: rep('.lbFounder{display:block;margin-top:1px;color:#ff9a4a;font-size:11px;', '.lbFounder{display:block;margin-top:1px;color:#ff9a4a;font-size:9px;') });
 await control('Gateway badge back to .62em', 'FP9 the FOUNDING PILOT badge text is at least 11 px', ['E'], { gate: rep('color:#ff9a4a;font-size:11px;font-weight:900', 'color:#ff9a4a;font-size:.62em;font-weight:900') });
 await control('spots-left line above "Playing for"', 'FP9 menu order', ['E'], { game: rep('</button><button type="button" id="playingFor" class="playingFor hidden">Playing for <span id="playingForWho">🇺🇸 United States</span> · <u>change</u></button><div id="foundingLeft" class="foundingLeft hidden" aria-live="polite"></div>', '</button><div id="foundingLeft" class="foundingLeft hidden" aria-live="polite"></div><button type="button" id="playingFor" class="playingFor hidden">Playing for <span id="playingForWho">🇺🇸 United States</span> · <u>change</u></button>') });
+await control('TRY IT NOW only marks it seen', 'FP10 TRY IT NOW puts the whole package on', ['E'], { game: rep("  equipSkin('solar'); setBackground('solar');\n  return true;", "  return true;") });
+await control('the card is marked seen as soon as it shows', 'FP10 a run starting only hides it', ['E'], { game: rep("    fluxFoundingToast.on=true;\n    fluxFoundingCard(fluxFoundingMsg(n));", "    fluxFoundingToast.on=true; localStorage.setItem(FLUX_FOUNDING_SHOWN_KEY,playerId);\n    fluxFoundingCard(fluxFoundingMsg(n));") });
+await control('LATER never marks it seen', 'FP10 LATER changes nothing', ['E'], { game: rep("document.getElementById('fwLater').onclick=function(){ fluxFoundingChoose(); };", "document.getElementById('fwLater').onclick=function(){ fluxFoundingCardHide(); };") });
+await control('the NEW dot never goes away', 'FP10 NEW dot', ['E'], { game: rep("  b.onclick=function(e){ try{ localStorage.setItem(FLUX_SKINS_SEEN_KEY,playerId); }catch(x){}", "  b.onclick=function(e){ try{ }catch(x){}") });
+await control('the shop keeps COMING SOON for founders', 'FP10 THEMES & SKINS', ['E'], { game: rep("${founder?'FOUNDING PILOT · FREE':owned?", "${owned?") });
 await control('board rows lose the badge', 'FP9 a founder\'s leaderboard row', ['E'], { game: rep("(fp?'<small class=\"lbFounder\">FOUNDING PILOT</small>':'')", "''") });
 await control('the menu badge missing', 'FP9 the menu shows the badge', ['E'], { game: rep("badge:n>0 ? 'FOUNDING PILOT #'+n : ''", "badge:''") });
 await control('a request at every founder run', 'FP9 a founder\'s run reply makes no request', ['E'], { game: rep("if(!ownsSkin('solar') && typeof syncEntitlements==='function') syncEntitlements();", "if(typeof syncEntitlements==='function') syncEntitlements();") });

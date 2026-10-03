@@ -96,6 +96,7 @@ html.fluxStandalone{height:100vh;min-height:100%}
 .stat span{display:block;font-size:11px;letter-spacing:.06em;color:#8795bd;white-space:nowrap}/* D-50 SPEED UP countdown and D-52 LAST LIFE: the stat box itself changes colour. */.stat.speedUp{border-color:#ffb020;background:#2a1a00dd;box-shadow:0 0 18px #ffb02077}.stat.speedUp span{color:#ffc447}.stat.speedUp b{color:#ffd23f}.stat.speedUp .levelTrack i{background:#ffc447;box-shadow:0 0 8px #ffb020}.stat.lastLife{border-color:#ff3b5c;background:#3a0714dd;box-shadow:0 0 18px #ff3b5c77}.stat.lastLife span,.stat.lastLife b{color:#ff6b81}
 #start,#gameover,#shop{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#030512aa;backdrop-filter:blur(5px);z-index:3}
 #shop{z-index:7}
+/* FOUNDING PILOT discoverability: the one-time welcome card, the NEW dot */.foundingWelcome{position:fixed;left:50%;bottom:max(24px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:60;width:min(360px,calc(100vw - 32px));box-sizing:border-box;padding:14px 16px;border-radius:14px;border:1px solid #ff7a18;background:#1a0c06f2;color:#fff;text-align:center;box-shadow:0 8px 30px #000a}.foundingWelcome p{margin:0 0 12px;font:700 15px/1.4 system-ui,sans-serif;color:#ffe2c4}.fwBtns{display:flex;gap:8px}.fwBtns button{flex:1;min-height:44px;padding:10px 8px;font-size:13px;letter-spacing:.1em}#fwTry{background:#ff7a18;color:#1a0800;box-shadow:0 0 18px #ff7a1866}#fwLater{background:transparent;color:#ffb36b;border:1px solid #ff7a1888;box-shadow:none}#skinsBtn.newDot{position:relative}#skinsBtn.newDot::after{content:"";position:absolute;top:6px;right:8px;width:9px;height:9px;border-radius:50%;background:#ff7a18;box-shadow:0 0 6px #ff7a18}
 .panel{width:min(440px,88vw);padding:28px;border:1px solid #2c4b87;border-radius:24px;background:#080d29e8;box-shadow:0 0 50px #1c61ff33;text-align:center}
 .panel h1{margin:0;color:#5deaff;font-size:48px;letter-spacing:.25em}.h1Sparta{display:block;margin-top:2px;font-size:19px;letter-spacing:.5em;color:#bdf6ff;text-indent:.5em}/* LEADERBOARD REFRESH: the full name, FLUX Sparta, on the title screen */
 .panel .acronym{margin:5px 0 20px;color:#9eb0d6;font-size:11px;letter-spacing:.18em}
@@ -185,7 +186,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
   <div class="fluxbar"><button id="pauseBtn" class="hidden" aria-label="Pause">Ⅱ</button><span>FLUX</span><div><i id="fluxFill"></i></div><b id="fluxPct">0%</b></div>
 </div>
 <div id="pauseOverlay" class="hidden"><div class="panel"><h2>FLUX PAUSED</h2><p>Your field is frozen. Take a breath, then get back in the flow.</p><button id="resumeBtn">RESUME</button><button id="pauseMenuBtn" style="margin-top:8px;background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none">⌂ END RUN &amp; MENU</button></div></div>
-<div id="shop" class="hidden"><div class="panel menuPanel"><h2 style="color:#62eaff;letter-spacing:.14em;margin:0 0 4px">THEMES & SKINS</h2><p style="margin:0 0 14px">Cosmetic only — never changes gameplay fairness.<br><span class="shopNote">Purchases belong to your pilot. Save your restore code (EDIT → RESTORE CODE): it brings this pilot and its skins back on a new phone, in the Home Screen app, or after clearing data.</span></p><div id="shopList"></div><div class="menuLabel" style="margin-top:16px">WORLD</div><div id="backgroundList"></div><button id="shopClose" style="margin-top:14px">BACK</button></div></div>
+<div id="foundingWelcome" class="foundingWelcome hidden" role="dialog" aria-labelledby="fwMsg"><p id="fwMsg"></p><div class="fwBtns"><button type="button" id="fwTry">TRY IT NOW</button><button type="button" id="fwLater">LATER</button></div></div><div id="shop" class="hidden"><div class="panel menuPanel"><h2 style="color:#62eaff;letter-spacing:.14em;margin:0 0 4px">THEMES & SKINS</h2><p style="margin:0 0 14px">Cosmetic only — never changes gameplay fairness.<br><span class="shopNote">Purchases belong to your pilot. Save your restore code (EDIT → RESTORE CODE): it brings this pilot and its skins back on a new phone, in the Home Screen app, or after clearing data.</span></p><div id="shopList"></div><div class="menuLabel" style="margin-top:16px">WORLD</div><div id="backgroundList"></div><button id="shopClose" style="margin-top:14px">BACK</button></div></div>
 <div id="start"><div class="panel menuPanel"><h1>FLUX <span class="h1Sparta">Sparta</span></h1><div class="acronym">FLOW • LAUNCH • UNITE • XCELERATE</div><div class="menuSection"><div class="menuLabel">SELECT YOUR FLOW</div><div class="difficulty" id="difficulty"><button data-d="easy"><svg class="pl" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="9" fill="#3F8CFF"/><path d="M5 5.5c2-1 4.2-.2 4 1.8-.2 1.7-2 1.9-2.6 3.6-.5 1.4-2.2 1.3-2.4-.3-.2-1.9 0-4.3 1-5.1z" fill="#4cc27f"/><path d="M12.2 10.6c1.8-.4 3.4.6 3.1 2.4-.3 1.9-2.1 2.6-3.1 1.8-1-.8-1.3-3.9 0-4.2z" fill="#4cc27f"/><circle cx="10" cy="10" r="8.6" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width=".8"/></svg>EARTH<small>Easy</small></button><button data-d="medium"><svg class="pl" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="9" fill="#E4572E"/><ellipse cx="10" cy="2.9" rx="3.3" ry="1.2" fill="#fbe6da"/><path d="M3.6 8.6c3 1.4 8.6 1.4 12.8-.8" fill="none" stroke="#a83a1b" stroke-width="1.2" stroke-linecap="round"/><circle cx="7" cy="12.6" r="1.6" fill="#a83a1b"/><circle cx="13.4" cy="13.6" r="1.1" fill="#a83a1b"/></svg>MARS<small>Medium</small></button><button data-d="hard"><svg class="pl" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="9" fill="#F2C27A"/><ellipse cx="10" cy="6.3" rx="7.8" ry=".9" fill="#c98f4a"/><ellipse cx="10" cy="9.6" rx="8.8" ry=".6" fill="#e0a862"/><ellipse cx="10" cy="12.8" rx="7.9" ry="1" fill="#c98f4a"/><ellipse cx="12.8" cy="12.8" rx="1.9" ry="1.2" fill="#c4533a"/></svg>JUPITER<small>Hard</small></button></div></div><div id="profileEditor" class="profileRow"><input id="callsign" maxlength="12" placeholder="FLUX ID"><select id="country"><option value="AF">🇦🇫 AFGHANISTAN</option>
 <option value="AL">🇦🇱 ALBANIA</option>
 <option value="DZ">🇩🇿 ALGERIA</option>
@@ -2306,12 +2307,14 @@ function buildShopUI(){
   list.innerHTML='';
   Object.entries(SKINS).forEach(([sku,s])=>{
     const owned=ownsSkin(sku), equipped=activeSkin===sku;
+    const founder=sku==='solar' && typeof fluxFoundingNum==='function' && fluxFoundingNum()>0;   // FOUNDING PILOT: free, whatever the store says
     const row=document.createElement('div');
     row.className='shopRow';
     row.innerHTML=`<div class="shopSwatches">${s.colors.slice(0,5).map(c=>`<i style="background:${c}"></i>`).join('')}</div>
-      <div class="shopInfo"><b>${s.name}</b><span>${owned?(equipped?'ACTIVE':'OWNED'):(STORE_OPEN?s.price:'COMING SOON')}</span></div>`;
+      <div class="shopInfo"><b>${s.name}</b><span>${founder?'FOUNDING PILOT · FREE':owned?(equipped?'ACTIVE':'OWNED'):(STORE_OPEN?s.price:'COMING SOON')}</span></div>`;
     const btn=document.createElement('button');
     if(equipped){btn.textContent='ACTIVE';btn.disabled=true;}
+    else if(founder){btn.textContent='EQUIP';btn.onclick=()=>{btn.disabled=true;fluxFoundingEquip().then(function(ok){ if(!ok){ btn.disabled=false; fluxNameToast('Solar Inferno unlocks when you are online. Try again then.',4500); } });};}
     else if(owned){btn.textContent='USE';btn.onclick=()=>equipSkin(sku);}
     else if(!STORE_OPEN){btn.textContent='SOON';btn.disabled=true;}   // STORE SWITCH
     else{btn.textContent='BUY '+s.price;btn.onclick=()=>buySkin(sku,btn);}
@@ -4008,8 +4011,10 @@ try{ if(localStorage.fluxNameNotice==='1') fluxNameToast("Your name didn't fit t
    so every device and every restore code brings it back); here only what the pilot SEES:
      - "FOUNDING PILOT #N" under the pilot's name in the menu, and a badge on their board rows
        (the server marks them: fp) -- cosmetic only, gameplay never reads any of it;
-     - once per pilot: "You're Founding Pilot #N! Solar Inferno is yours." in the usual toast,
-       on the menu or the game-over screen, never during a run;
+     - once per pilot: "You're Founding Pilot #N! Solar Inferno is yours." on a small card with
+       TRY IT NOW / LATER, on the menu or the game-over screen, never during a run;
+     - THEMES & SKINS: Solar Inferno says FOUNDING PILOT · FREE with EQUIP, and a NEW dot on the
+       button until the pilot opens it once;
      - "Founding Pilot spots left: X" in the menu while the offer is ON and spots remain.
    Data: the entitlements answer (founding, foundingLeft), the run's own reply (founding) and
    the shared once-a-minute board copy (foundingLeft) -- no extra request, no polling. */
@@ -4050,6 +4055,7 @@ function fluxFoundingRefresh(){
   const v=fluxFoundingView(fluxFoundingNum(),fluxFoundingLeftNow());
   try{ const b=document.getElementById('foundingBadge'); if(b){ b.textContent=v.badge; b.classList.toggle('hidden',!v.badge); } }catch(e){}
   try{ const l=document.getElementById('foundingLeft'); if(l){ l.textContent=v.line; l.classList.toggle('hidden',!v.line); } }catch(e){}
+  fluxSkinsDot();
   fluxFoundingToast();
 }
 /* The one-time message: the menu or the game-over screen only (a run is never interrupted). */
@@ -4060,15 +4066,43 @@ function fluxFoundingToast(){
     const shown=function(id){ const e=document.getElementById(id); return !!e && e.classList.contains('hidden')!==true; };
     if(!shown('start') && !shown('gameover')) return;            // a run is on: next time
     if(fluxSeasonToast.on) return;                                // the season message first
-    localStorage.setItem(FLUX_FOUNDING_SHOWN_KEY,playerId);
     fluxFoundingToast.on=true;
-    fluxNameToast(fluxFoundingMsg(n), 8000, function(){ fluxFoundingToast.on=false; });
+    fluxFoundingCard(fluxFoundingMsg(n));
   }catch(e){}
 }
+/* DISCOVERABILITY (owner): the one-time message is a small card with TRY IT NOW (puts on the whole
+   Solar Inferno package now: orb colours, orange launcher, backdrop) and LATER. It counts as seen
+   only when one of them is pressed; a run starting just hides it until the next menu. Cosmetic only. */
+function fluxFoundingCard(msg){
+  const c=document.getElementById('foundingWelcome'); if(!c) return;
+  document.getElementById('fwMsg').textContent=msg; c.classList.remove('hidden');
+}
+function fluxFoundingCardHide(){ try{ document.getElementById('foundingWelcome').classList.add('hidden'); }catch(e){} fluxFoundingToast.on=false; }
+function fluxFoundingChoose(){ try{ localStorage.setItem(FLUX_FOUNDING_SHOWN_KEY,playerId); }catch(e){} fluxFoundingCardHide(); }
+async function fluxFoundingEquip(){   // the whole package; the grant is checked with the server first if this device does not know it yet
+  if(!ownsSkin('solar') && typeof syncEntitlements==='function') await syncEntitlements();
+  if(!ownsSkin('solar')) return false;
+  equipSkin('solar'); setBackground('solar');
+  return true;
+}
+document.getElementById('fwTry').onclick=function(){
+  fluxFoundingChoose();
+  fluxFoundingEquip().then(function(ok){ fluxNameToast(ok ? 'Solar Inferno is on ✓ Change it any time in THEMES & SKINS.' : 'Solar Inferno unlocks when you are online: open THEMES & SKINS then.', 4500); });
+};
+document.getElementById('fwLater').onclick=function(){ fluxFoundingChoose(); };
+/* The NEW dot on THEMES & SKINS: a Founding Pilot who has not opened it yet; gone for good once opened. */
+var FLUX_SKINS_SEEN_KEY='fluxSkinsSeen';
+function fluxSkinsDot(){
+  try{ const b=document.getElementById('skinsBtn'), on=fluxFoundingNum()>0 && localStorage.getItem(FLUX_SKINS_SEEN_KEY)!==playerId;
+    b.classList.toggle('newDot',on); b.setAttribute('aria-label',on ? 'Themes and skins, new' : 'Themes and skins'); }catch(e){}
+}
+(function(){ const b=document.getElementById('skinsBtn'); if(!b) return; const prev=b.onclick;
+  b.onclick=function(e){ try{ localStorage.setItem(FLUX_SKINS_SEEN_KEY,playerId); }catch(x){} fluxSkinsDot(); if(typeof prev==='function') return prev.call(this,e); };
+})();
 ['startBtn','againBtn'].forEach(function(id){   // a run starting closes the message (handler properties, not listeners)
   const b=document.getElementById(id); if(!b) return; const prev=b.onclick;
   b.onclick=function(e){
-    if(fluxFoundingToast.on){ try{ const t=document.getElementById('fluxNameToast'); if(t && t.onclick) t.onclick(); }catch(x){} }
+    if(fluxFoundingToast.on) fluxFoundingCardHide();   // not a choice: it comes back on the next menu
     if(typeof prev==='function') return prev.call(this,e);
   };
 });
