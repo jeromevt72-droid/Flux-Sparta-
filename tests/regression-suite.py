@@ -420,7 +420,7 @@ ck('D-44 only brand-new pilots start on Easy', "if (!localStorage.fluxDifficulty
 ck('D-45 roundRect stand-in in the game and the Gateway preview', 'CanvasRenderingContext2D.prototype.roundRect = function' in _g9 and 'CanvasRenderingContext2D.prototype.roundRect = function' in _hd45)
 ck('D-45 game loop schedules the next frame first', 'requestAnimationFrame(loop);   // D-45' in _g9)
 ck('RC2.8.5 the start button has exactly one handler', _g9.count("getElementById('startBtn').onclick")==1)
-ck('D-46 lite graphics: remembered flag, non-Retina, glow off, fewer particles', "window.__fluxLite = (function(){" in _g9 and "dpr=window.__fluxLite?1:" in _g9 and "Object.defineProperty(ctx, 'shadowBlur'" in _g9)
+ck('D-46 lite graphics: remembered flag, non-Retina, glow off, fewer particles', "window.__fluxLite = (function(){" in _g9 and "dpr=window.__fluxLite?1:" in _g9 and ("Object.defineProperty(ctx, 'shadowBlur'" in _g9 or ("fluxLockGlow(ctx);" in _g9 and "Object.defineProperty(x, 'shadowBlur'" in _g9)))   # BATTERY PR B: the lock is in fluxLockGlow(x)
 ck('D-46 lite also calms the moving background layers', '.fluxLite #nebulaDrift{display:none!important}' in _g9)
 ck('D-47 Gateway PLAY no longer shows the install screen first', 'showPlayChoice();\n      return;' not in _gw38)
 ck('D-48 install offered only after a first game', "if (fluxIsStandalone() || !fluxHasPlayed()) return null;" in _g9)
