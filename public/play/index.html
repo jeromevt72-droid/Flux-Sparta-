@@ -921,7 +921,10 @@ function initAudio(){
       masterGain.connect(audioLimiter);
       audioLimiter.connect(audioCtx.destination);
     }
-    if(audioCtx.state==='suspended') audioCtx.resume();
+    // AUDIO REOPEN (owner): iOS parks the context of a reopened Home Screen app in 'interrupted', not
+    // 'suspended', so PLAY never woke it and the whole run stayed silent. Anything not running is resumed
+    // here, inside the tap (iOS only allows it in a tap).
+    if(audioCtx.state!=='running' && audioCtx.state!=='closed'){ const p=audioCtx.resume(); if(p && p.catch) p.catch(function(){}); }
     audioReady=true;
   }catch(e){audioReady=false}
 }
@@ -2306,8 +2309,8 @@ function pointer(e){
 }
 window.ontouchstart=function(e){ pointer(e); };   // touch-down puts the launcher under the finger
 window.onpointerdown=function(e){ if(e.pointerType && e.pointerType!=='mouse') pointer(e); };   // same, from the pointer side; a mouse click changes nothing
-window.ontouchend=window.ontouchcancel=function(e){ if(!drag) return; const ts=e.touches||[]; for(let i=0;i<ts.length;i++) if(ts[i].identifier===drag.id) return; drag=null; };
-window.onpointerup=window.onpointercancel=function(e){ if(drag && drag.pid!=null && e.pointerId===drag.pid) drag=null; };
+window.ontouchend=window.ontouchcancel=function(e){ tryResumeAudio(); if(!drag) return; const ts=e.touches||[]; for(let i=0;i<ts.length;i++) if(ts[i].identifier===drag.id) return; drag=null; };
+window.onpointerup=window.onpointercancel=function(e){ tryResumeAudio(); if(drag && drag.pid!=null && e.pointerId===drag.pid) drag=null; };
 // ---------------------------------------------------------------------------
 // D-11 — PAGE LIFECYCLE
 // iOS suspends the AudioContext when the app is backgrounded and nothing here
@@ -2344,7 +2347,10 @@ function tryResumeAudio(){
 
 // iOS often refuses resume() outside a user gesture, so returning to the app
 // is not always enough on its own. The first real interaction after coming
-// back retries it. ONE listener, registered once at top level, capture phase
+// back retries it. AUDIO REOPEN (owner): on iPhone a finger going DOWN
+// (touchstart / pointerdown) does not count as a tap for audio -- only the
+// finger lifting does -- so the touch-end and pointer-up handlers above retry
+// it too (they are where iOS lets resume() through). ONE listener, registered once at top level, capture phase
 // so it runs before the paddle handler and never interferes with it.
 addEventListener('pointerdown', tryResumeAudio, {passive:true, capture:true});
 addEventListener('touchstart', tryResumeAudio, {passive:true, capture:true});
