@@ -163,7 +163,7 @@ ck('D-03 children: policy and terms both let kids play, marked for lawyer review
 ck('D-03 governing law set', 'State of California' in _tm and 'Alameda County' in _tm)
 
 print('\n--- D-19 / D-20 ---')
-ck('D-19 all four reveal elements', all(x in _gw for x in ['Flow \u00b7 Launch \u00b7 Unite \u00b7 Xcelerate','<div class="logo">FLUX</div>','THE WORLD HAS ENTERED THE FLUX.','100% FREE TO PLAY']))
+ck('D-19 all four reveal elements', all(x in _gw for x in ['Flow \u00b7 Launch \u00b7 Unite \u00b7 Xcelerate','<div class="logo">FLUX<span class="logoSparta">Sparta</span></div>','THE WORLD HAS ENTERED THE FLUX.','100% FREE TO PLAY']))
 _ph=re.sub(r'/\*[\s\S]*?\*/','', _gw[_gw.index('@media(max-width:700px){'):_gw.index('@media(max-width:700px){')+3000])
 ck('D-19 phone suppression removed', 'animation:none' not in _ph.split('@media')[1] if '@media' in _ph else True)
 ck('D-19 reveal animation still declared', 'body.anim .heroBrand{animation:heroBrandPulse var(--dur) ease-in-out infinite}' in _gw)
@@ -332,7 +332,7 @@ print('\n--- AUDIT FIXES (A-1..A-4) ---')
 _w=open('FLUX-Sparta/worker.js',encoding='utf-8').read()
 _lbblk=_w[_w.index('async handleLeaderboard(url)'):_w.index('async handleSubmit(request)')]
 ck('A-1 leaderboard rows carry a hash, not a playerId', 'pid: o.pid,' in _lbblk and 'playerId:' not in _lbblk.split('const top = ')[1].split('}));')[0])
-ck('A-1 game highlights its row by hash', 'const mine=!!myPid && r.pid===myPid;' in _spnow and 'r.playerId===playerId' not in _spnow)
+ck('A-1 game highlights its row by hash', 'const me={ pid:myPid, country:country };' in _spnow and 'rows.findIndex(function(r){ return r.pid===me.pid; })' in _spnow and 'r.playerId===playerId' not in _spnow)   # LEADERBOARD REFRESH: fluxBoardView
 # RC2.8: EVERY admin function must itself start with the password check --
 # checked one by one, so a function losing its guard cannot hide behind a count.
 _admin_fns=re.findall(r'async function (admin\w+)\(request, env.*?\) \{\n(.*?)\n', _w)   # .*? so default params like (b) => ({}) still match
@@ -399,7 +399,7 @@ ck('D-35 restore refused during a run or purchase', "if(playing) return" in _g9 
 ck('D-35 suite is in the release gate with its negative controls', "'test-d35-restore.mjs'" in open('run-all-tests.mjs').read() and "await control(" in _rs35)
 _ad37=open('FLUX-Sparta/public/admin.html',encoding='utf-8').read()
 ck('D-36 restore code is not in the main menu', 'id="restoreBtn"' not in _g9 and 'function syncRestoreLink()' in _g9)
-ck('D-36 game over sets the Mode label', "document.getElementById('finalMode').textContent=String(difficulty).toUpperCase();" in _g9)
+ck('D-36 game over sets the Mode label', "setPlanetLabel(document.getElementById('finalMode'),difficulty);" in _g9)   # LEADERBOARD REFRESH: the planet name (EARTH / MARS / JUPITER)
 ck('D-37 issue-restore requires the admin password and a reason', 'async function adminIssueRestore(request, env) {\n  const denied = requireAdmin(request, env); if (denied) return denied;' in _w9 and 'if (reason.length < RESTORE_REASON_MIN)' in _w9)
 ck('D-37 log is written before a code is returned', _w9.index('try { await this.state.storage.put({ restoreLog: next }); }') < _w9.index('return json({ ok: true, code: await restoreCodeFor(id), tag, name });'))
 ck('D-37 admin page asks how the player was verified', 'How did you verify them?' in _ad37)
@@ -420,7 +420,7 @@ ck('D-44 only brand-new pilots start on Easy', "if (!localStorage.fluxDifficulty
 ck('D-45 roundRect stand-in in the game and the Gateway preview', 'CanvasRenderingContext2D.prototype.roundRect = function' in _g9 and 'CanvasRenderingContext2D.prototype.roundRect = function' in _hd45)
 ck('D-45 game loop schedules the next frame first', 'requestAnimationFrame(loop);   // D-45' in _g9)
 ck('RC2.8.5 the start button has exactly one handler', _g9.count("getElementById('startBtn').onclick")==1)
-ck('D-46 lite graphics: remembered flag, non-Retina, glow off, fewer particles', "window.__fluxLite = (function(){" in _g9 and "dpr=window.__fluxLite?1:" in _g9 and "Object.defineProperty(ctx, 'shadowBlur'" in _g9)
+ck('D-46 lite graphics: remembered flag, non-Retina, glow off, fewer particles', "window.__fluxLite = (function(){" in _g9 and "dpr=window.__fluxLite?1:" in _g9 and ("Object.defineProperty(ctx, 'shadowBlur'" in _g9 or ("fluxLockGlow(ctx);" in _g9 and "Object.defineProperty(x, 'shadowBlur'" in _g9)))   # BATTERY PR B: the lock is in fluxLockGlow(x)
 ck('D-46 lite also calms the moving background layers', '.fluxLite #nebulaDrift{display:none!important}' in _g9)
 ck('D-47 Gateway PLAY no longer shows the install screen first', 'showPlayChoice();\n      return;' not in _gw38)
 ck('D-48 install offered only after a first game', "if (fluxIsStandalone() || !fluxHasPlayed()) return null;" in _g9)

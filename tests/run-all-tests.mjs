@@ -24,8 +24,8 @@ const failed = [];
 for (const [cmd, file] of SUITES) {
   if (only && file === 'test-negative-controls.mjs') continue;
   // test-negative-controls.mjs runs the whole gate again inside itself (D-30), so it gets
-  // the time of a full gate (the other suites keep 20 minutes each).
-  const limit = file === 'test-negative-controls.mjs' ? 45 : 20;
+  // the time of a full gate plus the storage-fix scale test (75 min; the other suites keep 20 each).
+  const limit = file === 'test-negative-controls.mjs' ? 75 : 20;
   const r = spawnSync(cmd, [file], { cwd: ROOT, encoding:'utf8', timeout: limit*60*1000 });
   const ok = r.status === 0;
   console.log('  ' + (ok ? 'PASS' : 'FAIL') + '  ' + file + (ok ? '' : '  (exit ' + r.status + (r.signal?', '+r.signal:'') + ')'));

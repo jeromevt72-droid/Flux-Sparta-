@@ -11,6 +11,7 @@
 //      the step (share of that difficulty's play time), lives lost per minute, runs;
 //      only difficulty/step keys, nothing about a person; drawn as text in PLAYER STATS;
 //   G1 the guide covers the lost-pilot steps, the name rules and how to read the stats;
+//   G3 ...and how to remove a test pilot safely, Remove vs Restrict vs Privacy delete, and how to undo it;
 //   G2 ...and how to read GAMEPLAY for tuning the speed.
 // Ends with negative controls.
 import fs from 'fs'; import path from 'path'; import vm from 'vm';
@@ -109,6 +110,9 @@ async function suite({ adminHtml, workerMod, quiet = false }) {
       && /Day 1 \/ Day 7 \/ Day 30/.test(guide) && /Which platform brings players who come back/.test(guide) && /\?src=tiktok/.test(guide));
     ck('G2 the guide says how to read GAMEPLAY for tuning (hit rate, misses and lives lost per minute, time at each step, what a jump means)',
       /Reading GAMEPLAY/.test(guide) && /Hit rate/.test(guide) && /Lives lost \/ min/.test(guide) && /Time at step/.test(guide) && /too big a jump/.test(guide) && /nothing about a person/.test(guide));
+    ck('G3 the guide says how to remove a test pilot (backup first, exact name + #TAG, REMOVE SCORE, check), Remove vs Restrict vs Privacy delete, Season 0 scores, and how to undo with a backup',
+      /Removing test pilots \(and what to do about a cheater\)/.test(guide) && /BACK UP NOW/.test(guide) && /TITAN #QGAC1ZN/.test(guide) && /REMOVE SCORE/.test(guide) && /UNRESTRICT/.test(guide)
+      && /PRIVACY DELETE/.test(guide) && /Season 0 bests leave the boards/.test(guide) && /RESTORE NOW/.test(guide) && /Never act on a card whose #TAG you did not type/.test(guide));
   } catch (e) { ck('dashboard section ran', false, String(e.stack || e).slice(0, 300)); }
   return { F, failed };
 }
@@ -136,6 +140,7 @@ await control('retention counted before the day is reached', 'D1', { admin: rep(
 await control('hit rate counts lost balls as hits tried', 'D3', { admin: rep('c.hitRate = (c.hit + c.wrong) ? c.hit / (c.hit + c.wrong) : NaN;', 'c.hitRate = (c.hit + c.wrong + c.lost) ? c.hit / (c.hit + c.wrong + c.lost) : NaN;') });
 await control('time share over all difficulties', 'D3', { admin: rep('c.timeShare = perDiff[c.diff] ? c.sec / perDiff[c.diff] : NaN;', 'c.timeShare = c.sec / 210;') });
 await control('GAMEPLAY table not drawn', 'D3', { admin: rep("box.appendChild(el('h2', null, 'GAMEPLAY'));", '') });
+await control('guide loses the test-pilot removal steps', 'G3', { admin: rep('<h3>Removing test pilots (and what to do about a cheater)</h3>', '<h3>Test pilots</h3>') });
 await control('guide loses the GAMEPLAY note', 'G2', { admin: rep('<h3>Reading GAMEPLAY (tuning the speed)</h3>', '<h3>Gameplay</h3>') });
 await control('averages shown as "—"', 'D2 averages', { admin: rep('[num(g.runsPerPlayer), ', '[ratio(g.runsPerPlayer), ') });
 await control('guide loses the name rules', 'G1', { admin: rep('<h3>Pilot names</h3>', '<h3>Names</h3>').bind(null) && ((s) => s.replace('Old-name clean-up', 'Clean-up')) });

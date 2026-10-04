@@ -125,7 +125,9 @@ async function suite({ gameHtml, gwHtml, quiet = false }) {
     const count = (b) => { const before = b.run('particles.length'); b.g.ctx.burst(10, 10, '#fff', 14); return b.run('particles.length') - before; };
     const pn = count(bootGame()); const pl = count(bootGame({ fluxLite: '1' }));
     ck('L6 lite shows half the particles', pn === 14 && pl === 7, pn + ' vs ' + pl);
-    ck('L7 lite turns glow off on the canvas', /Object\.defineProperty\(ctx, 'shadowBlur'/.test(gameHtml) && /if \(d && d\.set\) d\.set\.call\(ctx, 0\);/.test(gameHtml));
+    // BATTERY PR B: the lock moved into fluxLockGlow(x) (also used for the menu field copy); fluxApplyLite calls it on ctx.
+    ck('L7 lite turns glow off on the canvas', (/Object\.defineProperty\(ctx, 'shadowBlur'/.test(gameHtml) && /if \(d && d\.set\) d\.set\.call\(ctx, 0\);/.test(gameHtml))
+      || (/function fluxApplyLite\(\)\{[\s\S]{0,300}?fluxLockGlow\(ctx\);/.test(gameHtml) && /function fluxLockGlow\(x\)\{[\s\S]{0,300}?if \(d && d\.set\) d\.set\.call\(x, 0\);\s*Object\.defineProperty\(x, 'shadowBlur', \{ configurable: true, get: function\(\)\{ return 0; \}, set: function\(\)\{\} \}\)/.test(gameHtml)));
     ck('L9 lite also calms the moving background (stars, nebula blur, FLUX Mode filter)', /\.fluxLite #starsFar,\.fluxLite #starsNear\{animation:none!important\}\.fluxLite #nebulaDrift\{display:none!important\}\.fluxLite #app\{filter:none!important\}/.test(gameHtml) && gameHtml.includes("document.documentElement.classList.add('fluxLite')"));
     ck('L8 gameplay timing untouched (same time step rule)', gameHtml.includes(' const dt=Math.min(.032,(ts-last)/1000||.016);'));
   } catch (e) { ck('D-46 ran', false, String(e.stack || e).slice(0, 200)); }

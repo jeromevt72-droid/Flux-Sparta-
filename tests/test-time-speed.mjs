@@ -15,7 +15,7 @@
 //   T7  FLUX MODE never before level 3 on any difficulty (the meter may fill);
 //   T8  a broken combo is halved (floor, at least x1), the popup reads COMBO HALVED
 //       and stays below the HUD;
-//   T9  the HUD shows EASY / MEDIUM / HARD under the logo during play;
+//   T9  the HUD shows the difficulty (EARTH / MARS / JUPITER, the small Easy / Medium / Hard beside) under the logo during play;
 //   T10 Reduce Motion (device setting, Safari 15 addListener): no screen shake,
 //       softer and shorter flashes; normal effects otherwise;
 //   T11 nothing flashes more than 3 times a second (full-screen flash limiter,
@@ -65,8 +65,9 @@ function suite(gameHtml, quiet = false, only = '') {
     g.ctx.newGame(); run('playing=true; paused=false;');
     return { g, run, mem, texts };
   };
-  // A calm frame: no orbs, the ball crosses sideways (no catches, misses or points).
-  const calm = (b, n = 1) => { for (let i = 0; i < n; i++) { b.run('if(!playing){playing=true;paused=false;} targets=[]; ball.y=H*.4; ball.vy=0; if(Math.abs(ball.vx)<1)ball.vx=4;'); b.g.ctx.update(1 / 60); } };
+  // A calm frame: no orbs, the ball crosses sideways (no catches, misses or points). It stands for
+  // run time with a player in control, so the ball counts as touched (the stall pause is in test-ball-stall).
+  const calm = (b, n = 1) => { for (let i = 0; i < n; i++) { b.run('if(!playing){playing=true;paused=false;} targets=[]; ballIdle=0; ball.y=H*.4; ball.vy=0; if(Math.abs(ball.vx)<1)ball.vx=4;'); b.g.ctx.update(1 / 60); } };
   const crossing = (b) => b.run('playAreaHeight()/(normalMaxSpeed()*60)');
   // Measured crossing: the ball flies straight up at the limit for 20 real frames.
   const measured = (b) => { b.run('targets=[]; ball.x=W/2; ball.y=paddle.y-60; ball.vx=0; ball.vy=-normalMaxSpeed(); var __y0=ball.y;');
@@ -159,7 +160,7 @@ function suite(gameHtml, quiet = false, only = '') {
     /* T9 HUD difficulty label */
     if (on('T9')) { const hud = gameHtml.slice(gameHtml.indexOf('<div class="hud">'), gameHtml.indexOf('<div class="stats">'));
       const lab = DIFFS.map((d) => { const b = bootGame(d); b.g.ctx.updateHud(); return b.g.win.document.getElementById('hudDiff').textContent; });
-      ck('T9 the HUD shows EASY / MEDIUM / HARD under the logo during play, at least 11px', /<div class="logo">FLUX<\/div><div id="hudDiff" class="hudDiff">/.test(hud) && lab.join(',') === 'EASY,MEDIUM,HARD' && /\.hudDiff\{[^}]*font-size:11px/.test(gameHtml), lab.join(',')); }
+      ck('T9 the HUD shows EARTH / MARS / JUPITER (+ small Easy / Medium / Hard) under the logo during play, at least 11px', /<div class="logo">FLUX<\/div><div id="hudDiff" class="hudDiff">/.test(hud) && lab.join(',') === 'EARTH,MARS,JUPITER' && /\.hudDiff\{[^}]*font-size:11px/.test(gameHtml), lab.join(',')); }
     /* T10 Reduce Motion */
     if (on('T10')) { const iife = (code.match(/\(function\(\)\{ try\{ if\(!window\.matchMedia\) return;[\s\S]*?\}catch\(e\)\{\} \}\)\(\);/) || [''])[0];
       const b = bootGame('hard'); b.run('var __mq={matches:true,media:"",addListener:function(f){__mq.f=f;}}; matchMedia=function(q){__mq.media=q;return __mq;};'); b.run(iife);
@@ -295,7 +296,7 @@ control('big orb-hit kick on Easy', 'T5', rep('kick:1.015,kickCap:1.04,', 'kick:
 control('FLUX MODE speeds the ball up on Easy', 'T6', rep('kick:1.015,kickCap:1.04,fluxBurst:1,overAt:300', 'kick:1.015,kickCap:1.04,fluxBurst:1.2,overAt:300'));
 control('FLUX MODE from level 1 again', 'T7', rep('function fluxModeAllowed(){ return level>=FLUX_FROM_LEVEL; }', 'function fluxModeAllowed(){ return true; }'));
 control('combo back to x1 when it breaks', 'T8', rep('combo=Math.max(1,Math.floor(combo/2));', 'combo=1;'));
-control('no difficulty in the HUD', 'T9', rep(" document.getElementById('hudDiff').textContent=String(difficulty).toUpperCase();", ''));
+control('no difficulty in the HUD', 'T9', rep(" setPlanetLabel(document.getElementById('hudDiff'),difficulty);", ''));
 control('screen shake with Reduce Motion', 'T10', rep(' if(reduceMotion) shake=0;', ''));
 control('Reduce Motion ignored by the flash', 'T10', rep(' if(reduceMotion) v=Math.min(.08,v*.35);', ''));
 control('flash limiter removed (strobing)', 'T11', rep('if(now-flashLastAt<FLASH_GAP_MS)', 'if(false)'));

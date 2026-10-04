@@ -75,7 +75,10 @@ function makeEnv(LeaderboardDO, clock) {
     return { fetch(url, init) { const run = () => o.fetch(new Request(url, init)); const r = (o._chain || Promise.resolve()).then(run, run); o._chain = r.then(() => {}, () => {}); return r; } }; } } };
   return env;
 }
-const snapshot = (env) => { const out = {}; for (const [id, o] of env.LEADERBOARD_DO._instances) if (id !== 'admin-auth') out[id] = [...o.state.storage.map.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)); return JSON.stringify(out); };
+// FREE PLAN (#39, on main since): every request adds to the day's _use request counter; that bookkeeping is
+// the only write a summary or insights request makes, so it is left out of the read-only comparison.
+const noUse = (v) => (v && typeof v === 'object' && !Array.isArray(v) && '_use' in v ? Object.fromEntries(Object.entries(v).filter(([k]) => k !== '_use')) : v);
+const snapshot = (env) => { const out = {}; for (const [id, o] of env.LEADERBOARD_DO._instances) if (id !== 'admin-auth') out[id] = [...o.state.storage.map.entries()].map(([k, v]) => [k, noUse(v)]).sort((a, b) => (a[0] < b[0] ? -1 : 1)); return JSON.stringify(out); };
 
 /* ---------- a small DOM, enough for the admin script to draw into ---------- */
 function miniDom() {

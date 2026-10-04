@@ -11,7 +11,7 @@
 //      Easy x0.09) and shows it (with the real points beside it, and weighted:true);
 //   W3 country totals add each player's best weighted score once; totals stored before the
 //      weights are rebuilt once when the server loads them; stored scores are never rewritten;
-//   W4 the game and the server use the same weights; the game says "weighted" on the board;
+//   W4 the game and the server use the same weights; the game no longer shows an All board or "weighted" (LEADERBOARD REFRESH, owner);
 //   S5 the same simulated player (new beginner, casual, steady; seeded) has a lower weighted
 //      mean on Easy than on Medium, and on Medium than on Hard, by at least 10% (at most 90%).
 // Ends with negative controls.
@@ -119,14 +119,14 @@ async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = fals
       ph.totalScore === want.ALPHA + want.BRAVO + want.DELTA && ph.playerCount === 3 && us.totalScore === 5000 && ph.topScore === Math.max(want.ALPHA, want.BRAVO, want.DELTA) && ph.topName === ['ALPHA', 'BRAVO', 'DELTA'].sort((x, y) => want[y] - want[x])[0]);
     // Totals stored before the weights (real points) are rebuilt when the board is read; stored scores stay real.
     const inst = w2._inst.get('global'); await inst.state.storage.put({ countries: { PH: { country: 'PH', totalScore: 220000, playerCount: 3, topScore: 100000, topName: 'ALPHA', leaderId: 'w-a' } }, countriesWeights: undefined }); inst.ready = false;   // as stored before the weights; the Durable Object restarts
-    const again = await board(w, w2); const ph2 = (again.countries || []).find((c) => c.country === 'PH') || {};
+    const again = await board(w, w2, '&restart=1');   /* FREE PLAN: a new board URL, so the Worker's 60 s leaderboard memo cannot answer for the restarted DO */ const ph2 = (again.countries || []).find((c) => c.country === 'PH') || {};
     const stored = await inst.state.storage.get('players');
     ck('W3 ...totals stored before the weights are rebuilt once when the server loads them, and stored scores are never rewritten',
       ph2.totalScore === ph.totalScore && stored['w-a'].bests.easy.score === 100000 && stored['w-d'].bests.hard.score === 2000, ph2.totalScore + ' vs ' + ph.totalScore);
     const wk = (workerSrc.match(/const DIFF_WEIGHT = (\{[^}]*\})/) || [])[1] || '';
-    ck('W4 the game and the server use the same weights (Hard 1 > Medium > Easy) and the game\'s board says WEIGHTED',
+    ck('W4 the game and the server use the same weights (Hard 1 > Medium > Easy); the game shows no All board and no WEIGHTED label',
       JSON.stringify(JSON.parse(wk.replace(/(\w+):/g, '"$1":'))) === JSON.stringify(W) && W.hard === 1 && W.medium < 1 && W.easy < W.medium &&
-      /if\(data\.weighted\) html\+='<div class="lbSectionLabel">ALL DIFFICULTIES \\u00b7 WEIGHTED/.test(gameHtml) && /TOP COUNTRIES \(WEIGHTED\)/.test(gameHtml), wk + ' vs ' + JSON.stringify(W));
+      !/ALL DIFFICULTIES/.test(gameHtml) && !/\(WEIGHTED\)|WEIGHTED:/.test(gameHtml), wk + ' vs ' + JSON.stringify(W));
     ck('W4 the submit response ranks a player on their own difficulty board (real points)', await (async () => {
       skew += 20000; const r = await w.fetch(new Request(ORIGIN + '/api/submit-score', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ playerId: 'w-e', name: 'ECHO', country: 'PH', score: 95000, level: lvl(95000, 'easy'), difficulty: 'easy', season: 1 }) }), w2);
       const d = await r.json(); return d.rank === 2 && d.best === 95000; })());
@@ -173,10 +173,10 @@ await control('server keeps the old Easy thresholds', { expect: 'S4', workerSrc:
 await control('server loosened to two levels either side', { expect: 'S4', workerSrc: rep('const LEVEL_TOLERANCE = 1;', 'const LEVEL_TOLERANCE = 2;') });
 await control('difficulty boards weighted too', { expect: 'W1', workerSrc: rep('rows.push({ r, score: difficulty ? b.score : b.weighted,', 'rows.push({ r, score: difficulty ? weightedScore(b.score, difficulty) : b.weighted,') });
 await control('ALL board by real points again', { expect: 'W2', workerSrc: rep('const b = difficulty ? r.bests[difficulty] : weightedBestOf(r);', 'const b = difficulty ? r.bests[difficulty] : bestOf(r);') });
-await control('country totals from real points', { expect: 'W3', workerSrc: rep('      c.totalScore += x.score;', '      c.totalScore += x.points;') });
+await control('country totals from real points', { expect: 'W3', workerSrc: rep('    c.totalScore += x.score;', '    c.totalScore += x.points;') });   // COMBINED WORLD GRID: country totals now built by countryTotals()
 await control('stale country totals never rebuilt', { expect: 'W3', workerSrc: rep('      if ((await this.state.storage.get("countriesWeights")) !== JSON.stringify(DIFF_WEIGHT)) await this.recomputeCountries();', '') });
 await control('server weights differ from the game', { expect: 'W4', workerSrc: rep('const DIFF_WEIGHT = { easy: 0.09, medium: 0.21, hard: 1 };', 'const DIFF_WEIGHT = { easy: 0.1, medium: 0.21, hard: 1 };') });
-await control('the game board does not say weighted', { expect: 'W4', game: rep("if(data.weighted) html+='<div class=\"lbSectionLabel\">ALL DIFFICULTIES", "if(false) html+='<div class=\"lbSectionLabel\">ALL DIFFICULTIES") });
+await control('the weighted All board comes back', { expect: 'W4', game: rep("function fluxBoardHtml(v){\n", "function fluxBoardHtml(v){\n  if(v.weighted) return '<div class=\"lbSectionLabel\">ALL DIFFICULTIES \u00b7 WEIGHTED: HARD x1</div>';\n") });
 const total = main.F + NC;
 console.log('\n' + (total ? 'SCORING FAILED: ' + main.F + ' check(s), ' + NC + ' uncaught control(s)' : 'SCORING PASSED: all checks and all negative controls'));
 process.exit(total ? 1 : 0);

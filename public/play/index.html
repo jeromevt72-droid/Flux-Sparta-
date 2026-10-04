@@ -10,11 +10,13 @@
 <meta name="apple-mobile-web-app-title" content="FLUX">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/icon-192.png">
+<link rel="icon" href="/icon-192.png">
 <title>Play FLUX Sparta — Free Arcade Game</title>
 <meta name="description" content="Play FLUX Sparta free in your browser. Match the color, chain combos and send your points to your country on the Global Grid.">
 <link rel="canonical" href="https://flux-sparta-3.jeromevt72.workers.dev/play/">
 <meta property="og:site_name" content="FLUX Sparta">
 <meta property="og:title" content="Play FLUX Sparta — free, no signup">
+<meta name="twitter:title" content="Play FLUX Sparta — free, no signup">
 <meta property="og:description" content="Match the color. Chain the combo. Put your country on top.">
 <meta property="og:url" content="https://flux-sparta-3.jeromevt72.workers.dev/play/">
 <meta property="og:image" content="https://flux-sparta-3.jeromevt72.workers.dev/og-image.jpg">
@@ -94,8 +96,10 @@ html.fluxStandalone{height:100vh;min-height:100%}
 .stat span{display:block;font-size:11px;letter-spacing:.06em;color:#8795bd;white-space:nowrap}/* D-50 SPEED UP countdown and D-52 LAST LIFE: the stat box itself changes colour. */.stat.speedUp{border-color:#ffb020;background:#2a1a00dd;box-shadow:0 0 18px #ffb02077}.stat.speedUp span{color:#ffc447}.stat.speedUp b{color:#ffd23f}.stat.speedUp .levelTrack i{background:#ffc447;box-shadow:0 0 8px #ffb020}.stat.lastLife{border-color:#ff3b5c;background:#3a0714dd;box-shadow:0 0 18px #ff3b5c77}.stat.lastLife span,.stat.lastLife b{color:#ff6b81}
 #start,#gameover,#shop{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#030512aa;backdrop-filter:blur(5px);z-index:3}
 #shop{z-index:7}
+/* HELP: one tap on a topic; nothing personal is sent */#help{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#030512aa;backdrop-filter:blur(5px);z-index:7}#help .panel{width:min(420px,88vw)}#helpTopics button{display:block;width:100%;margin:0 0 8px;padding:12px 10px;font-size:13px;letter-spacing:.04em;background:#0b1230;color:#cfe9ff;border:1px solid #234174;box-shadow:none;text-align:left}#helpTopics button:disabled{opacity:.6}.helpLink{display:block;flex:none;width:auto;margin:8px auto 0;padding:9px 18px;min-height:44px}.helpNote{margin:0 0 12px;font-size:13px;line-height:1.45;color:#a9b8de}
+/* FOUNDING PILOT discoverability: the one-time welcome card, the NEW dot */.foundingWelcome{position:fixed;left:50%;bottom:max(24px,env(safe-area-inset-bottom));transform:translateX(-50%);z-index:60;width:min(360px,calc(100vw - 32px));box-sizing:border-box;padding:14px 16px;border-radius:14px;border:1px solid #ff7a18;background:#1a0c06f2;color:#fff;text-align:center;box-shadow:0 8px 30px #000a}.foundingWelcome p{margin:0 0 12px;font:700 15px/1.4 system-ui,sans-serif;color:#ffe2c4}.fwBtns{display:flex;gap:8px}.fwBtns button{flex:1;min-height:44px;padding:10px 8px;font-size:13px;letter-spacing:.1em}#fwTry{background:#ff7a18;color:#1a0800;box-shadow:0 0 18px #ff7a1866}#fwLater{background:transparent;color:#ffb36b;border:1px solid #ff7a1888;box-shadow:none}#skinsBtn.newDot{position:relative}#skinsBtn.newDot::after{content:"";position:absolute;top:6px;right:8px;width:9px;height:9px;border-radius:50%;background:#ff7a18;box-shadow:0 0 6px #ff7a18}
 .panel{width:min(440px,88vw);padding:28px;border:1px solid #2c4b87;border-radius:24px;background:#080d29e8;box-shadow:0 0 50px #1c61ff33;text-align:center}
-.panel h1{margin:0;color:#5deaff;font-size:48px;letter-spacing:.25em}
+.panel h1{margin:0;color:#5deaff;font-size:48px;letter-spacing:.25em}.h1Sparta{display:block;margin-top:2px;font-size:19px;letter-spacing:.5em;color:#bdf6ff;text-indent:.5em}/* LEADERBOARD REFRESH: the full name, FLUX Sparta, on the title screen */
 .panel .acronym{margin:5px 0 20px;color:#9eb0d6;font-size:11px;letter-spacing:.18em}
 .panel .sparta{margin:12px 0 0;color:#62eaff;font-weight:900;letter-spacing:.18em;font-size:11px}.panel p{color:#b9c6e5;line-height:1.55;font-size:14px}
 button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spacing:.15em;color:#04101a;background:#62eaff;box-shadow:0 0 25px #27d9ff88;font-size:14px;min-height:44px}/* D-55: every button is at least 44px tall */
@@ -120,10 +124,19 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
   .stats{max-width:80vw;gap:3px}.stat{min-width:50px;padding:4px 4px}.stat b{font-size:13px}.stat span{letter-spacing:.02em}
   .fluxbar{top:66px;gap:6px;letter-spacing:.08em}.fluxbar div{width:78px}
 }
+/* 360 px phones (common Android width): SPEED UP and LAST LIFE widen two boxes; tighter
+   spacing keeps the four boxes on one row. Text sizes unchanged (>= 11px). */
+@media (max-width: 380px){
+  .hud{padding-left:8px;padding-right:8px}
+  .hudDiff{letter-spacing:.04em}.plTag[data-d]::after{margin-left:.3em;letter-spacing:.02em}
+  .stats{gap:3px;max-width:none}.stat{padding:4px 3px}.stat span{letter-spacing:0}
+}
 #flash{position:absolute;inset:0;pointer-events:none;background:white;opacity:0;mix-blend-mode:screen}
 @media (prefers-reduced-motion: reduce){#pressureGlow.critical{animation:none}.coachArrow.down,.coachArrow.up{animation:none}}/* REDUCE MOTION: no pulsing glow or bouncing arrow */
 .menuPanel{max-height:92vh;overflow:auto}.menuSection{margin:12px 0 14px}.menuLabel{font-size:11px;letter-spacing:.16em;color:#8094c0;margin-bottom:8px}.difficulty{display:flex;gap:7px}.difficulty button{flex:1;padding:11px 4px;font-size:11px;letter-spacing:.08em;background:#0c1537;color:#91a6d4;border:1px solid #294578;box-shadow:none}.difficulty button.selected{background:#62eaff;color:#04101a;box-shadow:0 0 18px #27d9ff66}.profileRow{display:flex;gap:7px;margin:0 0 12px}.profileRow input,.profileRow select{min-width:0;flex:1;border:1px solid #294578;border-radius:12px;background:#070d27;color:#eaf7ff;padding:11px 10px;font-size:16px;font-weight:800}.profileRow select{flex:0 0 118px}.menuTiles{display:flex;gap:8px;margin-top:12px}.menuTiles>div{flex:1;border:1px solid #263a72;background:#0b1030aa;border-radius:12px;padding:8px}.menuTiles span{display:block;font-size:11px;letter-spacing:.08em;color:#7f93bd}.menuTiles b{display:block;margin-top:3px;font-size:16px}.menuLinks{display:flex;gap:8px;margin-top:10px}.linkBtn{flex:1;padding:9px 8px;font-size:11px;letter-spacing:.08em;background:#0b1230;color:#7fdfff;border:1px solid #234174;box-shadow:none}.offline{font-size:11px!important;letter-spacing:.06em;color:#5c779f!important;margin:11px 0 0!important}.miniOverlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#030512dd;z-index:6}.gameoverModes{margin:14px 0 12px}.gameoverModes .menuLabel{margin-bottom:7px}.gameoverModes .difficulty{max-width:340px;margin:auto}.gameoverModes button{padding:10px 4px;font-size:11px}.profileSaved{display:flex;align-items:center;justify-content:center;gap:8px;margin:0 0 12px;color:#8fa5d1;font-size:12px;letter-spacing:.08em}.profileSaved b{color:#62eaff}.editProfile{background:transparent!important;color:#62eaff!important;border:1px solid #294578!important;box-shadow:none!important;padding:6px 14px!important;font-size:11px!important;letter-spacing:.1em!important;min-height:44px}@media(max-width:430px){.menuPanel{padding:20px}.menuPanel h1{font-size:42px}.profileRow select{flex-basis:104px}.menuLinks{flex-direction:column}}
-.lbPanel{max-height:86vh;display:flex;flex-direction:column}.lbBody{flex:1;min-height:0;overflow:auto;margin:14px 0 18px;text-align:left}.lbLoading,.lbEmpty{color:#8da0c8;font-size:12px;text-align:center;padding:20px 0}.lbLeading{text-align:center;font-size:11px;letter-spacing:.08em;color:#9eb0d6;background:#0b1030;border:1px solid #263a72;border-radius:12px;padding:9px;margin-bottom:12px}.lbLeading b{color:#62eaff}.lbSectionLabel{font-size:11px;letter-spacing:.16em;color:#7f93bd;margin:16px 0 8px}.lbList{display:flex;flex-direction:column;gap:6px}.lbRow{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #263a72;background:#0b1030aa;border-radius:10px;font-size:12px}.lbRow.lbMine{border-color:#62eaff;box-shadow:0 0 14px #27d9ff44}.lbRank{width:32px;color:#7f93bd;font-weight:900;font-size:11px}.lbFlag{font-size:15px}.lbName{flex:1;font-weight:800;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lbScore{font-weight:900;color:#62eaff}
+/* LEADERBOARD REFRESH: planets. EARTH = Easy, MARS = Medium, JUPITER = Hard (internal keys unchanged). Colours on menus, tabs and labels ONLY (never orbs, ball or skins); a small planet icon beside every name, so colour is never the only clue. */:root{--pl-easy:#3F8CFF;--pl-medium:#E4572E;--pl-hard:#F2C27A}.pl{display:inline-block;width:14px;height:14px;vertical-align:-3px;margin-right:5px;flex:0 0 auto}.difficulty button{line-height:1.15}.difficulty button small{display:block;margin-top:3px;font-size:11px;font-weight:700;letter-spacing:.08em}.difficulty button[data-d=easy]{border-color:#3F8CFF77}.difficulty button[data-d=medium]{border-color:#E4572E77}.difficulty button[data-d=hard]{border-color:#F2C27A77}.difficulty button[data-d=easy].selected{background:#3F8CFF;color:#050a18;box-shadow:0 0 18px #3F8CFF66}.difficulty button[data-d=medium].selected{background:#E4572E;color:#050a18;box-shadow:0 0 18px #E4572E66}.difficulty button[data-d=hard].selected{background:#F2C27A;color:#050a18;box-shadow:0 0 18px #F2C27A66}.difficulty button.selected .pl,.lbTab.on .pl{background:#050a18;border-radius:50%;box-shadow:0 0 0 .5px #050a18}.plTag[data-d]::before{content:"";display:inline-block;width:1em;height:1em;margin-right:.35em;vertical-align:-.12em;background-size:contain;background-repeat:no-repeat}.plTag[data-d]::after{content:attr(data-sub);margin-left:.45em;font-size:11px;font-weight:700;letter-spacing:.08em}.plTag[data-d=easy]{color:#3F8CFF}.plTag[data-d=medium]{color:#E4572E}.plTag[data-d=hard]{color:#F2C27A}.plTag[data-d=easy]::before{background-image:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 20 20%22%3E%3Ccircle cx=%2210%22 cy=%2210%22 r=%229%22 fill=%22%233F8CFF%22/%3E%3Cpath d=%22M5 5.5c2-1 4.2-.2 4 1.8-.2 1.7-2 1.9-2.6 3.6-.5 1.4-2.2 1.3-2.4-.3-.2-1.9 0-4.3 1-5.1z%22 fill=%22%234cc27f%22/%3E%3Cpath d=%22M12.2 10.6c1.8-.4 3.4.6 3.1 2.4-.3 1.9-2.1 2.6-3.1 1.8-1-.8-1.3-3.9 0-4.2z%22 fill=%22%234cc27f%22/%3E%3Ccircle cx=%2210%22 cy=%2210%22 r=%228.6%22 fill=%22none%22 stroke=%22%23fff%22 stroke-opacity=%22.35%22 stroke-width=%22.8%22/%3E%3C/svg%3E")}.plTag[data-d=medium]::before{background-image:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 20 20%22%3E%3Ccircle cx=%2210%22 cy=%2210%22 r=%229%22 fill=%22%23E4572E%22/%3E%3Cellipse cx=%2210%22 cy=%222.9%22 rx=%223.3%22 ry=%221.2%22 fill=%22%23fbe6da%22/%3E%3Cpath d=%22M3.6 8.6c3 1.4 8.6 1.4 12.8-.8%22 fill=%22none%22 stroke=%22%23a83a1b%22 stroke-width=%221.2%22 stroke-linecap=%22round%22/%3E%3Ccircle cx=%227%22 cy=%2212.6%22 r=%221.6%22 fill=%22%23a83a1b%22/%3E%3Ccircle cx=%2213.4%22 cy=%2213.6%22 r=%221.1%22 fill=%22%23a83a1b%22/%3E%3C/svg%3E")}.plTag[data-d=hard]::before{background-image:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 20 20%22%3E%3Ccircle cx=%2210%22 cy=%2210%22 r=%229%22 fill=%22%23F2C27A%22/%3E%3Cellipse cx=%2210%22 cy=%226.3%22 rx=%227.8%22 ry=%22.9%22 fill=%22%23c98f4a%22/%3E%3Cellipse cx=%2210%22 cy=%229.6%22 rx=%228.8%22 ry=%22.6%22 fill=%22%23e0a862%22/%3E%3Cellipse cx=%2210%22 cy=%2212.8%22 rx=%227.9%22 ry=%221%22 fill=%22%23c98f4a%22/%3E%3Cellipse cx=%2212.8%22 cy=%2212.8%22 rx=%221.9%22 ry=%221.2%22 fill=%22%23c4533a%22/%3E%3C/svg%3E")}
+/* LEADERBOARD REFRESH: tabs EARTH · MARS · JUPITER · WORLD, WORLD / MY COUNTRY switch, the pilot's pinned row, the WORLD spotlight, the menu World Grid card, the game-over rank line. */.lbTitle{color:#62eaff;letter-spacing:.14em;margin:0 0 10px}.lbTabs{display:flex;gap:5px}.lbTab{flex:1;min-width:0;padding:8px 1px 7px;font-size:11px;letter-spacing:.02em;line-height:1.15;background:#0c1537;color:#b9c8ea;border:1px solid #294578;border-radius:11px;box-shadow:none;white-space:nowrap}.lbTab .pl{display:block;margin:0 auto 3px;width:16px;height:16px}.lbTab small{display:block;margin-top:2px;font-size:11px;font-weight:700;letter-spacing:0}.lbTab[data-tab=easy]{border-color:#3F8CFF77}.lbTab[data-tab=medium]{border-color:#E4572E77}.lbTab[data-tab=hard]{border-color:#F2C27A77}.lbTab[data-tab=world]{border-color:#62eaff66}.lbTab.on{color:#050a18}.lbTab[data-tab=easy].on{background:#3F8CFF}.lbTab[data-tab=medium].on{background:#E4572E}.lbTab[data-tab=hard].on{background:#F2C27A}.lbTab[data-tab=world].on{background:#62eaff}.lbScope{display:flex;gap:6px;justify-content:center;margin:0 0 10px}.lbScope button{padding:6px 14px;font-size:11px;letter-spacing:.12em;background:transparent;color:#8da0c8;border:1px solid #294578;border-radius:999px;box-shadow:none}.lbScope button.on{color:#eaf7ff;border-color:#62eaff;background:#0f2148}.lbGap{display:block;font-size:11px;font-weight:700;letter-spacing:.04em;color:#ffd48a;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lbPinned{position:sticky;bottom:0;z-index:1;margin-top:8px;padding:8px 0 2px;border-top:1px dashed #294578;background:#070b24}.lbUnplayed{margin:10px 0 0;padding:10px;border:1px dashed #294578;border-radius:10px;color:#b9c8ea;font-size:12px;text-align:center}.lbSpot{text-align:center;padding:12px 10px;margin-bottom:8px;border:1px solid #62eaff88;border-radius:14px;background:radial-gradient(circle at 50% 0%,#1a3a7a,#0b1030)}.lbSpot.lbMine{box-shadow:0 0 16px #27d9ff55}.lbSpotK{font-size:11px;letter-spacing:.2em;color:#9fdcff}.lbSpotF{font-size:34px;line-height:1.2}.lbSpotN{font-weight:900;font-size:16px;letter-spacing:.06em;color:#eaf7ff}.lbSpotS{font-size:11px;color:#9eb0d6;margin-top:3px}.gridCard{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;margin-top:10px;padding:9px 12px;background:#0b1030cc;border:1px solid #2b4f8a;border-radius:12px;box-shadow:none;text-align:left;color:#eaf7ff;font-size:12px;letter-spacing:.02em;font-weight:800;text-transform:none}.gridCard .gcK{font-size:11px;letter-spacing:.18em;color:#62eaff}.gridCard .gcM{font-size:11px;color:#b9c8ea;font-weight:700}.goRank{margin:2px 0 6px!important;color:#cfe0ff!important;font-size:13px;font-weight:800;letter-spacing:.02em}.goRank small{display:block;font-size:11px;font-weight:700;color:#ffd48a;margin-top:2px}.goRank.hidden{display:none}
+.lbPanel{max-height:86vh;display:flex;flex-direction:column}.lbBody{flex:1;min-height:0;overflow:auto;margin:14px 0 18px;text-align:left}.lbLoading,.lbEmpty{color:#8da0c8;font-size:12px;text-align:center;padding:20px 0}.lbLeading{text-align:center;font-size:11px;letter-spacing:.08em;color:#9eb0d6;background:#0b1030;border:1px solid #263a72;border-radius:12px;padding:9px;margin-bottom:12px}.lbLeading b{color:#62eaff}.lbSectionLabel{font-size:11px;letter-spacing:.16em;color:#7f93bd;margin:16px 0 8px}.lbCombined{color:#62eaff;line-height:1.5}.lbList{display:flex;flex-direction:column;gap:6px}.lbRow{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #263a72;background:#0b1030aa;border-radius:10px;font-size:12px}.lbRow.lbMine{border-color:#62eaff;box-shadow:0 0 14px #27d9ff44}.lbRank{width:32px;color:#7f93bd;font-weight:900;font-size:11px}.lbFlag{font-size:15px}.lbName{flex:1;font-weight:800;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lbScore{font-weight:900;color:#62eaff}
 #shop .panel{width:min(420px,88vw)}
 .shopRow{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid #1c2c5c}
 .shopRow:last-child{border-bottom:0}
@@ -134,7 +147,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 .shopInfo span{display:block;font-size:11px;letter-spacing:.1em;color:#7f93bd;margin-top:2px}
 .shopRow button{padding:8px 12px;font-size:11px;white-space:nowrap}
 .shopRow button:disabled{opacity:.55;box-shadow:none}
-.profileTag{opacity:.55;font-weight:600;letter-spacing:.06em;margin-left:2px;font-size:11px}.lbTag{opacity:.5;font-weight:600;font-size:11px;letter-spacing:.04em}.shopNote{display:inline-block;margin-top:6px;font-size:12px;opacity:.7;line-height:1.4}.uploadStatus{min-height:14px;margin:6px 0 0;font-size:11px;letter-spacing:.12em;color:#8fa3d8;text-align:center}
+.profileTag{opacity:.55;font-weight:600;letter-spacing:.06em;margin-left:2px;font-size:11px}/* FOUNDING PILOT: cosmetic badge + spots-left line */.foundingBadge{display:table;margin:8px auto 0;padding:3px 11px;border:1px solid #ff7a18;border-radius:999px;background:#2a1206cc;color:#ffb36b;font-size:11px;font-weight:900;letter-spacing:.14em}.foundingLeft{margin:8px 0 0;color:#ffb36b;font-size:13px;font-weight:800;letter-spacing:.04em;text-align:center}.lbFounder{display:block;margin-top:1px;color:#ff9a4a;font-size:11px;font-weight:900;letter-spacing:.12em}.lbTag{opacity:.5;font-weight:600;font-size:11px;letter-spacing:.04em}.shopNote{display:inline-block;margin-top:6px;font-size:12px;opacity:.7;line-height:1.4}.uploadStatus{min-height:14px;margin:6px 0 0;font-size:11px;letter-spacing:.12em;color:#8fa3d8;text-align:center}
 #profileEditor{flex-wrap:wrap}.nameHint{flex:1 1 100%;margin:0 2px;font-size:12px;font-weight:700;letter-spacing:.02em;color:#ff8fb8;text-align:left}#callsign.nameBad,#callsign.nameBad:focus{border-color:#ff4f98!important;outline:2px solid #ff4f98!important;outline-offset:0;box-shadow:none}
 .restoreLink{display:block;width:100%;margin:-4px 0 12px;flex:none}#profileEditor.hidden+.restoreLink{display:none}.restoreOverlay .panel{max-height:88vh;overflow:auto}.restoreWho{font-size:12px;letter-spacing:.12em;color:#eaf7ff;margin:6px 0 10px}.restoreText{font-size:12px;line-height:1.55;color:#b9c6e6;margin:0 0 10px}.restoreWarn{font-size:11px;line-height:1.5;color:#ffd08a;margin:0 0 10px}.restoreMsg{font-size:12px;line-height:1.5;color:#ff9fc6;min-height:1.5em;margin:4px 0 8px}.restoreCode{font-family:ui-monospace,Menlo,monospace;font-size:12px;line-height:1.5;word-break:break-all;user-select:all;-webkit-user-select:all;background:#050a22;border:1px solid #2c4b87;border-radius:12px;padding:10px;margin:0 0 10px;color:#9ff3ff}.restoreInput{width:100%;box-sizing:border-box;font-family:ui-monospace,Menlo,monospace;font-size:16px;background:#050a22;color:#eaf7ff;border:1px solid #2c4b87;border-radius:12px;padding:10px;margin:0 0 6px;resize:none}.restoreRow{display:flex;gap:8px}.restoreRow button{flex:1}.restoreOverlay button{margin-top:8px}.restoreOther{display:block;width:100%}
 .goName{margin:6px 0 10px;padding:12px;border:1px solid #2c6bff;border-radius:16px;background:rgba(18,32,77,.55)}.goNameT{font-size:11px;letter-spacing:.16em;color:#5ff3ff;font-weight:800;margin-bottom:8px}.goNameRow{display:flex;gap:8px;margin-bottom:8px}.goNameRow input,.goNameRow select{min-width:0;background:#050a22;color:#eaf7ff;border:1px solid #2c4b87;border-radius:12px;padding:10px 12px;font:700 16px system-ui,sans-serif;text-transform:uppercase}.goNameRow input{flex:1}.goNameRow select{flex:0 0 42%;font-size:14px}.goNameRow input::placeholder{color:#6d7fa8}.goNameNote{font-size:11px;color:#9fb3d9;margin-top:6px}
@@ -155,6 +168,11 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 .fluxWelcomeBtn{max-width:340px;width:100%;min-height:64px;font-size:18px;letter-spacing:.04em;line-height:1.35}
 /* RC2.8.7: D-57 game over = the score + one line; D-60 name offer; D-58 "Playing for". */.goScore{font-size:56px;font-weight:900;line-height:1.05;color:#5deaff;letter-spacing:.04em;text-shadow:0 0 24px #27d9ff66;margin:0}.goLine{margin:8px 0 4px!important;color:#eaf7ff!important;font-size:15px!important;font-weight:800;line-height:1.4!important}.goLine .goNew{color:#ffd23f}.goMeta{margin:0 0 4px!important;color:#8fa5d1!important;font-size:12px!important;letter-spacing:.08em}.goClaim{margin:8px 0 10px;padding:12px;border:1px solid #2c6bff;border-radius:16px;background:rgba(18,32,77,.55)}.goClaimT{font-size:14px;font-weight:800;color:#eaf7ff;margin-bottom:8px}.goClaimRow{display:flex;gap:8px}.goClaimRow button{flex:1;padding:10px 8px;font-size:12px;letter-spacing:.08em}.goClaimRow button.goClaimNo{background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none}.playingFor{display:block;width:100%;margin:8px 0 0;padding:8px 10px;background:transparent;color:#b9c6e5;border:0;box-shadow:none;font-size:13px;font-weight:700;letter-spacing:.02em;text-transform:none}.playingFor u{color:#62eaff;text-underline-offset:3px}
 /* D-46 lite graphics: the moving star fields, the live-blurred nebula and the FLUX Mode full-screen filter are redrawn every frame; on old devices they cost more than the game itself. */.fluxLite #starsFar,.fluxLite #starsNear{animation:none!important}.fluxLite #nebulaDrift{display:none!important}.fluxLite #app{filter:none!important}
+/* FREE PLAN: the small offline / server-limit note (menu and game over only). */
+#fluxNetNote{position:fixed;left:50%;bottom:calc(12px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:7;display:none;pointer-events:none;
+  font:700 11px/1.2 system-ui,-apple-system,sans-serif;letter-spacing:.14em;color:#ffc15e;background:rgba(6,9,28,.86);border:1px solid rgba(255,193,94,.4);
+  border-radius:999px;padding:7px 12px;white-space:nowrap;max-width:calc(100vw - 24px);overflow:hidden;text-overflow:ellipsis}
+#fluxNetNote.show{display:block}
 </style>
 </head>
 <body>
@@ -176,8 +194,8 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
   <div class="fluxbar"><button id="pauseBtn" class="hidden" aria-label="Pause">Ⅱ</button><span>FLUX</span><div><i id="fluxFill"></i></div><b id="fluxPct">0%</b></div>
 </div>
 <div id="pauseOverlay" class="hidden"><div class="panel"><h2>FLUX PAUSED</h2><p>Your field is frozen. Take a breath, then get back in the flow.</p><button id="resumeBtn">RESUME</button><button id="pauseMenuBtn" style="margin-top:8px;background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none">⌂ END RUN &amp; MENU</button></div></div>
-<div id="shop" class="hidden"><div class="panel menuPanel"><h2 style="color:#62eaff;letter-spacing:.14em;margin:0 0 4px">THEMES & SKINS</h2><p style="margin:0 0 14px">Cosmetic only — never changes gameplay fairness.<br><span class="shopNote">Purchases belong to your pilot. Save your restore code (EDIT → RESTORE CODE): it brings this pilot and its skins back on a new phone, in the Home Screen app, or after clearing data.</span></p><div id="shopList"></div><div class="menuLabel" style="margin-top:16px">WORLD</div><div id="backgroundList"></div><button id="shopClose" style="margin-top:14px">BACK</button></div></div>
-<div id="start"><div class="panel menuPanel"><h1>FLUX</h1><div class="acronym">FLOW • LAUNCH • UNITE • XCELERATE</div><div class="menuSection"><div class="menuLabel">SELECT YOUR FLOW</div><div class="difficulty" id="difficulty"><button data-d="easy">EASY</button><button data-d="medium">MEDIUM</button><button data-d="hard">HARD</button></div></div><div id="profileEditor" class="profileRow"><input id="callsign" maxlength="12" placeholder="FLUX ID"><select id="country"><option value="AF">🇦🇫 AFGHANISTAN</option>
+<div id="help" class="hidden" role="dialog" aria-labelledby="helpTitle"><div class="panel menuPanel"><h2 id="helpTitle" style="color:#62eaff;letter-spacing:.14em;margin:0 0 6px">HELP</h2><p class="helpNote">Tap what you need. The FLUX team only sees your pilot name and #TAG: no email, nothing else about you.</p><div id="helpTopics"><button type="button" data-topic="badge">My Founding Pilot badge is missing</button><button type="button" data-topic="lost">I lost my pilot</button><button type="button" data-topic="bug">Something is broken</button><button type="button" data-topic="other">Something else</button></div><p id="helpSent" class="uploadStatus" aria-live="polite"></p><p id="helpTip" class="helpNote" style="margin-top:6px"></p><button id="helpClose" style="margin-top:6px">BACK</button></div></div><div id="foundingWelcome" class="foundingWelcome hidden" role="dialog" aria-labelledby="fwMsg"><p id="fwMsg"></p><div class="fwBtns"><button type="button" id="fwTry">TRY IT NOW</button><button type="button" id="fwLater">LATER</button></div></div><div id="shop" class="hidden"><div class="panel menuPanel"><h2 style="color:#62eaff;letter-spacing:.14em;margin:0 0 4px">THEMES & SKINS</h2><p style="margin:0 0 14px">Cosmetic only — never changes gameplay fairness.<br><span class="shopNote">Purchases belong to your pilot. Save your restore code (EDIT → RESTORE CODE): it brings this pilot and its skins back on a new phone, in the Home Screen app, or after clearing data.</span></p><div id="shopList"></div><div class="menuLabel" style="margin-top:16px">WORLD</div><div id="backgroundList"></div><button id="shopClose" style="margin-top:14px">BACK</button></div></div>
+<div id="start"><div class="panel menuPanel"><h1>FLUX <span class="h1Sparta">Sparta</span></h1><div class="acronym">FLOW • LAUNCH • UNITE • XCELERATE</div><div class="menuSection"><div class="menuLabel">SELECT YOUR FLOW</div><div class="difficulty" id="difficulty"><button data-d="easy"><svg class="pl" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="9" fill="#3F8CFF"/><path d="M5 5.5c2-1 4.2-.2 4 1.8-.2 1.7-2 1.9-2.6 3.6-.5 1.4-2.2 1.3-2.4-.3-.2-1.9 0-4.3 1-5.1z" fill="#4cc27f"/><path d="M12.2 10.6c1.8-.4 3.4.6 3.1 2.4-.3 1.9-2.1 2.6-3.1 1.8-1-.8-1.3-3.9 0-4.2z" fill="#4cc27f"/><circle cx="10" cy="10" r="8.6" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width=".8"/></svg>EARTH<small>Easy</small></button><button data-d="medium"><svg class="pl" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="9" fill="#E4572E"/><ellipse cx="10" cy="2.9" rx="3.3" ry="1.2" fill="#fbe6da"/><path d="M3.6 8.6c3 1.4 8.6 1.4 12.8-.8" fill="none" stroke="#a83a1b" stroke-width="1.2" stroke-linecap="round"/><circle cx="7" cy="12.6" r="1.6" fill="#a83a1b"/><circle cx="13.4" cy="13.6" r="1.1" fill="#a83a1b"/></svg>MARS<small>Medium</small></button><button data-d="hard"><svg class="pl" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="9" fill="#F2C27A"/><ellipse cx="10" cy="6.3" rx="7.8" ry=".9" fill="#c98f4a"/><ellipse cx="10" cy="9.6" rx="8.8" ry=".6" fill="#e0a862"/><ellipse cx="10" cy="12.8" rx="7.9" ry="1" fill="#c98f4a"/><ellipse cx="12.8" cy="12.8" rx="1.9" ry="1.2" fill="#c4533a"/></svg>JUPITER<small>Hard</small></button></div></div><div id="profileEditor" class="profileRow"><input id="callsign" maxlength="12" placeholder="FLUX ID"><select id="country"><option value="AF">🇦🇫 AFGHANISTAN</option>
 <option value="AL">🇦🇱 ALBANIA</option>
 <option value="DZ">🇩🇿 ALGERIA</option>
 <option value="AD">🇦🇩 ANDORRA</option>
@@ -372,15 +390,17 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 <option value="VN">🇻🇳 VIETNAM</option>
 <option value="YE">🇾🇪 YEMEN</option>
 <option value="ZM">🇿🇲 ZAMBIA</option>
-<option value="ZW">🇿🇼 ZIMBABWE</option><option value="OTHER">🌎 OTHER</option></select><div id="nameHint" class="nameHint hidden" role="alert">One word only, e.g. TITAN</div></div><button type="button" class="linkBtn restoreLink" id="restoreLink">HAVE A RESTORE CODE?</button><div id="profileSaved" class="profileSaved hidden"><span>PILOT <b id="profileName">PLAYER</b><small id="profileTag" class="profileTag"></small> • <b id="profileCountry">🇺🇸</b></span><button class="editProfile" id="editProfile">EDIT</button></div><button id="startBtn">ENTER THE FLUX</button><button type="button" id="playingFor" class="playingFor hidden">Playing for <span id="playingForWho">🇺🇸 United States</span> · <u>change</u></button><div class="menuTiles"><div><span>PERSONAL BEST</span><b id="menuBest">0</b></div><div><span>BEST LEVEL</span><b id="menuLevel">1</b></div></div><div id="uploadStatus" class="uploadStatus" aria-live="polite"></div><div class="menuLinks"><button class="linkBtn" id="leaderBtn">🌎 GLOBAL LEADERBOARD</button><button class="linkBtn" id="skinsBtn">✦ THEMES & SKINS</button></div><button type="button" class="linkBtn installBtn hidden" id="bringPilotBtn">📋 BRING MY PILOT FROM SAFARI</button><p class="offline" id="offlineClaim">● PERSONAL BEST SAVES ON THIS DEVICE</p></div></div>
+<option value="ZW">🇿🇼 ZIMBABWE</option><option value="OTHER">🌎 OTHER</option></select><div id="nameHint" class="nameHint hidden" role="alert">One word only, e.g. TITAN</div></div><button type="button" class="linkBtn restoreLink" id="restoreLink">HAVE A RESTORE CODE?</button><div id="profileSaved" class="profileSaved hidden"><span>PILOT <b id="profileName">PLAYER</b><small id="profileTag" class="profileTag"></small> • <b id="profileCountry">🇺🇸</b></span><button class="editProfile" id="editProfile">EDIT</button></div><div id="foundingBadge" class="foundingBadge hidden"></div><button id="startBtn">ENTER THE FLUX</button><button type="button" id="playingFor" class="playingFor hidden">Playing for <span id="playingForWho">🇺🇸 United States</span> · <u>change</u></button><div id="foundingLeft" class="foundingLeft hidden" aria-live="polite"></div><div class="menuTiles"><div><span>PERSONAL BEST</span><b id="menuBest">0</b></div><div><span>BEST LEVEL</span><b id="menuLevel">1</b></div></div><button type="button" class="gridCard" id="gridCard" aria-label="Open the World Grid"><span class="gcK">WORLD GRID</span></button><div id="uploadStatus" class="uploadStatus" aria-live="polite"></div><div class="menuLinks"><button class="linkBtn" id="leaderBtn">🌎 GLOBAL LEADERBOARD</button><button class="linkBtn" id="skinsBtn">✦ THEMES & SKINS</button></div><button type="button" class="linkBtn helpLink" id="helpBtn">? HELP</button><button type="button" class="linkBtn installBtn hidden" id="bringPilotBtn">📋 BRING MY PILOT FROM SAFARI</button><p class="offline" id="offlineClaim">● PERSONAL BEST SAVES ON THIS DEVICE</p></div></div>
+<div id="fluxNetNote" role="status" aria-live="polite">OFFLINE — SCORES WILL UPLOAD LATER</div>
 <div id="gameover" class="hidden">
  <div class="panel">
   <div class="goScore" id="finalScore">0</div>
   <p class="goLine" id="goLine"></p>
-  <p class="goMeta"><b id="finalMode">MEDIUM</b> · BEST <b id="best">0</b></p>
+  <p class="goMeta"><b id="finalMode" class="plTag" data-d="medium" data-sub="MEDIUM">MARS</b> · BEST <b id="best">0</b></p>
+  <p class="goRank hidden" id="goRank" aria-live="polite"></p>
   <div id="goClaim" class="goClaim hidden"><div class="goClaimT">Put your name on the board?</div><div class="goClaimRow"><button id="goClaimYes" type="button">YES</button><button id="goClaimNo" type="button" class="goClaimNo">NOT NOW</button></div></div>
   <div id="goName" class="goName hidden"><div class="goNameT">PUT YOUR SCORE ON THE WORLD GRID</div><div class="goNameRow"><input id="goCallsign" maxlength="12" placeholder="YOUR NAME" autocomplete="off" autocorrect="off" spellcheck="false"><select id="goCountry" aria-label="Country"></select></div><button id="goSave" type="button">SAVE &amp; UPLOAD</button><div class="goNameNote" id="goNameMsg">Your best score counts for your country.</div></div>
-  <div class="gameoverModes"><div class="menuLabel">CHOOSE YOUR NEXT FLOW</div><div class="difficulty" id="gameoverDifficulty"><button data-d="easy">EASY</button><button data-d="medium">MEDIUM</button><button data-d="hard">HARD</button></div></div>
+  <div class="gameoverModes"><div class="menuLabel">CHOOSE YOUR NEXT FLOW</div><div class="difficulty" id="gameoverDifficulty"><button data-d="easy"><svg class="pl" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="9" fill="#3F8CFF"/><path d="M5 5.5c2-1 4.2-.2 4 1.8-.2 1.7-2 1.9-2.6 3.6-.5 1.4-2.2 1.3-2.4-.3-.2-1.9 0-4.3 1-5.1z" fill="#4cc27f"/><path d="M12.2 10.6c1.8-.4 3.4.6 3.1 2.4-.3 1.9-2.1 2.6-3.1 1.8-1-.8-1.3-3.9 0-4.2z" fill="#4cc27f"/><circle cx="10" cy="10" r="8.6" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width=".8"/></svg>EARTH<small>Easy</small></button><button data-d="medium"><svg class="pl" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="9" fill="#E4572E"/><ellipse cx="10" cy="2.9" rx="3.3" ry="1.2" fill="#fbe6da"/><path d="M3.6 8.6c3 1.4 8.6 1.4 12.8-.8" fill="none" stroke="#a83a1b" stroke-width="1.2" stroke-linecap="round"/><circle cx="7" cy="12.6" r="1.6" fill="#a83a1b"/><circle cx="13.4" cy="13.6" r="1.1" fill="#a83a1b"/></svg>MARS<small>Medium</small></button><button data-d="hard"><svg class="pl" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="9" fill="#F2C27A"/><ellipse cx="10" cy="6.3" rx="7.8" ry=".9" fill="#c98f4a"/><ellipse cx="10" cy="9.6" rx="8.8" ry=".6" fill="#e0a862"/><ellipse cx="10" cy="12.8" rx="7.9" ry="1" fill="#c98f4a"/><ellipse cx="12.8" cy="12.8" rx="1.9" ry="1.2" fill="#c4533a"/></svg>JUPITER<small>Hard</small></button></div></div>
   <button id="againBtn">RUN IT BACK</button>
   <button id="shareBtn" type="button" class="hidden" style="margin-top:8px;background:transparent;color:#ffd23f;border:1px solid #6b5a1a;box-shadow:none">📤 SHARE MY SCORE</button>
   <button id="gameoverLeaderBtn" style="margin-top:8px;background:transparent;color:#7fdfff;border:1px solid #234174;box-shadow:none">🌎 GLOBAL LEADERBOARD</button>
@@ -432,16 +452,19 @@ if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D
     this.arcTo(x, y + h, x, y, rr); this.arcTo(x, y, x + w, y, rr); this.closePath(); return this;
   };
 }
-const c=document.getElementById('game'),ctx=c.getContext('2d');
+const c=document.getElementById('game'); let ctx=c.getContext('2d');   // BATTERY (menus): let, so the field can be drawn once into its copy (stampField)
 /* D-46 (RC2.8.6) LITE GRAPHICS -- decided on an earlier visit and remembered. */
 window.__fluxLite = (function(){ try{ return localStorage.getItem('fluxLite') === '1'; }catch(e){ return false; } })();
 function fluxApplyLite(){
   if (!window.__fluxLite) return;
   try{ document.documentElement.classList.add('fluxLite'); }catch(e){}   // calm the moving background layers (CSS below)
+  fluxLockGlow(ctx);
+}
+function fluxLockGlow(x){   // LITE: this canvas draws no glow (also the menu field copy, see stampField)
   try{
     const d = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'shadowBlur');
-    if (d && d.set) d.set.call(ctx, 0);
-    Object.defineProperty(ctx, 'shadowBlur', { configurable: true, get: function(){ return 0; }, set: function(){} });   // glow off
+    if (d && d.set) d.set.call(x, 0);
+    Object.defineProperty(x, 'shadowBlur', { configurable: true, get: function(){ return 0; }, set: function(){} });   // glow off
   }catch(e){}
 }
 fluxApplyLite();
@@ -543,6 +566,23 @@ const LEVEL_SCORE_MULT={easy:1.5,medium:1,hard:.55};
    country. MUST stay identical to DIFF_WEIGHT in worker.js. */
 const DIFF_WEIGHT={easy:.09,medium:.21,hard:1};
 function weighted(sc,d){ return Math.round((+sc||0)*(DIFF_WEIGHT[d]||1)); }
+/* LEADERBOARD REFRESH: the difficulties are shown as planets -- EARTH (Easy),
+   MARS (Medium), JUPITER (Hard) -- with Easy / Medium / Hard always shown small
+   beside or under the name, and a small planet icon (colour is never the only
+   clue). Display only: the keys stay easy / medium / hard everywhere (storage,
+   server, stats). Planet colours are for menus, tabs and labels only. */
+const FLUX_PLANETS={easy:{name:'EARTH',word:'Earth',sub:'Easy'},medium:{name:'MARS',word:'Mars',sub:'Medium'},hard:{name:'JUPITER',word:'Jupiter',sub:'Hard'}};
+const FLUX_PLANET_SVG={"easy": "<svg class=\"pl\" viewBox=\"0 0 20 20\" aria-hidden=\"true\"><circle cx=\"10\" cy=\"10\" r=\"9\" fill=\"#3F8CFF\"/><path d=\"M5 5.5c2-1 4.2-.2 4 1.8-.2 1.7-2 1.9-2.6 3.6-.5 1.4-2.2 1.3-2.4-.3-.2-1.9 0-4.3 1-5.1z\" fill=\"#4cc27f\"/><path d=\"M12.2 10.6c1.8-.4 3.4.6 3.1 2.4-.3 1.9-2.1 2.6-3.1 1.8-1-.8-1.3-3.9 0-4.2z\" fill=\"#4cc27f\"/><circle cx=\"10\" cy=\"10\" r=\"8.6\" fill=\"none\" stroke=\"#fff\" stroke-opacity=\".35\" stroke-width=\".8\"/></svg>", "medium": "<svg class=\"pl\" viewBox=\"0 0 20 20\" aria-hidden=\"true\"><circle cx=\"10\" cy=\"10\" r=\"9\" fill=\"#E4572E\"/><ellipse cx=\"10\" cy=\"2.9\" rx=\"3.3\" ry=\"1.2\" fill=\"#fbe6da\"/><path d=\"M3.6 8.6c3 1.4 8.6 1.4 12.8-.8\" fill=\"none\" stroke=\"#a83a1b\" stroke-width=\"1.2\" stroke-linecap=\"round\"/><circle cx=\"7\" cy=\"12.6\" r=\"1.6\" fill=\"#a83a1b\"/><circle cx=\"13.4\" cy=\"13.6\" r=\"1.1\" fill=\"#a83a1b\"/></svg>", "hard": "<svg class=\"pl\" viewBox=\"0 0 20 20\" aria-hidden=\"true\"><circle cx=\"10\" cy=\"10\" r=\"9\" fill=\"#F2C27A\"/><ellipse cx=\"10\" cy=\"6.3\" rx=\"7.8\" ry=\".9\" fill=\"#c98f4a\"/><ellipse cx=\"10\" cy=\"9.6\" rx=\"8.8\" ry=\".6\" fill=\"#e0a862\"/><ellipse cx=\"10\" cy=\"12.8\" rx=\"7.9\" ry=\"1\" fill=\"#c98f4a\"/><ellipse cx=\"12.8\" cy=\"12.8\" rx=\"1.9\" ry=\"1.2\" fill=\"#c4533a\"/></svg>"};
+function planetOf(d){ return FLUX_PLANETS[d]||FLUX_PLANETS.medium; }
+function planetIcon(d){ return FLUX_PLANET_SVG[d]||FLUX_PLANET_SVG.medium; }
+/* A label element (HUD, game over): the planet name as its text, the icon and
+   the small Easy / Medium / Hard from CSS (.plTag[data-d]). */
+function setPlanetLabel(el,d){
+  if(!el) return;
+  const p=planetOf(d);
+  el.textContent=p.name;
+  try{ el.setAttribute('data-d',FLUX_PLANETS[d]?d:'medium'); el.setAttribute('data-sub',p.sub.toUpperCase()); if(el.classList) el.classList.add('plTag'); }catch(e){}
+}
 const FLUX_COUNTDOWN_S=3, FLUX_FROM_LEVEL=3;   // FLUX MODE: 3 s announce countdown; it starts from level 3 on every difficulty (SKILL LADDER)
 const LEVEL_COUNTDOWN_S=5, LEVEL_RAMP_S=1;   // level-up: 5 s SPEED UP countdown, then ~1 s difficulty ramp
 function levelScoreAt(lv,d){   // score needed to reach level lv (lv 1 = 0)
@@ -884,7 +924,10 @@ function initAudio(){
       masterGain.connect(audioLimiter);
       audioLimiter.connect(audioCtx.destination);
     }
-    if(audioCtx.state==='suspended') audioCtx.resume();
+    // AUDIO REOPEN (owner): iOS parks the context of a reopened Home Screen app in 'interrupted', not
+    // 'suspended', so PLAY never woke it and the whole run stayed silent. Anything not running is resumed
+    // here, inside the tap (iOS only allows it in a tap).
+    if(audioCtx.state!=='running' && audioCtx.state!=='closed'){ const p=audioCtx.resume(); if(p && p.catch) p.catch(function(){}); }
     audioReady=true;
   }catch(e){audioReady=false}
 }
@@ -1078,11 +1121,12 @@ function maxHudBottom(){
   for(let i=0;i<cachedHudRects.length;i++){ m=Math.max(m,cachedHudRects[i].bottom+12); }
   return m;
 }
-function safeSpawnPoint(r=20){
- const pad=isPhone()?34:42, top=maxHudBottom(), bottom=Math.max(top+80,H*.79);
+function safeSpawnPoint(r=20,zone=null){
+ const pad=isPhone()?34:42, top=zone?zone.top:maxHudBottom(), bottom=zone?zone.bottom:Math.max(top+80,H*.79);
+ const xLo=zone?zone.left:pad, xHi=zone?zone.right:W-pad;   // LIGHTNING ZONE: the growing orb's spawn area
  const hudRects=hudExclusionRects();
  for(let tries=0;tries<40;tries++){
-   const x=rand(pad,W-pad), y=rand(top,bottom);
+   const x=rand(xLo,xHi), y=rand(top,bottom);
    if(pointHitsHud(x,y,r,hudRects)) continue;
    const minGap=(isPhone()?58:72);
    if(!targets.some(t=>Math.hypot(t.x-x,t.y-y)<minGap+t.r+r*.45)) return [x,y];
@@ -1093,12 +1137,12 @@ function safeSpawnPoint(r=20){
  // the drift step below then opens the gap to ORB_GAP.
  let best=null, bestRoom=-Infinity;
  for(let tries=0;tries<30;tries++){
-   const x=rand(pad,W-pad), y=rand(top,bottom);
+   const x=rand(xLo,xHi), y=rand(top,bottom);
    if(pointHitsHud(x,y,r,hudRects)) continue;
    const room=targets.reduce((m,t)=>Math.min(m,Math.hypot(t.x-x,t.y-y)-t.r-r),Infinity);
    if(room>bestRoom){ best=[x,y]; bestRoom=room; }
  }
- return best || [rand(pad,W-pad),Math.max(top,bottom-40)];
+ return best || [rand(xLo,xHi),Math.max(top,bottom-40)];
 }
 function spawnTarget(forceColor=null){
  if(targets.length>=targetCap()) return;
@@ -1119,9 +1163,17 @@ function spawnBonusOrb(){
 // While charging it behaves like a normal orb (still needs color match).
 // Once matured it pulses to signal "pop me now": any contact bursts it for a
 // big score bonus and kicks the ball onto a new trajectory based on impact angle.
+/* LIGHTNING ZONE (owner): the growing orb spawns, grows and turns into a lightning orb (⚡) only in
+   the upper-middle of the play field: from the bottom of the score bar down to halfway to the
+   launcher, and 10-90% of the screen width. It bounces off the zone's edges like a wall, and as a
+   safety net it only turns into ⚡ while its centre is inside the zone (if it was pushed out, it
+   waits at full size until it drifts back). So a lightning burst never fires the ball from low on
+   the screen. Timer, one-at-a-time, 4.2 s growth, bonus and kick are unchanged; regular orbs too. */
+function lightningZone(){ const top=maxHudBottom(); return { left:W*.10, right:W*.90, top:top, bottom:Math.max(top+60,top+(paddle.y-top)/2) }; }
+function inLightningZone(t){ const z=lightningZone(); return t.x>=z.left && t.x<=z.right && t.y>=z.top && t.y<=z.bottom; }
 function spawnGrowingOrb(){
  if(targets.some(t=>t.growing)) return;
- const [x,y]=safeSpawnPoint(30);
+ const [x,y]=safeSpawnPoint(30,lightningZone());
  const color=Math.floor(Math.random()*coloursInPlay());
  const maxR=isPhone()?34:40;
  targets.push({x,y,r:12,maxR,color,spin:rand(0,6),vx:rand(-.22,.22),vy:rand(-.18,.18),phase:rand(0,Math.PI*2),age:0,growing:true,matured:false,danger:false});
@@ -1289,7 +1341,7 @@ function registerMiss(){
  }
  resetFieldAfterMiss();
  // Restart the orb from a calm launch point.
- ball.x=paddle.x;ball.y=paddle.y-28;ball.vx=rand(-3.4,3.4);ball.vy=-launchSpeed(Math.max(6.0,6.0+level*.12)*DIFFICULTY[difficulty].speed);ball.trail=[];
+ ballTouched();ball.x=paddle.x;ball.y=paddle.y-28;ball.vx=rand(-3.4,3.4);ball.vy=-launchSpeed(Math.max(6.0,6.0+level*.12)*DIFFICULTY[difficulty].speed);ball.trail=[];
  updateHud();
 }
 // One free revive per run: watch a rewarded ad, get one miss back, keep playing.
@@ -1305,7 +1357,7 @@ function offerRevive(){
  const grantRevive=()=>{
    revivesUsedThisRun++;misses=2;missNotice=0;paused=false;last=performance.now();
    resetFieldAfterMiss();
-   ball.x=paddle.x;ball.y=paddle.y-28;ball.vx=rand(-3.4,3.4);ball.vy=-launchSpeed(Math.max(6.0,6.0+level*.12)*DIFFICULTY[difficulty].speed);ball.trail=[];
+   ballTouched();ball.x=paddle.x;ball.y=paddle.y-28;ball.vx=rand(-3.4,3.4);ball.vy=-launchSpeed(Math.max(6.0,6.0+level*.12)*DIFFICULTY[difficulty].speed);ball.trail=[];
    updateHud();popup(W/2,H*.4,'REVIVED','#62eaff');burst(W/2,H*.4,'#62eaff',24);
  };
  const d=document.createElement('div');
@@ -1508,7 +1560,7 @@ function flash(v){
 }
 function updateHud(){
  document.getElementById('score').textContent=Math.min(score,RUN_SCORE_CAP);
- document.getElementById('hudDiff').textContent=String(difficulty).toUpperCase();   // HUD: EASY / MEDIUM / HARD during play
+ setPlanetLabel(document.getElementById('hudDiff'),difficulty);   // HUD: EARTH / MARS / JUPITER (+ small Easy / Medium / Hard) during play
  document.getElementById('combo').textContent='x'+combo;
  // D-50: the LEVEL box becomes the SPEED UP countdown while a level-up is pending.
  const lvBox=document.getElementById('levelBox'), lvLabel=document.getElementById('levelLabel');
@@ -1560,7 +1612,8 @@ function endGame(){
    document.getElementById('finalScore').textContent=score.toLocaleString();refreshMenu();
    showGameOverLine(score,prevBest,prevOverall);   // D-57
    offerNameClaim(score,prevBest,runNo);   // D-60
-   document.getElementById('finalMode').textContent=String(difficulty).toUpperCase();   // D-36: was never set here, so it always read MEDIUM
+   goRankDiff=difficulty; showGoRank();   // LEADERBOARD REFRESH: ONE rank line for the difficulty just played
+   setPlanetLabel(document.getElementById('finalMode'),difficulty);   // D-36: was never set here, so it always read MEDIUM (LEADERBOARD REFRESH: the planet name)
    document.getElementById('best').textContent=best.toLocaleString();
    document.getElementById('gameover').classList.remove('hidden');
    uploadOrAskName();   // D-39: nothing uploads until the pilot has a name
@@ -1658,6 +1711,7 @@ function tickSpeed(dt){
   if(speedShown<speedStep) speedShown=Math.min(speedStep,speedShown+dt/SPEED_RAMP_S);   // the new speed arrives over ~1 s
   if(lostBallHold>0) lostBallHold=Math.max(0,lostBallHold-dt);
   if(recoverLeft>0) recoverLeft=Math.max(0,recoverLeft-dt);
+  if(ballStalled()) return;   // BALL NEVER STALLS: no run time, no SPEED UP while the ball touches nothing
   if(speedCountdown>0){
     if(missNotice>0) return;   // a miss notice has the slot: the count waits so it is always seen
     speedCountdown-=dt;
@@ -1671,6 +1725,36 @@ function tickSpeed(dt){
   if(speedDue()) startSpeedCountdown();
 }
 function slowToSpeedHelp(dt){ const k=speedHelp(); if(k===1 || !ball) return; const n=normalMaxSpeed(), lim=n*k, sp=Math.hypot(ball.vx,ball.vy); if(sp>lim && sp<=n+1e-9){ const nsp=Math.max(lim,sp-n*2.2*dt); ball.vx*=nsp/sp; ball.vy*=nsp/sp; } }
+/* BALL NEVER STALLS (owner, Hard + Solar Inferno: the ball skimmed wall to wall above the
+   orbs for ~36 s while SPEED UP kept firing). Three guards:
+   - the ball never travels flatter than BALL_MIN_ANGLE from horizontal, after any bounce
+     (walls, ceiling, orbs, a grown orb's burst). Speed is kept; a paddle shot is never that
+     flat (its widest angle is ~30 deg), so normal play is unchanged;
+   - after BALL_STEER_S without touching the paddle or an orb, the ball is turned gently
+     toward the paddle, only until it is heading down at 45 deg (a nudge, not a homing shot);
+   - from BALL_PAUSE_S without a touch, the run clock and a SPEED UP count stop. */
+const BALL_MIN_ANGLE=27*Math.PI/180, BALL_STEER_S=5, BALL_PAUSE_S=3, BALL_STEER_RATE=2.5;
+let ballIdle=0;   // seconds since the ball last touched the paddle or an orb
+function ballTouched(){ ballIdle=0; }
+function ballStalled(){ return ballIdle>=BALL_PAUSE_S; }
+function keepBallAngle(){
+  const sp=Math.hypot(ball.vx,ball.vy); if(sp<1e-6) return;
+  const minVy=sp*Math.sin(BALL_MIN_ANGLE);
+  if(Math.abs(ball.vy)>=minVy) return;
+  const down=ball.vy>0 || Math.abs(ball.vy)<1e-9;   // flat: send it down
+  ball.vy=(down?1:-1)*minVy;
+  ball.vx=(ball.vx<0?-1:1)*sp*Math.cos(BALL_MIN_ANGLE);
+}
+function steerStalledBall(dt){
+  ballIdle+=dt;
+  if(ballIdle<BALL_STEER_S) return;
+  const sp=Math.hypot(ball.vx,ball.vy); if(sp<1e-6) return;
+  if(ball.vy>0 && ball.vy/sp>=Math.SQRT1_2) return;   // already heading down at 45 deg or steeper
+  const a=Math.atan2(ball.vy,ball.vx), b=Math.atan2(paddle.y-ball.y,paddle.x-ball.x);
+  let d=b-a; while(d>Math.PI) d-=2*Math.PI; while(d<-Math.PI) d+=2*Math.PI;
+  const step=Math.max(-BALL_STEER_RATE*dt,Math.min(BALL_STEER_RATE*dt,d)), n=a+step;
+  ball.vx=Math.cos(n)*sp; ball.vy=Math.sin(n)*sp;
+}
 function update(dt){
  if(levelBanner>0) levelBanner=Math.max(0,levelBanner-dt);
  if(colorHintLeft>0) colorHintLeft=Math.max(0,colorHintLeft-dt);
@@ -1683,7 +1767,7 @@ function update(dt){
  else if(combo>1){combo=Math.max(1,Math.floor(combo/2));streak=0;comboTimer=combo>1?COMBO_TIME_S:0;popup(W/2,150,'COMBO HALVED','#8da0c8');updateHud();}   // COMBO HALVES: a broken chain keeps half (x8 -> x4), not x1
  if(perfectFlash>0)perfectFlash-=dt;
  const maxSpeed=normalMaxSpeed()*speedHelp(); slowToSpeedHelp(dt);   // x1 unless a speed help is on (see SPEED HELP)
- if(fluxMode>0){fluxMode-=dt;document.getElementById('app').style.filter='brightness(1.18) saturate(1.35)';document.getElementById('fluxGlow').classList.add('on');}else{document.getElementById('app').style.filter='none';document.getElementById('fluxGlow').classList.remove('on');}
+ if(fluxMode>0){fluxMode-=dt;fluxModeLook(true);}else{fluxModeLook(false);}
  let sp=Math.hypot(ball.vx,ball.vy);
  if(sp<maxSpeed) {
    // Snap back to full speed quickly (under a second) instead of the old
@@ -1693,7 +1777,7 @@ function update(dt){
    const scale=sp>0.0001?newSp/sp:1;
    ball.vx*=scale;ball.vy*=scale;
  }
- ball.trail.unshift({x:ball.x,y:ball.y});if(ball.trail.length>10)ball.trail.pop();
+ {const q=ball.trail.length>=10?ball.trail.pop():{};q.x=ball.x;q.y=ball.y;ball.trail.unshift(q);}   // BATTERY (PR B): the oldest point is reused as the newest (same 10 points)
  ball.x+=ball.vx*dt*60;ball.y+=ball.vy*dt*60;
  if(ball.x-ball.r<8){ball.x=8+ball.r;ball.vx=Math.abs(ball.vx);burst(ball.x,ball.y,'#59eaff',4)}
  if(ball.x+ball.r>W-8){ball.x=W-8-ball.r;ball.vx=-Math.abs(ball.vx);burst(ball.x,ball.y,'#59eaff',4)}
@@ -1708,9 +1792,14 @@ function update(dt){
    const topBound=maxHudBottom()+t.r, botBound=Math.max(topBound+60,H*.79)-t.r;
    if(t.x<t.r+16 || t.x>W-t.r-16){t.vx*=-1;t.x=Math.max(t.r+16,Math.min(W-t.r-16,t.x));}
    if(t.y<topBound || t.y>botBound){t.vy*=-1;t.y=Math.max(topBound,Math.min(botBound,t.y));}
+   if(t.growing){   // LIGHTNING ZONE: the growing / lightning orb keeps its centre in the zone
+     const z=lightningZone();
+     if(t.x<z.left || t.x>z.right){t.vx=(t.x<z.left?1:-1)*Math.abs(t.vx);t.x=Math.max(z.left,Math.min(z.right,t.x));}
+     if(t.y<z.top || t.y>z.bottom){t.vy=(t.y<z.top?1:-1)*Math.abs(t.vy);t.y=Math.max(z.top,Math.min(z.bottom,t.y));}
+   }
    if(t.growing && !t.matured){
      t.r=Math.min(t.maxR,12+(t.age/4.2)*(t.maxR-12));
-     if(t.r>=t.maxR){t.matured=true;burst(t.x,t.y,'#fff',10);haptic(20);}
+     if(t.r>=t.maxR && inLightningZone(t)){t.matured=true;burst(t.x,t.y,'#fff',10);haptic(20);}   // LIGHTNING ZONE: only inside the zone
    }
    if(t.hitPulse>0) t.hitPulse=Math.max(0,t.hitPulse-dt);
    if(t.grazeCooldown>0) t.grazeCooldown=Math.max(0,t.grazeCooldown-dt);
@@ -1731,6 +1820,7 @@ function update(dt){
  // matching orb behind a wrong-color one is never silently skipped.
  for(const t of [...targets]){
    if(dist(ball,t)<ball.r+t.r){
+     ballTouched();
      if(t.bonus){popBonus(t);continue}
      if(t.growing && t.matured){burstGrowing(t,maxSpeed);continue}
      if(t.color===ball.color){fuse(t)}
@@ -1766,7 +1856,7 @@ function update(dt){
  // paddle collision: angle determined by hit position
  if(ball.vy>0 && ball.y+ball.r>=paddle.y-paddle.h/2 && ball.y<paddle.y+18 &&
     ball.x>paddle.x-paddle.w/2-ball.r-catchMargin() && ball.x<paddle.x+paddle.w/2+ball.r+catchMargin()){   // catchMargin() is 0 except a player's first 3 runs
-   ball.y=paddle.y-paddle.h/2-ball.r;
+   ball.y=paddle.y-paddle.h/2-ball.r; ballTouched();
    const marginCatch=Math.abs(ball.x-paddle.x)>paddle.w/2+ball.r;   // GENEROUS CATCH: saved by the margin -- no points, never perfect
    const hit=clampCatchHit((ball.x-paddle.x)/(paddle.w/2));
    const speed=Math.min(maxSpeed,Math.max(7*DIFFICULTY[difficulty].speed,Math.hypot(ball.vx,ball.vy)*1.035));
@@ -1790,10 +1880,12 @@ function update(dt){
    if(targets.length<targetCap())spawnTarget();
    updateHud();
  }
- if(ball.y-ball.r>H){registerMiss();if(!playing)return;ball.x=paddle.x;ball.y=paddle.y-28;ball.vx=rand(-3.8,3.8);ball.vy=-launchSpeed(Math.max(6.2,6.0+level*.15)*DIFFICULTY[difficulty].speed);ball.trail=[];}
+ steerStalledBall(dt); keepBallAngle();   // BALL NEVER STALLS
+ if(ball.y-ball.r>H){registerMiss();ballTouched();if(!playing)return;ball.x=paddle.x;ball.y=paddle.y-28;ball.vx=rand(-3.8,3.8);ball.vy=-launchSpeed(Math.max(6.2,6.0+level*.15)*DIFFICULTY[difficulty].speed);ball.trail=[];}
  // particles
- particles.forEach(p=>{p.x+=p.vx*dt*60;p.y+=p.vy*dt*60;p.vy+=.08*dt*60;p.life-=dt*1.8});particles=particles.filter(p=>p.life>0);
- texts.forEach(t=>{t.y-=.6*dt*60;t.life-=dt});texts=texts.filter(t=>t.life>0);
+ // BATTERY (PR B): same steps, same order; the spent ones are dropped in place (no new array every frame)
+ {let n=0;for(const p of particles){p.x+=p.vx*dt*60;p.y+=p.vy*dt*60;p.vy+=.08*dt*60;p.life-=dt*1.8;if(p.life>0)particles[n++]=p;}particles.length=n;}
+ {let n=0;for(const t of texts){t.y-=.6*dt*60;t.life-=dt;if(t.life>0)texts[n++]=t;}texts.length=n;}
  if(paddle.hitFlash>0) paddle.hitFlash=Math.max(0,paddle.hitFlash-dt*4.2);
  if(gripPulse>0) gripPulse=Math.max(0,gripPulse-dt);
  shake*=.9;
@@ -1803,16 +1895,48 @@ function update(dt){
  updatePressureBadge();
 }
 function lighterHex(c,k){ if(!/^#[0-9a-f]{6}$/i.test(c||'')) return '#ffffff'; return 'rgb('+[1,3,5].map(i=>Math.round(parseInt(c.substr(i,2),16)*(1-k)+255*k)).join(',')+')'; }
-function drawGrip(col){
+function drawGrip(col,glowStamped){
   const pulse=gripPulse>0 ? 1+.09*Math.sin((1.6-gripPulse)*Math.PI*2.5)*(gripPulse/1.6) : 1;   // gentle pulse at the start of each run
   const r=GRIP_D/2*pulse, top=paddle.y+paddle.h/2, cy=top+GRIP_STEM+GRIP_D/2;
   ctx.save();
-  ctx.shadowBlur=18;ctx.shadowColor=col;ctx.strokeStyle=col;ctx.lineWidth=8;ctx.lineCap='round';
+  ctx.shadowBlur=glowStamped?0:18;ctx.shadowColor=col;ctx.strokeStyle=col;ctx.lineWidth=8;ctx.lineCap='round';   // BATTERY: with glowStamped the glow was already stamped from its sprite
   ctx.beginPath();ctx.moveTo(paddle.x,top);ctx.lineTo(paddle.x,cy-r+2);ctx.stroke();
   ctx.fillStyle=col;ctx.beginPath();ctx.arc(paddle.x,cy,r,0,Math.PI*2);ctx.fill();
   ctx.shadowBlur=0;ctx.strokeStyle=lighterHex(col,.55);ctx.lineWidth=4;ctx.beginPath();ctx.arc(paddle.x,cy,r-2,0,Math.PI*2);ctx.stroke();
   ctx.globalAlpha=.35;ctx.fillStyle='#ffffff';ctx.beginPath();ctx.arc(paddle.x,cy-r*.28,r*.42,0,Math.PI*2);ctx.fill();
   ctx.restore();
+}
+/* BATTERY (PR B): the launcher's two glows at rest, rendered once (shadow only: the shape far away, its
+   shadow brought back) for this colour, size and dpr, and stamped at the launcher. Same blur, same colour. */
+let launcherGlows=new Map();
+function launcherGlowSprite(col,part){
+ const key=part+'|'+col+'|'+paddle.w+'|'+paddle.h+'|'+dpr;
+ let s=launcherGlows.get(key); if(s) return s;
+ const blur=part==='bar'?32:18, ext=blur*1.6+4;   // generous: the canvas spreads a shadow further than its nominal 3 sigma
+ const top=paddle.h/2, cy=top+GRIP_STEM+GRIP_D/2, r=GRIP_D/2;
+ const left=(part==='bar'?paddle.w/2+paddle.h/2:r)+ext, up=(part==='bar'?paddle.h/2:-top)+ext, down=(part==='bar'?paddle.h/2:cy+r)+ext;
+ const c=document.createElement('canvas'); c.width=Math.ceil(left*2*dpr); c.height=Math.ceil((up+down)*dpr);
+ const x=c.getContext('2d'), OFF=10000;
+ x.setTransform(dpr,0,0,dpr,0,0); x.translate(left+OFF,up);
+ x.shadowBlur=blur;x.shadowColor=col;x.shadowOffsetX=-OFF*dpr;x.strokeStyle=col;x.fillStyle=col;x.lineCap='round';
+ if(part==='bar'){ x.lineWidth=paddle.h; x.beginPath(); x.moveTo(-paddle.w/2,0); x.lineTo(paddle.w/2,0); x.stroke(); }
+ else{ x.lineWidth=8; x.beginPath(); x.moveTo(0,top); x.lineTo(0,cy-r+2); x.stroke(); x.beginPath(); x.arc(0,cy,r,0,Math.PI*2); x.fill(); }
+ s={c:c,left:left,up:up,w:c.width/dpr,h:c.height/dpr};
+ if(launcherGlows.size>24) launcherGlows=new Map();
+ launcherGlows.set(key,s); return s;
+}
+function stampLauncherGlow(col,part){
+ const s=launcherGlowSprite(col,part), a=ctx.globalAlpha, sb=ctx.shadowBlur;
+ ctx.globalAlpha=1; ctx.shadowBlur=0;
+ ctx.drawImage(s.c,paddle.x-s.left,paddle.y-s.up,s.w,s.h);
+ ctx.globalAlpha=a; ctx.shadowBlur=sb;
+}
+let launcherGrads=new Map();
+function launcherGradient(col,w,fresh){
+ const key=col+'|'+w; let g=fresh?null:launcherGrads.get(key); if(g) return g;
+ g=ctx.createLinearGradient(-w/2,0,w/2,0); g.addColorStop(0,col);g.addColorStop(.5,launcherHighlight(col));g.addColorStop(1,col);
+ if(!fresh){ if(launcherGrads.size>16) launcherGrads=new Map(); launcherGrads.set(key,g); }
+ return g;
 }
 function drawSlideHint(){   // first run only, until the player slides
   let first=false; try{ first=!(+localStorage.fluxRunsPlayed>0); }catch(e){}
@@ -1821,7 +1945,27 @@ function drawSlideHint(){   // first run only, until the player slides
   ctx.fillText('Slide anywhere \u2194',W/2,paddle.y-44);ctx.restore();
 }
 function glowCircle(x,y,r,col,alpha=1){
- ctx.save();ctx.globalAlpha=alpha;ctx.shadowBlur=r*1.8;ctx.shadowColor=col;ctx.fillStyle=col;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();ctx.restore();
+ if(window.__fluxLite){ ctx.save();ctx.globalAlpha=alpha;ctx.fillStyle=col;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();ctx.restore(); return; }   // LITE: glow off, as before (shadowBlur is locked at 0)
+ /* BATTERY (PR B): the canvas draws a glow as two steps -- the blurred shadow, then the circle, each with
+    globalAlpha. The blurred shadow is the costly part, so it is rendered once per colour (glowSprite) and
+    stamped here, scaled to r (the blur is r*1.8, so the glow scales with r); the circle is drawn as before. */
+ const g=glowSprite(col), k=r/GLOW_REF;
+ ctx.save();ctx.globalAlpha=alpha;
+ ctx.drawImage(g.c,x-g.half*k,y-g.half*k,g.half*2*k,g.half*2*k);
+ ctx.fillStyle=col;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();ctx.restore();
+}
+const GLOW_REF=16;   // the sprite's circle radius (css px)
+let glowSprites=new Map(), glowSpriteDpr=0;
+function glowSprite(col){
+ if(glowSpriteDpr!==dpr){ glowSprites=new Map(); glowSpriteDpr=dpr; }   // the blur is in device pixels: a new dpr needs new sprites
+ let s=glowSprites.get(col); if(s) return s;
+ const R=GLOW_REF, half=R+R*1.8*1.6+2, c=document.createElement('canvas');
+ c.width=c.height=Math.ceil(half*2*dpr);
+ const x=c.getContext('2d'), OFF=10000, m=c.width/dpr/2;
+ x.setTransform(dpr,0,0,dpr,0,0);
+ x.shadowBlur=R*1.8;x.shadowColor=col;x.shadowOffsetX=-OFF*dpr;x.fillStyle=col;   // the shape far off the sprite, its shadow brought back: the shadow alone
+ x.beginPath();x.arc(m+OFF,m,R,0,Math.PI*2);x.fill();
+ s={c:c,half:m}; if(glowSprites.size>64) glowSprites=new Map(); glowSprites.set(col,s); return s;
 }
 const glyphs=['●','▲','■','◆','★','✚','▼','◉','⬢'];
 /* BLOCK STYLE (orb colours v2): solid saturated fill, a light highlight on top,
@@ -1833,27 +1977,44 @@ const glyphs=['●','▲','■','◆','★','✚','▼','◉','⬢'];
 function shadeHex(h,k){const n=parseInt(h.slice(1),16),r=n>>16,g=n>>8&255,b=n&255,f=function(c){return Math.round(k>0?c+(255-c)*k:c*(1+k));};return 'rgb('+f(r)+','+f(g)+','+f(b)+')';}
 function hexLum(h){const n=parseInt(h.slice(1),16),l=function(c){c/=255;return c<=.04045?c/12.92:Math.pow((c+.055)/1.055,2.4);};return .2126*l(n>>16)+.7152*l(n>>8&255)+.0722*l(n&255);}
 const ORB_OUTLINE='rgba(8,10,24,.9)';
-function blockOrb(x,y,r,col){
+function blockOrb(x,y,r,col,growing){
   ctx.save();ctx.shadowBlur=0;
-  ctx.globalAlpha=.35;ctx.fillStyle='#000';ctx.beginPath();ctx.arc(x,y+2,r+1,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;   // soft drop under the orb
-  const g=ctx.createLinearGradient(0,y-r,0,y+r);g.addColorStop(0,shadeHex(col,.18));g.addColorStop(.5,col);g.addColorStop(1,shadeHex(col,-.30));   // darker lower edge
-  ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
-  ctx.fillStyle='rgba(255,255,255,.42)';ctx.beginPath();ctx.ellipse(x,y-r*.48,r*.62,r*.26,0,0,Math.PI*2);ctx.fill();   // light highlight on top
-  ctx.lineWidth=Math.max(1.5,r*.08);ctx.strokeStyle=ORB_OUTLINE;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();   // thin dark outline
+  ctx.translate(x,y);   // BATTERY (PR B): drawn around (0,0), so its gradient is the same for every orb of this colour and size
+  ctx.globalAlpha=.35;ctx.fillStyle='#000';ctx.beginPath();ctx.arc(0,2,r+1,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;   // soft drop under the orb
+  ctx.fillStyle=orbGradient(col,r,growing);ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();   // darker lower edge
+  ctx.fillStyle='rgba(255,255,255,.42)';ctx.beginPath();ctx.ellipse(0,-r*.48,r*.62,r*.26,0,0,Math.PI*2);ctx.fill();   // light highlight on top
+  ctx.lineWidth=Math.max(1.5,r*.08);ctx.strokeStyle=ORB_OUTLINE;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.stroke();   // thin dark outline
   ctx.restore();
+}
+/* BATTERY (PR B): gradients that do not change are made once and reused (same colour stops, same
+   geometry, drawn around the origin). A growing orb changes size every frame, so its is made fresh. */
+let orbGrads=new Map();
+function orbGradient(col,r,fresh){
+  const key=col+'|'+r; let g=fresh?null:orbGrads.get(key); if(g) return g;
+  g=ctx.createLinearGradient(0,-r,0,r);g.addColorStop(0,shadeHex(col,.18));g.addColorStop(.5,col);g.addColorStop(1,shadeHex(col,-.30));
+  if(!fresh){ if(orbGrads.size>64) orbGrads=new Map(); orbGrads.set(key,g); }
+  return g;
 }
 function orbSymbol(x,y,r,col,sym){ctx.save();ctx.globalAlpha=1;ctx.fillStyle=hexLum(col)>.28?'#10132a':'#ffffff';ctx.font='900 '+Math.max(11,r*.8)+'px -apple-system,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(sym,x,y+1);ctx.restore();}
 function draw(){
  ctx.clearRect(0,0,W,H);
  // celestial background — drifting nebula glow + slow-scrolling, twinkling starfield
  const nowT=performance.now()*.001;
+ drawSky(nowT);
+ if(reduceMotion) shake=0;   // REDUCE MOTION: no screen shake
+ const sx=shake?rand(-shake,shake):0,sy=shake?rand(-shake,shake):0;ctx.save();ctx.translate(sx,sy);
+ drawCeiling(nowT);
+ if(fieldIsStill()) stampField(); else drawField();   // BATTERY (menus): a still field is stamped from its copy
+ ctx.restore();
+ drawSlotBanners();
+}
+function drawSky(nowT){
  ctx.save();
  for(const nb of nebulae){
    const nx=((nb.x+nb.vx*nowT)%W+W)%W, ny=((nb.y+nb.vy*nowT)%H+H)%H;
-   const grad=ctx.createRadialGradient(nx,ny,0,nx,ny,nb.r);
-   grad.addColorStop(0,nb.hue+'55');grad.addColorStop(1,nb.hue+'00');
+   if(!nb.grad){ nb.grad=ctx.createRadialGradient(0,0,0,0,0,nb.r); nb.grad.addColorStop(0,nb.hue+'55');nb.grad.addColorStop(1,nb.hue+'00'); }   // BATTERY (PR B): made once per nebula, drawn around (0,0)
    ctx.globalAlpha=.5+.15*Math.sin(nowT*.3+nb.phase);
-   ctx.fillStyle=grad;ctx.beginPath();ctx.arc(nx,ny,nb.r,0,Math.PI*2);ctx.fill();
+   ctx.save();ctx.translate(nx,ny);ctx.fillStyle=nb.grad;ctx.beginPath();ctx.arc(0,0,nb.r,0,Math.PI*2);ctx.fill();ctx.restore();
  }
  for(const s of stars){
    const sx=((s.x+s.vx*nowT)%W+W)%W, sy=((s.y+s.vy*nowT)%H+H)%H;
@@ -1862,8 +2023,9 @@ function draw(){
    ctx.beginPath();ctx.arc(sx,sy,s.r,0,Math.PI*2);ctx.fill();
  }
  ctx.restore();
- if(reduceMotion) shake=0;   // REDUCE MOTION: no screen shake
- const sx=shake?rand(-shake,shake):0,sy=shake?rand(-shake,shake):0;ctx.save();ctx.translate(sx,sy);
+}
+let ceilGrad=null;
+function drawCeiling(nowT){
  // ceiling -- a soft gradient band at the exact height the ball/orbs
  // actually bounce off, so the boundary reads as an intentional part of
  // the field rather than an invisible wall. Purely decorative -- draws at
@@ -1874,17 +2036,15 @@ function draw(){
  {
    const ceilY=maxHudBottom();
    const shimmer=.5+.25*Math.sin(nowT*1.4);
-   const grad=ctx.createLinearGradient(0,ceilY-22,0,ceilY+22);
-   grad.addColorStop(0,'rgba(98,234,255,0)');
-   grad.addColorStop(.5,`rgba(98,234,255,${(0.28*shimmer).toFixed(3)})`);
-   grad.addColorStop(1,'rgba(98,234,255,0)');
+   if(!ceilGrad){ ceilGrad=ctx.createLinearGradient(0,-22,0,22); ceilGrad.addColorStop(0,'rgba(98,234,255,0)'); ceilGrad.addColorStop(.5,'rgba(98,234,255,.28)'); ceilGrad.addColorStop(1,'rgba(98,234,255,0)'); }
    ctx.save();
-   ctx.fillStyle=grad;
-   ctx.fillRect(0,ceilY-22,W,44);
+   ctx.save();ctx.translate(0,ceilY);ctx.globalAlpha=shimmer;ctx.fillStyle=ceilGrad;ctx.fillRect(0,-22,W,44);ctx.restore();   // BATTERY (PR B): one gradient; its shimmer as alpha (one colour, so the same band)
    ctx.globalAlpha=.5;ctx.strokeStyle='#a9f2ff';ctx.lineWidth=1;
    ctx.beginPath();ctx.moveTo(18,ceilY);ctx.lineTo(W-18,ceilY);ctx.stroke();
    ctx.restore();
  }
+}
+function drawField(){
  drawJuiceUnderOrbs();   // INTENSITY: edge light (outside the orb field) and trail glow (never behind an orb)
  // targets
  for(const t of targets){
@@ -1903,7 +2063,7 @@ function draw(){
      ctx.save();
      const growPct=t.matured?1:t.r/t.maxR;
      const glow=t.matured?(.6+.4*Math.sin(performance.now()*.01+t.phase)):.3+.25*growPct;
-     blockOrb(t.x,t.y,t.r,colors[t.color]);
+     blockOrb(t.x,t.y,t.r,colors[t.color],true);
      ctx.strokeStyle=colors[t.color];
      if(t.matured){
        ctx.globalAlpha=glow;ctx.lineWidth=2;ctx.setLineDash([3,5]);
@@ -1968,17 +2128,24 @@ function draw(){
  const ease = hf*hf*(3-2*hf); // smoothstep, so it punches in fast and eases out
  const visualW = paddle.w*(1+ease*0.10);
  const visualH = paddle.h*(1+ease*0.55);
- const grad=ctx.createLinearGradient(paddle.x-visualW/2,0,paddle.x+visualW/2,0);
- grad.addColorStop(0,paddleCol);grad.addColorStop(.5,launcherHighlight(paddleCol));grad.addColorStop(1,paddleCol);
+ const grad=launcherGradient(paddleCol,visualW,ease>0);   // BATTERY (PR B): made once at rest; around x=0, the bar is drawn there
  ctx.save();
  // Extra soft underglow so the whole bar pops clearly against a dark field.
  ctx.shadowBlur=44+ease*30;ctx.strokeStyle=paddleCol;ctx.globalAlpha=.5+ease*.3;ctx.lineWidth=visualH+10;ctx.lineCap='round';
  ctx.beginPath();ctx.moveTo(paddle.x-visualW/2,paddle.y);ctx.lineTo(paddle.x+visualW/2,paddle.y);ctx.stroke();
  ctx.globalAlpha=1;
  ctx.shadowBlur=32;ctx.shadowColor=paddleCol;
- drawGrip(paddleCol);   // round grip under the bar (drawn first, so the bar stays the visual catch line)
- ctx.shadowBlur=32+ease*24;ctx.strokeStyle=grad;ctx.lineWidth=visualH;ctx.lineCap='round';
- ctx.beginPath();ctx.moveTo(paddle.x-visualW/2,paddle.y);ctx.lineTo(paddle.x+visualW/2,paddle.y);ctx.stroke();
+ // BATTERY (PR B): at rest (no hit pulse, no start-of-run grip pulse) the grip's and the bar's glows are
+ // stamped from sprites in the same order (grip glow, grip, bar glow, bar); during a pulse, or while the
+ // launcher narrows after a level-up (~1 s), all is drawn live.
+ const restGlow=ease===0 && !(gripPulse>0) && !(speedLevel<level) && !window.__fluxLite;
+ if(restGlow) stampLauncherGlow(paddleCol,'grip');
+ drawGrip(paddleCol,restGlow);   // round grip under the bar (drawn first, so the bar stays the visual catch line)
+ if(restGlow){ stampLauncherGlow(paddleCol,'bar'); ctx.shadowBlur=0; }
+ ctx.save();ctx.translate(paddle.x,0);
+ ctx.shadowBlur=restGlow?0:32+ease*24;ctx.strokeStyle=grad;ctx.lineWidth=visualH;ctx.lineCap='round';
+ ctx.beginPath();ctx.moveTo(-visualW/2,paddle.y);ctx.lineTo(visualW/2,paddle.y);ctx.stroke();
+ ctx.restore();
  // White flash overlay on top, fading out with the squash -- kept pure
  // white (not skin-tinted) since a crisp white spark reads as "impact"
  // clearly over any skin color, the same way it does in most action games.
@@ -2001,7 +2168,8 @@ function draw(){
  if(perfectFlash>0){
    ctx.save();ctx.globalAlpha=perfectFlash/.18;ctx.strokeStyle='#ffffff';ctx.lineWidth=3;ctx.shadowBlur=25;ctx.shadowColor='#ffffff';ctx.beginPath();ctx.arc(ball.x,ball.y,ball.r+12+(1-perfectFlash/.18)*22,0,Math.PI*2);ctx.stroke();ctx.restore();
  }
- ctx.restore();
+}
+function drawSlotBanners(){
  // Miss notice: same HUD-strip slot as the level banner, drawn after the shake
  // transform is undone. While it shows it takes the slot; the LEVEL box still
  // shows any SPEED UP countdown.
@@ -2092,8 +2260,23 @@ function setPaused(next){
  }
 }
 
+/* BATTERY / HEAT (owner, PR A -- lifecycle). Same FLUX, less wasted work:
+   - HIDDEN: while the page is hidden nothing is simulated or drawn.
+   - PAUSED (pause button, revive offer): the last frame stays on the canvas under the pause screen and
+     nothing is redrawn.
+   - After either, the first frame re-anchors the clock (dt = one normal frame): no physics, spawn or
+     timer jump. Score, combo, lives and every state are untouched; audio behaves as before.
+   - MENUS / GAME OVER (no run on screen, nothing simulated): the field -- orbs, ball, launcher,
+     particles, texts -- cannot change, so it is drawn once into a copy and stamped each frame
+     (stampField); the sky and the ceiling shimmer still move exactly as before, and the game-over
+     shake still shakes. A bonus orb or a lightning orb pulses with the clock, so with one on the field
+     the field is drawn live as before. The copy is redrawn as soon as anything drawn in it changes.
+   The loop itself keeps its D-45 shape: the next frame is always scheduled first. */
+let fluxLoopIdle=false;   // the last frame drew nothing (hidden or paused): re-anchor the clock on the next one
 function loop(ts){
  requestAnimationFrame(loop);   // D-45: next frame first, so one bad frame can never freeze the game
+ if(document.hidden || paused){ fluxLoopIdle=true; last=ts; return; }   // BATTERY: hidden or paused -- nothing simulated, nothing redrawn
+ if(fluxLoopIdle){ fluxLoopIdle=false; last=ts; }   // BATTERY: back -- this frame is one normal step (dt .016), never a jump
  const dt=Math.min(.032,(ts-last)/1000||.016);
  if(playing && !paused) fluxPerfSample(ts-last);   // D-46
  last=ts;
@@ -2106,6 +2289,54 @@ function loop(ts){
  draw();
 }
 requestAnimationFrame(loop);
+/* BATTERY (menus): the field copy. FIELD_PAD covers the largest shake (18 px at game over), so a shaken
+   copy never shows a cut edge. fieldStillKey() lists everything drawField() reads (the clock aside);
+   the copy is redrawn whenever one of them changes. */
+const FIELD_PAD=24;
+let fieldCopy=null, fieldCopyKey=null;
+function fieldIsStill(){
+ if(playing || levelHold>0) return false;   // a run (or the level-up banner) is on screen: drawn live
+ for(const t of targets) if(t.bonus || (t.growing && t.matured)) return false;   // these pulse with the clock
+ return true;
+}
+function fieldStillKey(){
+ const k=[W,H,dpr,activeSkin,colors,window.__fluxLite?1:0,level,fluxMode>0?Math.ceil(fluxMode):0,perfectFlash,juice,
+   paddle.x,paddle.y,paddle.w,paddle.h,paddle.hitFlash||0,targets.length,particles.length,texts.length,maxHudBottom()];
+ if(ball){ k.push(ball.x,ball.y,ball.r,ball.color,ball.vx,ball.vy,ball.trail.length); for(const q of ball.trail) k.push(q.x,q.y); }
+ for(const t of targets) k.push(t.x,t.y,t.r,t.color,t.phase,t.spin,t.danger?1:0,t.hint?1:0,t.growing?1:0,t.matured?1:0,t.hitPulse||0,t.age||0);
+ for(const q of particles) k.push(q.x,q.y,q.life,q.col);
+ for(const q of texts) k.push(q.s,q.x,q.y,q.life,q.col);
+ return k;
+}
+function sameKey(a,b){ if(!a || a.length!==b.length) return false; for(let i=0;i<a.length;i++) if(a[i]!==b[i]) return false; return true; }
+const FIELD_STATE=['fillStyle','strokeStyle','lineWidth','lineCap','lineJoin','miterLimit','font','textAlign','textBaseline','globalAlpha','shadowBlur','shadowColor','shadowOffsetX','shadowOffsetY','globalCompositeOperation','imageSmoothingEnabled','lineDashOffset'];
+function stampField(){
+ const key=fieldStillKey();
+ if(!fieldCopy || !sameKey(fieldCopyKey,key)){
+   const pw=Math.round((W+2*FIELD_PAD)*dpr), ph=Math.round((H+2*FIELD_PAD)*dpr);
+   if(!fieldCopy) fieldCopy=document.createElement('canvas');
+   if(fieldCopy.width!==pw || fieldCopy.height!==ph){ fieldCopy.width=pw; fieldCopy.height=ph; }
+   const fc=fieldCopy.getContext('2d');
+   if(window.__fluxLite) fluxLockGlow(fc);   // BATTERY (PR B): Lite's glow-off reaches the copy too, as on the live field
+   fc.setTransform(1,0,0,1,0,0); fc.clearRect(0,0,pw,ph);
+   for(const k of FIELD_STATE) fc[k]=ctx[k];   // the same drawing state the live field would start from
+   fc.setLineDash(ctx.getLineDash());
+   fc.setTransform(dpr,0,0,dpr,FIELD_PAD*dpr,FIELD_PAD*dpr);
+   const live=ctx; ctx=fc;
+   try{ drawField(); } finally { ctx=live; }
+   fieldCopyKey=key;
+ }
+ ctx.drawImage(fieldCopy,-FIELD_PAD,-FIELD_PAD,W+2*FIELD_PAD,H+2*FIELD_PAD);
+}
+/* BATTERY: FLUX MODE's look (the #app filter and the glow layer) is written once when FLUX MODE starts and
+   once when it ends, not on every frame. Same values, same moments. */
+let fluxModeLookOn=null;
+function fluxModeLook(on){
+ if(on===fluxModeLookOn) return;
+ fluxModeLookOn=on;
+ document.getElementById('app').style.filter=on?'brightness(1.18) saturate(1.35)':'none';
+ document.getElementById('fluxGlow').classList.toggle('on',on);
+}
 /* PADDLE CONTROL. A finger that starts in the bottom 40% of the screen (on the
    round grip or anywhere else there) moves the launcher.
    UNDER THE THUMB (players hold the round grip): the launcher's centre IS the
@@ -2147,8 +2378,8 @@ function pointer(e){
 }
 window.ontouchstart=function(e){ pointer(e); };   // touch-down puts the launcher under the finger
 window.onpointerdown=function(e){ if(e.pointerType && e.pointerType!=='mouse') pointer(e); };   // same, from the pointer side; a mouse click changes nothing
-window.ontouchend=window.ontouchcancel=function(e){ if(!drag) return; const ts=e.touches||[]; for(let i=0;i<ts.length;i++) if(ts[i].identifier===drag.id) return; drag=null; };
-window.onpointerup=window.onpointercancel=function(e){ if(drag && drag.pid!=null && e.pointerId===drag.pid) drag=null; };
+window.ontouchend=window.ontouchcancel=function(e){ tryResumeAudio(); if(!drag) return; const ts=e.touches||[]; for(let i=0;i<ts.length;i++) if(ts[i].identifier===drag.id) return; drag=null; };
+window.onpointerup=window.onpointercancel=function(e){ tryResumeAudio(); if(drag && drag.pid!=null && e.pointerId===drag.pid) drag=null; };
 // ---------------------------------------------------------------------------
 // D-11 — PAGE LIFECYCLE
 // iOS suspends the AudioContext when the app is backgrounded and nothing here
@@ -2185,7 +2416,10 @@ function tryResumeAudio(){
 
 // iOS often refuses resume() outside a user gesture, so returning to the app
 // is not always enough on its own. The first real interaction after coming
-// back retries it. ONE listener, registered once at top level, capture phase
+// back retries it. AUDIO REOPEN (owner): on iPhone a finger going DOWN
+// (touchstart / pointerdown) does not count as a tap for audio -- only the
+// finger lifting does -- so the touch-end and pointer-up handlers above retry
+// it too (they are where iOS lets resume() through). ONE listener, registered once at top level, capture phase
 // so it runs before the paddle handler and never interferes with it.
 addEventListener('pointerdown', tryResumeAudio, {passive:true, capture:true});
 addEventListener('touchstart', tryResumeAudio, {passive:true, capture:true});
@@ -2225,9 +2459,10 @@ function refreshMenu(){
  document.getElementById('profileEditor').classList.toggle('hidden',profileComplete);document.getElementById('profileSaved').classList.toggle('hidden',!profileComplete);
  document.getElementById('profileName').textContent=callsign||'PLAYER';document.getElementById('profileCountry').textContent=countryFlags[country]||'🌎';
  if(typeof refreshPlayingFor==='function') refreshPlayingFor();   // D-58
+ if(typeof refreshGridCard==='function') refreshGridCard();   // LEADERBOARD REFRESH: the menu's World Grid card (cached board only)
 }
 document.querySelectorAll('#difficulty button').forEach(b=>b.onclick=()=>{difficulty=b.dataset.d;localStorage.fluxDifficulty=difficulty;refreshMenu()});
-document.querySelectorAll('#gameoverDifficulty button').forEach(b=>b.onclick=()=>{difficulty=b.dataset.d;localStorage.fluxDifficulty=difficulty;best=+localStorage[bestKey()]||0;document.getElementById('best').textContent=best.toLocaleString();document.getElementById('finalMode').textContent=difficulty.toUpperCase();refreshMenu()});
+document.querySelectorAll('#gameoverDifficulty button').forEach(b=>b.onclick=()=>{difficulty=b.dataset.d;localStorage.fluxDifficulty=difficulty;best=+localStorage[bestKey()]||0;document.getElementById('best').textContent=best.toLocaleString();setPlanetLabel(document.getElementById('finalMode'),difficulty);refreshMenu()});
 document.getElementById('callsign').onchange=e=>{callsign=(e.target.value.trim()||'PLAYER').toUpperCase();e.target.value=callsign};
 document.getElementById('country').onchange=e=>{country=e.target.value};
 document.getElementById('editProfile').onclick=()=>{profileComplete=false;document.getElementById('profileEditor').classList.remove('hidden');document.getElementById('profileSaved').classList.add('hidden');};
@@ -2243,12 +2478,14 @@ function buildShopUI(){
   list.innerHTML='';
   Object.entries(SKINS).forEach(([sku,s])=>{
     const owned=ownsSkin(sku), equipped=activeSkin===sku;
+    const founder=sku==='solar' && typeof fluxFoundingNum==='function' && fluxFoundingNum()>0;   // FOUNDING PILOT: free, whatever the store says
     const row=document.createElement('div');
     row.className='shopRow';
     row.innerHTML=`<div class="shopSwatches">${s.colors.slice(0,5).map(c=>`<i style="background:${c}"></i>`).join('')}</div>
-      <div class="shopInfo"><b>${s.name}</b><span>${owned?(equipped?'ACTIVE':'OWNED'):(STORE_OPEN?s.price:'COMING SOON')}</span></div>`;
+      <div class="shopInfo"><b>${s.name}</b><span>${founder?'FOUNDING PILOT · FREE':owned?(equipped?'ACTIVE':'OWNED'):(STORE_OPEN?s.price:'COMING SOON')}</span></div>`;
     const btn=document.createElement('button');
     if(equipped){btn.textContent='ACTIVE';btn.disabled=true;}
+    else if(founder){btn.textContent='EQUIP';btn.onclick=()=>{btn.disabled=true;fluxFoundingEquip().then(function(ok){ if(!ok){ btn.disabled=false; fluxNameToast('Solar Inferno unlocks when you are online. Try again then.',4500); } });};}
     else if(owned){btn.textContent='USE';btn.onclick=()=>equipSkin(sku);}
     else if(!STORE_OPEN){btn.textContent='SOON';btn.disabled=true;}   // STORE SWITCH
     else{btn.textContent='BUY '+s.price;btn.onclick=()=>buySkin(sku,btn);}
@@ -2354,6 +2591,55 @@ function showInfo(title,msg){const d=document.createElement('div');d.className='
 //   success             -> remove from the queue
 // Attempts are capped so a bad item cannot retry forever.
 // ---------------------------------------------------------------------------
+/* FREE PLAN: SERVER LIMIT / OFFLINE. FLUX runs on Cloudflare's free plan
+   (100,000 server requests a day, reset at 00:00 UTC). Past the limit the
+   server answers with Cloudflare's own error page ("Error 1027 ... rate
+   limited", not our JSON), and a phone can simply be offline. Either way the
+   game keeps working: the pages come from the service worker cache, runs are
+   played, and scores + stats wait in the upload queue. When Cloudflare's limit
+   page is seen, every server call (uploads, leaderboard, purchases check,
+   country) pauses until the next UTC midnight (the reset), at most an hour
+   between tries, shared by all tabs -- never a retry loop. A small note says
+   "OFFLINE -- SCORES WILL UPLOAD LATER" on the menu and game-over screens. */
+const FLUX_NET_PAUSE_KEY='fluxNetPause';
+const FLUX_NET_PAUSE_MAX_MS=3600000;
+let fluxNetDown=false;                                     // the last upload failed for a temporary reason
+function fluxNetPausedFor(){
+  let t=0; try{ t=+localStorage.getItem(FLUX_NET_PAUSE_KEY)||0; }catch(e){}
+  const left=t-Date.now();
+  return left>0 ? Math.min(left, FLUX_NET_PAUSE_MAX_MS+300000) : 0;
+}
+function fluxNetHeld(){ return (typeof navigator!=='undefined' && navigator.onLine===false) || fluxNetPausedFor()>0; }
+/* Cloudflare's own limit page (not our JSON): 'limit'. Anything else: null. */
+async function fluxEdgeKind(res){
+  try{
+    const st=res && res.status;
+    if(!(st===429 || st===403 || st>=500)) return null;
+    const ct=String((res.headers && res.headers.get && res.headers.get('Content-Type')) || '');
+    if(ct.indexOf('json')>=0) return null;
+    const t=await res.text();
+    return /\b1027\b|rate[ -]?limited|limit exceeded/i.test(t) ? 'limit' : null;
+  }catch(e){ return null; }
+}
+function fluxNetPause(){
+  const now=Date.now(), midnight=(Math.floor(now/86400000)+1)*86400000;
+  const until=Math.min(midnight+Math.floor(Math.random()*300000), now+FLUX_NET_PAUSE_MAX_MS);
+  try{ localStorage.setItem(FLUX_NET_PAUSE_KEY,String(until)); }catch(e){}
+  fluxNetNote();
+  return until-now;
+}
+function fluxNetOk(){
+  fluxNetDown=false;
+  try{ if(localStorage.getItem(FLUX_NET_PAUSE_KEY)) localStorage.removeItem(FLUX_NET_PAUSE_KEY); }catch(e){}
+  fluxNetNote();
+}
+function fluxNetNote(){
+  try{
+    const el=document.getElementById('fluxNetNote'); if(!el) return;
+    const show=(fluxNetHeld() || fluxNetDown) && !(typeof playing!=='undefined' && (playing || runActive));
+    el.className=show ? 'show' : '';
+  }catch(e){}
+}
 const SUBMIT_QUEUE_KEY='fluxPendingSubmits';
 const SUBMIT_MAX_ATTEMPTS=Infinity;   // RC2.8: temporary failures never exhaust a best (see D-24)
 const SUBMIT_QUEUE_MAX=20;
@@ -2408,12 +2694,24 @@ const SUBMIT_BACKOFF_MS=[5000,15000,45000,120000,300000,600000];
 const SUBMIT_COOLDOWN_WAIT_MS=11000;
 let _flushing=null, _retryTimer=null, _flushAgain=false;
 
+/* FREE PLAN: a run's stats travel INSIDE its queued upload ("stats"), so a
+   run is one request, and stats made offline wait with the score. At most 40
+   events per upload (the server's batch size); the newest are kept. */
+function fluxMergeStats(item, stats){
+  if(!item || !stats || !stats.events || !stats.events.length) return;
+  const prev=(item.stats && item.stats.events) || [];
+  item.stats={ src:stats.src || (item.stats && item.stats.src), events:prev.concat(stats.events).slice(-40) };
+}
 function enqueueSubmission(item){
   if(!item) return;
   const q=loadQueue();
   const same=function(x){ return x.playerId===item.playerId && x.difficulty===item.difficulty; };
   const existing=q.find(same);
-  if(existing && existing.score>=item.score) return;          // keep the better unsent best
+  if(existing && existing.score>=item.score){   // keep the better unsent best (and this run's stats with it)
+    if(item.stats){ fluxMergeStats(existing, item.stats); if(existing.attempts>0 && item.runId) existing.runId=item.runId; saveQueue(q); }   // new content, new run id: a copy the server may already have is never mistaken for it
+    return;
+  }
+  if(existing && existing.stats){ const mine=item.stats; item.stats=existing.stats; fluxMergeStats(item, mine); }
   saveQueue(q.filter(function(x){ return !same(x); }).concat([item]));
   updateUploadStatus();
 }
@@ -2429,17 +2727,22 @@ async function postSubmission(item){
       body:JSON.stringify({
         playerId:item.playerId, name:item.name, score:item.score,
         level:item.level, difficulty:item.difficulty, country:item.country,
+        stats:item.stats,
         runId:item.runId,
         season:item.season
       })
     });
-  }catch(e){ return { kind:'temporary', waitMs:0 }; }
+  }catch(e){ fluxNetDown=true; return { kind:'temporary', waitMs:0 }; }
   if(res.ok){
     let body=null; try{ body=await res.json(); }catch(e){}
+    fluxNetOk();
     return { kind:'ok', body:body };
   }
   if(res.status===409) return { kind:'stale' };   // SEASON 1: refused as from an older season -- dropped quietly
+  if(await fluxEdgeKind(res)==='limit'){ fluxNetDown=true; return { kind:'temporary', waitMs:fluxNetPause() }; }   // FREE PLAN: Cloudflare's daily limit -- wait for the reset
+  if(res.status===403 && String((res.headers && res.headers.get && res.headers.get('Content-Type')) || '').indexOf('json')<0){ fluxNetDown=true; return { kind:'temporary', waitMs:0 }; }   // Cloudflare's own block page is never our refusal: keep the run
   if(res.status===429||res.status>=500){
+    fluxNetDown=true;
     let waitMs=0;
     try{
       const ra=res.headers && res.headers.get && res.headers.get('Retry-After');
@@ -2470,6 +2773,7 @@ function flushSubmitQueue(){
       do {
       _flushAgain=false;
       if(typeof navigator!=='undefined' && navigator.onLine===false) return;
+      if(fluxNetPausedFor()>0){ if(loadQueue().length) scheduleFlush(fluxNetPausedFor()); return; }   // FREE PLAN: past the daily limit, wait for the reset
       let retryScheduled=false;
       for(const item of loadQueue()){
         if(!(item && item.season>=FLUX_SEASON)){ saveQueue(loadQueue().filter(function(x){ return x && x.season>=FLUX_SEASON; })); continue; }   // SEASON 1: an old-season upload is never sent
@@ -2480,10 +2784,12 @@ function flushSubmitQueue(){
         }
         const r=await postSubmission(item);
         if(r.kind==='ok'){
-          dequeueSubmission(item.id); clearSubmitFailure();
+          dequeueSubmission(item.id); clearSubmitFailure(); fluxAckSet(item);
           const b=r.body||{};
           if(b.tag && /^[0-9A-Z]{6,}$/.test(b.tag)){ try{ localStorage.fluxPublicTag=b.tag; }catch(e){} }
           lastUploadResult=b;
+          if(typeof rankSnapSave==='function'){ rankSnapSave(b,item); showGoRank(); }   // LEADERBOARD REFRESH: the server's rank reply, for the game-over line and the pinned rows
+          if(typeof fluxFoundingRun==='function') fluxFoundingRun(b,item);   // FOUNDING PILOT: a number in the run's own reply (no extra request)
         } else if(r.kind==='stale'){
           dequeueSubmission(item.id);
         } else if(r.kind==='permanent'){
@@ -2509,9 +2815,35 @@ function flushSubmitQueue(){
   })();
   return _flushing;
 }
-function submitScore(){
+/* FREE PLAN: at game over ({run:true}) the run's stats go INSIDE the score
+   upload -- one request per run. A best the server has already accepted (same
+   pilot, season, name and country) is not sent again at every game over;
+   then the stats go alone, as the one request of that run. Any other call
+   (a new name, a new country) always uploads. */
+const FLUX_ACK_KEY='fluxUploadedBest';
+function fluxAckGet(){
+  let o=null; try{ o=JSON.parse(localStorage.getItem(FLUX_ACK_KEY)||'null'); }catch(e){}
+  return (o && o.season===FLUX_SEASON && o.pid===playerId) ? o : { season:FLUX_SEASON, pid:playerId };
+}
+function fluxAckSet(item){
+  try{
+    if(!item || item.playerId!==playerId) return;
+    const o=fluxAckGet();
+    if(!(o[item.difficulty]>=item.score)) o[item.difficulty]=item.score;
+    o.name=item.name; o.country=item.country||'';
+    localStorage.setItem(FLUX_ACK_KEY,JSON.stringify(o));
+  }catch(e){}
+}
+function fluxAlreadyUploaded(item){
+  const o=fluxAckGet();
+  if(!(o[item.difficulty]>=item.score) || o.name!==item.name || o.country!==(item.country||'')) return false;
+  return !loadQueue().some(function(x){ return x && x.playerId===item.playerId && x.difficulty===item.difficulty; });
+}
+function submitScore(opts){
+  const run=!!(opts && opts.run);
   const item=buildSubmission();
-  if(!item) return Promise.resolve();
+  if(!item || (run && fluxAlreadyUploaded(item))){ if(run) fluxStatsFlush(); return Promise.resolve(); }
+  if(run) fluxMergeStats(item, fluxStatsTake());
   enqueueSubmission(item);
   return flushSubmitQueue();
 }
@@ -2522,6 +2854,7 @@ function submitScore(){
    review queue, so "pending review" is never shown. */
 let lastUploadResult=null;
 function updateUploadStatus(){
+  fluxNetNote();
   try{
     const el=document.getElementById('uploadStatus');
     if(el){
@@ -2565,47 +2898,233 @@ function myPidHash(){
   }
   return _myPidHash;
 }
-function openLeaderboard(){
-  if(isOffline()){
-    showInfo('CONNECTION REQUIRED','The Global Leaderboard needs an internet connection. Your runs are saved on this device and will be submitted automatically when you are back online.');
-    return;
+/* FREE PLAN: LEADERBOARD CACHE. The Global Leaderboard here and the World
+   Grid on the Gateway share ONE copy of the board (localStorage, same origin,
+   so every view and every tab): it is shown at once, and fetched again at most
+   once a minute -- by any view or tab ("fluxLbTry" marks the last fetch). A
+   manual reopen inside that minute shows the copy. Offline, or past the
+   server's daily limit, the last copy is shown. */
+const FLUX_LB_KEY='fluxLbCache', FLUX_LB_TRY_KEY='fluxLbTry', FLUX_LB_TTL_MS=60000, FLUX_LB_URL='/api/leaderboard?limit=50&boards=1';   // LEADERBOARD REFRESH: + the three planet boards, same one request
+let fluxLbInflight=null;
+function fluxLbCached(){
+  try{ const c=JSON.parse(localStorage.getItem(FLUX_LB_KEY)||'null'); if(c && c.data && c.data.boards && Number.isFinite(c.at)) return c; }catch(e){}   // LEADERBOARD REFRESH: a copy without the planet boards (older page) is fetched again
+  return null;
+}
+function fluxLbLoad(){
+  const c=fluxLbCached(), now=Date.now();
+  if(c && c.at<=now && now-c.at<FLUX_LB_TTL_MS) return Promise.resolve(c);
+  if(fluxLbInflight) return fluxLbInflight;
+  let t=0; try{ t=+localStorage.getItem(FLUX_LB_TRY_KEY)||0; }catch(e){}
+  const held=fluxNetHeld();
+  if(held || (t<=now && now-t<FLUX_LB_TTL_MS)){
+    return c ? Promise.resolve(c) : Promise.reject(new Error(held ? 'The leaderboard is offline right now. Your runs are saved and will upload later.' : 'The leaderboard is refreshing. Try again in a minute.'));
   }
-  const d=document.createElement('div');
-  d.className='miniOverlay';
-  d.innerHTML='<div class="panel lbPanel"><h2 style="color:#62eaff;letter-spacing:.14em">GLOBAL LEADERBOARD</h2><div id="lbBody" class="lbBody"><p class="lbLoading">Loading rankings…</p></div><button id="lbClose">BACK</button></div>';
-  document.getElementById('app').appendChild(d);
-  d.querySelector('#lbClose').onclick=()=>d.remove();
-  fetch('/api/leaderboard?limit=25').then(async r=>{
+  try{ localStorage.setItem(FLUX_LB_TRY_KEY,String(now)); }catch(e){}
+  const p=fetch(FLUX_LB_URL).then(async r=>{
     if(!r.ok){
+      if(await fluxEdgeKind(r.clone ? r.clone() : r)==='limit') fluxNetPause();
       let message='Leaderboard service is not configured yet.';
       try{const err=await r.json();if(err&&err.error)message=err.error;}catch(e){}
       throw new Error(message);
     }
-    return r.json();
-  }).then(async data=>{
-    const myPid = await myPidHash();   // A-1
-    const body=d.querySelector('#lbBody');
-    if(!data.top||!data.top.length){body.innerHTML='<p class="lbEmpty">No runs submitted yet. Be the first on the board.</p>';return}
-    let html='';
-    if(data.leadingCountry){
-      html+='<div class="lbLeading">'+(countryFlags[data.leadingCountry.country]||'🌎')+' <b>'+data.leadingCountry.country+'</b> is leading with '+data.leadingCountry.playerCount+' pilot'+(data.leadingCountry.playerCount===1?'':'s')+'</div>';
-    }
-    if(data.weighted) html+='<div class="lbSectionLabel">ALL DIFFICULTIES \u00b7 WEIGHTED: HARD x1, MEDIUM x'+DIFF_WEIGHT.medium+', EASY x'+DIFF_WEIGHT.easy+'</div>';   // DIFFICULTY WEIGHT
-    html+='<div class="lbList">'+data.top.map((r,i)=>{
-      const mine=!!myPid && r.pid===myPid;   // A-1: compare hashes, never ids
-      return '<div class="lbRow'+(mine?' lbMine':'')+'"><span class="lbRank">#'+(i+1)+'</span><span class="lbFlag">'+(countryFlags[r.country]||'🌎')+'</span><span class="lbName">'+escapeHtml(r.name)+(r.tag?'<small class="lbTag"> #'+escapeHtml(r.tag)+'</small>':'')+'</span><span class="lbScore">'+r.score.toLocaleString()+'</span></div>';
-    }).join('')+'</div>';
-    if(data.countries&&data.countries.length>1){
-      html+='<div class="lbSectionLabel">TOP COUNTRIES (WEIGHTED)</div><div class="lbList">'+data.countries.slice(0,8).map(c=>{
-        return '<div class="lbRow"><span class="lbFlag">'+(countryFlags[c.country]||'🌎')+'</span><span class="lbName">'+c.country+'</span><span class="lbScore">'+c.totalScore.toLocaleString()+'</span></div>';
-      }).join('')+'</div>';
-    }
-    body.innerHTML=html;
-  }).catch((err)=>{
-    const msg=escapeHtml(err&&err.message?err.message:'Couldn\'t reach the leaderboard.');
-    d.querySelector('#lbBody').innerHTML='<p class="lbEmpty">'+msg+'<br><br>Cloudflare leaderboard setup is required before cross-device scores can appear.</p>';
+    const o={ at:Date.now(), data:await r.json() };
+    try{ localStorage.setItem(FLUX_LB_KEY,JSON.stringify(o)); }catch(e){}
+    return o;
   });
-}/* ==================================================================
+  fluxLbInflight=p;
+  const done=function(){ fluxLbInflight=null; };
+  p.then(done,done);
+  return p.catch(function(err){ if(c) return c; throw err; });
+}
+/* ==================================================================
+   LEADERBOARD REFRESH -- EARTH · MARS · JUPITER · WORLD
+   ------------------------------------------------------------------
+   One board per difficulty (real points of that difficulty only) and
+   the WORLD tab (today's country totals, the World Grid data). All of
+   it comes from ONE cached response (FREE PLAN: fluxLbLoad, fetched at
+   most once a minute across views and tabs; ?boards=1 adds the three
+   difficulty boards to the same response).
+   The pilot's own standing: exact while they are in the fetched rows;
+   otherwise what the server said in the reply to their last upload
+   (rank, country rank and the pilot just above -- see worker.js
+   standing()), kept on this device ("fluxRankSnap"). No extra request.
+   Rendering is split into pure functions (fluxBoardView / fluxWorldView
+   / fluxRankLine) so every rule is testable without a browser.
+   ================================================================== */
+const FLUX_LB_TABS=['easy','medium','hard','world'];
+const FLUX_WORLD_SVG='<svg class="pl" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8.6" fill="#0b2a4a" stroke="#62eaff" stroke-width="1.2"/><ellipse cx="10" cy="10" rx="3.6" ry="8.6" fill="none" stroke="#62eaff" stroke-width="1"/><path d="M1.6 10h16.8M3 6h14M3 14h14" stroke="#62eaff" stroke-width="1" fill="none"/></svg>';   // WORLD tab: a simple globe (inline SVG, no emoji)
+const FLUX_LB_SHOW=10;                                  // rows shown per tab; the pilot's own row is always shown (highlighted or pinned)
+const FLUX_RANK_SNAP_KEY='fluxRankSnap', FLUX_LB_SCOPE_KEY='fluxLbScope';
+const FLUX_BEHIND_MAX=500;                              // game over: "N points behind <pilot>" only within this
+/* Emoji flag from the ISO2 code (regional indicators); the code as text when unknown / XX. */
+function flagOf(cc){
+  cc=String(cc||'').toUpperCase();
+  if(!/^[A-Z]{2}$/.test(cc) || cc==='XX') return cc && cc!=='OTHER' ? cc : '\u{1F30E}';
+  return String.fromCodePoint(0x1F1E6+cc.charCodeAt(0)-65, 0x1F1E6+cc.charCodeAt(1)-65);
+}
+function fluxFmt(n){ return (Math.max(0,Math.round(+n||0))).toLocaleString('en-US'); }
+function rankSnapAll(){
+  let o=null; try{ o=JSON.parse(localStorage.getItem(FLUX_RANK_SNAP_KEY)||'null'); }catch(e){}
+  return (o && o.pid===playerId && o.season===FLUX_SEASON && o.d && typeof o.d==='object') ? o : { pid:playerId, season:FLUX_SEASON, d:{} };
+}
+function rankSnap(d){ const s=rankSnapAll().d[d]; return s && Number.isFinite(s.rank) ? s : null; }
+/* The server's reply to this pilot's upload (worker.js submitReply). */
+function rankSnapSave(reply,item){
+  try{
+    if(!reply || !item || item.playerId!==playerId || reply.public!==true || !Number.isFinite(reply.rank) || reply.rank<1) return;
+    const d=FLUX_PLANETS[reply.difficulty]?reply.difficulty:item.difficulty; if(!FLUX_PLANETS[d]) return;
+    const o=rankSnapAll(), a=reply.above;
+    o.d[d]={ rank:reply.rank, total:+reply.total||0, countryRank:+reply.countryRank||0, countryTotal:+reply.countryTotal||0,
+      country:String(reply.country||item.country||''), best:+reply.best||0,
+      above:(a && Number.isFinite(a.score)) ? { rank:+a.rank||reply.rank-1, name:String(a.name||'PILOT').slice(0,16), tag:String(a.tag||'').slice(0,12), score:a.score } : null, at:Date.now() };
+    localStorage.setItem(FLUX_RANK_SNAP_KEY,JSON.stringify(o));
+  }catch(e){}
+}
+/* The tab the board opens on: the difficulty just played or last selected. */
+function fluxLbDefaultTab(){ return FLUX_PLANETS[difficulty] ? difficulty : 'medium'; }
+/* One difficulty board, as data. scope: 'world' | 'country'. */
+function fluxBoardView(data,d,scope,me){
+  const all=((data && data.boards && data.boards[d]) || []);
+  const inCountry=scope==='country';
+  const rows=inCountry ? all.filter(function(r){ return r.country===me.country; }) : all;
+  const myI=me.pid ? rows.findIndex(function(r){ return r.pid===me.pid; }) : -1;
+  const shown=rows.slice(0,FLUX_LB_SHOW).map(function(r,i){ return { rank:i+1, name:r.name, tag:r.tag, country:r.country, score:r.score, mine:i===myI }; });
+  shown.forEach(function(x,i){ x.fp=!!rows[i].fp; });   // FOUNDING PILOT: the badge (server's fp)
+  const v={ d:d, scope:scope, rows:shown, pinned:null, unplayed:null, empty:null };
+  const snap=rankSnap(d);
+  const localBest=storedBestScore(d);
+  if(myI>=FLUX_LB_SHOW){
+    const up=rows[myI-1];
+    v.pinned={ rank:myI+1, score:rows[myI].score, name:rows[myI].name, tag:rows[myI].tag, country:rows[myI].country, toRank:myI, toPts:up.score-rows[myI].score+1 };
+    v.pinned.fp=!!rows[myI].fp;
+  }else if(myI<0 && (snap || localBest>0)){
+    const score=snap && snap.best>0 ? snap.best : localBest;
+    const known=snap ? (inCountry ? snap.countryRank : snap.rank) : 0;
+    const rank=known>rows.length ? known : 0;           // a snapshot rank inside the fetched rows is out of date
+    let toRank=0, toPts=0;
+    if(!inCountry && snap && snap.above && rank && snap.above.score>=score && snap.above.rank>rows.length){ toRank=snap.above.rank; toPts=snap.above.score-score+1; }
+    else if(rows.length){ toRank=rows.length; toPts=Math.max(1,rows[rows.length-1].score-score+1); }
+    v.pinned={ rank:rank, rankText:rank ? '#'+rank : '#'+(rows.length+1)+'+', score:score, name:callsign||'YOU', tag:'', country:me.country, toRank:toRank, toPts:toPts, fp:typeof fluxFoundingNum==='function' && fluxFoundingNum()>0 };
+  }else if(myI<0){
+    const p=planetOf(d);
+    v.unplayed="You haven't reached "+p.word+" yet. Play "+p.sub+" to get on this board.";
+  }
+  if(!rows.length) v.empty=inCountry ? 'No pilots from '+flagOf(me.country)+' on '+planetOf(d).word+' yet.' : 'No runs on '+planetOf(d).word+' yet. Be the first on the board.';
+  return v;
+}
+/* The WORLD tab, as data: today's countries (World Grid totals). */
+function fluxWorldView(data,myCountry){
+  const cs=((data && data.countries) || []).slice().sort(function(a,b){ return b.totalScore-a.totalScore; });
+  const myI=cs.findIndex(function(c){ return c.country===myCountry; });
+  const v={ spotlight:cs[0]||null, rows:cs.slice(1,FLUX_LB_SHOW).map(function(c,i){ return { rank:i+2, c:c, mine:i+1===myI }; }), mine:myI===0, pinned:null, missing:false };
+  if(myI>=FLUX_LB_SHOW) v.pinned={ rank:myI+1, c:cs[myI], behind:cs[myI-1].totalScore-cs[myI].totalScore, aboveRank:myI };
+  else if(myI<0 && myCountry && myCountry!=='OTHER') v.missing=true;
+  return v;
+}
+/* The menu's World Grid card, as data. */
+function fluxGridCard(data,myCountry){
+  const w=fluxWorldView(data,myCountry);
+  if(!w.spotlight) return null;
+  const cs=((data && data.countries) || []).slice().sort(function(a,b){ return b.totalScore-a.totalScore; });
+  const i=cs.findIndex(function(c){ return c.country===myCountry; });
+  return { top:w.spotlight, mine:i>=0 ? { rank:i+1, c:cs[i], behind:i>0 ? cs[i-1].totalScore-cs[i].totalScore : 0 } : null };
+}
+/* Game over: ONE rank line for the difficulty just played. */
+function fluxRankLine(d){
+  const s=rankSnap(d); if(!s) return null;
+  const p=planetOf(d);
+  let line=(s.countryRank ? '#'+s.countryRank+' on '+p.word+' in '+flagOf(s.country)+' · ' : '')+'#'+s.rank+' worldwide';
+  let behind=null;
+  if(s.above && s.above.score-s.best>=1 && s.above.score-s.best<=FLUX_BEHIND_MAX) behind=fluxFmt(s.above.score-s.best)+' points behind '+s.above.name;   // only a pilot 1-500 points above
+  return { line:line, behind:behind };
+}
+function showGoRank(){
+  try{
+    const el=document.getElementById('goRank'); if(!el) return;
+    const r=profileComplete ? fluxRankLine(goRankDiff||difficulty) : null;
+    el.innerHTML=r ? escapeHtml(r.line)+(r.behind ? '<small>'+escapeHtml(r.behind)+'</small>' : '') : '';
+    el.classList.toggle('hidden',!r);
+  }catch(e){}
+}
+let goRankDiff=null;                                    // the difficulty of the run on the game-over screen
+/* HTML */
+function lbRowHtml(rank,flag,name,tag,score,cls,extra,fp){
+  return '<div class="lbRow'+(cls?' '+cls:'')+'"><span class="lbRank">'+rank+'</span><span class="lbFlag">'+flag+'</span><span class="lbName">'+escapeHtml(name)+(tag?'<small class="lbTag"> #'+escapeHtml(tag)+'</small>':'')+(fp?'<small class="lbFounder">FOUNDING PILOT</small>':'')+(extra?'<small class="lbGap">'+escapeHtml(extra)+'</small>':'')+'</span><span class="lbScore">'+fluxFmt(score)+'</span></div>';
+}
+function fluxBoardHtml(v){
+  let h='<div class="lbScope" role="group" aria-label="Board"><button type="button" data-scope="world" class="'+(v.scope!=='country'?'on':'')+'">WORLD</button><button type="button" data-scope="country" class="'+(v.scope==='country'?'on':'')+'">MY COUNTRY</button></div>';
+  if(v.empty) h+='<p class="lbEmpty">'+escapeHtml(v.empty)+'</p>';
+  if(v.rows.length) h+='<div class="lbList">'+v.rows.map(function(r){ return lbRowHtml('#'+r.rank,flagOf(r.country),r.name,r.tag,r.score,r.mine?'lbMine':'','',r.fp); }).join('')+'</div>';
+  if(v.pinned){ const p=v.pinned; h+='<div class="lbPinned">'+lbRowHtml(p.rankText||('#'+p.rank),flagOf(p.country),p.name,p.tag,p.score,'lbMine',p.toRank ? fluxFmt(p.toPts)+' points to #'+p.toRank : '',p.fp)+'</div>'; }
+  if(v.unplayed) h+='<p class="lbUnplayed">'+escapeHtml(v.unplayed)+'</p>';
+  return h;
+}
+function fluxWorldHtml(v,myCountry){
+  if(!v.spotlight) return '<p class="lbEmpty">No countries on the Grid yet. Play to put yours there.</p>';
+  const s=v.spotlight, sl=countryLabel(s.country);
+  let h='<div class="lbSpot'+(v.mine?' lbMine':'')+'"><div class="lbSpotK">#1 COUNTRY TODAY</div><div class="lbSpotF">'+flagOf(s.country)+'</div><div class="lbSpotN">'+escapeHtml(sl.name==='your country'?s.country:sl.name)+'</div><div class="lbSpotS">'+fluxFmt(s.totalScore)+' pts · '+fluxFmt(s.playerCount)+' pilot'+(s.playerCount===1?'':'s')+(s.topName?' · top pilot '+escapeHtml(s.topName):'')+'</div></div>';
+  if(v.rows.length) h+='<div class="lbList">'+v.rows.map(function(r){ const l=countryLabel(r.c.country); return lbRowHtml('#'+r.rank,flagOf(r.c.country),l.name==='your country'?r.c.country:l.name,'',r.c.totalScore,r.mine?'lbMine':''); }).join('')+'</div>';
+  if(v.pinned){ const p=v.pinned, l=countryLabel(p.c.country); h+='<div class="lbPinned">'+lbRowHtml('#'+p.rank,flagOf(p.c.country),l.name==='your country'?p.c.country:l.name,'',p.c.totalScore,'lbMine',fluxFmt(p.behind)+' behind #'+p.aboveRank)+'</div>'; }
+  else if(v.missing) h+='<p class="lbUnplayed">'+flagOf(myCountry)+' isn\'t on the Grid yet. Play to put it there.</p>';
+  return h;
+}
+function fluxTabsHtml(tab){
+  return '<div class="lbTabs" role="tablist">'+FLUX_LB_TABS.map(function(t){
+    const p=FLUX_PLANETS[t];
+    return '<button type="button" role="tab" data-tab="'+t+'" aria-selected="'+(t===tab)+'" class="lbTab'+(t===tab?' on':'')+'">'+(p?planetIcon(t)+p.name+'<small>'+p.sub+'</small>':FLUX_WORLD_SVG+'WORLD<small>Countries</small>')+'</button>';
+  }).join('')+'</div>';
+}
+/* The menu's small World Grid card: from the cached board only (never a request). */
+function refreshGridCard(){
+  try{
+    const el=document.getElementById('gridCard'); if(!el) return;
+    const c=fluxLbCached(), g=c ? fluxGridCard(c.data,country) : null;
+    if(!g){ el.innerHTML='<span class="gcK">WORLD GRID</span><span class="gcL">See today\'s countries ›</span>'; return; }
+    const t=g.top, m=g.mine;
+    el.innerHTML='<span class="gcK">WORLD GRID</span><span class="gcL">#1 '+flagOf(t.country)+' '+escapeHtml(t.country)+' · '+fluxFmt(t.totalScore)+'</span>'
+      +'<span class="gcM">'+(m ? (m.rank===1 ? flagOf(m.c.country)+' You lead the Grid' : flagOf(m.c.country)+' #'+m.rank+' · '+fluxFmt(m.behind)+' behind #'+(m.rank-1)) : flagOf(country)+' not on the Grid yet')+' ›</span>';
+  }catch(e){}
+  finally{ if(typeof fluxFoundingRefresh==='function') fluxFoundingRefresh(); }   // FOUNDING PILOT: badge + spots-left line, from data already here
+}
+function openLeaderboard(tab){
+  tab=FLUX_LB_TABS.indexOf(tab)>=0 ? tab : fluxLbDefaultTab();
+  const cached=fluxLbCached();
+  if(isOffline() && !cached){
+    showInfo('CONNECTION REQUIRED','The leaderboard needs an internet connection. Your runs are saved on this device and will be submitted automatically when you are back online.');
+    return;
+  }
+  let scope='world'; try{ if(localStorage.getItem(FLUX_LB_SCOPE_KEY)==='country') scope='country'; }catch(e){}
+  const d=document.createElement('div');
+  d.className='miniOverlay';
+  d.innerHTML='<div class="panel lbPanel"><h2 class="lbTitle">LEADERBOARD</h2><div id="lbTabsBox"></div><div id="lbBody" class="lbBody"><p class="lbLoading">Loading rankings…</p></div><button id="lbClose">BACK</button></div>';
+  document.getElementById('app').appendChild(d);
+  d.querySelector('#lbClose').onclick=()=>d.remove();
+  let shown=null;
+  const paint=async function(){
+    const o=shown; if(!o) return;
+    const myPid=await myPidHash();   // A-1: compare hashes, never ids
+    const me={ pid:myPid, country:country };
+    let html=tab==='world' ? fluxWorldHtml(fluxWorldView(o.data,country),country) : fluxBoardHtml(fluxBoardView(o.data,tab,scope,me));
+    if(o.data && o.data.combined) html='<div class="lbSectionLabel lbCombined">BEST OF SEASON 0 + SEASON 1 \u00b7 EACH PILOT COUNTED ONCE</div>'+html;   // COMBINED WORLD GRID: said on every tab; no tab added
+    const age=Math.max(0,Math.round((Date.now()-o.at)/60000));
+    if(age>=2) html+='<p class="lbEmpty" style="margin-top:10px">Updated '+age+' min ago'+(fluxNetHeld()?' · offline':'')+'</p>';
+    d.querySelector('#lbTabsBox').innerHTML=fluxTabsHtml(tab);
+    d.querySelector('#lbBody').innerHTML=html;
+    d.querySelectorAll('.lbTab').forEach(function(b){ b.onclick=function(){ tab=b.getAttribute('data-tab'); paint(); }; });
+    d.querySelectorAll('.lbScope button').forEach(function(b){ b.onclick=function(){ scope=b.getAttribute('data-scope')==='country'?'country':'world'; try{ localStorage.setItem(FLUX_LB_SCOPE_KEY,scope); }catch(e){} paint(); }; });
+  };
+  d.querySelector('#lbTabsBox').innerHTML=fluxTabsHtml(tab);
+  const render=function(o){ if(!o || !o.data || (shown && o.at===shown.at)) return; shown=o; paint(); refreshGridCard(); };
+  if(cached) render(cached);   // FREE PLAN: the last copy, at once
+  fluxLbLoad().then(render).catch((err)=>{
+    if(shown) return;          // a copy is already on screen
+    const msg=escapeHtml(err&&err.message?err.message:'Couldn\'t reach the leaderboard.');
+    d.querySelector('#lbBody').innerHTML='<p class="lbEmpty">'+msg+'</p>';
+  });
+}
+document.getElementById('gridCard').onclick=function(){ openLeaderboard('world'); };   // LEADERBOARD REFRESH: the menu's World Grid card opens the WORLD tab
+refreshGridCard();
+/* ==================================================================
    FLUX v4 CLIENT PATCH
    ------------------------------------------------------------------
    Paste this whole block into index.html on the line directly ABOVE
@@ -2695,6 +3214,7 @@ async function syncEntitlements() {
     // T-9: the server just spoke. Record its answer as the verified cache so
     // these skins keep working offline.
     writeVerifiedEntitlements(d.skus);
+    if (typeof fluxFoundingSave === 'function') fluxFoundingSave(Number.isFinite(d.founding) ? d.founding : 0, Number.isFinite(d.foundingLeft) ? d.foundingLeft : null);   // FOUNDING PILOT
 
     // T-9: reconcile this device against the server. A paid SKU the server
     // does NOT list must stop counting as ownership here -- that is how an old
@@ -2979,10 +3499,11 @@ document.getElementById('callsign').onchange = e => {
    place. --- */
 
 /* --- 7. First run: preselect the real country instead of 🇺🇸 --- */
-if (!localStorage.fluxCountry) {
+if (!localStorage.fluxCountry && !localStorage.fluxGeoAsked && !fluxNetHeld()) {   // FREE PLAN: asked once per device
   fetch('/api/geo')
     .then(r => r.json())
     .then(d => {
+      try { localStorage.fluxGeoAsked = '1'; } catch (e) {}
       if (!d || !d.country || localStorage.fluxCountry) return;
       if (!countryFlags[d.country]) return;
       country = d.country;
@@ -2994,9 +3515,19 @@ if (!localStorage.fluxCountry) {
     .catch(() => {});
 }
 
-/* --- 8. Load entitlements now, and again after any purchase redirect --- */
-syncEntitlements();
-setTimeout(syncEntitlements, 3000);
+/* --- 8. Load entitlements now, and again after any purchase redirect ---
+   FREE PLAN: once per page load, and not at all when the server answered in
+   the last 30 minutes (the verified copy is used; a purchase on this device
+   is checked on its own). The second check, 3 s later, only when coming back
+   from a purchase. Never while offline or past the daily limit. */
+(function () {
+  const back = /[?&]session_id=/.test(location.search);
+  const v = readVerifiedEntitlements();
+  const fresh = !!v && Number.isFinite(v.verifiedAt) && Date.now() - v.verifiedAt >= 0 && Date.now() - v.verifiedAt < 1800000;
+  if (fluxNetHeld()) return;
+  if (back || !fresh) syncEntitlements();
+  if (back) setTimeout(syncEntitlements, 3000);
+})();
 
 /* ================= END FLUX v4 CLIENT PATCH ================= */
 
@@ -3005,6 +3536,25 @@ document.getElementById('gameoverLeaderBtn').onclick=openLeaderboard;
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 document.getElementById('skinsBtn').onclick=()=>{buildShopUI();document.getElementById('shop').classList.remove('hidden');};
 document.getElementById('shopClose').onclick=()=>document.getElementById('shop').classList.add('hidden');
+/* HELP: one tap sends a topic (no text, nothing personal) with this pilot's id; FLUX COMMAND shows the
+   pilot's name and #TAG to the FLUX team. One request per tap, never automatic. */
+const FLUX_HELP_TIPS={ badge:"The FLUX team will check your pilot. Once it's fixed, open FLUX while online and the badge appears.",
+  lost:"Saved your restore code? Tap EDIT, then HAVE A RESTORE CODE? to bring your pilot back.",
+  bug:"Thanks! The FLUX team will take a look.", other:"Thanks! The FLUX team will take a look." };
+async function fluxSendHelp(topic,b){
+  const out=document.getElementById('helpSent'), tip=document.getElementById('helpTip');
+  if(!playerId){ out.textContent='Enter the flux once first, then try again.'; return; }
+  b.disabled=true; out.textContent='Sending…'; tip.textContent='';
+  try{
+    const r=await fetch('/api/help',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({playerId:playerId,topic:topic,name:callsign})});
+    out.textContent=r.ok ? 'Sent ✓ Only your pilot name and #TAG were sent.' : r.status===429 ? 'Already sent. Try again in a minute.' : 'Could not send. Try again later.';
+    if(r.ok) tip.textContent=FLUX_HELP_TIPS[topic]||'';
+  }catch(e){ out.textContent="You're offline. Try again when you're connected."; }
+  finally{ b.disabled=false; }
+}
+document.getElementById('helpBtn').onclick=function(){ document.getElementById('helpSent').textContent=''; document.getElementById('helpTip').textContent=''; document.getElementById('help').classList.remove('hidden'); };
+document.getElementById('helpClose').onclick=function(){ document.getElementById('help').classList.add('hidden'); };
+document.querySelectorAll('#helpTopics button').forEach(function(b){ b.onclick=function(){ fluxSendHelp(b.getAttribute('data-topic'),b); }; });
 document.getElementById('againBtn').onclick=()=>{initAudio();document.getElementById('gameover').classList.add('hidden');document.getElementById('pauseBtn').classList.remove('hidden');newGame();paused=false;document.getElementById('pauseBtn').textContent='Ⅱ'};
 document.getElementById('gameoverMenuBtn').onclick=()=>{
   // Score/best/level are already saved by endGame() before this screen ever
@@ -3078,7 +3628,9 @@ if('serviceWorker' in navigator){
 
 // Retry any runs that finished while the device was offline.
 addEventListener('online',function(){ try{ flushSubmitQueue(); }catch(e){} });
+window.onoffline=function(){ fluxNetNote(); };   // FREE PLAN: the offline note (a property handler: one listener site less)
 try{ flushSubmitQueue(); }catch(e){}
+fluxNetNote();
 
 // Network-dependent features report the requirement instead of failing oddly.
 function isOffline(){ return typeof navigator!=='undefined' && navigator.onLine===false; }
@@ -3093,7 +3645,8 @@ function isOffline(){ return typeof navigator!=='undefined' && navigator.onLine=
    is visible in the menu next to EDIT; players rename there if they want. */
 function uploadOrAskName(){
   const box=document.getElementById('goName');
-  if(profileComplete){ if(box) box.classList.add('hidden'); return submitScore(); }
+  if(profileComplete){ if(box) box.classList.add('hidden'); return submitScore({run:true}); }   // FREE PLAN: score + this run's stats, one request
+  if(typeof fluxStatsFlush==='function') fluxStatsFlush();   // unnamed: no upload yet, the stats go alone
   showNamePrompt();
 }
 function showNamePrompt(){
@@ -3148,6 +3701,7 @@ function overallBestScore(){
 }
 // What this run adds to the country (weighted), 0 if nothing.
 function runAdds(sc,prevOverall){ const w=weighted(sc,difficulty); return (profileComplete && sc>0 && w>prevOverall) ? w-prevOverall : 0; }
+const GO_LINE_NEAR=0.2;   // game over: the best line shows only within 20% of the best (or a new best)
 /* D-57: the score is the headline; ONE line says what it meant. */
 function gameOverLine(sc,prevBest,prevOverall){
   const c=countryLabel(country);
@@ -3157,11 +3711,16 @@ function gameOverLine(sc,prevBest,prevOverall){
   if(!profileComplete) second='Add your name to count for '+c.flag;
   else if(runAdds(sc,prevOverall)>0) second=c.flag+' +'+runAdds(sc,prevOverall).toLocaleString()+' for '+c.name;   // weighted, as in the country total
   else second='Beat '+Math.max(sc,Math.ceil(prevOverall/(DIFF_WEIGHT[difficulty]||1))).toLocaleString()+' to add to '+c.flag;   // in this difficulty's real points
-  return { isNew:isNew, first:first, second:second };
+  // Shown only when the run was close: a new best, or within 20% of the best on this
+  // difficulty. A far-off run gets a clean game over (the rank line and "points behind" stay).
+  const show=isNew || (prevBest>0 && sc>=prevBest*(1-GO_LINE_NEAR));
+  return { isNew:isNew, first:first, second:second, show:show };
 }
 function showGameOverLine(sc,prevBest,prevOverall){
   const el=document.getElementById('goLine'); if(!el) return;
   const l=gameOverLine(sc,prevBest,prevOverall);
+  el.style.display=l.show?'':'none';
+  if(!l.show){ el.textContent=''; return; }
   el.innerHTML='<span class="'+(l.isNew?'goNew':'')+'">'+escapeHtml(l.first)+'</span> · '+escapeHtml(l.second);
 }
 /* D-60: an auto-named pilot (PILOT-XXXX) who sets a new best on their second
@@ -3613,10 +4172,14 @@ document.getElementById('start').onpointerdown=function(e){   // a tap anywhere 
 // The flag is cleared once the notice has been on screen (timed out or tapped), so a
 // reload during the first launch (service worker update) does not lose it.
 /* SEASON 1: the one-time "Season 1" message, in the same toast, for a pilot who
-   had played before (set by startSeasonOnDevice). Shown after the name notice if
+   had played before (set by startSeasonOnDevice). COMBINED WORLD GRID (owner):
+   it used to say "Season 1 starts now! Fresh boards for everyone." -- untrue once
+   the owner combines Season 0 and Season 1 on the World Grid, and this page cannot
+   know which grid is live without an extra request at start-up. The new text is
+   true either way; the leaderboard itself says when the grid is combined. Shown after the name notice if
    both are due; tap to close, it also closes by itself, and it goes away when a
    run starts, so it never covers play. The flag is cleared once it was shown. */
-const FLUX_SEASON_MSG='Season 1 starts now! Fresh boards for everyone.';
+const FLUX_SEASON_MSG='Season 1: new point rates on Easy and Medium.';
 function fluxSeasonToast(){
   try{ if(localStorage.fluxSeasonNotice!=='1') return;
     const menu=document.getElementById('start'); if(menu && menu.classList.contains('hidden')===true) return;   // a run is on: next time
@@ -3632,6 +4195,108 @@ function fluxSeasonToast(){
   };
 })();
 try{ if(localStorage.fluxNameNotice==='1') fluxNameToast("Your name didn't fit the new name rules, so we picked one for you. Tap Edit to change it.", 9000, function(){ try{ localStorage.removeItem('fluxNameNotice'); }catch(e){} fluxSeasonToast(); }); else fluxSeasonToast(); }catch(e){}
+
+/* FOUNDING PILOT (owner): the first 1,000 pilots get the whole Solar Inferno package free
+   forever. The server adds "solar" to this pilot's entitlements (the same path as a purchase,
+   so every device and every restore code brings it back); here only what the pilot SEES:
+     - "FOUNDING PILOT #N" under the pilot's name in the menu, and a badge on their board rows
+       (the server marks them: fp) -- cosmetic only, gameplay never reads any of it;
+     - once per pilot: "You're Founding Pilot #N! Solar Inferno is yours." on a small card with
+       TRY IT NOW / LATER, on the menu or the game-over screen, never during a run;
+     - THEMES & SKINS: Solar Inferno says FOUNDING PILOT · FREE with EQUIP, and a NEW dot on the
+       button until the pilot opens it once;
+     - "Founding Pilot spots left: X" in the menu while the offer is ON and spots remain.
+   Data: the entitlements answer (founding, foundingLeft), the run's own reply (founding) and
+   the shared once-a-minute board copy (foundingLeft) -- no extra request, no polling. */
+var FLUX_FOUNDING_KEY='fluxFounding', FLUX_FOUNDING_LEFT_KEY='fluxFoundingLeft', FLUX_FOUNDING_SHOWN_KEY='fluxFoundingShown';
+function fluxFoundingMsg(n){ return "You're Founding Pilot #"+n+"! Solar Inferno is yours."; }
+function fluxFoundingNum(){
+  try{ const o=JSON.parse(localStorage.getItem(FLUX_FOUNDING_KEY)||'null'); return o && o.pid===playerId && Number.isFinite(o.n) && o.n>0 ? o.n : 0; }catch(e){ return 0; }
+}
+/* Spots left: the newer of the board copy and the last entitlements answer (null = offer OFF). */
+function fluxFoundingLeftNow(){
+  let best=null;
+  try{ const c=fluxLbCached(); if(c && c.data) best={ at:c.at, left:Number.isFinite(c.data.foundingLeft) ? c.data.foundingLeft : null }; }catch(e){}
+  try{ const e=JSON.parse(localStorage.getItem(FLUX_FOUNDING_LEFT_KEY)||'null'); if(e && Number.isFinite(e.at) && (!best || e.at>best.at)) best={ at:e.at, left:Number.isFinite(e.left) ? e.left : null }; }catch(x){}
+  return best ? best.left : null;
+}
+function fluxFoundingView(n,left){
+  return { badge:n>0 ? 'FOUNDING PILOT #'+n : '', line:Number.isFinite(left) && left>0 ? 'Founding Pilot spots left: '+left.toLocaleString('en-US') : '' };
+}
+function fluxFoundingSave(n,left){
+  try{
+    if(n>0) localStorage.setItem(FLUX_FOUNDING_KEY,JSON.stringify({ pid:playerId, n:n }));
+    else localStorage.removeItem(FLUX_FOUNDING_KEY);
+    localStorage.setItem(FLUX_FOUNDING_LEFT_KEY,JSON.stringify({ left:left, at:Date.now() }));
+  }catch(e){}
+  fluxFoundingRefresh();
+}
+/* The run's reply names the number: kept, and Solar Inferno unlocked by one entitlements read
+   the first time only (the pilot did not own it yet). */
+function fluxFoundingRun(b,item){
+  try{
+    if(!b || !item || item.playerId!==playerId || !(Number.isFinite(b.founding) && b.founding>0)) return;
+    localStorage.setItem(FLUX_FOUNDING_KEY,JSON.stringify({ pid:playerId, n:b.founding }));
+    if(!ownsSkin('solar') && typeof syncEntitlements==='function') syncEntitlements();
+  }catch(e){}
+  fluxFoundingRefresh();
+}
+function fluxFoundingRefresh(){
+  const v=fluxFoundingView(fluxFoundingNum(),fluxFoundingLeftNow());
+  try{ const b=document.getElementById('foundingBadge'); if(b){ b.textContent=v.badge; b.classList.toggle('hidden',!v.badge); } }catch(e){}
+  try{ const l=document.getElementById('foundingLeft'); if(l){ l.textContent=v.line; l.classList.toggle('hidden',!v.line); } }catch(e){}
+  fluxSkinsDot();
+  fluxFoundingToast();
+}
+/* The one-time message: the menu or the game-over screen only (a run is never interrupted). */
+function fluxFoundingToast(){
+  try{
+    const n=fluxFoundingNum(); if(!n || fluxFoundingToast.on) return;
+    if(localStorage.getItem(FLUX_FOUNDING_SHOWN_KEY)===playerId) return;
+    const shown=function(id){ const e=document.getElementById(id); return !!e && e.classList.contains('hidden')!==true; };
+    if(!shown('start') && !shown('gameover')) return;            // a run is on: next time
+    if(fluxSeasonToast.on) return;                                // the season message first
+    fluxFoundingToast.on=true;
+    fluxFoundingCard(fluxFoundingMsg(n));
+  }catch(e){}
+}
+/* DISCOVERABILITY (owner): the one-time message is a small card with TRY IT NOW (puts on the whole
+   Solar Inferno package now: orb colours, orange launcher, backdrop) and LATER. It counts as seen
+   only when one of them is pressed; a run starting just hides it until the next menu. Cosmetic only. */
+function fluxFoundingCard(msg){
+  const c=document.getElementById('foundingWelcome'); if(!c) return;
+  document.getElementById('fwMsg').textContent=msg; c.classList.remove('hidden');
+}
+function fluxFoundingCardHide(){ try{ document.getElementById('foundingWelcome').classList.add('hidden'); }catch(e){} fluxFoundingToast.on=false; }
+function fluxFoundingChoose(){ try{ localStorage.setItem(FLUX_FOUNDING_SHOWN_KEY,playerId); }catch(e){} fluxFoundingCardHide(); }
+async function fluxFoundingEquip(){   // the whole package; the grant is checked with the server first if this device does not know it yet
+  if(!ownsSkin('solar') && typeof syncEntitlements==='function') await syncEntitlements();
+  if(!ownsSkin('solar')) return false;
+  equipSkin('solar'); setBackground('solar');
+  return true;
+}
+document.getElementById('fwTry').onclick=function(){
+  fluxFoundingChoose();
+  fluxFoundingEquip().then(function(ok){ fluxNameToast(ok ? 'Solar Inferno is on ✓ Change it any time in THEMES & SKINS.' : 'Solar Inferno unlocks when you are online: open THEMES & SKINS then.', 4500); });
+};
+document.getElementById('fwLater').onclick=function(){ fluxFoundingChoose(); };
+/* The NEW dot on THEMES & SKINS: a Founding Pilot who has not opened it yet; gone for good once opened. */
+var FLUX_SKINS_SEEN_KEY='fluxSkinsSeen';
+function fluxSkinsDot(){
+  try{ const b=document.getElementById('skinsBtn'), on=fluxFoundingNum()>0 && localStorage.getItem(FLUX_SKINS_SEEN_KEY)!==playerId;
+    b.classList.toggle('newDot',on); b.setAttribute('aria-label',on ? 'Themes and skins, new' : 'Themes and skins'); }catch(e){}
+}
+(function(){ const b=document.getElementById('skinsBtn'); if(!b) return; const prev=b.onclick;
+  b.onclick=function(e){ try{ localStorage.setItem(FLUX_SKINS_SEEN_KEY,playerId); }catch(x){} fluxSkinsDot(); if(typeof prev==='function') return prev.call(this,e); };
+})();
+['startBtn','againBtn'].forEach(function(id){   // a run starting closes the message (handler properties, not listeners)
+  const b=document.getElementById(id); if(!b) return; const prev=b.onclick;
+  b.onclick=function(e){
+    if(fluxFoundingToast.on) fluxFoundingCardHide();   // not a choice: it comes back on the next menu
+    if(typeof prev==='function') return prev.call(this,e);
+  };
+});
+fluxFoundingRefresh();
 
 /* ==================================================================
    RC2.8.6 -- D-47 INSTALL AFTER FIRST PLAY, D-48 BRING MY PILOT,
@@ -3720,7 +4385,7 @@ let shareInfo=null, shareFile=null, shareCanvas=null;
 function shareUrl(){ return location.origin+'/play/?src=share'; }   // tagged so visits from shared links can be counted; the card prints the clean address
 function shareText(info){
   const c=countryLabel(info.country);
-  return (info.added>0 ? 'I added '+info.added.toLocaleString('en-US')+' for '+c.flag+' '+c.name+'!' : 'I scored '+info.score.toLocaleString('en-US')+' for '+c.flag+' '+c.name+'!')+' Beat me in FLUX:';
+  return (info.added>0 ? 'I added '+info.added.toLocaleString('en-US')+' for '+c.flag+' '+c.name+'!' : 'I scored '+info.score.toLocaleString('en-US')+' for '+c.flag+' '+c.name+'!')+' Beat me in FLUX Sparta:';
 }
 /* The card shows the game's name and its web address in large type, since
    Instagram and TikTok captions don't make links clickable: people type what
@@ -3934,6 +4599,12 @@ function juiceExtraParticles(n){ return window.__fluxLite ? 0 : Math.round(n*JUI
 // The area orbs can ever occupy (same bounds as the orb movement in update()).
 function orbFieldRect(){ const top=maxHudBottom(); return { left:16, right:W-16, top:top, bottom:Math.max(top+60,H*.79) }; }
 function juiceEdgeColour(){ return fluxMode>0 ? '98,234,255' : (juice>.6 ? '255,92,190' : '120,140,255'); }
+let juiceBandGrads=new Map();
+function juiceBandGradient(rgb,x0,y0,x1,y1){
+  const key=rgb+'|'+x0+'|'+y0+'|'+x1+'|'+y1; let g=juiceBandGrads.get(key); if(g) return g;
+  g=ctx.createLinearGradient(x0,y0,x1,y1); g.addColorStop(0,'rgba('+rgb+',1)'); g.addColorStop(1,'rgba('+rgb+',0)');
+  if(juiceBandGrads.size>32) juiceBandGrads=new Map(); juiceBandGrads.set(key,g); return g;
+}
 function drawJuiceUnderOrbs(){
   if(juice<.02 || !playing && !paused) return;
   const lite=!!window.__fluxLite, f=orbFieldRect();
@@ -3944,9 +4615,10 @@ function drawJuiceUnderOrbs(){
   ctx.rect(0,0,W,top); ctx.rect(0,bot,W,H-bot); if(sl>=6) ctx.rect(0,top,sl,bot-top); if(W-sr>=6) ctx.rect(sr,top,W-sr,bot-top);
   ctx.clip();
   const a=(lite?JUICE_EDGE_ALPHA_LITE:JUICE_EDGE_ALPHA)*juice, rgb=juiceEdgeColour();
-  const on='rgba('+rgb+','+a.toFixed(3)+')', off='rgba('+rgb+',0)';
   // Each band fades to nothing at its inner edge, so there is no visible seam.
-  const band=function(x0,y0,x1,y1,rx,ry,rw,rh){ const g=ctx.createLinearGradient(x0,y0,x1,y1); g.addColorStop(0,on); g.addColorStop(1,off); ctx.fillStyle=g; ctx.fillRect(rx,ry,rw,rh); };
+  // BATTERY (PR B): each band's gradient is made once (full colour to none); its strength is the alpha.
+  ctx.globalAlpha=a;
+  const band=function(x0,y0,x1,y1,rx,ry,rw,rh){ ctx.fillStyle=juiceBandGradient(rgb,x0,y0,x1,y1); ctx.fillRect(rx,ry,rw,rh); };
   band(0,0,0,top, 0,0,W,top);                 // top (HUD band)
   band(0,H,0,bot, 0,bot,W,H-bot);             // bottom (launcher band)
   if(sl>=6) band(0,0,sl,0, 0,top,sl,bot-top);  // left strip (skipped when too thin to fade)
@@ -4022,8 +4694,19 @@ function fluxStatsSrc(){
 function fluxTrack(e,extra){
   try{ if(fluxStatsQueue.length<60) fluxStatsQueue.push(Object.assign({e:e},extra||{})); }catch(x){}
 }
+/* FREE PLAN: the run's stats are taken from here into its score upload (one
+   request per run); fluxStatsFlush sends them alone only when there is no
+   score to upload, or once per page load when the app is hidden. Offline or
+   past the daily limit they stay here and ride with the next upload. */
+function fluxStatsTake(){
+  if(!fluxStatsQueue.length) return null;
+  const s={src:fluxStatsSrc(),events:fluxStatsQueue.slice(0,40)};
+  fluxStatsQueue=[];
+  return s;
+}
 function fluxStatsFlush(){
   try{
+    if(typeof fluxNetHeld==='function' && fluxNetHeld() && fluxStatsQueue.length) return;   // kept for the next upload
     if(!fluxStatsQueue.length || !navigator.sendBeacon) { fluxStatsQueue=[]; return; }
     const body=JSON.stringify({pid:playerId,country:country,src:fluxStatsSrc(),bid:fluxRandomId(),events:fluxStatsQueue.slice(0,40)});   // bid: the server counts a batch once
     fluxStatsQueue=[];
@@ -4040,22 +4723,24 @@ function fluxStatsFlush(){
         fluxRunStartedAt=Date.now();
         if(!(+localStorage.fluxRunsPlayed>0) && localStorage.fluxStatFirstRun!=='1'){ localStorage.fluxStatFirstRun='1'; fluxTrack('first_run'); }
       }catch(x){}
-      return newGame0.apply(this,arguments);
+      const r=newGame0.apply(this,arguments);
+      try{ fluxNetNote(); }catch(x){}   // FREE PLAN: the offline note never shows during a run
+      return r;
     };
     const endGame0=endGame;
     endGame=function(){
       try{ fluxTrack('run_end',{sec:fluxRunStartedAt?Math.round((Date.now()-fluxRunStartedAt)/1000):0,lvl:level,diff:difficulty}); fluxRunStartedAt=0; }catch(x){}
       try{ playStats.forEach(function(s,i){ if(s && (s.sec>=1||s.hit||s.wrong||s.lost)) fluxTrack('play',{diff:difficulty,st:i,sec:Math.round(s.sec),hit:s.hit,wrong:s.wrong,lost:s.lost}); }); }catch(x){}   // GAMEPLAY
-      const r=endGame0.apply(this,arguments);
-      fluxStatsFlush();
-      return r;
+      return endGame0.apply(this,arguments);   // FREE PLAN: the stats go with the score upload at game over (uploadOrAskName)
     };
     const finishLevelUp0=finishLevelUp;
     finishLevelUp=function(){ const r=finishLevelUp0.apply(this,arguments); fluxTrack('level_up',{lvl:level,diff:difficulty}); return r; };
     const sb=document.getElementById('shareBtn'); const share0=sb && sb.onclick;
-    if(sb) sb.onclick=function(){ fluxTrack('share'); fluxStatsFlush(); return typeof share0==='function' ? share0.apply(this,arguments) : undefined; };
-    document.onvisibilitychange=function(){ if(document.hidden) fluxStatsFlush(); };
-    setTimeout(fluxStatsFlush,8000);   // the app-open event, even if no run is played
+    if(sb) sb.onclick=function(){ fluxTrack('share'); return typeof share0==='function' ? share0.apply(this,arguments) : undefined; };   // FREE PLAN: rides with the next upload
+    // FREE PLAN: no timer. The app-open event rides with the first run's upload;
+    // if the app is hidden first, whatever is waiting goes ONCE per page load.
+    let hideSent=false;
+    document.onvisibilitychange=function(){ if(document.hidden && !hideSent && fluxStatsQueue.length && !(typeof fluxNetHeld==='function' && fluxNetHeld())){ hideSent=true; fluxStatsFlush(); } };
   }catch(x){}
 })();
 </script>

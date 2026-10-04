@@ -28,7 +28,7 @@ const ADMIN_HTML = fs.readFileSync(path.join(ROOT, 'public', 'admin.html'), 'utf
 const WORKER_SRC = fs.readFileSync(path.join(ROOT, 'worker.js'), 'utf8');
 const scriptsOf = (h) => [...h.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
 const ORIGIN = 'https://flux.example', H = { 'x-admin-token': 'pw' };
-const MSG = 'Season 1 starts now! Fresh boards for everyone.';
+const MSG = 'Season 1: new point rates on Easy and Medium.';   // COMBINED WORLD GRID: reworded, true before and after the grids are combined
 const P = (n) => 'aaaaaaaa-bbbb-4ccc-8ddd-' + String(n).padStart(12, '0');
 
 /* ---------------- fake Durable Object runtime ---------------- */
@@ -402,7 +402,7 @@ await control('409 treated as an error', 'C2 a 409', { game: rep("if(res.status=
 await control('message for everyone, even brand-new players', 'C3 a brand-new player', { game: rep("if(had) localStorage.setItem('fluxSeasonNotice','1');", "localStorage.setItem('fluxSeasonNotice','1');") });
 await control('message never cleared', 'C3 it can be closed', { game: rep("fluxSeasonToast.on=false; try{ localStorage.removeItem('fluxSeasonNotice'); }catch(e){}", 'fluxSeasonToast.on=false;') });
 await control('message stays over a run', 'C3 starting a run', { game: rep("if(fluxSeasonToast.on){ try{ const t=document.getElementById('fluxNameToast'); if(t && t.onclick) t.onclick(); }catch(x){} }", '') });
-await control('message text changed', 'C3 a returning player', { game: rep("const FLUX_SEASON_MSG='Season 1 starts now! Fresh boards for everyone.';", "const FLUX_SEASON_MSG='Season 1!';") });
+await control('message text changed', 'C3 a returning player', { game: rep("const FLUX_SEASON_MSG='Season 1: new point rates on Easy and Medium.';", "const FLUX_SEASON_MSG='Season 1!';") });
 const total = main.F + NC;
 console.log('\n' + (total ? 'SEASON RESET FAILED: ' + main.F + ' check(s), ' + NC + ' uncaught control(s)' : 'SEASON RESET PASSED: all checks and all negative controls'));
 process.exit(total ? 1 : 0);

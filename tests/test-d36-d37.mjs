@@ -75,7 +75,8 @@ async function suite({ gameHtml, adminHtml, workerMod, quiet=false }){
       g.win.document.getElementById('finalMode').textContent='MEDIUM';   // the page's static default
       g.ctx.newGame(); vm.runInContext('score=1234; level=2;', g.ctx); g.ctx.endGame();
       for (let i=0;i<5 && timers.length;i++) timers.splice(0).forEach(fn=>{ try{ fn(); }catch(e){} });
-      ck('L1 game over after a '+d+' run says Mode: '+d.toUpperCase(), g.els.finalMode.textContent===d.toUpperCase(), g.els.finalMode.textContent);
+      const planet={easy:'EARTH',medium:'MARS',hard:'JUPITER'}[d];   // LEADERBOARD REFRESH: difficulties are shown as planets
+      ck('L1 game over after a '+d+' run says Mode: '+planet, g.els.finalMode.textContent===planet, g.els.finalMode.textContent);
     }
   } catch(e){ ck('D-36 label section ran', false, String(e.stack||e).slice(0,200)); }
 
@@ -173,7 +174,7 @@ async function control(label,{ expect, game=(s)=>s, admin=(s)=>s, workerSrc=(s)=
     if(!caught) NC++; } finally { try{ fs.unlinkSync(tmp); }catch(e){} }
 }
 const rep=(a,b)=>(s)=>s.includes(a)?s.replace(a,b):s;
-await control('Mode label never set at game over',{ expect:'L1', game:rep("   document.getElementById('finalMode').textContent=String(difficulty).toUpperCase();","") });
+await control('Mode label never set at game over',{ expect:'L1', game:rep("   setPlanetLabel(document.getElementById('finalMode'),difficulty);   // D-36","   // D-36") });
 await control('restore button back in the main menu',{ expect:'M1', game:rep('id="skinsBtn">\u2726 THEMES & SKINS</button>','id="skinsBtn">\u2726 THEMES & SKINS</button><button class="linkBtn" id="restoreBtn">RESTORE CODE</button>') });
 await control('existing pilot sent to code entry',{ expect:'M3', game:rep("if(restoreHasPilot()) openRestoreCode(); else openRestoreEntry();","openRestoreEntry();") });
 await control('EDIT handler replaced instead of chained',{ expect:'M4', game:rep("if(typeof prev==='function') prev.call(this,e); ","throw new Error('lost'); ") });
