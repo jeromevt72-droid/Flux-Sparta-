@@ -259,7 +259,7 @@ async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = fals
     const gl = ops.filter((o) => glyphs.includes(o.t));
     ck('K6 orb symbols are drawn bold and fully opaque (v2)', gl.length > 0 && gl.every((o) => o.a === 1), gl.map((o) => o.a).join(','));
     ck('K6 the 5th colour has its own symbol: a star', glyphs[4] === '★' && new Set(glyphs.slice(0, 5)).size === 5);
-    const drawSrc = (CODE.match(/function draw\(\)\{[\s\S]*?\n\}\n/) || [''])[0];
+    const drawSrc = CODE.slice(CODE.indexOf('function draw(){'), CODE.indexOf('function levelBannerLayout('));   // BATTERY PR A: draw() calls drawSky / drawCeiling / drawField / drawSlotBanners, in this order
     ck('K7 the ball: block style like the orbs, plus its thin white ring and its colour symbol',
       /if\(ball\)\{blockOrb\(ball\.x,ball\.y,ball\.r,colors\[ball\.color\]\);[^\n]*strokeStyle='#ffffff'[^\n]*orbSymbol\(ball\.x,ball\.y,[^\n]*glyphs\[ball\.color%glyphs\.length\]\)/.test(drawSrc) && gl.length > (b.run('targets.length')));
   } catch (e) { ck('D-56 section ran', false, String(e.stack || e).slice(0, 300)); }

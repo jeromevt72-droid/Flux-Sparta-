@@ -76,7 +76,7 @@ function suite(gameHtml, quiet = false) {
       g.ctx.update(1 / 60);
       const col = run('colors[2]'), n = run('particles.filter(p=>p.col===' + JSON.stringify(col) + ').length'), w = run("particles.filter(p=>p.col==='#ffffff').length");
       ck('J8 a perfect catch bursts in the ball\'s own colour, bigger than the white spark', n >= 22 && w >= 12, n + ' in ball colour, ' + w + ' white'); }
-    const drawSrc = (code.match(/function draw\(\)\{[\s\S]*?\n\}\n/) || [''])[0];
+    const drawSrc = code.slice(code.indexOf('function draw(){'), code.indexOf('function levelBannerLayout('));   // BATTERY PR A: draw() calls drawSky / drawCeiling / drawField / drawSlotBanners, in this order
     ck('J9 the effects are drawn before the orbs, never on top of them', drawSrc.indexOf('drawJuiceUnderOrbs();') > 0 && drawSrc.indexOf('drawJuiceUnderOrbs();') < drawSrc.indexOf('for(const t of targets){'));
   } catch (e) { ck('intensity section ran', false, String(e.stack || e).slice(0, 300)); }
   finally { Math.random = realRandom; }
