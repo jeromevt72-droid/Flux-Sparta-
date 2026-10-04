@@ -60,7 +60,11 @@ function suite(gameHtml, quiet = false) {
       ck('J5 the trail glow is never behind (or right next to) an orb or the ball, and is drawn where the trail is clear', G.length > 0 && G.every(([x, y, r]) => T.every(([tx, ty, tr]) => Math.hypot(tx - x, ty - y) >= tr + r + 12) && Math.hypot(B.x - x, B.y - y) >= B.r + r + 12), G.length + ' glows');
       // J6 lite
       run('window.__fluxLite=true; __glows=[];'); rects.length = 0;
-      let edgeAlpha = 0; const cg = cx.createLinearGradient; cx.createLinearGradient = function () { const gr = cg.apply(this, arguments); const add = gr.addColorStop; gr.addColorStop = function (o, col) { const m = String(col).match(/,([0-9.]+)\)$/); if (m) edgeAlpha = Math.max(edgeAlpha, +m[1]); return add && add.apply(this, arguments); }; return gr; };
+      // BATTERY PR B: a band's gradient is made once (full colour to none) and its strength is the fill alpha,
+      // so the edge light's strength is measured as drawn: fill alpha x the gradient's strongest stop.
+      let edgeAlpha = 0; run('if (typeof juiceBandGrads !== "undefined") juiceBandGrads = new Map();');
+      const cg = cx.createLinearGradient; cx.createLinearGradient = function () { const gr = cg.apply(this, arguments); const add = gr.addColorStop; gr.addColorStop = function (o, col) { const m = String(col).match(/,([0-9.]+)\)$/); if (m) gr.__a = Math.max(gr.__a || 0, +m[1]); return add && add.apply(this, arguments); }; return gr; };
+      const fr = cx.fillRect; cx.fillRect = function () { const st = cx.fillStyle, ga = typeof cx.globalAlpha === 'number' ? cx.globalAlpha : 1; if (st && typeof st.__a === 'number') edgeAlpha = Math.max(edgeAlpha, st.__a * ga); return fr.apply(this, arguments); };
       run('drawJuiceUnderOrbs()');
       ck('J6 lite mode: no extra particles, no trail glow, faint edge light only', run('juiceExtraParticles(20)') === 0 && run('__glows.length') === 0 && edgeAlpha > 0 && edgeAlpha <= .1, 'edge alpha ' + edgeAlpha);
       run('window.__fluxLite=false;'); }

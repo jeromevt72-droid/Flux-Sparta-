@@ -458,10 +458,13 @@ window.__fluxLite = (function(){ try{ return localStorage.getItem('fluxLite') ==
 function fluxApplyLite(){
   if (!window.__fluxLite) return;
   try{ document.documentElement.classList.add('fluxLite'); }catch(e){}   // calm the moving background layers (CSS below)
+  fluxLockGlow(ctx);
+}
+function fluxLockGlow(x){   // LITE: this canvas draws no glow (also the menu field copy, see stampField)
   try{
     const d = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'shadowBlur');
-    if (d && d.set) d.set.call(ctx, 0);
-    Object.defineProperty(ctx, 'shadowBlur', { configurable: true, get: function(){ return 0; }, set: function(){} });   // glow off
+    if (d && d.set) d.set.call(x, 0);
+    Object.defineProperty(x, 'shadowBlur', { configurable: true, get: function(){ return 0; }, set: function(){} });   // glow off
   }catch(e){}
 }
 fluxApplyLite();
@@ -1771,7 +1774,7 @@ function update(dt){
    const scale=sp>0.0001?newSp/sp:1;
    ball.vx*=scale;ball.vy*=scale;
  }
- ball.trail.unshift({x:ball.x,y:ball.y});if(ball.trail.length>10)ball.trail.pop();
+ {const q=ball.trail.length>=10?ball.trail.pop():{};q.x=ball.x;q.y=ball.y;ball.trail.unshift(q);}   // BATTERY (PR B): the oldest point is reused as the newest (same 10 points)
  ball.x+=ball.vx*dt*60;ball.y+=ball.vy*dt*60;
  if(ball.x-ball.r<8){ball.x=8+ball.r;ball.vx=Math.abs(ball.vx);burst(ball.x,ball.y,'#59eaff',4)}
  if(ball.x+ball.r>W-8){ball.x=W-8-ball.r;ball.vx=-Math.abs(ball.vx);burst(ball.x,ball.y,'#59eaff',4)}
@@ -1877,8 +1880,9 @@ function update(dt){
  steerStalledBall(dt); keepBallAngle();   // BALL NEVER STALLS
  if(ball.y-ball.r>H){registerMiss();ballTouched();if(!playing)return;ball.x=paddle.x;ball.y=paddle.y-28;ball.vx=rand(-3.8,3.8);ball.vy=-launchSpeed(Math.max(6.2,6.0+level*.15)*DIFFICULTY[difficulty].speed);ball.trail=[];}
  // particles
- particles.forEach(p=>{p.x+=p.vx*dt*60;p.y+=p.vy*dt*60;p.vy+=.08*dt*60;p.life-=dt*1.8});particles=particles.filter(p=>p.life>0);
- texts.forEach(t=>{t.y-=.6*dt*60;t.life-=dt});texts=texts.filter(t=>t.life>0);
+ // BATTERY (PR B): same steps, same order; the spent ones are dropped in place (no new array every frame)
+ {let n=0;for(const p of particles){p.x+=p.vx*dt*60;p.y+=p.vy*dt*60;p.vy+=.08*dt*60;p.life-=dt*1.8;if(p.life>0)particles[n++]=p;}particles.length=n;}
+ {let n=0;for(const t of texts){t.y-=.6*dt*60;t.life-=dt;if(t.life>0)texts[n++]=t;}texts.length=n;}
  if(paddle.hitFlash>0) paddle.hitFlash=Math.max(0,paddle.hitFlash-dt*4.2);
  if(gripPulse>0) gripPulse=Math.max(0,gripPulse-dt);
  shake*=.9;
@@ -1888,16 +1892,48 @@ function update(dt){
  updatePressureBadge();
 }
 function lighterHex(c,k){ if(!/^#[0-9a-f]{6}$/i.test(c||'')) return '#ffffff'; return 'rgb('+[1,3,5].map(i=>Math.round(parseInt(c.substr(i,2),16)*(1-k)+255*k)).join(',')+')'; }
-function drawGrip(col){
+function drawGrip(col,glowStamped){
   const pulse=gripPulse>0 ? 1+.09*Math.sin((1.6-gripPulse)*Math.PI*2.5)*(gripPulse/1.6) : 1;   // gentle pulse at the start of each run
   const r=GRIP_D/2*pulse, top=paddle.y+paddle.h/2, cy=top+GRIP_STEM+GRIP_D/2;
   ctx.save();
-  ctx.shadowBlur=18;ctx.shadowColor=col;ctx.strokeStyle=col;ctx.lineWidth=8;ctx.lineCap='round';
+  ctx.shadowBlur=glowStamped?0:18;ctx.shadowColor=col;ctx.strokeStyle=col;ctx.lineWidth=8;ctx.lineCap='round';   // BATTERY: with glowStamped the glow was already stamped from its sprite
   ctx.beginPath();ctx.moveTo(paddle.x,top);ctx.lineTo(paddle.x,cy-r+2);ctx.stroke();
   ctx.fillStyle=col;ctx.beginPath();ctx.arc(paddle.x,cy,r,0,Math.PI*2);ctx.fill();
   ctx.shadowBlur=0;ctx.strokeStyle=lighterHex(col,.55);ctx.lineWidth=4;ctx.beginPath();ctx.arc(paddle.x,cy,r-2,0,Math.PI*2);ctx.stroke();
   ctx.globalAlpha=.35;ctx.fillStyle='#ffffff';ctx.beginPath();ctx.arc(paddle.x,cy-r*.28,r*.42,0,Math.PI*2);ctx.fill();
   ctx.restore();
+}
+/* BATTERY (PR B): the launcher's two glows at rest, rendered once (shadow only: the shape far away, its
+   shadow brought back) for this colour, size and dpr, and stamped at the launcher. Same blur, same colour. */
+let launcherGlows=new Map();
+function launcherGlowSprite(col,part){
+ const key=part+'|'+col+'|'+paddle.w+'|'+paddle.h+'|'+dpr;
+ let s=launcherGlows.get(key); if(s) return s;
+ const blur=part==='bar'?32:18, ext=blur*1.6+4;   // generous: the canvas spreads a shadow further than its nominal 3 sigma
+ const top=paddle.h/2, cy=top+GRIP_STEM+GRIP_D/2, r=GRIP_D/2;
+ const left=(part==='bar'?paddle.w/2+paddle.h/2:r)+ext, up=(part==='bar'?paddle.h/2:-top)+ext, down=(part==='bar'?paddle.h/2:cy+r)+ext;
+ const c=document.createElement('canvas'); c.width=Math.ceil(left*2*dpr); c.height=Math.ceil((up+down)*dpr);
+ const x=c.getContext('2d'), OFF=10000;
+ x.setTransform(dpr,0,0,dpr,0,0); x.translate(left+OFF,up);
+ x.shadowBlur=blur;x.shadowColor=col;x.shadowOffsetX=-OFF*dpr;x.strokeStyle=col;x.fillStyle=col;x.lineCap='round';
+ if(part==='bar'){ x.lineWidth=paddle.h; x.beginPath(); x.moveTo(-paddle.w/2,0); x.lineTo(paddle.w/2,0); x.stroke(); }
+ else{ x.lineWidth=8; x.beginPath(); x.moveTo(0,top); x.lineTo(0,cy-r+2); x.stroke(); x.beginPath(); x.arc(0,cy,r,0,Math.PI*2); x.fill(); }
+ s={c:c,left:left,up:up,w:c.width/dpr,h:c.height/dpr};
+ if(launcherGlows.size>24) launcherGlows=new Map();
+ launcherGlows.set(key,s); return s;
+}
+function stampLauncherGlow(col,part){
+ const s=launcherGlowSprite(col,part), a=ctx.globalAlpha, sb=ctx.shadowBlur;
+ ctx.globalAlpha=1; ctx.shadowBlur=0;
+ ctx.drawImage(s.c,paddle.x-s.left,paddle.y-s.up,s.w,s.h);
+ ctx.globalAlpha=a; ctx.shadowBlur=sb;
+}
+let launcherGrads=new Map();
+function launcherGradient(col,w,fresh){
+ const key=col+'|'+w; let g=fresh?null:launcherGrads.get(key); if(g) return g;
+ g=ctx.createLinearGradient(-w/2,0,w/2,0); g.addColorStop(0,col);g.addColorStop(.5,launcherHighlight(col));g.addColorStop(1,col);
+ if(!fresh){ if(launcherGrads.size>16) launcherGrads=new Map(); launcherGrads.set(key,g); }
+ return g;
 }
 function drawSlideHint(){   // first run only, until the player slides
   let first=false; try{ first=!(+localStorage.fluxRunsPlayed>0); }catch(e){}
@@ -1906,7 +1942,27 @@ function drawSlideHint(){   // first run only, until the player slides
   ctx.fillText('Slide anywhere \u2194',W/2,paddle.y-44);ctx.restore();
 }
 function glowCircle(x,y,r,col,alpha=1){
- ctx.save();ctx.globalAlpha=alpha;ctx.shadowBlur=r*1.8;ctx.shadowColor=col;ctx.fillStyle=col;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();ctx.restore();
+ if(window.__fluxLite){ ctx.save();ctx.globalAlpha=alpha;ctx.fillStyle=col;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();ctx.restore(); return; }   // LITE: glow off, as before (shadowBlur is locked at 0)
+ /* BATTERY (PR B): the canvas draws a glow as two steps -- the blurred shadow, then the circle, each with
+    globalAlpha. The blurred shadow is the costly part, so it is rendered once per colour (glowSprite) and
+    stamped here, scaled to r (the blur is r*1.8, so the glow scales with r); the circle is drawn as before. */
+ const g=glowSprite(col), k=r/GLOW_REF;
+ ctx.save();ctx.globalAlpha=alpha;
+ ctx.drawImage(g.c,x-g.half*k,y-g.half*k,g.half*2*k,g.half*2*k);
+ ctx.fillStyle=col;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();ctx.restore();
+}
+const GLOW_REF=16;   // the sprite's circle radius (css px)
+let glowSprites=new Map(), glowSpriteDpr=0;
+function glowSprite(col){
+ if(glowSpriteDpr!==dpr){ glowSprites=new Map(); glowSpriteDpr=dpr; }   // the blur is in device pixels: a new dpr needs new sprites
+ let s=glowSprites.get(col); if(s) return s;
+ const R=GLOW_REF, half=R+R*1.8*1.6+2, c=document.createElement('canvas');
+ c.width=c.height=Math.ceil(half*2*dpr);
+ const x=c.getContext('2d'), OFF=10000, m=c.width/dpr/2;
+ x.setTransform(dpr,0,0,dpr,0,0);
+ x.shadowBlur=R*1.8;x.shadowColor=col;x.shadowOffsetX=-OFF*dpr;x.fillStyle=col;   // the shape far off the sprite, its shadow brought back: the shadow alone
+ x.beginPath();x.arc(m+OFF,m,R,0,Math.PI*2);x.fill();
+ s={c:c,half:m}; if(glowSprites.size>64) glowSprites=new Map(); glowSprites.set(col,s); return s;
 }
 const glyphs=['●','▲','■','◆','★','✚','▼','◉','⬢'];
 /* BLOCK STYLE (orb colours v2): solid saturated fill, a light highlight on top,
@@ -1918,14 +1974,23 @@ const glyphs=['●','▲','■','◆','★','✚','▼','◉','⬢'];
 function shadeHex(h,k){const n=parseInt(h.slice(1),16),r=n>>16,g=n>>8&255,b=n&255,f=function(c){return Math.round(k>0?c+(255-c)*k:c*(1+k));};return 'rgb('+f(r)+','+f(g)+','+f(b)+')';}
 function hexLum(h){const n=parseInt(h.slice(1),16),l=function(c){c/=255;return c<=.04045?c/12.92:Math.pow((c+.055)/1.055,2.4);};return .2126*l(n>>16)+.7152*l(n>>8&255)+.0722*l(n&255);}
 const ORB_OUTLINE='rgba(8,10,24,.9)';
-function blockOrb(x,y,r,col){
+function blockOrb(x,y,r,col,growing){
   ctx.save();ctx.shadowBlur=0;
-  ctx.globalAlpha=.35;ctx.fillStyle='#000';ctx.beginPath();ctx.arc(x,y+2,r+1,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;   // soft drop under the orb
-  const g=ctx.createLinearGradient(0,y-r,0,y+r);g.addColorStop(0,shadeHex(col,.18));g.addColorStop(.5,col);g.addColorStop(1,shadeHex(col,-.30));   // darker lower edge
-  ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
-  ctx.fillStyle='rgba(255,255,255,.42)';ctx.beginPath();ctx.ellipse(x,y-r*.48,r*.62,r*.26,0,0,Math.PI*2);ctx.fill();   // light highlight on top
-  ctx.lineWidth=Math.max(1.5,r*.08);ctx.strokeStyle=ORB_OUTLINE;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();   // thin dark outline
+  ctx.translate(x,y);   // BATTERY (PR B): drawn around (0,0), so its gradient is the same for every orb of this colour and size
+  ctx.globalAlpha=.35;ctx.fillStyle='#000';ctx.beginPath();ctx.arc(0,2,r+1,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;   // soft drop under the orb
+  ctx.fillStyle=orbGradient(col,r,growing);ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();   // darker lower edge
+  ctx.fillStyle='rgba(255,255,255,.42)';ctx.beginPath();ctx.ellipse(0,-r*.48,r*.62,r*.26,0,0,Math.PI*2);ctx.fill();   // light highlight on top
+  ctx.lineWidth=Math.max(1.5,r*.08);ctx.strokeStyle=ORB_OUTLINE;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.stroke();   // thin dark outline
   ctx.restore();
+}
+/* BATTERY (PR B): gradients that do not change are made once and reused (same colour stops, same
+   geometry, drawn around the origin). A growing orb changes size every frame, so its is made fresh. */
+let orbGrads=new Map();
+function orbGradient(col,r,fresh){
+  const key=col+'|'+r; let g=fresh?null:orbGrads.get(key); if(g) return g;
+  g=ctx.createLinearGradient(0,-r,0,r);g.addColorStop(0,shadeHex(col,.18));g.addColorStop(.5,col);g.addColorStop(1,shadeHex(col,-.30));
+  if(!fresh){ if(orbGrads.size>64) orbGrads=new Map(); orbGrads.set(key,g); }
+  return g;
 }
 function orbSymbol(x,y,r,col,sym){ctx.save();ctx.globalAlpha=1;ctx.fillStyle=hexLum(col)>.28?'#10132a':'#ffffff';ctx.font='900 '+Math.max(11,r*.8)+'px -apple-system,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(sym,x,y+1);ctx.restore();}
 function draw(){
@@ -1944,10 +2009,9 @@ function drawSky(nowT){
  ctx.save();
  for(const nb of nebulae){
    const nx=((nb.x+nb.vx*nowT)%W+W)%W, ny=((nb.y+nb.vy*nowT)%H+H)%H;
-   const grad=ctx.createRadialGradient(nx,ny,0,nx,ny,nb.r);
-   grad.addColorStop(0,nb.hue+'55');grad.addColorStop(1,nb.hue+'00');
+   if(!nb.grad){ nb.grad=ctx.createRadialGradient(0,0,0,0,0,nb.r); nb.grad.addColorStop(0,nb.hue+'55');nb.grad.addColorStop(1,nb.hue+'00'); }   // BATTERY (PR B): made once per nebula, drawn around (0,0)
    ctx.globalAlpha=.5+.15*Math.sin(nowT*.3+nb.phase);
-   ctx.fillStyle=grad;ctx.beginPath();ctx.arc(nx,ny,nb.r,0,Math.PI*2);ctx.fill();
+   ctx.save();ctx.translate(nx,ny);ctx.fillStyle=nb.grad;ctx.beginPath();ctx.arc(0,0,nb.r,0,Math.PI*2);ctx.fill();ctx.restore();
  }
  for(const s of stars){
    const sx=((s.x+s.vx*nowT)%W+W)%W, sy=((s.y+s.vy*nowT)%H+H)%H;
@@ -1957,6 +2021,7 @@ function drawSky(nowT){
  }
  ctx.restore();
 }
+let ceilGrad=null;
 function drawCeiling(nowT){
  // ceiling -- a soft gradient band at the exact height the ball/orbs
  // actually bounce off, so the boundary reads as an intentional part of
@@ -1968,13 +2033,9 @@ function drawCeiling(nowT){
  {
    const ceilY=maxHudBottom();
    const shimmer=.5+.25*Math.sin(nowT*1.4);
-   const grad=ctx.createLinearGradient(0,ceilY-22,0,ceilY+22);
-   grad.addColorStop(0,'rgba(98,234,255,0)');
-   grad.addColorStop(.5,`rgba(98,234,255,${(0.28*shimmer).toFixed(3)})`);
-   grad.addColorStop(1,'rgba(98,234,255,0)');
+   if(!ceilGrad){ ceilGrad=ctx.createLinearGradient(0,-22,0,22); ceilGrad.addColorStop(0,'rgba(98,234,255,0)'); ceilGrad.addColorStop(.5,'rgba(98,234,255,.28)'); ceilGrad.addColorStop(1,'rgba(98,234,255,0)'); }
    ctx.save();
-   ctx.fillStyle=grad;
-   ctx.fillRect(0,ceilY-22,W,44);
+   ctx.save();ctx.translate(0,ceilY);ctx.globalAlpha=shimmer;ctx.fillStyle=ceilGrad;ctx.fillRect(0,-22,W,44);ctx.restore();   // BATTERY (PR B): one gradient; its shimmer as alpha (one colour, so the same band)
    ctx.globalAlpha=.5;ctx.strokeStyle='#a9f2ff';ctx.lineWidth=1;
    ctx.beginPath();ctx.moveTo(18,ceilY);ctx.lineTo(W-18,ceilY);ctx.stroke();
    ctx.restore();
@@ -1999,7 +2060,7 @@ function drawField(){
      ctx.save();
      const growPct=t.matured?1:t.r/t.maxR;
      const glow=t.matured?(.6+.4*Math.sin(performance.now()*.01+t.phase)):.3+.25*growPct;
-     blockOrb(t.x,t.y,t.r,colors[t.color]);
+     blockOrb(t.x,t.y,t.r,colors[t.color],true);
      ctx.strokeStyle=colors[t.color];
      if(t.matured){
        ctx.globalAlpha=glow;ctx.lineWidth=2;ctx.setLineDash([3,5]);
@@ -2064,17 +2125,24 @@ function drawField(){
  const ease = hf*hf*(3-2*hf); // smoothstep, so it punches in fast and eases out
  const visualW = paddle.w*(1+ease*0.10);
  const visualH = paddle.h*(1+ease*0.55);
- const grad=ctx.createLinearGradient(paddle.x-visualW/2,0,paddle.x+visualW/2,0);
- grad.addColorStop(0,paddleCol);grad.addColorStop(.5,launcherHighlight(paddleCol));grad.addColorStop(1,paddleCol);
+ const grad=launcherGradient(paddleCol,visualW,ease>0);   // BATTERY (PR B): made once at rest; around x=0, the bar is drawn there
  ctx.save();
  // Extra soft underglow so the whole bar pops clearly against a dark field.
  ctx.shadowBlur=44+ease*30;ctx.strokeStyle=paddleCol;ctx.globalAlpha=.5+ease*.3;ctx.lineWidth=visualH+10;ctx.lineCap='round';
  ctx.beginPath();ctx.moveTo(paddle.x-visualW/2,paddle.y);ctx.lineTo(paddle.x+visualW/2,paddle.y);ctx.stroke();
  ctx.globalAlpha=1;
  ctx.shadowBlur=32;ctx.shadowColor=paddleCol;
- drawGrip(paddleCol);   // round grip under the bar (drawn first, so the bar stays the visual catch line)
- ctx.shadowBlur=32+ease*24;ctx.strokeStyle=grad;ctx.lineWidth=visualH;ctx.lineCap='round';
- ctx.beginPath();ctx.moveTo(paddle.x-visualW/2,paddle.y);ctx.lineTo(paddle.x+visualW/2,paddle.y);ctx.stroke();
+ // BATTERY (PR B): at rest (no hit pulse, no start-of-run grip pulse) the grip's and the bar's glows are
+ // stamped from sprites in the same order (grip glow, grip, bar glow, bar); during a pulse, or while the
+ // launcher narrows after a level-up (~1 s), all is drawn live.
+ const restGlow=ease===0 && !(gripPulse>0) && !(speedLevel<level) && !window.__fluxLite;
+ if(restGlow) stampLauncherGlow(paddleCol,'grip');
+ drawGrip(paddleCol,restGlow);   // round grip under the bar (drawn first, so the bar stays the visual catch line)
+ if(restGlow){ stampLauncherGlow(paddleCol,'bar'); ctx.shadowBlur=0; }
+ ctx.save();ctx.translate(paddle.x,0);
+ ctx.shadowBlur=restGlow?0:32+ease*24;ctx.strokeStyle=grad;ctx.lineWidth=visualH;ctx.lineCap='round';
+ ctx.beginPath();ctx.moveTo(-visualW/2,paddle.y);ctx.lineTo(visualW/2,paddle.y);ctx.stroke();
+ ctx.restore();
  // White flash overlay on top, fading out with the squash -- kept pure
  // white (not skin-tinted) since a crisp white spark reads as "impact"
  // clearly over any skin color, the same way it does in most action games.
@@ -2246,6 +2314,7 @@ function stampField(){
    if(!fieldCopy) fieldCopy=document.createElement('canvas');
    if(fieldCopy.width!==pw || fieldCopy.height!==ph){ fieldCopy.width=pw; fieldCopy.height=ph; }
    const fc=fieldCopy.getContext('2d');
+   if(window.__fluxLite) fluxLockGlow(fc);   // BATTERY (PR B): Lite's glow-off reaches the copy too, as on the live field
    fc.setTransform(1,0,0,1,0,0); fc.clearRect(0,0,pw,ph);
    for(const k of FIELD_STATE) fc[k]=ctx[k];   // the same drawing state the live field would start from
    fc.setLineDash(ctx.getLineDash());
@@ -4524,6 +4593,12 @@ function juiceExtraParticles(n){ return window.__fluxLite ? 0 : Math.round(n*JUI
 // The area orbs can ever occupy (same bounds as the orb movement in update()).
 function orbFieldRect(){ const top=maxHudBottom(); return { left:16, right:W-16, top:top, bottom:Math.max(top+60,H*.79) }; }
 function juiceEdgeColour(){ return fluxMode>0 ? '98,234,255' : (juice>.6 ? '255,92,190' : '120,140,255'); }
+let juiceBandGrads=new Map();
+function juiceBandGradient(rgb,x0,y0,x1,y1){
+  const key=rgb+'|'+x0+'|'+y0+'|'+x1+'|'+y1; let g=juiceBandGrads.get(key); if(g) return g;
+  g=ctx.createLinearGradient(x0,y0,x1,y1); g.addColorStop(0,'rgba('+rgb+',1)'); g.addColorStop(1,'rgba('+rgb+',0)');
+  if(juiceBandGrads.size>32) juiceBandGrads=new Map(); juiceBandGrads.set(key,g); return g;
+}
 function drawJuiceUnderOrbs(){
   if(juice<.02 || !playing && !paused) return;
   const lite=!!window.__fluxLite, f=orbFieldRect();
@@ -4534,9 +4609,10 @@ function drawJuiceUnderOrbs(){
   ctx.rect(0,0,W,top); ctx.rect(0,bot,W,H-bot); if(sl>=6) ctx.rect(0,top,sl,bot-top); if(W-sr>=6) ctx.rect(sr,top,W-sr,bot-top);
   ctx.clip();
   const a=(lite?JUICE_EDGE_ALPHA_LITE:JUICE_EDGE_ALPHA)*juice, rgb=juiceEdgeColour();
-  const on='rgba('+rgb+','+a.toFixed(3)+')', off='rgba('+rgb+',0)';
   // Each band fades to nothing at its inner edge, so there is no visible seam.
-  const band=function(x0,y0,x1,y1,rx,ry,rw,rh){ const g=ctx.createLinearGradient(x0,y0,x1,y1); g.addColorStop(0,on); g.addColorStop(1,off); ctx.fillStyle=g; ctx.fillRect(rx,ry,rw,rh); };
+  // BATTERY (PR B): each band's gradient is made once (full colour to none); its strength is the alpha.
+  ctx.globalAlpha=a;
+  const band=function(x0,y0,x1,y1,rx,ry,rw,rh){ ctx.fillStyle=juiceBandGradient(rgb,x0,y0,x1,y1); ctx.fillRect(rx,ry,rw,rh); };
   band(0,0,0,top, 0,0,W,top);                 // top (HUD band)
   band(0,H,0,bot, 0,bot,W,H-bot);             // bottom (launcher band)
   if(sl>=6) band(0,0,sl,0, 0,top,sl,bot-top);  // left strip (skipped when too thin to fade)
