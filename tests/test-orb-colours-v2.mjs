@@ -51,7 +51,11 @@ function suite(gameHtml, quiet = false) {
     ck('V3 Toxic clearly differs from Aurora (every colour dE >= 25 from the nearest Aurora colour)', cross.every((x) => x >= 25), cross.map((x) => x.toFixed(0)).join(' '));
     // Record what draw() paints.
     const cx = run('ctx'); const ops = []; let path = [];
-    cx.beginPath = () => { path = []; }; cx.arc = (x, y, r) => { path.push({ x, y, r }); }; cx.ellipse = (x, y) => { path.push({ x, y, e: true }); };
+    // BATTERY PR B: an orb is drawn around (0,0) after translate(x,y) (its gradient is then reused), so the
+    // recorder follows translate / save / restore and records every shape where it lands on the canvas.
+    let ox = 0, oy = 0; const tstack = [];
+    cx.save = () => { tstack.push([ox, oy]); }; cx.restore = () => { const t = tstack.pop(); if (t) { ox = t[0]; oy = t[1]; } }; cx.translate = (dx, dy) => { ox += +dx || 0; oy += +dy || 0; };
+    cx.beginPath = () => { path = []; }; cx.arc = (x, y, r) => { path.push({ x: x + ox, y: y + oy, r }); }; cx.ellipse = (x, y) => { path.push({ x: x + ox, y: y + oy, e: true }); };
     cx.fill = () => { ops.push({ op: 'fill', path: path.slice(), style: String(cx.fillStyle), blur: +cx.shadowBlur || 0, a: +cx.globalAlpha }); };
     cx.stroke = () => { ops.push({ op: 'stroke', path: path.slice(), style: String(cx.strokeStyle), lw: +cx.lineWidth }); };
     const texts = []; cx.fillText = (t, x, y) => { texts.push({ t: String(t), x, y, a: +cx.globalAlpha }); };
@@ -103,8 +107,8 @@ control('a sixth colour added back', 'V1', rep("colors:['#ffe768','#62bdfa','#f1
 control('a sixth colour added back and dealt', 'V2', (s) => rep("colors:['#ffe768','#62bdfa','#f16e52','#5be8c8','#7473fb']", "colors:['#ffe768','#62bdfa','#f16e52','#5be8c8','#7473fb','#ff9a3d']")(s).replace('function coloursInPlay(){ return Math.min(colors.length,level>=STAR_LEVEL?5:4); }', 'function coloursInPlay(){ return Math.min(colors.length,level>=STAR_LEVEL?6:4); }'));
 control('Toxic violet back to Aurora\'s', 'V3', rep("'#bd4ff1','#fd2c29']", "'#7f73f8','#fd2c29']"));
 control('orbs drawn bigger than their hit area', 'V4', rep('   blockOrb(t.x,t.y,t.r,colors[t.color]);\n   // Colour-blind cue', '   blockOrb(t.x,t.y,t.r*1.15,colors[t.color]);\n   // Colour-blind cue'));
-control('no dark outline', 'V4', rep("ctx.lineWidth=Math.max(1.5,r*.08);ctx.strokeStyle=ORB_OUTLINE;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.stroke();", ''));
-control('glow blur back on orbs', 'V4', rep('function blockOrb(x,y,r,col){\n  ctx.save();ctx.shadowBlur=0;', 'function blockOrb(x,y,r,col){\n  ctx.save();ctx.shadowBlur=22;'));
+control('no dark outline', 'V4', rep("ctx.lineWidth=Math.max(1.5,r*.08);ctx.strokeStyle=ORB_OUTLINE;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.stroke();", ''));
+control('glow blur back on orbs', 'V4', rep('function blockOrb(x,y,r,col,growing){\n  ctx.save();ctx.shadowBlur=0;', 'function blockOrb(x,y,r,col,growing){\n  ctx.save();ctx.shadowBlur=22;'));
 control('ball loses its white ring', 'V5', rep("ctx.save();ctx.lineWidth=2;ctx.strokeStyle='#ffffff';ctx.globalAlpha=.95;ctx.beginPath();ctx.arc(ball.x,ball.y,ball.r+3.5,0,Math.PI*2);ctx.stroke();ctx.restore();", ''));
 control('orb hit area enlarged', 'V6', rep('if(dist(ball,t)<ball.r+t.r){', 'if(dist(ball,t)<ball.r+t.r+6){'));
 control('launcher catch area widened', 'V6', rep('ball.x>paddle.x-paddle.w/2-ball.r', 'ball.x>paddle.x-paddle.w/2-ball.r-8'));   // works with or without the generous-catch helper

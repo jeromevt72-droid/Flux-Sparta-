@@ -75,3 +75,4 @@ node test-ball-stall.mjs           # ball never stalls: min angle, steer after 5
 node test-founding-grant.mjs       # Founding Pilot by hand (CHECK / GIVE, restore a removed pilot), gaps under EXCEPTIONS, HELP in the menu
 node test-lightning-zone.mjs       # lightning orbs only in the upper half of the play field (10-90% width), all difficulties, iPhone/iPad/iPad mini
 node test-battery-lifecycle.mjs    # battery PR A: hidden / pause stop all work, menus stamp a still field, FLUX look written once per change
+node test-battery-rendering.mjs    # battery PR B: glow sprites (particles, trail, launcher at rest; hit pulse live), Lite, cached gradients, in-place particles
