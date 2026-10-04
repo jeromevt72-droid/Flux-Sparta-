@@ -243,6 +243,7 @@ export default {
             "/api/admin/backup-import":      () => adminBackup(request, env, "/import"),      // BACKUPS: a downloaded file back in, as a snapshot
             "/api/admin/session":            () => adminSession(request, env),       // FLUX COMMAND: "am I still logged in?"
             "/api/admin/summary":            () => adminSummary(request, env),       // FLUX COMMAND: owner summary, one request
+            "/api/admin/insights":           () => adminInsights(request, env),      // OWNER SUMMARY: status + findings + export (read-only)
             "/api/admin/world-grid-dry-run": () => adminDO(request, env, "/world-grid-dry-run", {}),   // COMBINED WORLD GRID: before/after report, writes nothing
             "/api/admin/world-grid-apply":   () => adminWorldGridApply(request, env),                 // COMBINED WORLD GRID: typed APPLY <id> + recent checked backup
             "/api/admin/world-grid-revert":  () => adminDO(request, env, "/world-grid-revert", { reason: "by the owner" }),   // COMBINED WORLD GRID: switch back
@@ -1301,7 +1302,7 @@ async function adminSummary(request, env) {
   const safe = (p) => Promise.resolve(p).then((v) => v, () => null);
   const body = (p) => safe(Promise.resolve(p).then((r) => (r && r.ok ? r.json() : null)));
   const [rep, lb, delivery, sec, bk, usage] = await Promise.all([
-    body(analyticsDO(env, "/an-report?today=1")),
+    body(analyticsDO(env, "/an-report?last=" + OI_REPORT_DAYS)),   // OWNER SUMMARY: today + the 30 days before, one read
     body(forwardToDO(request, env, "/admin-summary", { method: "POST" })),
     safe(listDeliveryExceptions(env)),
     env.LEADERBOARD_DO ? safe(commandIds(request, env).then(({ fp }) => commandDO(env, "/auth-report", { fp }))) : null,
@@ -1317,7 +1318,7 @@ async function adminSummary(request, env) {
     homeOpens: g.home || 0, opens: g.opens || 0,
   } : null;
   const flags = lb ? lb.flags : null, del = Array.isArray(delivery) ? delivery.length : null;
-  return json({
+  const out = {
     ok: true, at: Date.now(), players,
     exceptions: flags === null && del === null ? null : { flags, delivery: del, total: (flags || 0) + (del || 0) },
     purchases: lb ? { today: lb.purchasesToday, restrictedCount: lb.restrictedCount } : null,
@@ -1333,7 +1334,352 @@ async function adminSummary(request, env) {
     worldGrid: lb && lb.worldGrid ? { combined: !!lb.worldGrid.combined, appliedAt: lb.worldGrid.appliedAt, revertedAt: lb.worldGrid.revertedAt, layout: lb.worldGrid.layout, ready: lb.worldGrid.ready !== false } : null,
     // FREE PLAN: today's requests vs the free daily limits; alert from USAGE_ALERT_PCT (80%).
     usage: usage && usage.ok ? usage : null,
+  };
+  out.insights = ownerInsights(rep, out);   // OWNER SUMMARY: status + top findings + export text, from the data above
+  return json(out);
+}
+/* OWNER SUMMARY for PLAYER STATS: the same insights, without the rest of the summary. */
+async function adminInsights(request, env) {
+  const denied = requireAdmin(request, env); if (denied) return denied;
+  const r = await adminSummary(request, env);
+  if (!r.ok) return r;
+  const d = await r.json();
+  return json({ ok: true, at: d.at, insights: d.insights });
+}
+/* ------------------------------------------------------------------ */
+/* OWNER SUMMARY: status, top findings by fixed rules, export report   */
+/* ------------------------------------------------------------------ */
+/* Read-only. Computed on each /api/admin/summary (and /api/admin/insights)
+   from the day totals, retention-by-start-date totals and GAMEPLAY totals the
+   analytics instance already keeps (ONE /an-report read of the last 31 days),
+   plus the exceptions / backup / failed-login status the summary already has.
+   No AI, no randomness, nothing stored: the same data always gives the same
+   answer. Nothing about a person is used (no player ids, names, tags or IPs).
+
+   WINDOWS (UTC, whole days only, so today's half day never skews a rule):
+     W7  = the last 7 complete days (yesterday and the 6 days before)
+     P7  = the 7 days before W7 (for week-over-week changes)
+     W30 = the last 30 complete days
+     D1 cohort = players who started in W30 whose day 1 is over (started 2+ days ago)
+
+   CONFIDENCE (from the rule's sample size n):
+     INSUFFICIENT n < 30 · PRELIMINARY 30-99 · MODERATE 100-499 · STRONG 500+
+   Operational findings are direct counts, not samples: "DIRECT COUNT".
+
+   RULES (OWNER_RULES below; each: data, sample n, minimum n, threshold, severity):
+     D1_LOW          retention cohorts, all     n = D1 cohort players      min 30   D1 < 20%                         high
+     D1_SOURCE_LOW   retention cohorts, s:<src> n = that source's players  min 30   D1 >= 10 points below the rest   medium
+     FIRST_RUN_LOW   day totals W7: first/new   n = new players            min 30   < 60% start a first run          high
+     RUNS_DROP       day totals W7 vs P7        n = min(player-days)       min 30   runs/player/day down >= 20%      medium
+     SHORT_RUNS      GAMEPLAY W30, per diff     n = runs (step 0)          min 30   average run < 30 s               medium
+     MISS_JUMP       GAMEPLAY W30, step s-1->s  n = runs reaching step s   min 30   misses/min x1.5 and +2/min       medium
+     SHARE_CHANGE    day totals W7 vs P7        n = min(runs)              min 100  share rate change >= 50% (and >= 0.5 pt)  low
+     HOME_LOW        day totals W30: home/opens n = opens                  min 100  < 5% of opens from the Home Screen app    low
+     OPS_EXCEPTIONS  CHECK EXCEPTIONS count     direct count                        1 or more waiting                high (operational)
+     OPS_BACKUP      BACKUPS status             direct                              no good daily backup / latest failed  high (operational)
+     OPS_LOGINS      failed admin logins        direct count                        10+ in 24 h, a locked device or safety mode  high (operational)
+   A rule is only checked when n >= its minimum; below that it is "not enough data".
+   Each finding has a "Measured:" line (the fact, numbers, period) and a fixed
+   "Possible reason:" line (a plain-words guess tied to the rule, never measured).
+
+   STATUS: NEEDS ATTENTION if an operational rule fires, or a high-severity rule
+   fires with PRELIMINARY confidence or better; else NOT ENOUGH DATA YET if a main
+   sample (D1 cohort players, W7 player-days) is INSUFFICIENT; else HEALTHY.
+   RANKING: severity, then confidence (direct counts first), then effect size.
+   The top 3 are shown; one finding per rule.
+
+   EXPORT: plain text, last 7 and last 30 complete days: totals, rates, D1/D7,
+   by source and by country (groups with fewer than 5 new players are merged into
+   "other", and "other" under 5 shows no numbers), GAMEPLAY by difficulty (under
+   5 runs: no numbers), the operational status (counts only, never device codes).
+
+   ADDING A RULE: one entry in OWNER_RULES: { id, severity, kind, minSample, data,
+   threshold, title(c), reason(c), check(ctx) -> [{ n, sample, measured, effect, ... }] }.
+   Follow-ups once their data is on main: restart rate, games per session,
+   first-run survival and bad failures (retention PR); free-plan usage alert (#39). */
+const OI_REPORT_DAYS = 31;
+const OI_EPS = 1e-9;                      // threshold comparisons: exactly on the line counts as on the line
+const OI_SMALL = 5;                       // export: groups under this many players get no numbers of their own
+const OI_CONF = [[500, "STRONG"], [100, "MODERATE"], [30, "PRELIMINARY"], [0, "INSUFFICIENT"]];
+const OI_CONF_RANK = { INSUFFICIENT: 0, PRELIMINARY: 1, MODERATE: 2, STRONG: 3, "DIRECT COUNT": 4 };
+const OI_SEV_RANK = { high: 3, medium: 2, low: 1 };
+const OI_DIFFS = ["easy", "medium", "hard"];
+function oiConfidence(n) { n = Number(n) || 0; for (const [min, label] of OI_CONF) if (n >= min) return label; return "INSUFFICIENT"; }
+const oiPct = (x, dp = 0) => (Number.isFinite(x) ? (100 * x).toFixed(dp) + "%" : "—");
+const oiNum = (x, dp = 1) => (Number.isFinite(x) ? x.toFixed(dp) : "—");
+const oiSec = (s) => { if (!Number.isFinite(s)) return "—"; s = Math.round(s); return (s >= 60 ? Math.floor(s / 60) + "m " : "") + (s % 60) + "s"; };
+const oiRange = (w) => anDayStr(w[0]) + " to " + anDayStr(w[1]);
+const oiChange = (a, b) => (b > 0 ? (a - b) / b : NaN);
+const oiSigned = (x) => (x >= 0 ? "+" : "−") + Math.round(Math.abs(x) * 100) + "%";
+
+/* Everything the rules read, as small helpers over the report. */
+function oiContext(rep, ops) {
+  const today = Number.isFinite(anDayNum(rep && rep.today)) ? anDayNum(rep.today) : Math.floor(Date.now() / AN_DAY_MS);
+  const byDay = new Map(), cohorts = new Map();
+  for (const d of (rep && rep.days) || []) byDay.set(anDayNum(d.date), d.groups || {});
+  for (const c of (rep && rep.cohorts) || []) cohorts.set(anDayNum(c.date), c.groups || {});
+  const sum = (w, g) => {
+    const t = { active: 0, new: 0, runs: 0, sec: 0, shares: 0, opens: 0, home: 0, first: 0, hit: 0, wrong: 0, lost: 0 };
+    for (let d = w[0]; d <= w[1]; d++) { const v = (byDay.get(d) || {})[g]; if (v) for (const k of Object.keys(v)) t[k] = (t[k] || 0) + (Number(v[k]) || 0); }
+    return t;
+  };
+  const keys = (w, pre, src) => {
+    const out = new Set();
+    for (let d = w[0]; d <= w[1]; d++) for (const k of Object.keys((src === "ret" ? cohorts : byDay).get(d) || {})) if (k.startsWith(pre)) out.add(k);
+    return [...out].sort();
+  };
+  // Retention for players who started in w: day 1 counted once it is over (age >= 2), day 7 once age >= 8.
+  const ret = (w, g) => {
+    const t = { n1: 0, d1: 0, n7: 0, d7: 0 };
+    for (let d = w[0]; d <= w[1]; d++) {
+      const v = (cohorts.get(d) || {})[g]; if (!v || !v.n) continue;
+      const age = today - d;
+      if (age >= 2) { t.n1 += v.n; t.d1 += v.d1 || 0; }
+      if (age >= 8) { t.n7 += v.n; t.d7 += v.d7 || 0; }
+    }
+    return t;
+  };
+  // GAMEPLAY cells over w: diff -> step -> totals; a run's step 0 is its run count.
+  const play = (w) => {
+    const out = {};
+    for (const diff of OI_DIFFS) for (let st = 0; st <= AN_MAX_STEP; st++) {
+      const t = sum(w, "p:" + diff + ":" + st);
+      if (t.runs) (out[diff] || (out[diff] = {}))[st] = t;
+    }
+    return out;
+  };
+  const W7 = [today - 7, today - 1], P7 = [today - 14, today - 8], W30 = [today - 30, today - 1], C1 = [today - 30, today - 2];
+  return { today, sum, keys, ret, play, W7, P7, W30, C1, ops: ops || {} };
+}
+
+/* The rule table. check() returns the candidates that pass the threshold with
+   n >= minSample (the engine keeps the biggest effect per rule); sample() gives
+   n even when nothing fires, so the page can say what was checked. */
+const OWNER_RULES = [
+  { id: "D1_LOW", severity: "high", kind: "stat", minSample: 30, threshold: 0.20,
+    data: "retention by start date (everyone), players who started in the last 30 days", unit: "players",
+    title: () => "Few new players come back on day 1",
+    reason: () => "The first minutes may not hook new players: the start may feel too hard or unclear, or the link brought people who were not looking for a game.",
+    sample: (x) => x.ret(x.C1, "all").n1,
+    check(x) {
+      const r = x.ret(x.C1, "all"), v = r.n1 ? r.d1 / r.n1 : NaN;
+      if (r.n1 < this.minSample || !(v < this.threshold - OI_EPS)) return [];
+      return [{ n: r.n1, effect: (this.threshold - v) / this.threshold,
+        measured: oiPct(v) + " of " + r.n1 + " players who started " + oiRange(x.C1) + " came back the next day (rule: below " + oiPct(this.threshold) + ")." }];
+    } },
+  { id: "D1_SOURCE_LOW", severity: "medium", kind: "stat", minSample: 30, threshold: 0.10,
+    data: "retention by start date, per source (src)", unit: "players",
+    title: (c) => "Players from " + c.label + " come back less often",
+    reason: () => "That platform's audience may expect something different from what the post or video promised, or the link lands them somewhere confusing.",
+    sample: (x) => Math.max(0, ...x.keys(x.C1, "s:", "ret").map((k) => x.ret(x.C1, k).n1)),
+    check(x) {
+      const all = x.ret(x.C1, "all"), out = [];
+      for (const k of x.keys(x.C1, "s:", "ret")) {
+        const r = x.ret(x.C1, k), restN = all.n1 - r.n1, restD = all.d1 - r.d1;
+        if (r.n1 < this.minSample || restN < this.minSample) continue;
+        const v = r.d1 / r.n1, rest = restD / restN;
+        if (!(rest - v >= this.threshold - OI_EPS)) continue;
+        const label = k.slice(2).toUpperCase();
+        out.push({ n: r.n1, label, effect: rest ? (rest - v) / rest : 1,
+          measured: "Day-1 return: " + oiPct(v) + " of " + r.n1 + " players from " + label + " vs " + oiPct(rest) + " of " + restN + " from all other sources (started " + oiRange(x.C1) + "; rule: " + Math.round(this.threshold * 100) + " points or more below)." });
+      }
+      return out;
+    } },
+  { id: "FIRST_RUN_LOW", severity: "high", kind: "stat", minSample: 30, threshold: 0.60,
+    data: "day totals, last 7 days: first runs started ÷ new players", unit: "new players",
+    title: () => "Many new players never start a run",
+    reason: () => "The first screen may not make it clear how to start, or the game loads slowly on some phones.",
+    sample: (x) => x.sum(x.W7, "all").new,
+    check(x) {
+      const t = x.sum(x.W7, "all"), v = t.new ? Math.min(1, t.first / t.new) : NaN;
+      if (t.new < this.minSample || !(v < this.threshold - OI_EPS)) return [];
+      return [{ n: t.new, effect: (this.threshold - v) / this.threshold,
+        measured: oiPct(v) + " of " + t.new + " new players (" + oiRange(x.W7) + ") started a first run (rule: below " + oiPct(this.threshold) + ")." }];
+    } },
+  { id: "RUNS_DROP", severity: "medium", kind: "stat", minSample: 30, threshold: 0.20,
+    data: "day totals: runs ÷ active players, last 7 days vs the 7 before", unit: "player-days",
+    title: () => "Players play fewer runs than the week before",
+    reason: () => "A recent update may have made runs less fun or slower to restart, or this week brought more casual visitors.",
+    sample: (x) => Math.min(x.sum(x.W7, "all").active, x.sum(x.P7, "all").active),
+    check(x) {
+      const a = x.sum(x.W7, "all"), b = x.sum(x.P7, "all"), n = Math.min(a.active, b.active);
+      if (n < this.minSample) return [];
+      const va = a.runs / a.active, vb = b.runs / b.active, ch = oiChange(va, vb);
+      if (!(ch <= -this.threshold + OI_EPS)) return [];
+      return [{ n, effect: -ch,
+        measured: "Runs per player per day: " + oiNum(va) + " in " + oiRange(x.W7) + " vs " + oiNum(vb) + " in " + oiRange(x.P7) + " (" + oiSigned(ch) + "; rule: a drop of " + oiPct(this.threshold) + " or more)." }];
+    } },
+  { id: "SHORT_RUNS", severity: "medium", kind: "stat", minSample: 30, threshold: 30,
+    data: "GAMEPLAY totals, last 30 days: play time ÷ runs, per difficulty", unit: "runs",
+    title: (c) => c.label + " runs are very short",
+    reason: (c) => "The " + c.label + " starting speed may be too fast for most players, or its first obstacles come too soon.",
+    sample: (x) => { const p = x.play(x.W30); return Math.max(0, ...OI_DIFFS.map((d) => (p[d] && p[d][0] ? p[d][0].runs : 0))); },
+    check(x) {
+      const p = x.play(x.W30), out = [];
+      for (const d of OI_DIFFS) {
+        const cells = p[d]; if (!cells || !cells[0]) continue;
+        const runs = cells[0].runs, sec = Object.values(cells).reduce((s, c) => s + c.sec, 0), avg = sec / runs;
+        if (runs < this.minSample || !(avg < this.threshold - OI_EPS)) continue;
+        out.push({ n: runs, label: d.toUpperCase(), effect: (this.threshold - avg) / this.threshold,
+          measured: "Average " + d.toUpperCase() + " run: " + oiSec(avg) + " over " + runs + " runs (" + oiRange(x.W30) + "; rule: under " + this.threshold + " s)." });
+      }
+      return out;
+    } },
+  { id: "MISS_JUMP", severity: "medium", kind: "stat", minSample: 30, threshold: 1.5, minRise: 2,
+    data: "GAMEPLAY totals, last 30 days: misses (wrong-colour hits + lost balls) per minute, step to step", unit: "runs",
+    title: (c) => c.label + ": misses jump at speed step " + c.step,
+    reason: () => "The speed increase at that step may be too big a jump for most players.",
+    sample: (x) => { const p = x.play(x.W30); let m = 0; for (const d of OI_DIFFS) for (const c of Object.values(p[d] || {})) m = Math.max(m, c.runs); return m; },
+    check(x) {
+      const p = x.play(x.W30), out = [], mpm = (c) => (c.sec ? (c.wrong + c.lost) / (c.sec / 60) : NaN);
+      for (const d of OI_DIFFS) for (let st = 1; st <= AN_MAX_STEP; st++) {
+        const a = (p[d] || {})[st - 1], b = (p[d] || {})[st];
+        if (!a || !b || b.runs < this.minSample || a.runs < this.minSample) continue;
+        const ma = mpm(a), mb = mpm(b);
+        if (!(ma > 0) || !(mb >= this.threshold * ma - OI_EPS) || !(mb - ma >= this.minRise - OI_EPS)) continue;
+        out.push({ n: b.runs, label: d.toUpperCase(), step: st, effect: mb / ma - 1,
+          measured: d.toUpperCase() + " misses per minute: " + oiNum(ma) + " at step " + (st - 1) + " → " + oiNum(mb) + " at step " + st + " (×" + oiNum(mb / ma) + "; " + b.runs + " runs reached step " + st + "; " + oiRange(x.W30) + "; rule: ×" + this.threshold + " and +" + this.minRise + "/min or more)." });
+      }
+      return out;
+    } },
+  { id: "SHARE_CHANGE", severity: "low", kind: "stat", minSample: 100, threshold: 0.5, minPoints: 0.005,
+    data: "day totals: share taps ÷ runs, last 7 days vs the 7 before", unit: "runs",
+    title: (c) => "Share rate " + (c.up ? "rose" : "fell") + " sharply",
+    reason: (c) => (c.up ? "A recent change or a new audience may make players keener to share their runs."
+      : "The share button may be less visible, or fewer runs end with a result players want to show."),
+    sample: (x) => Math.min(x.sum(x.W7, "all").runs, x.sum(x.P7, "all").runs),
+    check(x) {
+      const a = x.sum(x.W7, "all"), b = x.sum(x.P7, "all"), n = Math.min(a.runs, b.runs);
+      if (n < this.minSample) return [];
+      const va = a.shares / a.runs, vb = b.shares / b.runs, ch = oiChange(va, vb);
+      if (!(Math.abs(ch) >= this.threshold - OI_EPS) || !(Math.abs(va - vb) >= this.minPoints - OI_EPS)) return [];
+      return [{ n, up: ch > 0, effect: Math.abs(ch),
+        measured: "Share rate: " + oiPct(va, 1) + " of runs in " + oiRange(x.W7) + " vs " + oiPct(vb, 1) + " in " + oiRange(x.P7) + " (" + oiSigned(ch) + "; rule: a change of " + oiPct(this.threshold) + " or more)." }];
+    } },
+  { id: "HOME_LOW", severity: "low", kind: "stat", minSample: 100, threshold: 0.05,
+    data: "day totals, last 30 days: opens from the Home Screen app ÷ all opens", unit: "opens",
+    title: () => "Few opens come from the Home Screen app",
+    reason: () => "Players may not know they can add FLUX to their Home Screen, or the prompt to do it is easy to miss.",
+    sample: (x) => x.sum(x.W30, "all").opens,
+    check(x) {
+      const t = x.sum(x.W30, "all"), v = t.opens ? t.home / t.opens : NaN;
+      if (t.opens < this.minSample || !(v < this.threshold - OI_EPS)) return [];
+      return [{ n: t.opens, effect: (this.threshold - v) / this.threshold,
+        measured: oiPct(v, 1) + " of " + t.opens + " opens (" + oiRange(x.W30) + ") came from the Home Screen app (rule: below " + oiPct(this.threshold) + ")." }];
+    } },
+  { id: "OPS_EXCEPTIONS", severity: "high", kind: "ops", threshold: 1, data: "CHECK EXCEPTIONS (unusual scores + payments not delivered), now", unit: "waiting",
+    title: () => "Exceptions are waiting",
+    reason: () => "An unusual score may be a cheat or just a great run; a payment may not have reached the game. See EXCEPTIONS NEEDING ATTENTION.",
+    check(x) {
+      const e = x.ops.exceptions; if (!e || !(e.total >= this.threshold)) return [];
+      return [{ n: e.total, effect: e.total,
+        measured: e.total + " waiting now (" + (e.flags || 0) + " unusual score" + (e.flags === 1 ? "" : "s") + ", " + (e.delivery || 0) + " payment" + (e.delivery === 1 ? "" : "s") + " not delivered)." }];
+    } },
+  { id: "OPS_BACKUP", severity: "high", kind: "ops", threshold: 36, data: "BACKUPS status, now", unit: "",
+    title: () => "Backups need a look",
+    reason: () => "The daily backup may have failed its check or not run yet (storage busy, or no visit since midnight UTC). Press BACK UP NOW and see BACKUPS.",
+    check(x) {
+      const b = x.ops.backup; if (!b || b.ok) return [];
+      const parts = [];
+      parts.push(b.lastDailyAt ? "Last good daily backup: " + new Date(b.lastDailyAt).toISOString().slice(0, 16).replace("T", " ") + " UTC." : "No good daily backup yet.");
+      if (b.stale) parts.push("None in the last " + this.threshold + " hours.");
+      if (b.lastError) parts.push("Latest backup failed at " + new Date(b.lastError.at).toISOString().slice(0, 16).replace("T", " ") + " UTC.");
+      return [{ n: 1, effect: 1, measured: parts.join(" ") }];
+    } },
+  { id: "OPS_LOGINS", severity: "high", kind: "ops", threshold: 10, data: "failed admin logins, last 24 h", unit: "wrong passwords",
+    title: () => "Many wrong admin passwords",
+    reason: () => "Someone may be guessing the admin password (or it was you on a new device). If it was not you, change ADMIN_TOKEN (see Locked out? in the guide).",
+    check(x) {
+      const s = x.ops.security; if (!s) return [];
+      const n = s.failed24h || 0, locked = s.lockedClients || 0;
+      if (!(n >= this.threshold || locked > 0 || s.safetyUntil)) return [];
+      return [{ n, effect: n,
+        measured: n + " wrong admin password" + (n === 1 ? "" : "s") + " in the last 24 h" + (locked ? ", " + locked + " device" + (locked === 1 ? "" : "s") + " locked out now" : "") +
+          (s.safetyUntil ? ", safety mode on" : "") + " (rule: " + this.threshold + " or more, or any device locked)." }];
+    } },
+];
+
+/* rep: the /an-report answer (or null); ops: { exceptions, backup, security } as in the summary. Pure. */
+function ownerInsights(rep, ops, rules = OWNER_RULES) {
+  const x = oiContext(rep, ops), fired = [], checked = [];
+  for (const r of rules) {
+    let found = [];
+    try { found = r.check(x) || []; } catch (e) { found = []; }
+    const n = r.kind === "ops" ? null : Number(r.sample(x)) || 0;
+    checked.push({ id: r.id, severity: r.severity, kind: r.kind, n, minSample: r.minSample || null, enough: r.kind === "ops" || n >= r.minSample, fired: found.length > 0 });
+    if (!found.length) continue;
+    const best = found.slice().sort((a, b) => b.n - a.n).sort((a, b) => b.effect - a.effect)[0];
+    fired.push({ id: r.id, severity: r.severity, kind: r.kind, title: r.title(best), measured: best.measured, reason: r.reason(best),
+      n: best.n, sampleText: r.kind === "ops" ? "direct count" : best.n + " " + r.unit,
+      confidence: r.kind === "ops" ? "DIRECT COUNT" : oiConfidence(best.n), effect: best.effect });
+  }
+  fired.sort((a, b) => (OI_SEV_RANK[b.severity] - OI_SEV_RANK[a.severity]) || (OI_CONF_RANK[b.confidence] - OI_CONF_RANK[a.confidence]) || (b.effect - a.effect));
+  const d1n = x.ret(x.C1, "all").n1, weekN = x.sum(x.W7, "all").active;
+  const main = { day1Players: { n: d1n, confidence: oiConfidence(d1n) }, weekPlayerDays: { n: weekN, confidence: oiConfidence(weekN) } };
+  const attention = fired.some((f) => f.kind === "ops" || (f.severity === "high" && OI_CONF_RANK[f.confidence] >= OI_CONF_RANK.PRELIMINARY));
+  const status = attention ? "NEEDS ATTENTION" : (d1n < 30 || weekN < 30 ? "NOT ENOUGH DATA YET" : "HEALTHY");
+  const out = { status, today: anDayStr(x.today), statsAvailable: !!rep, main, findings: fired.slice(0, 3), firedCount: fired.length, checked };
+  out.export = ownerReportText(x, out);
+  return out;
+}
+
+/* The "Export report" text: aggregates only; small groups merged or left without numbers. */
+function ownerReportText(x, ins) {
+  const L = [];
+  L.push("FLUX OWNER REPORT");
+  L.push("Made " + ins.today + " (UTC) from anonymous totals. Groups under " + OI_SMALL + " players are merged into \"other\" or shown without numbers.");
+  L.push("");
+  L.push("STATUS: " + ins.status);
+  if (!ins.statsAvailable) L.push("Player stats were unavailable when this was made.");
+  L.push("Main samples: " + ins.main.day1Players.n + " new players with day 1 over (" + ins.main.day1Players.confidence + "), " +
+    ins.main.weekPlayerDays.n + " player-days in the last 7 days (" + ins.main.weekPlayerDays.confidence + ").");
+  L.push("");
+  L.push("TOP FINDINGS" + (ins.firedCount > ins.findings.length ? " (" + ins.findings.length + " of " + ins.firedCount + ")" : ""));
+  if (!ins.findings.length) L.push("  None: no rule fired.");
+  ins.findings.forEach((f, i) => {
+    L.push("  " + (i + 1) + ". [" + f.severity.toUpperCase() + "] " + f.title);
+    L.push("     Measured: " + f.measured);
+    L.push("     Possible reason (a guess, not measured): " + f.reason);
+    L.push("     " + (f.kind === "ops" ? "Direct count (not a sample), operational." : "Sample: " + f.sampleText + " · confidence " + f.confidence));
   });
+  const groupLines = (w, pre, label) => {
+    const rows = x.keys(w, pre).map((k) => ({ k, t: x.sum(w, k), r: x.ret([w[0], w[1]], k) })).sort((a, b) => b.t.new - a.t.new || (a.k < b.k ? -1 : 1));
+    const big = rows.filter((r) => r.t.new >= OI_SMALL).slice(0, 12), small = rows.filter((r) => !big.includes(r));
+    const d1 = (r) => (r.n1 >= OI_SMALL ? oiPct(r.d1 / r.n1) : "—");
+    const parts = big.map((r) => r.k.slice(2).toUpperCase() + " " + r.t.new + " new, day 1 " + d1(r.r));
+    const on = small.reduce((s, r) => s + r.t.new, 0), oret = small.reduce((o, r) => ({ n1: o.n1 + r.r.n1, d1: o.d1 + r.r.d1 }), { n1: 0, d1: 0 });
+    if (small.length) parts.push(on >= OI_SMALL ? "other (" + small.length + ") " + on + " new, day 1 " + d1(oret) : "other: fewer than " + OI_SMALL + " new players");
+    L.push("  " + label + ": " + (parts.length ? parts.join("; ") : "none"));
+  };
+  const period = (title, w) => {
+    const t = x.sum(w, "all"), days = w[1] - w[0] + 1, cw = [w[0], Math.min(w[1], x.today - 2)], r = x.ret(w, "all");
+    L.push("");
+    L.push(title + " (" + oiRange(w) + ", UTC)");
+    L.push("  Active players per day (average): " + oiNum(t.active / days));
+    L.push("  New players: " + t.new + " · started a first run: " + (t.new >= OI_SMALL ? oiPct(Math.min(1, t.first / t.new)) : "—"));
+    L.push("  Runs: " + t.runs + " · runs per player per day: " + (t.active ? oiNum(t.runs / t.active) : "—") + " · average run: " + (t.runs ? oiSec(t.sec / t.runs) : "—"));
+    L.push("  Share rate: " + (t.runs ? oiPct(t.shares / t.runs, 1) : "—") + " of runs · Home Screen app: " + (t.opens ? oiPct(t.home / t.opens, 1) : "—") + " of " + t.opens + " opens");
+    L.push("  Came back on day 1: " + (r.n1 >= OI_SMALL ? oiPct(r.d1 / r.n1) + " of " + r.n1 : "—") + " (started " + (cw[1] >= cw[0] ? oiRange(cw) : "—") + ")" +
+      " · day 7: " + (r.n7 >= OI_SMALL ? oiPct(r.d7 / r.n7) + " of " + r.n7 : "—"));
+    groupLines(w, "s:", "By source");
+    groupLines(w, "c:", "By country");
+    const p = x.play(w);
+    L.push("  Gameplay by difficulty: " + OI_DIFFS.map((d) => {
+      const cells = p[d] || {}, runs = cells[0] ? cells[0].runs : 0, sec = Object.values(cells).reduce((s, c) => s + c.sec, 0);
+      return d.toUpperCase() + " " + (runs >= OI_SMALL ? runs + " runs, average " + oiSec(sec / runs) : "fewer than " + OI_SMALL + " runs");
+    }).join("; "));
+  };
+  period("LAST 7 DAYS", x.W7);
+  period("LAST 30 DAYS", x.W30);
+  const o = x.ops;
+  L.push("");
+  L.push("OPERATIONS (now)");
+  L.push("  Exceptions waiting: " + (o.exceptions ? o.exceptions.total : "unavailable"));
+  L.push("  Backups: " + (!o.backup ? "unavailable" : o.backup.ok ? "OK" : "need a look"));
+  L.push("  Wrong admin passwords (24 h): " + (o.security ? (o.security.failed24h || 0) : "unavailable"));
+  L.push("");
+  L.push("Findings come from fixed rules (see GUIDE > Owner summary). \"Possible reason\" lines are guesses to check, not facts.");
+  return L.join("\n");
 }
 /* Every admin response: CORS as before, never cached anywhere. */
 function adminOut(resp) {
@@ -2373,6 +2719,8 @@ export class LeaderboardDO {
     if (!Number.isFinite(to)) to = today;
     if (!Number.isFinite(from)) from = to - 29;
     if (url.searchParams.get("today") === "1") from = to = today;   // FLUX COMMAND summary: today only
+    const last = Math.floor(Number(url.searchParams.get("last")));   // OWNER SUMMARY: the last N days up to today
+    if (last >= 1 && last <= 400) { to = today; from = today - last + 1; }
     from = Math.max(from, to - 400);
     const days = [], cohorts = [], months = [];
     for (let d = from; d <= to; d++) {
@@ -6581,3 +6929,8 @@ function json(obj, status = 200, extraHeaders = {}) {
     headers: { "Content-Type": "application/json", ...extraHeaders },
   });
 }
+
+// OWNER SUMMARY: the pure rule engine, reachable by the tests (static fields, not an entrypoint or a route).
+LeaderboardDO.ownerInsights = ownerInsights;
+LeaderboardDO.ownerRules = OWNER_RULES;
+LeaderboardDO.oiConfidence = oiConfidence;

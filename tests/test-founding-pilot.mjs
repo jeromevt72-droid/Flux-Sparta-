@@ -175,7 +175,7 @@ async function suite({ mod, main, game = GAME_HTML, adminHtml = ADMIN_HTML, gate
         x = await S.meter(() => S.lb()); cost.lb = [x.read, x.written];
         S.env.restart();
         x = await S.meter(() => S.ent(P(7))); out.coldEnt = x.out.text; cost.cold = [x.read, x.written];
-        const sum = (await S.admin('summary')).data || {}; delete sum.at; delete sum.founding; delete sum.usage; out.summary = JSON.stringify(sum);
+        const sum = (await S.admin('summary')).data || {}; delete sum.at; delete sum.founding; delete sum.usage; delete sum.insights; out.summary = JSON.stringify(sum);   // OWNER SUMMARY: insights is the new part; the rest must equal main
         out.find = (await S.admin('find-player', { query: 'PILOT1' })).text;
         out.state = JSON.stringify([...S.g.map.keys()].sort()) + JSON.stringify(S.g.sql.tables().filter((t) => t !== 'fnd').map((t) => S.g.sql.dump(t)));
         return { out, cost };
