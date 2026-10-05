@@ -27,7 +27,7 @@ async function post(w, env, p, body, token) {
 }
 
 /* Run the banner script the way a browser would, with a given user agent. */
-function runBanner(html, ua, { dismissed = false, withStart = false } = {}) {
+function runBanner(html, ua, { dismissed = false, withStart = false, played } = {}) {
   const block = html.slice(html.indexOf('<!-- D-38 (RC2.8.4): IN-APP BROWSER BANNER'), html.lastIndexOf('</body>'));
   const js = (block.match(/<script>([\s\S]*?)<\/script>/) || [])[1] || '';
   const made = []; const listeners = {};
@@ -41,7 +41,12 @@ function runBanner(html, ua, { dismissed = false, withStart = false } = {}) {
   const ss = new Map(dismissed ? [['fluxIabDismissed', '1']] : []);
   const win = { navigator: { userAgent: ua }, document: doc, sessionStorage: { getItem: (k) => ss.get(k) ?? null, setItem: (k, v) => ss.set(k, v) }, location: { href: BASE + '/' } };
   win.window = win;
+  // IAB AFTER FIRST RUN: the game page's own functions, when the test plays the game page (played = has a run been finished?)
+  const runs = { ended: 0, started: 0 };
+  if (played !== undefined) { win.fluxHasPlayed = () => played; win.endGame = () => { runs.ended++; }; win.newGame = () => { runs.started++; }; }
   try { vm.runInNewContext(js, win); } catch (e) { return { error: String(e) }; }
+  const shown = () => !!made.find((m) => m.id === 'iabBanner' && m.attached && !m.removed);
+  if (played !== undefined) return { app: win.FLUX_IN_APP, atLoad: shown(), endGame: () => { win.endGame(); return shown(); }, newGame: () => { win.newGame(); return shown(); }, runs, ss, js };
   const banner = made.find((m) => m.id === 'iabBanner' && m.attached);
   return { app: win.FLUX_IN_APP, banner, startHook: !!listeners.click, js };
 }
@@ -97,6 +102,19 @@ async function suite({ gw, game, admin, robots, sitemap, workerMod, quiet = fals
   ck('B4 game: banner steps aside when a run starts', g.startHook);
   ck('B5 banner never blocks play (no overlay covering the page, dismissible)', !/inset:0|height:100%|pointer-events:none/.test(g.js) && /iabX/.test(g.js));
   ck('B6 no identity or storage touched beyond the dismiss flag', !/localStorage|fluxPlayerId/.test(g.js));
+  // IAB AFTER FIRST RUN (owner): a brand-new pilot plays first; the banner comes with their first game over.
+  for (const k of ['tiktokIOS', 'instagram', 'facebook', 'tiktokAndroid']) {
+    const n = runBanner(game, UA[k], { played: false });
+    const atLoad = n.atLoad, atOver = !n.error && n.endGame(), afterRun = !n.error && n.newGame(), again = !n.error && n.endGame();
+    ck('B7 game, new pilot (' + k + '): no banner before the first run; it appears at the first game over (the game over still runs), a new run clears it, the next game over shows it again',
+      !n.error && !atLoad && atOver && !afterRun && again && n.runs.ended === 2 && n.runs.started === 1, n.error || [atLoad, atOver, afterRun, again].join(','));
+  }
+  const nd = runBanner(game, UA.tiktokIOS, { played: false }); nd.ss.set('fluxIabDismissed', '1');
+  ck('B7 ...closed with × in this visit: it does not come back at the game over', !nd.error && !nd.endGame());
+  const ns = runBanner(game, UA.safari, { played: false });
+  ck('B7 ...normal Safari: never shown, and the game over is not wrapped', !ns.error && !ns.atLoad && !ns.endGame() && ns.runs.ended === 1);
+  const r8 = runBanner(game, UA.tiktokIOS, { played: true });
+  ck('B8 game, a pilot who has already played: shown on the menu as before, and a run clears it', !r8.error && r8.atLoad && !r8.newGame(), r8.error || '');
 
   if (!quiet) console.log('== admin search: NAME #TAG ==');
   try {
@@ -147,6 +165,11 @@ await control('admin page indexable', { expect: 'S6', edit: { admin: rep('<meta 
 await control('TikTok not detected', { expect: 'B1', edit: { gw: rep('/TikTok|musical_ly|Bytedance/i', '/TikTok/i') } });
 await control('banner shown in normal Safari', { expect: 'B2', edit: { game: rep("if (!app) return;", "if (!app) app='Safari';") } });
 await control('dismiss ignored', { expect: 'B3', edit: { gw: rep("if (sessionStorage.getItem('fluxIabDismissed') === '1') return;", '') } });
+await control('banner shown before the first run again', { expect: 'B7', edit: { game: rep('  if (!played) return;\n', '') } });
+await control('banner not shown at the first game over', { expect: 'B7', edit: { game: rep('endGame = function(){ var r = endGame0.apply(this, arguments); try {', 'endGame = function(){ var r = endGame0.apply(this, arguments); return r; try {') } });
+await control('banner left over RUN IT BACK', { expect: 'B7', edit: { game: rep("newGame = function(){ var b = document.getElementById('iabBanner'); if (b) b.remove(); return", 'newGame = function(){ return') } });
+await control('dismiss ignored at the game over', { expect: 'B7 ...closed', edit: { game: rep("try { if (sessionStorage.getItem('fluxIabDismissed') !== '1') show(); } catch (e) { show(); }", 'show();') } });
+await control('a pilot who already played no longer sees it on the menu', { expect: 'B8', edit: { game: rep("var played = typeof fluxHasPlayed !== 'function' || fluxHasPlayed();", 'var played = false;') } });
 await control('banner stays over the game', { expect: 'B4', edit: { game: rep("if (s) s.addEventListener('click', function(){ d.remove(); }, { once: true });", '') } });
 await control('NAME #TAG search broken', { expect: 'A2', workerSrc: rep('const both = /^(.+?)\\s*#\\s*([0-9A-Z]+)$/.exec(raw);', 'const both = null;') });
 await control('tag ignored in NAME #TAG', { expect: 'A3', workerSrc: rep('(named(both[1].trim()) && (v.tag.startsWith(both[2]) || tagFromPid(v.pid, 12).startsWith(both[2])))', '(named(both[1].trim()))') });
