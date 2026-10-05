@@ -4821,7 +4821,10 @@ function fluxStatsFlush(){
      Instagram, Facebook, Messenger, Snapchat or LINE opens in that app's own
      browser, which keeps its own storage: a pilot made there may not be there
      next time (the same split that hit the iPhone icon). This asks the player
-     to open FLUX in their real browser first. It never blocks play. -->
+     to open FLUX in their real browser. It never blocks play.
+     IAB AFTER FIRST RUN (owner): a brand-new pilot plays first -- the banner
+     waits for their first game over (same text and look). A pilot who has
+     already played sees it on the menu as before; a new run always clears it. -->
 <style>
 #iabBanner{position:fixed;left:10px;right:10px;top:calc(10px + env(safe-area-inset-top,0px));z-index:99999;
   background:#0b1433;border:1px solid #2c6bff;border-radius:16px;padding:12px 40px 12px 14px;color:#eaf7ff;
@@ -4855,6 +4858,14 @@ function fluxStatsFlush(){
     var s = document.getElementById('startBtn');          // game page: get out of the way once a run starts
     if (s) s.addEventListener('click', function(){ d.remove(); }, { once: true });
   }
+  // Game page: a pilot who has not finished a run yet plays first; the banner comes with their first game over.
+  var played = typeof fluxHasPlayed !== 'function' || fluxHasPlayed();
+  if (typeof endGame === 'function' && typeof newGame === 'function') {
+    var endGame0 = endGame, newGame0 = newGame;
+    endGame = function(){ var r = endGame0.apply(this, arguments); try { if (sessionStorage.getItem('fluxIabDismissed') !== '1') show(); } catch (e) { show(); } return r; };
+    newGame = function(){ var b = document.getElementById('iabBanner'); if (b) b.remove(); return newGame0.apply(this, arguments); };   // RUN IT BACK too
+  }
+  if (!played) return;
   if (document.body) show(); else document.addEventListener('DOMContentLoaded', show, { once: true });
 })();
 </script>
