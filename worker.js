@@ -419,7 +419,7 @@ function cleanSrc(v) { const s = String(v || "").trim().toLowerCase(); return AN
 function cleanEvent(e) {
   if (!e || typeof e !== "object" || !AN_EVENTS.has(e.e)) return null;
   const out = { e: e.e };
-  if (e.e === "open") out.home = e.home === true;
+  if (e.e === "open") { out.home = e.home === true; out.iab = e.iab === true; }   // FIRST-RUN MEASURE: opened in an app's built-in browser (yes/no)
   if (e.e === "run_end" || e.e === "level_up") {
     const lvl = Math.floor(Number(e.lvl)); out.lvl = lvl >= 1 && lvl <= MAX_LEVEL ? lvl : 1;
     out.diff = VALID_DIFFICULTIES.has(e.diff) ? e.diff : "medium";
@@ -1441,6 +1441,14 @@ const oiSec = (s) => { if (!Number.isFinite(s)) return "—"; s = Math.round(s);
 const oiRange = (w) => anDayStr(w[0]) + " to " + anDayStr(w[1]);
 const oiChange = (a, b) => (b > 0 ? (a - b) / b : NaN);
 const oiSigned = (x) => (x >= 0 ? "+" : "−") + Math.round(Math.abs(x) * 100) + "%";
+/* FIRST-RUN MEASURE: the first-run rate split by where new players opened FLUX -- inside an
+   app's built-in browser (TikTok, Instagram...) or not. One person who moves from the in-app
+   browser to their real browser counts as a new player in both. Under OI_SMALL: no numbers. */
+function oiFirstSplit(t) {
+  const ni = Math.min(t.new, t.newIab || 0), fi = Math.min(ni, t.firstIab || 0), no = t.new - ni, fo = Math.max(0, (t.first || 0) - fi);
+  const part = (f, n) => (n >= OI_SMALL ? oiPct(Math.min(1, f / n)) + " of " + n : "fewer than " + OI_SMALL + " new players");
+  return "in-app browsers " + part(fi, ni) + "; other browsers " + part(fo, no);
+}
 
 /* Everything the rules read, as small helpers over the report. */
 function oiContext(rep, ops) {
@@ -1524,7 +1532,7 @@ const OWNER_RULES = [
       const t = x.sum(x.W7, "all"), v = t.new ? Math.min(1, t.first / t.new) : NaN;
       if (t.new < this.minSample || !(v < this.threshold - OI_EPS)) return [];
       return [{ n: t.new, effect: (this.threshold - v) / this.threshold,
-        measured: oiPct(v) + " of " + t.new + " new players (" + oiRange(x.W7) + ") started a first run (rule: below " + oiPct(this.threshold) + ")." }];
+        measured: oiPct(v) + " of " + t.new + " new players (" + oiRange(x.W7) + ") started a first run (rule: below " + oiPct(this.threshold) + "). Split: " + oiFirstSplit(t) + "." }];
     } },
   { id: "RUNS_DROP", severity: "medium", kind: "stat", minSample: 30, threshold: 0.20,
     data: "day totals: runs ÷ active players, last 7 days vs the 7 before", unit: "player-days",
@@ -1686,7 +1694,7 @@ function ownerReportText(x, ins) {
     L.push("");
     L.push(title + " (" + oiRange(w) + ", UTC)");
     L.push("  Active players per day (average): " + oiNum(t.active / days));
-    L.push("  New players: " + t.new + " · started a first run: " + (t.new >= OI_SMALL ? oiPct(Math.min(1, t.first / t.new)) : "—"));
+    L.push("  New players: " + t.new + " · started a first run: " + (t.new >= OI_SMALL ? oiPct(Math.min(1, t.first / t.new)) + " (" + oiFirstSplit(t) + ")" : "—"));
     L.push("  Runs: " + t.runs + " · runs per player per day: " + (t.active ? oiNum(t.runs / t.active) : "—") + " · average run: " + (t.runs ? oiSec(t.sec / t.runs) : "—"));
     L.push("  Share rate: " + (t.runs ? oiPct(t.shares / t.runs, 1) : "—") + " of runs · Home Screen app: " + (t.opens ? oiPct(t.home / t.opens, 1) : "—") + " of " + t.opens + " opens");
     L.push("  Came back on day 1: " + (r.n1 >= OI_SMALL ? oiPct(r.d1 / r.n1) + " of " + r.n1 : "—") + " (started " + (cw[1] >= cw[0] ? oiRange(cw) : "—") + ")" +
@@ -2663,7 +2671,12 @@ export class LeaderboardDO {
     const groups = ["all", "c:" + country, "s:" + p.s];
     const day = (await st.get("an:day:" + today)) || {};
     const puts = {};
-    if (isNew) anAdd(day, groups, "new", 1);
+    if (isNew) {
+      anAdd(day, groups, "new", 1);
+      // FIRST-RUN MEASURE: a new pilot whose first batch was opened in an app's built-in browser
+      // (TikTok, Instagram...) -- the same person may count again once they move to their real browser.
+      if (events.some((e) => e && e.e === "open" && e.iab === true)) { p.ia = 1; anAdd(day, groups, "newIab", 1); }
+    }
     if (p.l !== today) {
       anAdd(day, groups, "active", 1); p.l = today;
       const age = today - p.f, bit = { 1: 1, 7: 2, 30: 4 }[age];
@@ -2682,7 +2695,7 @@ export class LeaderboardDO {
     }
     for (const e of events) {
       if (e.e === "open") { anAdd(day, groups, "opens", 1); if (e.home) anAdd(day, groups, "home", 1); }
-      else if (e.e === "first_run") anAdd(day, groups, "first", 1);
+      else if (e.e === "first_run") { anAdd(day, groups, "first", 1); if (p.ia) anAdd(day, groups, "firstIab", 1); }   // FIRST-RUN MEASURE: same split
       else if (e.e === "level_up") anAdd(day, groups, "levelups", 1);
       else if (e.e === "share") anAdd(day, groups, "shares", 1);
       else if (e.e === "run_end") {

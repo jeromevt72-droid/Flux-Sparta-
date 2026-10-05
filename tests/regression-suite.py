@@ -98,7 +98,8 @@ ck('D-05 one API-origin constant', g.count("window.FLUX_ORIGIN = window.location
 _gcode=re.sub(r'/\*[\s\S]*?\*/','',g)
 # ROOT MOVE: API and postMessage now use FLUX_ORIGIN; play navigation uses
 # FLUX_GAME_URL. Counts verified by hand: 6 game-URL uses, 3 origin uses.
-ck('D-05 6 game-URL uses (comments excluded)', _gcode.count('window.FLUX_GAME_URL')==6, str(_gcode.count('window.FLUX_GAME_URL')))
+# FIRST-RUN MEASURE: the 6 play uses now go through FLUX_GAME_LINK (FLUX_GAME_URL + this page's ?src=): 1 definition + 3 in it.
+ck('D-05 6 game-URL uses (comments excluded)', _gcode.count('window.FLUX_GAME_LINK')==6 and _gcode.count('window.FLUX_GAME_URL')==4, str(_gcode.count('window.FLUX_GAME_LINK'))+'/'+str(_gcode.count('window.FLUX_GAME_URL')))
 ck('D-05 3 origin uses (comments excluded)', _gcode.count('window.FLUX_ORIGIN')==3, str(_gcode.count('window.FLUX_ORIGIN')))
 ck('D-05 static anchors valid', """href="'+window.FLUX_GAME_URL""" not in g.split('<script')[0])
 ck('D-07 dead fn gone', 'playRealHeroAudio' not in g)
@@ -250,7 +251,7 @@ ck('F06 still one Gateway message listener', _gs.count("addEventListener('messag
 ck('F06 entitlement authority unchanged', "c.source !== 'server'" in _sp)
 
 print('\n--- RC2.5.5 single identity + purchase lock ---')
-ck('Play navigates top-level', 'window.location.href = window.FLUX_GAME_URL;' in _gs)
+ck('Play navigates top-level', 'window.location.href = window.FLUX_GAME_LINK;' in _gs and "window.FLUX_GAME_URL = window.location.origin + '/play/';" in _gs)   # FIRST-RUN MEASURE: FLUX_GAME_LINK = FLUX_GAME_URL + this page's ?src=
 ck('Play no longer iframes the game', 'frame.src = window.FLUX_GAME_URL' not in _gs)
 ck('one FLUX_GAME_URL definition, same origin /play/', _gs.count("window.FLUX_GAME_URL = window.location.origin + '/play/';")==1)
 ck('one place mints playerId', _sp.count('if(!localStorage.fluxPlayerId)')==1)
