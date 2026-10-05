@@ -111,6 +111,8 @@ transmitted anywhere unless listed in section 5:</p>
   <tr><td>Last submission error</td><td>A short diagnostic code, no personal content</td></tr>
   <tr><td>Where you first came from</td><td>The "src" tag of the first FLUX link you opened (for example <code>tiktok</code>), or <code>direct</code>; used for the statistics in section 9</td></tr>
   <tr><td>First run counted</td><td>A marker so your first run is counted once</td></tr>
+  <tr><td>Current sitting</td><td>When your current sitting started and how it stands (runs played, the last game over), so each sitting is counted once; used for the statistics in section 9</td></tr>
+  <tr><td>First run's length counted</td><td>A marker so the length of your very first run is counted once</td></tr>
 </table>
 <p>Clearing your browser data or deleting the app from your Home Screen removes
 all of it. We cannot recover it, and we cannot see it. If you saved your
@@ -191,7 +193,11 @@ is used for advertising.</p>
   level reached and the difficulty), level-ups, and taps on the share button.
   For each finished run we also count, for each speed of the ball reached in
   that run: the seconds played at that speed, the orbs hit, the wrong-colour
-  orbs hit and the balls lost.</li>
+  orbs hit and the balls lost. We also count how each sitting goes (how many
+  runs, whether a new run follows a game over and how many seconds later, and
+  whether the sitting ended after a game over, mid-run or in the menu), how long
+  a pilot's very first run lasted, and whether a run ended with two lives lost
+  within 10 seconds.</li>
   <li><strong>What comes with it:</strong> the random player identifier, the
   country you picked (or, if none, the country Cloudflare reports), and the
   "src" tag of the first FLUX link you opened (for example

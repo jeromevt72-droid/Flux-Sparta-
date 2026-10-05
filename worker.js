@@ -381,8 +381,26 @@ function adminRateLimit(request, env) { return rateLimit(env, "global", "admin",
    that step, orb hits, wrong-colour hits and balls lost. They are added into
    day totals keyed only by difficulty and step ("p:<difficulty>:<step>"),
    never by country or source; numbers are clamped, the difficulty must be
-   one of the three, the step is capped at AN_MAX_STEP. */
-const AN_EVENTS = new Set(["open", "first_run", "run_end", "level_up", "share", "play"]);
+   one of the three, the step is capped at AN_MAX_STEP.
+   RETENTION (same rules): the game's run_end (a game over) also carries the
+   speed step it ended at, "bad" (the last two lives lost within 10 s of play)
+   and, on a pilot's very first run only, "fs" (seconds survived); "again" is
+   a run started after a game over in the same session (seconds between them);
+   "sess_end" a session that ended (runs started in it, and how it ended:
+   after a game over, mid-run or from the menu); "sess_back" takes back a
+   sess_end the game counted at a hide when the player returned within 30
+   minutes. They are added into day totals for everyone ("all"), by source
+   ("s:<src>") and by difficulty ("d:<difficulty>") -- never by country;
+   the restart delay and first-run survival as counts per time bucket
+   ("rd<from s>", "fs<from s>") so the admin page can show the median and
+   75th percentile; bad / all game overs also by difficulty and speed step
+   ("p:<difficulty>:<step>"). */
+const AN_EVENTS = new Set(["open", "first_run", "run_end", "level_up", "share", "play", "again", "sess_end", "sess_back"]);
+const AN_RD_EDGES = [0, 1, 2, 3, 4, 5, 7, 10, 15, 20, 30, 45, 60, 90, 120, 180, 300, 600, 1200];   // restart delay buckets (seconds, from)
+const AN_FS_EDGES = [0, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300, 420, 600, 900, 1800];        // first-run survival buckets (seconds, from)
+const AN_SESS_END = new Set(["over", "run", "menu"]);
+const anStep = (v) => anInt(v, 0, AN_MAX_STEP);   // the speed step a run ended at
+function anBucket(edges, v) { let b = edges[0]; for (const e of edges) if (v >= e) b = e; return b; }
 const AN_MAX_STEP = 8;
 function anInt(v, lo, hi) { const n = Math.floor(Number(v)); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : lo; }
 const AN_SRC = /^[a-z0-9_-]{1,24}$/;
@@ -407,6 +425,18 @@ function cleanEvent(e) {
     out.diff = VALID_DIFFICULTIES.has(e.diff) ? e.diff : "medium";
   }
   if (e.e === "run_end") { const sec = Math.floor(Number(e.sec)); out.sec = sec >= 0 && sec <= 7200 ? sec : 0; }
+  if (e.e === "run_end" && e.st !== undefined) {   // RETENTION: pages from before it send none of these
+    out.st = anStep(e.st); out.bad = e.bad === 1 || e.bad === true ? 1 : 0;
+    if (e.fs !== undefined) out.fs = anInt(e.fs, 0, 7200);
+  }
+  if (e.e === "again") {
+    out.diff = VALID_DIFFICULTIES.has(e.diff) ? e.diff : "medium";
+    const d = Number(e.d); out.d = Number.isFinite(d) ? Math.round(Math.min(1800, Math.max(0, d)) * 10) / 10 : 0;
+  }
+  if (e.e === "sess_end" || e.e === "sess_back") {
+    if (!AN_SESS_END.has(e.end)) return null;
+    out.g = anInt(e.g, 0, 99); out.end = e.end; out.diff = VALID_DIFFICULTIES.has(e.diff) ? e.diff : "medium";
+  }
   if (e.e === "play") {   // GAMEPLAY: one run's time at one speed step
     if (!VALID_DIFFICULTIES.has(e.diff)) return null;
     out.diff = e.diff; out.st = anInt(e.st, 0, AN_MAX_STEP); out.sec = anInt(e.sec, 0, 7200);
@@ -2655,7 +2685,19 @@ export class LeaderboardDO {
       else if (e.e === "first_run") anAdd(day, groups, "first", 1);
       else if (e.e === "level_up") anAdd(day, groups, "levelups", 1);
       else if (e.e === "share") anAdd(day, groups, "shares", 1);
-      else if (e.e === "run_end") { anAdd(day, groups, "runs", 1); anAdd(day, groups, "sec", e.sec || 0); anAdd(day, groups, "lvl", e.lvl || 1); }
+      else if (e.e === "run_end") {
+        anAdd(day, groups, "runs", 1); anAdd(day, groups, "sec", e.sec || 0); anAdd(day, groups, "lvl", e.lvl || 1);
+        if (e.st !== undefined) {   // RETENTION: a game over (by difficulty and source; bad ones also by speed step)
+          const rg = ["all", "s:" + p.s, "d:" + e.diff], pg = ["p:" + e.diff + ":" + e.st];
+          anAdd(day, rg, "go", 1); anAdd(day, rg, "bad", e.bad); anAdd(day, pg, "go", 1); anAdd(day, pg, "bad", e.bad);
+          if (e.fs !== undefined) { anAdd(day, rg, "frn", 1); anAdd(day, rg, "fs" + anBucket(AN_FS_EDGES, e.fs), 1); }
+        }
+      }
+      else if (e.e === "again") { const rg = ["all", "s:" + p.s, "d:" + e.diff]; anAdd(day, rg, "ag", 1); anAdd(day, rg, "rd" + anBucket(AN_RD_EDGES, e.d), 1); }
+      else if (e.e === "sess_end" || e.e === "sess_back") {   // sess_back takes a hide's count back (the sitting went on)
+        const k = e.e === "sess_end" ? 1 : -1, rg = ["all", "s:" + p.s, "d:" + e.diff];
+        anAdd(day, rg, "ss", k); anAdd(day, rg, "sg", k * e.g); anAdd(day, rg, "se_" + e.end, k);
+      }
       else if (e.e === "play") {   // GAMEPLAY: by difficulty and speed step only
         const pg = ["p:" + e.diff + ":" + e.st];
         anAdd(day, pg, "runs", 1); anAdd(day, pg, "sec", e.sec); anAdd(day, pg, "hit", e.hit); anAdd(day, pg, "wrong", e.wrong); anAdd(day, pg, "lost", e.lost);

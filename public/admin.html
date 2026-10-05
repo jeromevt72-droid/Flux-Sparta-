@@ -531,6 +531,21 @@
       fewer than 5 new players is merged into "other", and "other" under 5 shows no numbers. If this device cannot copy, the text appears in a box to select.</li>
     </ul>
 
+    <h3>Reading RETENTION and BAD FAILURES</h3>
+    <ul>
+      <li>A <b>session</b> is one sitting: it ends after 30 minutes without play, or when FLUX stays closed or in the background
+      for more than 30 minutes. Rows: everyone, each difficulty (of the last run), each source (src).</li>
+      <li><b>Restart rate</b>: of the game overs, the share followed by another run in the same session. <b>Restart delay</b>:
+      seconds from the game over to the next run starting (median and 75th percentile). Low rate or long delay = the game over
+      screen loses players.</li>
+      <li><b>Games / session</b>: runs started per session. <b>Ended after game over · mid-run · menu</b>: how sessions end —
+      many ending right after a game over means players quit on losing.</li>
+      <li><b>First-run survival</b>: seconds a new pilot's very first run lasted (median). Very short = the start is too hard.</li>
+      <li><b>BAD FAILURES</b>: a game over where the last two lives were lost within 10 seconds of play — a sudden collapse that
+      feels unfair. By difficulty and the speed step the run ended at. If the bad share jumps at one step, that step is too big a jump.</li>
+      <li>Totals by difficulty, source and step only — no country, nothing about a person. Numbers from before this was added are empty.</li>
+    </ul>
+
     <h3>TODAY (the first screen)</h3>
     <ul>
       <li>Today's PLAYER STATS so far (UTC day): active and new players, finished runs, average run, share rate and opens from the Home Screen app.</li>
@@ -756,7 +771,7 @@
     if (!(ins.findings || []).length) c.appendChild(el('div', 'find', 'No findings: no rule fired.'));
     var ck = ins.checked || [], thin = ck.filter(function (r) { return !r.enough; }).length;
     c.appendChild(el('div', 'asof', 'Checked ' + ck.length + ' fixed rules · ' + fmt(ins.firedCount) + ' fired' + (ins.firedCount > (ins.findings || []).length ? ' (top ' + ins.findings.length + ' shown)' : '') +
-      ' · ' + thin + ' need more data · last complete days up to ' + ins.today + ' (UTC). See GUIDE › Owner summary.'));
+      ' · ' + thin + ' need more data · last complete days up to yesterday (UTC). See GUIDE › Owner summary.'));
     var out = el('div');
     var row = el('div', 'actions'); row.appendChild(btn('EXPORT REPORT', 'ghost', function () { exportReport(ins['export'] || '', out); }));
     c.appendChild(row); c.appendChild(out);
@@ -1042,7 +1057,63 @@
     rows.sort(function (a, b) { return PLAY_DIFFS.indexOf(a.diff) - PLAY_DIFFS.indexOf(b.diff) || a.step - b.step; });
     return { rows: rows };
   }
-  window.FLUX_ADMIN_STATS = { summarize: summarize, summarizePlay: summarizePlay, renderInsights: renderInsights, exportReport: exportReport };
+  // RETENTION: sessions, restarts after a game over and first-run survival, for everyone, by difficulty ("d:") and by source ("s:").
+  // Delay and survival come as counts per time bucket ("rd<from s>", "fs<from s>"); the median / 75th percentile is read
+  // from them (linear inside a bucket; in the last, open bucket its start is shown with "+").
+  var RD_EDGES = [0, 1, 2, 3, 4, 5, 7, 10, 15, 20, 30, 45, 60, 90, 120, 180, 300, 600, 1200], FS_EDGES = [0, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300, 420, 600, 900, 1800];   // same as the server
+  function quantile(hist, q, edges) {
+    var keys = Object.keys(hist).map(Number).sort(function (a, b) { return a - b; }), n = 0;
+    keys.forEach(function (e) { n += Math.max(0, hist[e]); });
+    if (!n) return { v: NaN, open: false };
+    var want = q * n, acc = 0;
+    for (var i = 0; i < keys.length; i++) {
+      var c = Math.max(0, hist[keys[i]]), j = edges.indexOf(keys[i]), hi = j >= 0 && j + 1 < edges.length ? edges[j + 1] : NaN;
+      if (c && acc + c >= want) return isFinite(hi) ? { v: keys[i] + (hi - keys[i]) * (want - acc) / c, open: false } : { v: keys[i], open: true };
+      acc += c;
+    }
+    return { v: keys[keys.length - 1], open: true };
+  }
+  function summarizeRetention(rep) {
+    var cells = {};
+    (rep.days || []).forEach(function (d) {
+      Object.keys(d.groups || {}).forEach(function (k) {
+        if (k !== 'all' && !/^d:(easy|medium|hard)$/.test(k) && !/^s:[a-z0-9_-]{1,24}$/.test(k)) return;
+        var v = d.groups[k] || {}, c = cells[k] || (cells[k] = { key: k, go: 0, bad: 0, ag: 0, ss: 0, sg: 0, over: 0, run: 0, menu: 0, frn: 0, rd: {}, fs: {} });
+        ['go', 'bad', 'ag', 'ss', 'sg', 'frn'].forEach(function (f) { c[f] += +v[f] || 0; });
+        c.over += +v.se_over || 0; c.run += +v.se_run || 0; c.menu += +v.se_menu || 0;
+        Object.keys(v).forEach(function (f) { var m = /^(rd|fs)(\d+)$/.exec(f); if (m) c[m[1]][m[2]] = (c[m[1]][m[2]] || 0) + (+v[f] || 0); });
+      });
+    });
+    var order = function (k) { return k === 'all' ? 0 : /^d:/.test(k) ? 1 : 2; };
+    var rows = Object.keys(cells).map(function (k) {
+      var c = cells[k];
+      c.label = k === 'all' ? 'Everyone' : /^d:/.test(k) ? k.slice(2).toUpperCase() : 'src ' + k.slice(2);
+      c.restartRate = c.go > 0 ? Math.min(1, c.ag / c.go) : NaN;
+      c.delayMed = quantile(c.rd, .5, RD_EDGES); c.delayP75 = quantile(c.rd, .75, RD_EDGES); c.firstMed = quantile(c.fs, .5, FS_EDGES);
+      c.gamesPerSession = c.ss > 0 ? c.sg / c.ss : NaN;
+      c.endOver = c.ss > 0 ? c.over / c.ss : NaN; c.endRun = c.ss > 0 ? c.run / c.ss : NaN; c.endMenu = c.ss > 0 ? c.menu / c.ss : NaN;
+      return c;
+    }).filter(function (c) { return c.go || c.ag || c.ss || c.frn; });
+    rows.sort(function (a, b) { return order(a.key) - order(b.key) || (order(a.key) === 1 ? PLAY_DIFFS.indexOf(a.key.slice(2)) - PLAY_DIFFS.indexOf(b.key.slice(2)) : b.go - a.go); });
+    return { rows: rows };
+  }
+  // BAD FAILURES: game overs where the last two lives went within 10 s, by difficulty and the speed step the run ended at.
+  function summarizeBad(rep) {
+    var cells = {};
+    (rep.days || []).forEach(function (d) {
+      Object.keys(d.groups || {}).forEach(function (k) {
+        var m = /^p:(easy|medium|hard):(\d)$/.exec(k); if (!m) return;
+        var v = d.groups[k] || {}; if (!(+v.go)) return;
+        var c = cells[k] || (cells[k] = { diff: m[1], step: +m[2], go: 0, bad: 0 });
+        c.go += +v.go || 0; c.bad += +v.bad || 0;
+      });
+    });
+    var rows = Object.keys(cells).map(function (k) { var c = cells[k]; c.normal = c.go - c.bad; c.badShare = c.go ? c.bad / c.go : NaN; return c; });
+    rows.sort(function (a, b) { return PLAY_DIFFS.indexOf(a.diff) - PLAY_DIFFS.indexOf(b.diff) || a.step - b.step; });
+    return { rows: rows };
+  }
+  function secs(q) { return isFinite(q.v) ? (q.v < 10 ? q.v.toFixed(1) : String(Math.round(q.v))) + ' s' + (q.open ? '+' : '') : '—'; }
+  window.FLUX_ADMIN_STATS = { summarize: summarize, summarizePlay: summarizePlay, summarizeRetention: summarizeRetention, summarizeBad: summarizeBad, secs: secs, renderInsights: renderInsights, exportReport: exportReport };
   function table(head, rows) {
     var w = el('div', 'stwrap'), t = el('table', 'st'), tr = el('tr');
     head.forEach(function (h) { tr.appendChild(el('th', null, h)); }); t.appendChild(tr);
@@ -1084,6 +1155,21 @@
     if (!play.length) box.appendChild(el('div', 'empty', 'No gameplay measurements yet for this period.'));
     else box.appendChild(table(['Difficulty', 'Speed step', 'Runs', 'Time at step', 'Hit rate', 'Misses / min', 'Lives lost / min'],
       play.map(function (c) { return [c.diff.toUpperCase(), c.step === 0 ? '0 (start)' : String(c.step), fmt(c.runs), mins(c.sec) + ' (' + rate(c.timeShare) + ')', rate(c.hitRate), num(c.missesPerMin), num(c.livesPerMin)]; })));
+    var rt = summarizeRetention(rep).rows;
+    box.appendChild(el('h2', null, 'RETENTION'));
+    if (!rt.length) box.appendChild(el('div', 'empty', 'No session measurements yet for this period.'));
+    else {
+      box.appendChild(table(['Group', 'Game overs', 'Restart rate', 'Restart delay (median · p75)', 'First runs', 'First-run survival (median)'],
+        rt.map(function (c) { return [c.label, fmt(c.go), rate(c.restartRate), secs(c.delayMed) + ' · ' + secs(c.delayP75), fmt(c.frn), secs(c.firstMed)]; })));
+      box.appendChild(el('h2', null, 'SESSIONS'));
+      box.appendChild(table(['Group', 'Sessions', 'Games / session', 'Ended after game over · mid-run · menu'],
+        rt.map(function (c) { return [c.label, fmt(c.ss), num(c.gamesPerSession), rate(c.endOver) + ' · ' + rate(c.endRun) + ' · ' + rate(c.endMenu)]; })));
+    }
+    var bad = summarizeBad(rep).rows;
+    box.appendChild(el('h2', null, 'BAD FAILURES'));
+    if (!bad.length) box.appendChild(el('div', 'empty', 'No game overs measured yet for this period.'));
+    else box.appendChild(table(['Difficulty', 'Speed step', 'Game overs', 'Bad', 'Normal', 'Bad share'],
+      bad.map(function (c) { return [c.diff.toUpperCase(), c.step === 0 ? '0 (start)' : String(c.step), fmt(c.go), fmt(c.bad), fmt(c.normal), rate(c.badShare)]; })));
     box.appendChild(el('p', 'note', 'From ' + rep.from + ' to ' + rep.to + ' (UTC). Individual events are kept ' + rep.keepDays + ' days, then only totals.'));
     say('');
   }

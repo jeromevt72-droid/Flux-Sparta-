@@ -162,7 +162,7 @@ async function suite({ gameHtml, workerMod, quiet = false }) {
     const ev = (body.events || []).map((e) => e.e).join(',');
     ck('C2 it carries the pilot ID, country, src, and open + first run + run finished (level 3, hard, length)',
       body.pid === 'p-stats-1' && body.country === 'PH' && body.src === 'direct' && ev === 'open,first_run,run_end' && body.events[2].lvl === 3 && body.events[2].diff === 'hard' && typeof body.events[2].sec === 'number', JSON.stringify(body).slice(0, 200));
-    ck('C2 ...the queue is empty afterwards, and "first run" is sent only once', n.run('fluxStatsQueue.length') === 0 && (n.g.ctx.newGame(), n.run('fluxStatsQueue.length')) === 0);
+    ck('C2 ...the queue is empty afterwards, and "first run" is sent only once', n.run('fluxStatsQueue.length') === 0 && (n.g.ctx.newGame(), n.run('fluxStatsQueue.filter(function(e){return e.e!=="again";}).length')) === 0);   // RETENTION: the restart itself is counted ("again"); the first run is not sent again
     const z = bootGame({ fluxRunsPlayed: '3' }); z.g.ctx.newGame(); z.run('score=0;'); await z.gameOver();
     let zb = {}; try { zb = JSON.parse(await z.beacons[0].b.text()); } catch (e) {}
     ck('C2 ...with no score to upload, the run\'s stats go alone: one request', z.beacons.length === 1 && z.beacons[0].u === '/api/events' && (zb.events || []).some((e) => e.e === 'run_end') && !z.posts.length, z.beacons.length + ' ' + z.posts.length);

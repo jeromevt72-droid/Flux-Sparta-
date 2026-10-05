@@ -62,9 +62,10 @@ function suite(files, quiet = false) {
     /const FLUX_STATS_URL='\/api\/events';/.test(g) && /const AN_KEEP_DAYS = 90;/.test(wk) && /"flux-stats:" \+ String\(playerId\)/.test(wk)
     && /<h3 id="stats">Anonymous gameplay statistics \(in-house\)<\/h3>\s*<div class="review"><strong>For lawyer review before launch\.<\/strong>/.test(pv)
     && /<strong>our own server<\/strong>/.test(pv) && /one-way code, different from the\s+leaderboard's tag/.test(pv) && /<strong>90 days<\/strong>/.test(pv) && /\?src=tiktok/.test(pv) && !/Future gameplay statistics/.test(pv));
-  const evs = [...g.matchAll(/fluxTrack\('([a-z_]+)'/g)].map((m) => m[1]).sort().join(',');
-  ck('P6 ...the events the game sends are exactly the ones the policy lists', evs === 'first_run,level_up,open,play,run_end,share' && /the app being opened[\s\S]{0,120}first run, each finished run[\s\S]{0,120}level-ups, and taps on the share button/.test(pv)
-    && /For each finished run we also count, for each speed of the ball reached in\s+that run: the seconds played at that speed, the orbs hit, the wrong-colour\s+orbs hit and the balls lost\./.test(pv), evs);
+  const evs = [...new Set([...g.matchAll(/fluxTrack\('([a-z_]+)'/g)].map((m) => m[1]))].sort().join(',');
+  ck('P6 ...the events the game sends are exactly the ones the policy lists', evs === 'again,first_run,level_up,open,play,run_end,sess_back,sess_end,share' && /the app being opened[\s\S]{0,120}first run, each finished run[\s\S]{0,120}level-ups, and taps on the share button/.test(pv)
+    && /For each finished run we also count, for each speed of the ball reached in\s+that run: the seconds played at that speed, the orbs hit, the wrong-colour\s+orbs hit and the balls lost\./.test(pv)
+    && /We also count how each sitting goes \(how many\s+runs, whether a new run follows a game over and how many seconds later, and\s+whether the sitting ended after a game over, mid-run or in the menu\), how long\s+a pilot's very first run lasted, and whether a run ended with two lives lost\s+within 10 seconds\./.test(pv), evs);   // RETENTION
   ck('T1 Terms: kids may play, no "13 and older", children section marked for lawyer review',
     /Anyone may play FLUX, including children/.test(tm) && !/at least 13/.test(tm) && /<div class="review"><strong>For lawyer review before launch\.<\/strong>/.test(tm));
   ck('T1 Terms describe the name rules (one word, letters and numbers, up to 12, no full names)', /a typed name must be one word, letters and numbers\s+only, up to 12 characters/.test(tm) && /Full names/.test(tm) && !/up to 14 characters|dice|Names cannot be typed/.test(tm));

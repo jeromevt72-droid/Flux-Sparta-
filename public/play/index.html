@@ -4676,7 +4676,8 @@ if (window.__fluxLite) fluxApplyLiteParticles();
    (and whether it is the Home Screen app), first run started, run finished
    (length, level reached, difficulty), level-up, share tapped, and for each
    speed step a run reached: seconds at it, orb hits, wrong-colour hits and
-   balls lost (GAMEPLAY) -- are counted
+   balls lost (GAMEPLAY) -- and RETENTION (below: sessions, restarts after a
+   game over, first-run survival, bad failures) are counted
    on our own server with the pilot ID, the chosen country and the link's
    "src" tag (?src=tiktok, ?src=share...). No third party, no advertising ID,
    no personal information. They wait in memory and go in one small
@@ -4684,6 +4685,68 @@ if (window.__fluxLite) fluxApplyLiteParticles();
    waits for it, and if it fails the events are simply dropped. */
 const FLUX_STATS_URL='/api/events';
 let fluxStatsQueue=[], fluxRunStartedAt=0;
+/* RETENTION (anonymous, same rules as STATS; nothing new about a person).
+   A SESSION is one sitting: it ends after 30 minutes without activity (a run
+   starting or ending, the page shown again) or when the page stays hidden
+   for more than 30 minutes; a run being played keeps it open. It is kept in
+   localStorage ("fluxSession": times, runs started, how it stands), so a
+   reload inside 30 minutes is the same sitting. Events:
+     again     {diff,d}         a run started after a game over in the same
+                                session; d = seconds from the game over
+     sess_end  {g,end,diff}     a session ended: runs started in it and how it
+                                ended (end: "over" after a game over, "run"
+                                mid-run, "menu" from the menu)
+     sess_back {g,end,diff}     the page came back within 30 minutes after a
+                                hide that was counted as sess_end: the sitting
+                                goes on, the server takes that count back
+   and run_end (game over) carries st (speed step), bad (1 when the last two
+   lives were lost within 10 s of play) and, on the pilot's very first run
+   only, fs (seconds survived). A hide is counted at once because a page that
+   is closed never runs again; they ride in the normal stats batch. */
+const FLUX_SESSION_GAP_MS=30*60000, FLUX_BAD_WINDOW_S=10;
+let fluxSess=null, fluxLossAt=[], fluxFirstRunNow=false;
+function fluxSessLoad(){ try{ const o=JSON.parse(localStorage.getItem('fluxSession')||'null'); if(o && typeof o.a==='number' && typeof o.g==='number') return o; }catch(e){} return null; }
+function fluxSessSave(){ try{ if(fluxSess) localStorage.setItem('fluxSession',JSON.stringify(fluxSess)); }catch(e){} }
+function fluxSessEnd(s){ const st=(s.st==='run' && !(typeof runActive!=='undefined' && runActive)) ? 'menu' : s.st;   // a run quit to the menu
+  return { g:Math.max(0,Math.min(99,s.g|0)), end:st==='run'||st==='over'?st:'menu', diff:s.df||difficulty }; }
+function fluxSessTouch(now){
+  try{
+    now=now||Date.now();
+    if(!fluxSess) fluxSess=fluxSessLoad();
+    if(fluxSess && fluxSess.rep){   // the last hide was counted as the end
+      if(now-fluxSess.h<=FLUX_SESSION_GAP_MS){ fluxTrack('sess_back',fluxSess.rep); fluxSess.rep=null; }
+      else fluxSess=null;   // it really ended; already counted
+    }
+    if(fluxSess && !fluxSess.rep && now-fluxSess.a>FLUX_SESSION_GAP_MS && !(fluxSess.st==='run' && typeof runActive!=='undefined' && runActive)){
+      fluxTrack('sess_end',fluxSessEnd(fluxSess)); fluxSess=null;   // 30 minutes without activity (page left open)
+    }
+    if(!fluxSess) fluxSess={ a:now, g:0, st:(typeof runActive!=='undefined' && runActive)?'run':'menu', df:difficulty, go:0, rep:null, h:0 };
+    fluxSess.a=now; fluxSessSave();
+  }catch(e){}
+}
+function fluxSessVisible(shown){
+  try{
+    if(shown){ fluxSessTouch(); return; }
+    if(!fluxSess) fluxSessTouch();
+    if(fluxSess && !fluxSess.rep){ fluxSess.rep=fluxSessEnd(fluxSess); fluxSess.h=Date.now(); fluxTrack('sess_end',fluxSess.rep); fluxSessSave(); }
+  }catch(e){}
+}
+function fluxSessRunStart(){
+  try{
+    const now=Date.now(); fluxSessTouch(now);
+    if(fluxSess.st==='over' && fluxSess.go && now>=fluxSess.go) fluxTrack('again',{ diff:difficulty, d:Math.round(Math.min(1800,(now-fluxSess.go)/1000)*10)/10 });   // a restart after a game over
+    fluxSess.g++; fluxSess.st='run'; fluxSess.df=difficulty; fluxSess.go=0; fluxSessSave();
+  }catch(e){}
+}
+function fluxSessGameOver(){ try{ const now=Date.now(); fluxSessTouch(now); fluxSess.st='over'; fluxSess.go=now; fluxSess.df=difficulty; fluxSessSave(); }catch(e){} }
+function fluxSessMenu(){ try{ fluxSessTouch(); if(!(typeof runActive!=='undefined' && runActive)) fluxSess.st='menu'; fluxSessSave(); }catch(e){} }
+function fluxPlaySec(){ let t=0; try{ for(const s of playStats) if(s) t+=s.sec; }catch(e){} return t; }
+function fluxGameOverInfo(){   // added to run_end (a game over)
+  const o={ st:Math.max(0,speedStep|0), bad:0 };
+  const n=fluxLossAt.length; if(n>=2 && fluxLossAt[n-1]-fluxLossAt[n-2]<=FLUX_BAD_WINDOW_S) o.bad=1;   // BAD FAILURE: 2 lives within 10 s
+  if(fluxFirstRunNow){ o.fs=Math.round(fluxPlaySec()); fluxFirstRunNow=false; }   // the pilot's very first run: seconds survived
+  return o;
+}
 function fluxStatsSrc(){
   let s=''; try{ s=localStorage.getItem('fluxSrc')||''; }catch(e){}
   if(!s){
@@ -4722,6 +4785,9 @@ function fluxStatsFlush(){
       try{
         fluxRunStartedAt=Date.now();
         if(!(+localStorage.fluxRunsPlayed>0) && localStorage.fluxStatFirstRun!=='1'){ localStorage.fluxStatFirstRun='1'; fluxTrack('first_run'); }
+        fluxLossAt=[]; fluxFirstRunNow=false;
+        if(!(+localStorage.fluxRunsPlayed>0) && localStorage.fluxStatFirstSec!=='1'){ localStorage.fluxStatFirstSec='1'; fluxFirstRunNow=true; }   // RETENTION: first-run survival, once
+        fluxSessRunStart();
       }catch(x){}
       const r=newGame0.apply(this,arguments);
       try{ fluxNetNote(); }catch(x){}   // FREE PLAN: the offline note never shows during a run
@@ -4729,10 +4795,16 @@ function fluxStatsFlush(){
     };
     const endGame0=endGame;
     endGame=function(){
-      try{ fluxTrack('run_end',{sec:fluxRunStartedAt?Math.round((Date.now()-fluxRunStartedAt)/1000):0,lvl:level,diff:difficulty}); fluxRunStartedAt=0; }catch(x){}
+      try{ fluxTrack('run_end',Object.assign({sec:fluxRunStartedAt?Math.round((Date.now()-fluxRunStartedAt)/1000):0,lvl:level,diff:difficulty},fluxGameOverInfo())); fluxRunStartedAt=0; }catch(x){}   // RETENTION: + speed step, bad failure, first-run survival
       try{ playStats.forEach(function(s,i){ if(s && (s.sec>=1||s.hit||s.wrong||s.lost)) fluxTrack('play',{diff:difficulty,st:i,sec:Math.round(s.sec),hit:s.hit,wrong:s.wrong,lost:s.lost}); }); }catch(x){}   // GAMEPLAY
+      fluxSessGameOver();   // RETENTION
       return endGame0.apply(this,arguments);   // FREE PLAN: the stats go with the score upload at game over (uploadOrAskName)
     };
+    const registerMiss0=registerMiss;
+    registerMiss=function(){ try{ fluxLossAt.push(fluxPlaySec()); }catch(x){} return registerMiss0.apply(this,arguments); };   // RETENTION: when each life is lost (play time)
+    ['gameoverMenuBtn','pauseMenuBtn'].forEach(function(id){ const b=document.getElementById(id), f=b && b.onclick;   // RETENTION: back to the menu
+      if(b && typeof f==='function') b.onclick=function(){ const r=f.apply(this,arguments); fluxSessMenu(); return r; }; });
+    fluxSessTouch();   // this page load: the same sitting (inside 30 min) or a new one
     const finishLevelUp0=finishLevelUp;
     finishLevelUp=function(){ const r=finishLevelUp0.apply(this,arguments); fluxTrack('level_up',{lvl:level,diff:difficulty}); return r; };
     const sb=document.getElementById('shareBtn'); const share0=sb && sb.onclick;
@@ -4740,7 +4812,8 @@ function fluxStatsFlush(){
     // FREE PLAN: no timer. The app-open event rides with the first run's upload;
     // if the app is hidden first, whatever is waiting goes ONCE per page load.
     let hideSent=false;
-    document.onvisibilitychange=function(){ if(document.hidden && !hideSent && fluxStatsQueue.length && !(typeof fluxNetHeld==='function' && fluxNetHeld())){ hideSent=true; fluxStatsFlush(); } };
+    document.onvisibilitychange=function(){ fluxSessVisible(!document.hidden);   // RETENTION: the session's hide / return (queued; sent by the rules below)
+      if(document.hidden && !hideSent && fluxStatsQueue.length && !(typeof fluxNetHeld==='function' && fluxNetHeld())){ hideSent=true; fluxStatsFlush(); } };
   }catch(x){}
 })();
 </script>
