@@ -126,7 +126,8 @@ function suite(gameHtml, quiet = false) {
       /easy:\s*\{[^}]*fluxBurst:1[,}]/.test(code) && /medium:\{[^}]*fluxBurst:1\}/.test(code) && /hard:\s*\{[^}]*fluxBurst:1\.15\}/.test(code)
       && code.includes('return (fluxMode>6-FLUX_BURST_S && c.fluxBurst>1) ? Math.min(topSpeed(),s*c.fluxBurst) : s;') && !/18\.5/.test(code)
       && code.includes('*(fluxMode>0?1.15:1));') && code.includes('120+combo*10+(fluxMode>0?60:0)') && code.includes('200+combo*15+(fluxMode>0?100:0)')
-      && /flux=0;fluxMode=6;score\+=250;/.test(code) && code.includes("if(fluxMode>0){fluxMode-=dt;document.getElementById('app').style.filter='brightness(1.18) saturate(1.35)';"));
+      && /flux=0;fluxMode=6;score\+=250;/.test(code) && (code.includes("if(fluxMode>0){fluxMode-=dt;document.getElementById('app').style.filter='brightness(1.18) saturate(1.35)';")
+        || (code.includes('if(fluxMode>0){fluxMode-=dt;fluxModeLook(true);}else{fluxModeLook(false);}') && code.includes("document.getElementById('app').style.filter=on?'brightness(1.18) saturate(1.35)':'none';"))));   // BATTERY PR A: written once per change
     // X7: one countdown at a time. (Level 4 adds spawns, so it is set 15 s after the last speed step: DIFFICULTY BUDGET.)
     { const a = bootGame('medium'); a.run('playing=true;' + atLv(3) + 'lastStepClock=runClock-15;score=levelScoreAt(4,difficulty);'); frame(a); const lvPending = a.run('pendingLevel');
       a.run('addFlux(100);'); let fluxDuringLevel = false; for (let i = 0; i < 400 && a.run('pendingLevel'); i++) { frame(a); if (a.run('pendingLevel') && (a.run('fluxCountdown') > 0 || a.run('fluxMode') > 0)) fluxDuringLevel = true; }
@@ -159,7 +160,10 @@ function suite(gameHtml, quiet = false) {
     // X9: drawn after the shake transform is undone.
     const drawBody = (code.match(/function draw\(\)\{[\s\S]*?\n\}\n/) || [''])[0];
     const lastRestore = drawBody.lastIndexOf('\n ctx.restore();'), at = drawBody.indexOf('else if(fluxCountdown>0){');
-    ck('X9 the countdown is drawn after the screen-shake transform is undone (it never moves)', at > 0 && lastRestore > 0 && at > lastRestore);
+    // BATTERY PR A: draw() undoes the shake transform, then calls drawSlotBanners(), which holds the countdown.
+    const slotBody = (code.match(/function drawSlotBanners\(\)\{[\s\S]*?\n\}\n/) || [''])[0];
+    const viaSlot = /\n ctx\.restore\(\);\n drawSlotBanners\(\);\n\}/.test(drawBody) && slotBody.indexOf('else if(fluxCountdown>0){') > 0 && drawBody.indexOf('else if(fluxCountdown>0){') < 0;
+    ck('X9 the countdown is drawn after the screen-shake transform is undone (it never moves)', viaSlot || (at > 0 && lastRestore > 0 && at > lastRestore));
   } catch (e) { ck('FLUX mode section ran', false, String(e.stack || e).slice(0, 400)); }
   return { F, failed };
 }

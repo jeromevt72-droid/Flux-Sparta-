@@ -76,7 +76,7 @@ console.log('\n== RUNTIME: execute the merged Gateway and tap Play ==');
   const ctx=vm.createContext(win);
   for(const b of scripts(gwHtml)){ try{ vm.runInContext(b,ctx,{timeout:4000}); }catch(e){} }
   ck('FLUX_GAME_URL resolved to this origin\'s /play/ at runtime', ctx.FLUX_GAME_URL===ORIGIN+'/play/', String(ctx.FLUX_GAME_URL));
-  ck('first Grid request is same-origin and well formed', fetched[0]===ORIGIN+'/api/leaderboard?limit=50', fetched[0]);
+  ck('first Grid request is same-origin and well formed', fetched[0]===ORIGIN+'/api/leaderboard?limit=50&boards=1', fetched[0]);
   if(typeof ctx.openPlayScreen==='function'){
     ctx.openPlayScreen();
     ck('tapping Play navigates within the same origin', nav===ORIGIN+'/play/', String(nav));

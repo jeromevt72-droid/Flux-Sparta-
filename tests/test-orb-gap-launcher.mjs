@@ -112,7 +112,7 @@ control('orbs put back inside the field after spacing again (a pinned orb can si
 control('gap also forced during the game-over collapse', 'G4', rep(' if(playing) keepOrbGap();', ' keepOrbGap();'));
 control('launcher back to the first orb colour', 'L1', rep(' const paddleCol = launcherColour();', " const paddleCol = colors[0]||'#62eaff';"));
 control('Solar launcher too close to an orb (cream)', 'L2', rep("launcher:'#ff7a18'", "launcher:'#fff4e0'"));
-control('white middle stripe back', 'L3', rep('grad.addColorStop(.5,launcherHighlight(paddleCol));', "grad.addColorStop(.5,'#fff');"));
+control('white middle stripe back', 'L3', rep('g.addColorStop(.5,launcherHighlight(col));', "g.addColorStop(.5,'#fff');"));   // BATTERY PR B: the bar's gradient is made in launcherGradient
 const total = main.F + NC;
 console.log('\n' + (total ? 'ORB GAP + LAUNCHER FAILED: ' + main.F + ' check(s), ' + NC + ' uncaught control(s)' : 'ORB GAP + LAUNCHER PASSED: all checks and all negative controls'));
 process.exit(total ? 1 : 0);

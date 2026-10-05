@@ -35,7 +35,10 @@ function suite(gameHtml, quiet = false) {
   ck('B1 the "LEVEL SECURED • FIELD ..." line is gone', !/LEVEL SECURED|'FIELD '\+/.test(code));
   const drawBody = (code.match(/function draw\(\)\{[\s\S]*?\n\}\n/) || [''])[0];
   const lastRestore = drawBody.lastIndexOf('\n ctx.restore();'), bannerAt = drawBody.indexOf('if(levelBanner>0){');
-  ck('B2 the banner is drawn after the screen-shake transform is undone (it never moves onto the line)', bannerAt > 0 && lastRestore > 0 && bannerAt > lastRestore);
+  // BATTERY PR A: draw() undoes the shake transform, then calls drawSlotBanners(), which holds the banner.
+  const slotBody = (code.match(/function drawSlotBanners\(\)\{[\s\S]*?\n\}\n/) || [''])[0];
+  const viaSlot = /\n ctx\.restore\(\);\n drawSlotBanners\(\);\n\}/.test(drawBody) && slotBody.indexOf('if(levelBanner>0){') > 0 && drawBody.indexOf('if(levelBanner>0){') < 0;
+  ck('B2 the banner is drawn after the screen-shake transform is undone (it never moves onto the line)', viaSlot || (bannerAt > 0 && lastRestore > 0 && bannerAt > lastRestore));
   ck('B3 the banner is canvas-drawn: no DOM element, so it can never take a touch', !/id="levelBanner"|levelBanner\b[^;]*createElement/.test(gameHtml) && /\.hud\{[^}]*pointer-events:none/.test(gameHtml));
   for (const d of DEVICES) {
     const { store } = makeStore({ fluxPlayerId: 'bn-1', fluxCallsign: 'T', fluxProfileComplete: '1' });

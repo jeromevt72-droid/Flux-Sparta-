@@ -167,6 +167,15 @@ self.addEventListener('fetch', function (event) {
     const isGameShell = (url.pathname === '/play' || url.pathname === '/play/' || url.pathname === '/play/index.html');
     event.respondWith(
       fetch(req).then(function (res) {
+        /* FREE PLAN: past Cloudflare's daily free limit (or in an outage) a
+           navigation can come back as Cloudflare's own error page (429 / 5xx)
+           instead of the network failing. Treat it like offline: the game is
+           served from the offline shell, anything else goes to the game. */
+        if (res && (res.status === 429 || res.status >= 500)) {
+          return isGameShell
+            ? shellResponse(req).then(function (hit) { return hit.status === 503 ? res : hit; })
+            : Response.redirect(GAME_ROOT, 302);
+        }
         if (isGameShell && isCacheable(res)) {
           const a = res.clone(), b = res.clone(), c = res.clone();
           caches.open(CACHE_VERSION).then(function (cache) {

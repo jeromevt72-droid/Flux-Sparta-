@@ -98,6 +98,27 @@
   .guide h3{font-size:13px;letter-spacing:.08em;margin:18px 0 6px;color:var(--cyan)}
   .guide p,.guide li{font-size:13px;line-height:1.6;color:var(--text)}
   .guide ol,.guide ul{padding-left:20px}
+  .usageAlert{background:rgba(255,79,152,.12);border:1px solid var(--pink);color:#ffd1e4;border-radius:12px;padding:12px 14px;font-size:14px;line-height:1.5;margin:10px 0}
+  .usageAlert b{color:var(--pink)}
+  .hidden{display:none}
+  .meter{margin:12px 0}.meter .lbl{display:flex;justify-content:space-between;gap:10px;font-size:13px;margin-bottom:6px}
+  .meter .lbl span{color:var(--dim)}.meter .bar{height:10px;background:var(--panel2);border:1px solid var(--line);border-radius:99px;overflow:hidden}
+  .meter .fill{height:100%;background:var(--cyan);border-radius:99px}.meter.hot .fill{background:var(--pink)}.meter.warm .fill{background:var(--amber)}
+  textarea{width:100%;background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:12px;padding:12px 14px;font:16px/1.5 ui-monospace,Menlo,monospace;outline:none;resize:vertical;margin:0 0 10px}
+  textarea:focus{border-color:var(--cyan)}
+  .rpWarn{background:rgba(255,79,152,.12);border:1px solid var(--pink);color:#ffd1e4;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.5;margin:8px 0}
+  /* OWNER SUMMARY: status + findings */
+  .ins{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 15px;margin:10px 0}
+  .ins.st-attn{border-color:var(--pink)}.ins.st-ok{border-color:var(--green)}.ins.st-wait{border-color:var(--amber)}
+  .stword{font-size:18px;font-weight:800;letter-spacing:.14em}
+  .st-attn .stword{color:var(--pink)}.st-ok .stword{color:var(--green)}.st-wait .stword{color:var(--amber)}
+  .find{border-top:1px solid var(--line);padding:11px 0 2px;margin-top:10px}
+  .find .ft{font-size:15px;font-weight:700;line-height:1.35}
+  .find p{margin:6px 0 0;font-size:13px;line-height:1.5}.find p b{color:var(--dim);font-weight:700}
+  .find .hyp{color:var(--dim)}
+  .conf{font-size:11px;letter-spacing:.12em;color:var(--dim);margin-top:6px}
+  textarea.export{width:100%;min-height:220px;background:#050a22;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px;
+       font:12px/1.45 ui-monospace,Menlo,monospace;white-space:pre-wrap;user-select:text;-webkit-user-select:text;margin:8px 0}
   .logrow{color:var(--dim);font-size:12px;line-height:1.5;padding:6px 0;border-top:1px solid var(--line);white-space:pre-line}
 </style>
 </head>
@@ -126,9 +147,17 @@
   <div id="app" hidden>
   <div id="status" role="status" aria-live="polite"></div>
 
+  <h2>HOW FLUX IS DOING</h2>
+  <div id="insights"></div>
+
   <h2>TODAY</h2>
+  <div id="usageAlert" class="usageAlert hidden" role="alert"></div>
   <div id="summary"></div>
   <div class="row"><button id="sumLoad" class="ghost" style="flex:1">REFRESH SUMMARY</button></div>
+
+  <h2>FREE PLAN USAGE · TODAY (UTC)</h2>
+  <div class="row"><button id="usageLoad" class="ghost" style="flex:1">CHECK REQUESTS TODAY</button></div>
+  <div id="usage"></div>
 
   <h2>EXCEPTIONS NEEDING ATTENTION</h2>
   <div class="row"><button id="loadEx" class="ghost" style="flex:1">CHECK EXCEPTIONS</button></div>
@@ -145,7 +174,28 @@
   but nothing they submit appears publicly. Restrictions follow a player's device identity; if they clear
   their browser data, they return with a new tag.</p>
 
+  <h2>REMOVE PILOTS</h2>
+  <p class="note">Takes test pilots off every board and out of the country totals, several at once, with a check after.
+  One pilot per line: its <b>exact name and full #TAG</b> (for example <b>TITAN #QGAC1ZN</b>). <b>DRY RUN</b> changes nothing and
+  shows what would go. Removing needs a checked backup from the last 60 minutes and the phrase the dry run shows.
+  Purchases are kept. See <b>Removing test pilots: REMOVE PILOTS</b> in the guide.</p>
+  <textarea id="rpLines" rows="4" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Pilots to remove, one NAME #TAG per line" placeholder="TITAN #QGAC1ZN&#10;TESTER #VNXB79C"></textarea>
+  <div class="row"><button id="rpDry" class="go" style="flex:1">DRY RUN</button></div>
+  <div id="rpReport"></div>
+  <div id="rpGo" hidden>
+    <p id="rpAsk" class="note"></p>
+    <div class="row">
+      <input id="rpConfirm" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Type the phrase to remove">
+      <button id="rpRemove" class="danger" disabled>REMOVE NOW</button>
+    </div>
+  </div>
+  <div id="rpResult"></div>
+  <p class="note"><b>Undo:</b> there is no un-remove. Restore the backup taken just before: BACKUPS → <b>SHOW BACKUPS</b> →
+  on that backup (or the safety copy REMOVE NOW made) press <b>DRY RUN</b> → <b>RESTORE NOW</b>. A restore puts everything back
+  as it was at that backup, so do it right away.</p>
+
   <h2>PLAYER STATS</h2>
+  <div id="stInsights"></div>
   <p class="note">Anonymous, counted on our own server. See the guide below for what each number means.</p>
   <div class="row">
     <select id="stRange" aria-label="Period"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option><option value="365">Last 12 months</option></select>
@@ -174,6 +224,63 @@
     <button id="bkUpload" class="ghost">UPLOAD</button>
   </div>
 
+  <h2>STORAGE</h2>
+  <p class="note">How the leaderboard is kept on the server. The <b>old layout</b> keeps every pilot in one stored value that
+  Cloudflare caps at 2 MB (about 8,000 pilots); past that, every score upload fails. The <b>new layout</b> keeps one row per pilot
+  and works far beyond 200,000 pilots on the free plan. You move it once, in the steps below. Nothing happens by itself.
+  See <b>Storage move (2 MB limit)</b> in the guide.</p>
+  <div class="row"><button id="sgLoad" class="ghost" style="flex:1">SHOW STORAGE</button></div>
+  <div id="storage"></div>
+
+  <h2>WORLD GRID</h2>
+  <p class="note">One World Grid from the Season 0 archive and Season 1: each pilot's best of both, counted once. <b>DRY RUN</b> changes
+  nothing. Applying needs a checked backup from the last hour and the phrase the dry run shows. It works on the <b>new storage layout</b> only:
+  move the storage first (STORAGE). See <b>Combined World Grid</b> in the guide below.</p>
+  <div id="wgState"></div>
+  <div class="row">
+    <button id="wgDry" class="go" style="flex:1">DRY RUN</button>
+    <button id="wgRevert" class="ghost">REVERT</button>
+  </div>
+  <div id="wgReport"></div>
+
+  <h2>FOUNDING PILOT</h2>
+  <p class="note">The first <b>1,000 pilots</b>, in the order they joined, get the whole <b>Solar Inferno</b> package free forever: its orb colours,
+  its orange launcher and its backdrop, on every device and through their restore code. Stripe purchases are not touched. It is <b>OFF</b> until you
+  switch it on. <b>DRY RUN</b> changes nothing. Switching ON needs a checked backup from the last hour and the phrase <b>FOUNDING ON</b>.
+  See <b>Founding Pilot</b> in the guide below.</p>
+  <div id="fpState"></div>
+  <div class="row">
+    <button id="fpLoad" class="ghost" style="flex:1">SHOW</button>
+    <button id="fpDry" class="go">DRY RUN</button>
+  </div>
+  <div id="fpReport"></div>
+  <div class="row">
+    <input id="fpConfirm" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Type FOUNDING ON" aria-label="Confirmation phrase">
+    <button id="fpOn" class="danger" disabled>TURN ON</button>
+  </div>
+  <div class="row"><button id="fpOff" class="ghost" style="flex:1">TURN OFF</button></div>
+  <p class="note"><b>Exclusion list</b> (your test pilots): a pilot on it never gets a number. Add them before you switch ON.</p>
+  <div class="row">
+    <input id="fpTag" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="#TAG" aria-label="Pilot #TAG">
+    <button id="fpAdd" class="go">EXCLUDE</button>
+  </div>
+  <div id="fpExcl"></div>
+  <p class="note"><b>Give a number by hand</b> (one pilot that was missed, e.g. your own second pilot): type its exact <b>NAME #TAG</b> and
+  press <b>CHECK</b>. CHECK changes nothing: it says why that pilot has no number and what GIVE would do. A removed pilot is brought back
+  from the newest backup that holds it first. Giving needs a checked backup from the last 60 minutes and the phrase CHECK shows.</p>
+  <div class="row">
+    <input id="fgLine" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="NAME #TAG" aria-label="Pilot to give a number, as NAME #TAG">
+    <button id="fgCheck" class="go">CHECK</button>
+  </div>
+  <div id="fgReport"></div>
+  <div id="fgGo" hidden>
+    <div class="row">
+      <input id="fgConfirm" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Type the phrase to give the number">
+      <button id="fgGive" class="danger" disabled>GIVE NUMBER</button>
+    </div>
+  </div>
+  <div id="fgResult"></div>
+
   <details id="guide" class="guide">
     <summary>GUIDE</summary>
 
@@ -189,6 +296,35 @@
       <li>They open FLUX → <b>EDIT</b> → <b>HAVE A RESTORE CODE?</b> (if that button says <b>RESTORE CODE</b>, tap it, then
       <b>RESTORE A DIFFERENT PILOT</b>) and paste the code. Their pilot, scores and skins come back.</li>
     </ol>
+
+    <h3>Removing test pilots (and what to do about a cheater)</h3>
+    <p><b>Remove score</b> takes a pilot off every public board and out of the country totals. It is meant for your own
+    test pilots and mistakes. <b>Restrict</b> is for a suspected cheater: they keep playing, but nothing they submit
+    shows publicly, and you can lift it any time with <b>UNRESTRICT</b>. <b>PRIVACY DELETE</b> is only for a player's
+    deletion request: it erases everything, also from backups, and cannot be undone.</p>
+    <ol>
+      <li><b>Back up first:</b> BACKUPS → <b>BACK UP NOW</b>. Wait for the new backup to show ✓ (verified).</li>
+      <li><b>Note the country total:</b> in the game, LEADERBOARD → <b>WORLD</b>, write down your country's points
+      (the board refreshes about once a minute).</li>
+      <li><b>Find the exact pilot:</b> FIND A PLAYER → type the name <b>and</b> its #TAG, e.g. <code>TITAN #QGAC1ZN</code> →
+      <b>FIND</b>. Check the card shows that exact #TAG. Never act on a card whose #TAG you did not type: pilots can
+      share a name.</li>
+      <li><b>Remove it:</b> on that card press <b>REMOVE SCORE</b>, read the box, press OK. Repeat for each test pilot.</li>
+      <li><b>Check:</b> FIND the same name and #TAG again: it should say nothing was found. After a minute, LEADERBOARD →
+      WORLD: your country's total dropped by that pilot's counted score. Look up your real pilot too and make sure it is
+      still there.</li>
+    </ol>
+    <p><b>Season 0 scores:</b> with the combined World Grid on, a removed pilot's Season 0 bests leave the boards and
+    the country totals too. Don't play on a removed test pilot again: if it posts a new score, its Season 0 bests come
+    back with it.</p>
+    <p><b>Removed the wrong pilot?</b> There is no "un-remove" button. Do this at once: BACKUPS → <b>SHOW BACKUPS</b> →
+    on the backup you took in step 1 press <b>DRY RUN</b> (it changes nothing and lists what a restore would change) →
+    if it only brings that pilot back plus the few minutes since, type the phrase shown (<code>RESTORE …</code>) and
+    press <b>RESTORE NOW</b>. A restore puts back <b>everything</b> as it was at that backup, so scores other players
+    posted since then are lost: that is why you back up right before removing, and restore right away.</p>
+    <p><b>Spotting test pilots:</b> names like TEST, TESTER, QA, ADMIN or your own name with a different #TAG; pilots
+    from your country that played only on the days you were testing; several pilots with the same name. Search the
+    name alone (e.g. <code>TITAN</code>) to see every pilot using it, then decide by #TAG.</p>
 
     <h3>Pilot names</h3>
     <ul>
@@ -210,9 +346,30 @@
       <li>Every old best was copied first: <b>SEASON 0 SCORES (ARCHIVED)</b> lists them (difficulty, pilot, country, score,
       level, date), highest first. It is read-only and never shown to players. A privacy deletion removes the pilot there too.</li>
       <li>Only scores were reset. Pilots, names, #tags, countries, skins, purchases, restore codes, restrictions, name bans and
-      stats are unchanged. Players see "Season 1 starts now!" once; their phone's old bests are cleared to match.</li>
+      stats are unchanged. Players who had played before see "Season 1: new point rates on Easy and Medium." once; their phone's old bests are cleared to match.</li>
       <li>A game page left open from before Season 1 cannot post old-rate scores; it is refused until the page reloads.</li>
     </ul>
+
+    <h3>Removing test pilots: REMOVE PILOTS</h3>
+    <ol>
+      <li><b>Back up first:</b> BACKUPS → <b>BACK UP NOW</b>. Wait for the new backup to show ✓ (verified).</li>
+      <li><b>List the exact pilots:</b> under REMOVE PILOTS paste one per line, the name <b>and</b> its full #TAG, e.g.
+      <code>TITAN #QGAC1ZN</code>. A line that is not exactly one pilot (a name alone, part of a #TAG, a name shared by
+      two pilots with the same short #TAG) is refused, never guessed.</li>
+      <li><b>DRY RUN</b> (changes nothing). Check every line says FOUND, the bests and country are the test pilot's, and
+      that your real pilot (e.g. <code>TITAN #KH2K8J7</code>) is <b>not</b> in the report. A pink box means that pilot owns
+      skins: stop and check before going on.</li>
+      <li>Type the phrase shown (<code>REMOVE …</code>) and press <b>REMOVE NOW</b>. If the pilots changed since the dry run,
+      or the backup is older than 60 minutes, nothing is removed and it says what to do.</li>
+      <li><b>Check:</b> the post-check must say <b>PASS</b> on every line: each removed pilot not found, Season 0 bests gone,
+      purchases kept, country totals equal a full recount, every other pilot unchanged. FIND your real pilot to see it
+      is still there.</li>
+    </ol>
+    <p>Removed pilots lose their Season 0 bests too, so they can't come back if that device plays again (it starts again
+    from zero). Purchases and the upload cooldown are kept, as with REMOVE SCORE.</p>
+    <p><b>Removed the wrong pilot?</b> There is no "un-remove". At once: BACKUPS → <b>SHOW BACKUPS</b> → on the backup you
+    took in step 1 (or the safety copy REMOVE NOW made) press <b>DRY RUN</b> → type the phrase shown (<code>RESTORE …</code>)
+    → <b>RESTORE NOW</b>. Scores posted after that backup are lost, so restore right away.</p>
 
     <h3>Backups and restore</h3>
     <ul>
@@ -234,6 +391,83 @@
       last 3 days are delivered again by the automatic payment check; older ones can be looked up in the purchase records under ADVANCED.
       Anonymous PLAYER STATS are not part of backups.</li>
       <li>A <b>privacy deletion</b> also removes the pilot from every backup on the server, so a restore never brings them back.</li>
+    </ul>
+
+    <h3>Founding Pilot</h3>
+    <ul>
+      <li><b>What it gives:</b> the complete <b>Solar Inferno</b> package (its five orb colours, its orange launcher and the Solar Inferno
+      backdrop) free forever, to pilots <b>#1 to #1,000</b>. It is recorded as a <b>Founding Pilot grant</b>, never as a Stripe purchase: PURCHASE
+      RECORDS, grants and revokes of real purchases work exactly as before. The pilot's restore code brings it back on any device.</li>
+      <li><b>Who counts:</b> pilots in the order they joined (every difficulty). Existing pilots are numbered when you switch ON (one batch);
+      after that each new pilot gets the next number until #1,000. Never numbered: restricted pilots, removed or privacy-deleted pilots, and
+      pilots on your <b>exclusion list</b>. A number is never given twice and never taken back, unless you press <b>TAKE BACK</b> (it then stays used).</li>
+      <li><b>Steps:</b> (1) <b>BACK UP NOW</b> under BACKUPS. (2) <b>DRY RUN</b>: check how many pilots would be numbered, the first and last ones and
+      who is left out and why. (3) Add your test pilots by <b>#TAG</b> to the exclusion list and run the dry run again. (4) Type <b>FOUNDING ON</b>
+      and press <b>TURN ON</b>. (5) Check the counter here and on the first screen; the game shows "Founding Pilot spots left" in the menu.</li>
+      <li><b>Players see:</b> a FOUNDING PILOT badge on their menu and their leaderboard rows, and once: "You're Founding Pilot #N! Solar Inferno
+      is yours." Nothing changes in the game itself. <b>TURN OFF</b> stops new numbers and hides the spots-left line; numbers already given stay.</li>
+      <li><b>Free plan:</b> switching ON writes one row per numbered pilot plus 2 (1,002 rows for 1,000 pilots, of the 100,000 a day) and reads
+      each pilot once. A new pilot's first run writes 1 more row (their grant). Runs, restarts and the leaderboard cost what they cost today.</li>
+      <li><b>A pilot was missed (give a number by hand):</b> (1) <b>BACK UP NOW</b>. (2) Under FOUNDING PILOT type its exact <b>NAME #TAG</b>
+      (the device's menu shows it) and press <b>CHECK</b>. It changes nothing and says why: already numbered, on your exclusion list, removed
+      (REMOVE PILOTS / REMOVE SCORE), removed and then played again, restricted, or not found (that device never uploaded a score: play one run
+      on it while the offer is ON). (3) If GIVE is offered, read what it will do, type the phrase it shows (<b>GIVE …</b>) and press
+      <b>GIVE NUMBER</b>. A removed pilot is first brought back from the newest backup that holds it (its scores and restore code; Season 0
+      bests are not). A safety backup is taken first; the check after must say PASS. Undo: BACKUPS → DRY RUN → RESTORE NOW with that safety backup.</li>
+      <li><b>Checks for you:</b> CHECK EXCEPTIONS lists every pilot that should have a number but has none (offer ON, spots left, not
+      restricted, not excluded), with a CHECK button for each. Removed pilots are counted but not listed: they are left out on purpose.</li>
+      <li><b>Help requests:</b> the game menu has a <b>HELP</b> button. A player taps one topic (Founding Pilot badge missing, lost pilot,
+      something broken, something else); you see it under EXCEPTIONS NEEDING ATTENTION with their pilot name and #TAG. They cannot type
+      anything, so no personal data is ever sent, and you cannot reply in the game: fix what you can (CHECK / GIVE, a restore code) and press
+      <b>DONE</b>. Requests are deleted after 90 days, and with a privacy deletion.</li>
+    </ul>
+
+    <h3>Combined World Grid</h3>
+    <ul>
+      <li><b>What it does:</b> the game's EARTH, MARS and JUPITER boards, the WORLD tab (country totals) and the grid on the gateway page show each
+      pilot's <b>best of Season 0 and Season 1</b>, per difficulty. For a country, each pilot counts once at their best weighted score, exactly like
+      today. Two scores are never added together.</li>
+      <li><b>Nothing is rewritten.</b> The Season 0 archive and every Season 1 best stay exactly as stored; the combined grid is worked out from them.
+      <b>REVERT</b> switches back to Season 1 only at any time, and APPLY switches it on again.</li>
+      <li><b>New storage only:</b> the combined grid needs the storage move (STORAGE) done first. On the old layout the WORLD GRID
+      buttons answer "Move the storage first" and change nothing.</li>
+      <li><b>Steps:</b> (1) <b>BACK UP NOW</b> under BACKUPS. (2) <b>DRY RUN</b>: every check must say <b>PASS</b>, first of all
+      <b>no current score lost</b>. Read the countries before and after and the flagged list. (3) If you approve, type the phrase it shows
+      (<b>APPLY</b> and the dry run's name) within 60 minutes and press <b>APPLY NOW</b>. The server checks the backup, saves a safety copy,
+      switches, then checks the live grid; if that check fails it switches back by itself. (4) Open the game's leaderboard and the gateway page:
+      they say "Season 0 + Season 1".</li>
+      <li><b>Flagged</b> entries are Season 0 scores that are left out, with the reason: the pilot no longer exists (score removed or deleted), was
+      privacy-deleted, appears twice in the archive with different data, or the score is not valid. They are never guessed or brought back.
+      Restricted pilots stay hidden, as today.</li>
+      <li>A pilot who changed name or country since Season 0 is shown under their <b>current</b> name and counts for their <b>current</b> country.</li>
+      <li><b>Free plan:</b> the dry run reads each pilot once and writes nothing. APPLY is a one-off: it reads each pilot a few times
+      and writes the Season 0 table once (about 4 rows per archived pilot — about 16,000 at 4,000 archived pilots, of the 100,000 a day).
+      After that a run writes exactly the rows it writes today, and a restart never reads every pilot. REVERT writes 2 rows.</li>
+      <li>Season 0 Easy and Medium scores were earned at the old, higher point rates; with the combined grid they can count again. The dry run
+      shows how many bests come from Season 0 on each difficulty.</li>
+    </ul>
+
+    <h3>Storage move (2 MB limit)</h3>
+    <ul>
+      <li><b>Why:</b> the old layout stores every pilot in one value, and Cloudflare caps a value at 2 MB — about 8,000 pilots.
+      <b>STORAGE</b> shows how full it is. Move before it passes about 75%.</li>
+      <li><b>1. Back up.</b> Press <b>BACK UP NOW</b>. The move refuses to start without a checked backup from the last 60 minutes.</li>
+      <li><b>2. Dry run.</b> Press <b>DRY RUN</b>. It builds the new layout in memory and compares everything with the old one —
+      every pilot, best, cooldown, purchase (incl. Solar Inferno), #tag, restore code, the four leaderboards and the country totals —
+      and shows PASS or FAIL for each, plus how many rows the move will write. It changes nothing. If anything says FAIL, stop and ask for help.</li>
+      <li><b>3. Approve and move.</b> Type the phrase it shows (<b>MIGRATE</b> and the dry run's name) and press <b>MOVE NOW</b>. The server
+      takes a safety backup first, then copies the pilots in batches (a few seconds for 8,000 pilots). Players keep playing meanwhile.
+      At the end it pauses everything for a moment, copies what changed, compares again, and only then switches. If a comparison
+      fails it does not switch and FLUX stays on the old layout. If it stops half-way, press MOVE NOW again: it continues.</li>
+      <li><b>4. Check.</b> Press <b>CHECK A SAMPLE</b>, then <b>CHECK EVERY PILOT</b>. Each public answer (leaderboards, countries,
+      skins, restore codes, #tags) is compared between the old and the new layout: PASS or FAIL. Pilots who played since the move are
+      counted as changed, not as failures.</li>
+      <li><b>If the check fails:</b> type <b>ROLLBACK</b> and press <b>ROLL BACK</b>. FLUX goes back to the old layout, keeping every score and
+      purchase made since the move (a safety backup is taken first).</li>
+      <li><b>Later, once everything has run well for a while:</b> <b>CLEAN UP</b> removes the old layout's copy (only after
+      CHECK EVERY PILOT passed; a safety backup is taken first). After that, going back is only possible by restoring a backup.</li>
+      <li>Backups keep working on the new layout: they are copied page by page, and score uploads wait a few seconds while that happens
+      (the game retries them by itself). A privacy deletion also removes the pilot from the old layout's copy and from every backup.</li>
     </ul>
 
     <h3>Reading PLAYER STATS</h3>
@@ -265,6 +499,36 @@
       means that difficulty could go a little faster. Compare Easy, Medium and Hard: each should lose lives faster than the
       one before at the same step.</li>
       <li>Only totals by difficulty and step are kept here — no country, no source, nothing about a person.</li>
+    </ul>
+
+    <h3>Owner summary (status and findings)</h3>
+    <ul>
+      <li>At the top of the first screen (<b>HOW FLUX IS DOING</b>) and of PLAYER STATS. The server checks the anonymous totals
+      against <b>fixed rules</b> (no AI, nothing guessed by a program): the same numbers always give the same answer. Nothing is stored for it.</li>
+      <li><b>Status</b>: <b>NEEDS ATTENTION</b> if an operational problem exists (exceptions waiting, a backup problem, many wrong admin
+      passwords) or a high-severity rule fired with PRELIMINARY confidence or better. Otherwise <b>NOT ENOUGH DATA YET</b> if fewer than 30
+      new players have had their day 1, or fewer than 30 player-days were counted in the last 7 days. Otherwise <b>HEALTHY</b>.</li>
+      <li><b>Confidence</b> comes from the sample size: <b>INSUFFICIENT</b> under 30, <b>PRELIMINARY</b> 30–99, <b>MODERATE</b> 100–499,
+      <b>STRONG</b> 500 or more. Operational findings are direct counts. A rule is not checked below its minimum sample.</li>
+      <li>Each finding has <b>Measured</b> (the fact, with its numbers and dates) and <b>Possible reason</b> (a fixed hint tied to the rule —
+      a guess to check, never a measured fact). The top 3 are shown: high severity first, then higher confidence, then the bigger effect.</li>
+      <li>Periods are whole UTC days: last 7 days = yesterday and the 6 days before; compared with the 7 days before that.</li>
+      <li><b>The rules</b>:
+        <ul>
+          <li><b>Day-1 return low</b> (high): under 20% of players who started in the last 30 days came back the next day. Minimum 30 players.</li>
+          <li><b>A source brings players who return less</b> (medium): a source's day-1 return is 10 points or more below all other sources. Minimum 30 players in the source.</li>
+          <li><b>New players who never start a run</b> (high): under 60% of last week's new players started a first run. Minimum 30 new players.</li>
+          <li><b>Fewer runs per player</b> (medium): runs per player per day fell 20% or more from the week before. Minimum 30 player-days each week.</li>
+          <li><b>Very short runs on a difficulty</b> (medium): a difficulty's average run is under 30 s (GAMEPLAY, last 30 days). Minimum 30 runs.</li>
+          <li><b>Misses jump at a speed step</b> (medium): misses per minute at a step are 1.5× the step before and at least 2 more per minute (GAMEPLAY, last 30 days). Minimum 30 runs at both steps.</li>
+          <li><b>Share rate changed</b> (low): up or down 50% or more from the week before (and by at least 0.5 points). Minimum 100 runs each week.</li>
+          <li><b>Few Home Screen opens</b> (low): under 5% of opens in the last 30 days came from the installed app. Minimum 100 opens.</li>
+          <li><b>Exceptions waiting</b>, <b>backup problem</b> (no good daily backup in 36 hours or the latest failed), <b>wrong admin passwords</b>
+          (10 or more in 24 hours, a locked device, or safety mode): operational, always NEEDS ATTENTION.</li>
+        </ul></li>
+      <li><b>EXPORT REPORT</b> copies a plain-text report for the last 7 and last 30 days (status, findings, totals, day 1 / day 7, sources,
+      countries, GAMEPLAY by difficulty, operations). It holds no player IDs, names, tags, device codes or addresses; a source or country with
+      fewer than 5 new players is merged into "other", and "other" under 5 shows no numbers. If this device cannot copy, the text appears in a box to select.</li>
     </ul>
 
     <h3>Reading RETENTION and BAD FAILURES</h3>
@@ -402,8 +666,10 @@
     b.disabled = false;
   }
   function wipe() {
-    ['summary', 'exceptions', 'results', 'stats', 'season0', 'purchases', 'bans'].forEach(function (id) { $(id).textContent = ''; });
-    ['q', 'pq', 'banName'].forEach(function (id) { $(id).value = ''; });
+    ['insights', 'stInsights', 'summary', 'usage', 'exceptions', 'results', 'stats', 'season0', 'purchases', 'bans', 'wgState', 'wgReport', 'rpReport', 'rpResult', 'fpState', 'fpReport', 'fpExcl', 'fgReport', 'fgResult'].forEach(function (id) { $(id).textContent = ''; });
+    $('usageAlert').classList.add('hidden');
+    ['q', 'pq', 'banName', 'rpLines', 'rpConfirm', 'fpConfirm', 'fpTag', 'fgLine', 'fgConfirm'].forEach(function (id) { $(id).value = ''; });
+    rpDry = null; $('rpGo').hidden = true; fgReset();
     say('');
   }
   async function logout() {
@@ -425,6 +691,7 @@
   async function loadSummary() {
     var box = $('summary');
     var d = await call('summary');
+    renderInsights($('insights'), d.insights); renderInsights($('stInsights'), d.insights);
     box.textContent = '';
     var tiles = el('div', 'tiles');
     function tile(v, label, cls) { var t = el('div', 'tile' + (cls ? ' ' + cls : '')); t.appendChild(el('b', null, v)); t.appendChild(el('span', null, label)); tiles.appendChild(t); }
@@ -456,8 +723,73 @@
       (bk.lastDailyAt ? 'Last good daily backup: ' + when(bk.lastDailyAt) : 'No daily backup yet.') +
       (bk.ok ? ' ✓' : '\n' + (bk.stale ? 'No daily backup in the last 36 hours. ' : '') + (bk.lastError ? 'Latest failure ' + when(bk.lastError.at) + ': ' + bk.lastError.error : '') + '\nSee BACKUPS below.')));
     box.appendChild(bc);
+    // FREE PLAN: today's requests vs the free daily limits, and the 80% alert, on the first screen.
+    if (d.usage) renderUsage(d.usage, true);
+    var uc = el('div', 'card' + (d.usage && d.usage.alert ? ' restricted' : ''));
+    uc.appendChild(el('div', 'name', 'Free plan usage'));
+    uc.appendChild(el('div', 'meta', !d.usage ? 'Unavailable right now.' :
+      'Worker requests ' + fmt(d.usage.usage.workerRequests) + ' / ' + fmt(d.usage.limits.workerRequests) + ' (' + Math.round(d.usage.pct.workerRequests) + '%)' +
+      ' · Durable Object requests ' + Math.round(d.usage.pct.doRequests) + '% · rows written ' + Math.round(d.usage.pct.rowsWritten) + '%' +
+      (d.usage.alert ? '\nAbove ' + d.usage.alertPct + '% of a free daily limit. See FREE PLAN USAGE below.' : '')));
+    box.appendChild(uc);
+    var fc = el('div', 'card');   // FOUNDING PILOT: the counter on the first screen
+    fc.appendChild(el('div', 'name', 'Founding Pilot'));
+    fc.appendChild(el('div', 'meta', fpCounterText(d.founding)));
+    box.appendChild(fc);
+    var wg = d.worldGrid, wc = el('div', 'card');   // COMBINED WORLD GRID: is it live?
+    wc.appendChild(el('div', 'name', 'World Grid'));
+    wc.appendChild(el('div', 'meta', wgStateText(wg)));
+    box.appendChild(wc);
     box.appendChild(el('div', 'asof', (p ? 'Today = ' + p.date + ' (UTC)' : 'Today (UTC)') + ' · updated ' + new Date(d.at || Date.now()).toLocaleTimeString() +
       ' · purchase amounts are in Stripe'));
+  }
+  /* ---------------- owner summary: status, findings, export ----------------
+     The server works it out by fixed rules (worker.js, OWNER SUMMARY; the GUIDE
+     lists them). This only draws it, as text, and copies the export text. */
+  var ST_CLASS = { 'HEALTHY': 'st-ok', 'NEEDS ATTENTION': 'st-attn', 'NOT ENOUGH DATA YET': 'st-wait' };
+  var ST_LINE = { 'HEALTHY': 'No rule found a problem. Numbers below are for looking deeper.',
+    'NEEDS ATTENTION': 'Something below needs a look — the first finding matters most.',
+    'NOT ENOUGH DATA YET': 'Too few players so far for the rules to tell much. Findings below (if any) are early signs only.' };
+  function renderInsights(box, ins) {
+    box.textContent = '';
+    if (!ins) { box.appendChild(el('div', 'empty', 'The owner summary is unavailable right now.')); return; }
+    var c = el('div', 'ins ' + (ST_CLASS[ins.status] || ''));
+    c.appendChild(el('div', 'stword', ins.status));
+    c.appendChild(el('div', 'meta', ST_LINE[ins.status] || ''));
+    var m = ins.main || {}, d1 = m.day1Players || {}, wk = m.weekPlayerDays || {};
+    c.appendChild(el('div', 'conf', 'MAIN SAMPLES: ' + fmt(d1.n) + ' NEW PLAYERS WITH DAY 1 OVER (' + d1.confidence + ') · ' + fmt(wk.n) + ' PLAYER-DAYS, LAST 7 DAYS (' + wk.confidence + ')'));
+    (ins.findings || []).forEach(function (f, i) {
+      var x = el('div', 'find');
+      var t = el('div', 'ft', (i + 1) + '. ' + f.title);
+      t.appendChild(el('span', 'pill ' + (f.severity === 'high' ? 'pink' : 'amber'), f.severity.toUpperCase()));
+      x.appendChild(t);
+      var p1 = el('p'); p1.appendChild(el('b', null, 'Measured: ')); p1.appendChild(document.createTextNode(f.measured)); x.appendChild(p1);
+      var p2 = el('p', 'hyp'); p2.appendChild(el('b', null, 'Possible reason: ')); p2.appendChild(document.createTextNode(f.reason + ' (a guess to check, not measured)')); x.appendChild(p2);
+      x.appendChild(el('div', 'conf', f.kind === 'ops' ? 'DIRECT COUNT (NOT A SAMPLE) · OPERATIONAL' : 'SAMPLE: ' + String(f.sampleText).toUpperCase() + ' · CONFIDENCE: ' + f.confidence));
+      c.appendChild(x);
+    });
+    if (!(ins.findings || []).length) c.appendChild(el('div', 'find', 'No findings: no rule fired.'));
+    var ck = ins.checked || [], thin = ck.filter(function (r) { return !r.enough; }).length;
+    c.appendChild(el('div', 'asof', 'Checked ' + ck.length + ' fixed rules · ' + fmt(ins.firedCount) + ' fired' + (ins.firedCount > (ins.findings || []).length ? ' (top ' + ins.findings.length + ' shown)' : '') +
+      ' · ' + thin + ' need more data · last complete days up to ' + ins.today + ' (UTC). See GUIDE › Owner summary.'));
+    var out = el('div');
+    var row = el('div', 'actions'); row.appendChild(btn('EXPORT REPORT', 'ghost', function () { exportReport(ins['export'] || '', out); }));
+    c.appendChild(row); c.appendChild(out);
+    box.appendChild(c);
+  }
+  // Copies the plain-text report (last 7 and 30 days, no personal data). No clipboard: a text box to select from.
+  function exportReport(text, out) {
+    function showBox(msg) {
+      out.textContent = '';
+      out.appendChild(el('div', 'note', msg));
+      var ta = el('textarea', 'export'); ta.readOnly = true; ta.value = text; ta.setAttribute('aria-label', 'Report text');
+      out.appendChild(ta);
+      try { ta.focus(); ta.select(); ta.scrollTop = 0; } catch (e) {}
+    }
+    var cb = navigator.clipboard;
+    if (!cb || typeof cb.writeText !== 'function') { showBox('This browser cannot copy by itself. The report is selected below: copy it.'); return; }
+    cb.writeText(text).then(function () { out.textContent = ''; out.appendChild(el('div', 'note ok', 'Report copied (last 7 and 30 days, no personal data). Paste it anywhere.')); },
+      function () { showBox('Copying was blocked. The report is selected below: copy it.'); });
   }
   async function act(button, busy, fn) {
     var label = button.textContent; button.disabled = true; button.textContent = busy;
@@ -469,8 +801,10 @@
     var box = $('exceptions'); box.textContent = '';
     say('Checking…');
     var d = await call('exceptions');
-    var flags = d.flags || [], delivery = d.delivery || [];
-    if (!flags.length && !delivery.length) { box.appendChild(el('div', 'empty', 'Nothing needs attention.')); say(''); renderBans(d.nameBans || []); renderRestoreLog(d.restoreLog || []); return; }
+    var flags = d.flags || [], delivery = d.delivery || [], fgaps = d.founding && d.founding.count ? d.founding : null, help = d.help || [];
+    renderHelp(box, help);
+    if (fgaps) renderFoundingGaps(box, fgaps);
+    if (!flags.length && !delivery.length && !fgaps && !help.length) { box.appendChild(el('div', 'empty', 'Nothing needs attention.')); say(''); renderBans(d.nameBans || []); renderRestoreLog(d.restoreLog || []); return; }
     delivery.forEach(function (x) {
       var c = el('div', 'card');
       c.appendChild(el('div', 'name', 'Payment not delivered'));
@@ -499,6 +833,42 @@
       c.appendChild(a); box.appendChild(c);
     });
     say(''); renderBans(d.nameBans || []); renderRestoreLog(d.restoreLog || []);
+  }
+  /* HELP: what players asked for from the game menu (a topic only, with their pilot name and #TAG). */
+  var HELP_HINT = { badge: 'Press CHECK: it fills "Give a number by hand" under FOUNDING PILOT and says why there is no number.',
+    lost: 'They are on a new pilot now. See "A player lost their pilot" in the guide; FIND shows this pilot.',
+    bug: 'Look at GAMEPLAY / STATS for anything unusual on their difficulty.', other: 'Nothing specific to do; FIND shows this pilot.' };
+  function renderHelp(box, list) {
+    list.forEach(function (x) {
+      var c = el('div', 'card'), h = el('div');
+      h.appendChild(el('span', 'name', 'Help: ' + x.label));
+      h.appendChild(el('span', 'pill amber', 'HELP'));
+      c.appendChild(h);
+      c.appendChild(el('div', 'meta', x.name + ' #' + x.tag + ' · asked ' + when(x.at) + (x.times > 1 ? ' · ' + x.times + ' times, last ' + when(x.last) : '') + '\n' + (HELP_HINT[x.topic] || '')));
+      var a = el('div', 'actions');
+      if (x.topic === 'badge') a.appendChild(btn('CHECK', 'go', function () { $('fgLine').value = x.name + ' #' + x.tag; guard(fgCheck)(); try { $('fgLine').scrollIntoView({ block: 'center' }); } catch (e) {} }));
+      a.appendChild(btn('FIND', 'ghost', function () { $('q').value = '#' + x.tag; guard(find)(); }));
+      a.appendChild(btn('DONE', 'ghost', function () { var b = this; act(b, 'SAVING…', async function () { await call('help-done', { id: x.id }); c.remove(); say('Marked done.', 'ok'); }); }));
+      c.appendChild(a); box.appendChild(c);
+    });
+  }
+  /* FOUNDING PILOT consistency check: pilots that should have a number but do not. CHECK fills the
+     "give a number by hand" box under FOUNDING PILOT and runs its check (which changes nothing). */
+  function renderFoundingGaps(box, f) {
+    var c = el('div', 'card'), h = el('div');
+    h.appendChild(el('span', 'name', 'Founding Pilot: ' + fmt(f.count) + ' pilot' + (f.count === 1 ? '' : 's') + ' without a number'));
+    h.appendChild(el('span', 'pill amber', 'CHECK'));
+    c.appendChild(h);
+    c.appendChild(el('div', 'meta', 'The offer is ON with ' + fmt(f.left) + ' spots left, so these pilots should have a number (they are not restricted and not on your exclusion list).' +
+      (f.removed ? '\n' + fmt(f.removed) + ' removed pilot' + (f.removed === 1 ? ' is' : 's are') + ' never numbered on purpose (not listed).' : '') +
+      '\nCHECK says why and offers GIVE NUMBER under FOUNDING PILOT; nothing changes until you type the phrase.'));
+    (f.gaps || []).forEach(function (x) {
+      var r = el('div', 'logrow', x.name + ' #' + x.tag + ' · ' + x.why + ' ');
+      r.appendChild(btn('CHECK', 'ghost', function () { $('fgLine').value = x.name + ' #' + x.tag; guard(fgCheck)(); try { $('fgLine').scrollIntoView({ block: 'center' }); } catch (e) {} }));
+      c.appendChild(r);
+    });
+    if (f.count > (f.gaps || []).length) c.appendChild(el('div', 'meta', 'Showing the oldest ' + fmt(f.gaps.length) + ' of ' + fmt(f.count) + '.'));
+    box.appendChild(c);
   }
   /* D-37: every restore code ever issued, newest first. Never shows a code. */
   function renderRestoreLog(log) {
@@ -743,7 +1113,7 @@
     return { rows: rows };
   }
   function secs(q) { return isFinite(q.v) ? (q.v < 10 ? q.v.toFixed(1) : String(Math.round(q.v))) + ' s' + (q.open ? '+' : '') : '—'; }
-  window.FLUX_ADMIN_STATS = { summarize: summarize, summarizePlay: summarizePlay, summarizeRetention: summarizeRetention, summarizeBad: summarizeBad, secs: secs };
+  window.FLUX_ADMIN_STATS = { summarize: summarize, summarizePlay: summarizePlay, summarizeRetention: summarizeRetention, summarizeBad: summarizeBad, secs: secs, renderInsights: renderInsights, exportReport: exportReport };
   function table(head, rows) {
     var w = el('div', 'stwrap'), t = el('table', 'st'), tr = el('tr');
     head.forEach(function (h) { tr.appendChild(el('th', null, h)); }); t.appendChild(tr);
@@ -757,6 +1127,7 @@
     var to = new Date(), from = new Date(to.getTime() - (span - 1) * 86400000);
     say('Loading stats…');
     var rep = await call('analytics', { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) });
+    var oi = await call('insights'); renderInsights($('stInsights'), oi.insights);   // OWNER SUMMARY at the top of PLAYER STATS
     var s = summarize(rep, by);
     if (!s.groups.length || !(rep.days || []).length) { box.appendChild(el('div', 'empty', 'No stats yet for this period.')); say(''); return; }
     if (by === 'all') {
@@ -801,6 +1172,41 @@
       bad.map(function (c) { return [c.diff.toUpperCase(), c.step === 0 ? '0 (start)' : String(c.step), fmt(c.go), fmt(c.bad), fmt(c.normal), rate(c.badShare)]; })));
     box.appendChild(el('p', 'note', 'From ' + rep.from + ' to ' + rep.to + ' (UTC). Individual events are kept ' + rep.keepDays + ' days, then only totals.'));
     say('');
+  }
+
+  /* ---------------- FREE PLAN usage ----------------
+     Today's server requests against Cloudflare's free daily limits (reset at
+     00:00 UTC). Counted by the server itself, approximately (a lower bound);
+     the Cloudflare dashboard is exact. An alert shows from 80% of any limit. */
+  function meter(label, n, limit, note) {
+    var p = limit ? 100 * n / limit : 0, m = el('div', 'meter' + (p >= 80 ? ' hot' : p >= 50 ? ' warm' : ''));
+    var l = el('div', 'lbl'); l.appendChild(el('b', null, label)); l.appendChild(el('span', null, fmt(n) + ' / ' + fmt(limit) + ' · ' + Math.round(p) + '%'));
+    var b = el('div', 'bar'), f = el('div', 'fill'); f.style.width = Math.min(100, Math.max(p > 0 ? 1 : 0, p)) + '%'; b.appendChild(f);
+    m.appendChild(l); m.appendChild(b); if (note) m.appendChild(el('div', 'note', note)); return m;
+  }
+  function renderUsage(d, alertOnly) {
+    var box = $('usage'), al = $('usageAlert');
+    var peak0 = Math.max(d.pct.workerRequests || 0, d.pct.doRequests || 0, d.pct.rowsWritten || 0);
+    if (d.alert) {
+      al.textContent = '';
+      al.appendChild(el('b', null, 'ALERT · ' + Math.round(peak0) + '% of a free daily limit used. '));
+      al.appendChild(document.createTextNode('At 100%, score uploads and leaderboards pause until 00:00 UTC. The game keeps working offline and queued scores upload after the reset. Check the Cloudflare dashboard.'));
+      al.classList.remove('hidden');
+    } else al.classList.add('hidden');
+    if (alertOnly) return;
+    box.textContent = '';
+    var u = d.usage || {}, L = d.limits || {};
+    box.appendChild(meter('Worker requests', u.workerRequests || 0, L.workerRequests, 'Game and site pages are free static files; only /api/ calls count.'));
+    box.appendChild(meter('Durable Object requests', u.doRequests || 0, L.doRequests));
+    box.appendChild(meter('Storage rows written (estimate)', u.rowsWritten || 0, L.rowsWritten));
+    box.appendChild(el('p', 'note', 'At this pace: about ' + fmt(d.projectedPct) + '% by the end of the day. Resets ' + when(Date.parse(d.resetsAt)) + '. ' +
+      'Approximate: counted by the server itself and never above the real number; the Cloudflare dashboard is exact.'));
+    box.appendChild(table(['Date (UTC)', 'Worker', 'Durable Obj.', 'Rows written'], (d.days || []).slice().reverse().map(function (x) { return [x.date, fmt(x.w), fmt(x.d), fmt(x.rw)]; })));
+  }
+  async function loadUsage(quiet) {
+    if (!quiet) say('Checking usage…');
+    renderUsage(await call('usage'));
+    if (!quiet) say('');
   }
 
   /* ---------------- season 0 archive (read-only) ---------------- */
@@ -933,6 +1339,436 @@
     say('Uploaded and checked ✓ as ' + o.snapshot.id + '. Use DRY RUN on it before any restore.', 'ok'); $('bkFile').value = ''; await loadBackups();
   }
 
+  /* ---------------- combined World Grid ---------------- */
+  function wgStateText(w) {
+    if (!w) return 'Unavailable right now.';
+    if (w.layout === 'old') return 'Needs the new storage layout. Move the storage first (STORAGE above), then run the WORLD GRID dry run.';
+    if (w.ready === false) return 'Switched on, but not live yet: run DRY RUN, then APPLY again.';
+    return w.combined ? 'COMBINED: Season 0 + Season 1 (each pilot’s best of both) since ' + when(w.appliedAt) + '.'
+      : 'Season 1 only.' + (w.revertedAt ? ' Switched back ' + when(w.revertedAt) + '.' : ' The combined grid has not been applied.');
+  }
+  function renderWgState(w) {
+    var box = $('wgState'); box.textContent = '';
+    var c = el('div', 'card'), h = el('div');
+    h.appendChild(el('span', 'name', 'Live now'));
+    h.appendChild(el('span', 'pill amber', w && w.combined ? 'COMBINED' : 'SEASON 1 ONLY'));
+    c.appendChild(h); c.appendChild(el('div', 'meta', wgStateText(w)));
+    (w && w.log || []).forEach(function (x) { c.appendChild(el('div', 'logrow', when(x.at) + ' · ' + x.event + (x.id ? ' · ' + x.id : '') + (x.reason ? ' · ' + x.reason : ''))); });
+    box.appendChild(c);
+  }
+  function wgChecks(box, checks) {
+    (checks || []).forEach(function (k) {
+      var row = el('div', 'meta'); row.appendChild(el('span', 'pill ' + (k.ok ? 'amber' : 'pink'), k.ok ? 'PASS' : 'FAIL'));
+      row.appendChild(document.createTextNode(' ' + k.label + ' — ' + k.detail)); box.appendChild(row);
+    });
+  }
+  /* ---------------- REMOVE PILOTS ---------------- */
+  var rpDry = null;
+  function rpLinesNow() { return $('rpLines').value.split('\n').map(function (x) { return x.trim(); }).filter(Boolean); }
+  function rpBests(b) { var k = Object.keys(b || {}); return k.length ? k.map(function (d) { return d + ' ' + fmt(b[d].score); }).join(', ') : 'none'; }
+  function rpReset() { rpDry = null; $('rpGo').hidden = true; $('rpConfirm').value = ''; $('rpRemove').disabled = true; $('rpResult').textContent = ''; }
+  async function rpDryRun() {
+    var lines = rpLinesNow();
+    if (!lines.length) { say('Paste one pilot per line: NAME #TAG.', 'err'); return; }
+    rpReset(); $('rpReport').textContent = ''; say('Running the dry run…');
+    var r = await call('remove-pilots-dry-run', { lines: lines });
+    var out = $('rpReport'), box = el('div', 'card' + (r.canRemove ? '' : ' restricted'));
+    box.appendChild(el('div', 'name', 'DRY RUN · nothing was changed'));
+    box.appendChild(el('div', 'meta', r.id + ' · ' + fmt(r.counts.found) + ' of ' + fmt(r.counts.lines) + ' lines found' + (r.counts.refused ? ' · ' + fmt(r.counts.refused) + ' refused' : '')));
+    (r.warnings || []).forEach(function (w) { box.appendChild(el('div', 'rpWarn', '⚠ ' + w)); });
+    (r.pilots || []).forEach(function (p) {
+      var c = el('div', 'meta'), ok = p.status === 'found';
+      c.appendChild(el('span', 'pill ' + (ok ? 'amber' : 'pink'), ok ? 'FOUND' : p.status === 'not-found' ? 'NOT FOUND' : p.status.toUpperCase()));
+      c.appendChild(document.createTextNode(' ' + p.line + (ok
+        ? '\nWill remove ' + p.name + ' #' + p.tag + (p.shownAs !== p.name ? ' (shown as ' + p.shownAs + ')' : '') + ' · ' + (p.country || '??') + (p.restricted ? ' · restricted' : '') +
+          '\nBests: ' + rpBests(p.bests) + '\nSeason 0 bests: ' + rpBests(p.season0) +
+          '\nPurchases: ' + (p.purchases ? fmt(p.purchases) + ' (' + p.skus.join(', ') + ') — kept' : 'none') +
+          '\nOn boards: ' + ((p.boards || []).map(function (b) { return b.board.toUpperCase() + (b.rank ? ' #' + b.rank : ''); }).join(', ') || 'none') +
+          (p.counted ? ' · counts ' + fmt(p.counted) + ' in its country' : '')
+        : '\nRefused: ' + p.why)));
+      box.appendChild(c);
+    });
+    box.appendChild(el('div', 'name', 'Country totals'));
+    if (!(r.countries || []).length) box.appendChild(el('div', 'empty', 'No country total changes.'));
+    else box.appendChild(table(['Country', 'Now', 'After', 'Change'], r.countries.map(function (x) {
+      return [x.country, fmt(Math.round(x.before.totalScore)) + ' · ' + fmt(x.before.playerCount) + ' pilots', fmt(Math.round(x.after.totalScore)) + ' · ' + fmt(x.after.playerCount) + ' pilots', fmt(Math.round(x.change))]; })));
+    box.appendChild(el('div', 'meta', 'Boards affected: ' + ((r.boardsAffected || []).map(function (b) { return b.toUpperCase(); }).join(', ') || 'none') + '\n' + r.note));
+    out.appendChild(box);
+    if (r.canRemove) {
+      rpDry = { id: r.id, confirm: r.confirm, lines: lines };
+      $('rpAsk').textContent = 'Check your real pilot is NOT listed above. Then type ' + r.confirm + ' and press REMOVE NOW. A checked backup from the last 60 minutes is needed.';
+      $('rpConfirm').placeholder = r.confirm; $('rpGo').hidden = false;
+    }
+    say('Dry run done. Nothing was changed.', 'ok');
+  }
+  async function rpRemoveNow() {
+    var b = $('rpRemove'), res = $('rpResult');
+    if (!rpDry || $('rpConfirm').value !== rpDry.confirm) { say('Type ' + (rpDry ? rpDry.confirm : 'the phrase from the dry run') + ' exactly.', 'err'); return; }
+    await act(b, 'REMOVING…', async function () {
+      var o = await post('remove-pilots', { lines: rpDry.lines, id: rpDry.id, confirm: $('rpConfirm').value });
+      if (o.status === 401) { sessionEnded(); throw new Error('Your session ended. Log in again — what you typed is kept.'); }
+      res.textContent = ''; b.textContent = 'REMOVE NOW'; b.disabled = $('rpConfirm').value !== (rpDry && rpDry.confirm);
+      if (o.data.needBackup === true) {   // REMOVE PILOTS: same offer as WORLD GRID
+        res.appendChild(el('p', 'note err', o.data.error));
+        res.appendChild(btn('BACK UP NOW', 'go', function () { var bb = this; act(bb, 'BACKING UP…', async function () {
+          var k = await call('backup-now'); bb.remove(); say('Backup ' + k.snapshot.id + ' saved and checked ✓ Press REMOVE NOW again.', 'ok'); }); }));
+        say(o.data.error, 'err'); return;
+      }
+      if (o.data.changed) { rpReset(); res.appendChild(el('p', 'note err', o.data.error)); say(o.data.error, 'err'); return; }
+      if (!o.data.checks) throw new Error(o.data.error || ('Error ' + o.status));
+      var box = el('div', 'card' + (o.data.ok ? '' : ' restricted'));
+      box.appendChild(el('div', 'name' + (o.data.ok ? ' ok' : ' err'), o.data.ok ? 'REMOVED ✓ · post-check PASS' : 'REMOVED · a post-check FAILED'));
+      box.appendChild(el('div', 'meta', 'Removed: ' + (o.data.removed || []).map(function (p) { return p.name + ' #' + p.tag; }).join(', ') +
+        '\nBackup checked: ' + o.data.backupId + '\nSafety copy just before: ' + o.data.safetyId +
+        (o.data.ok ? '' : '\nRestore the safety copy (BACKUPS → DRY RUN → RESTORE NOW) and send this report to the developer.')));
+      wgChecks(box, o.data.checks);
+      if ((o.data.countries || []).length) box.appendChild(table(['Country', 'Before', 'Now'], o.data.countries.map(function (x) {
+        return [x.country, fmt(Math.round(x.before.totalScore)), fmt(Math.round(x.now.totalScore)) + ' · ' + fmt(x.now.playerCount) + ' pilots']; })));
+      res.appendChild(box);
+      $('rpGo').hidden = true; $('rpConfirm').value = ''; rpDry = null;
+      say(o.data.ok ? 'Removed and checked: every check PASS.' : 'Removed, but a check FAILED. See below.', o.data.ok ? 'ok' : 'err');
+    });
+  }
+
+  async function wgDryRun() {
+    say('Running the dry run…');
+    var r = await call('world-grid-dry-run');
+    renderWgState(r.worldGrid); showWgReport(r);
+    say('Dry run done. Nothing was changed.', 'ok');
+  }
+  function showWgReport(r) {
+    var out = $('wgReport'); out.textContent = '';
+    var c = r.counts || {}, box = el('div', 'card' + (r.allPass ? '' : ' restricted'));
+    box.appendChild(el('div', 'name', 'DRY RUN · nothing was changed'));
+    box.appendChild(el('div', 'meta', r.id + ' · ' + when(r.createdAt) + '\nNow live: ' + (r.combinedNow ? 'combined grid' : 'Season 1 only')));
+    wgChecks(box, r.checks);
+    box.appendChild(el('div', 'meta', (r.allPass ? 'All checks pass.' : 'A check FAILED. Do not apply; send this report to the developer.') +
+      '\nPilots today ' + fmt(c.currentPilots) + ' · Season 0 archive ' + fmt(c.archivePilots) + ' pilots, ' + fmt(c.archiveScores) + ' bests' +
+      '\nSeason 0 bests merged ' + fmt(c.mergedScores) + ' (' + fmt(c.raisedScores) + ' beat the pilot’s Season 1 best) · flagged ' + fmt(c.flaggedScores) +
+      '\nOn the World Grid: ' + fmt(c.pilotsBefore) + ' pilots now → ' + fmt(c.pilotsAfter) + ' (' + fmt(c.onlyArchive) + ' back from Season 0)' +
+      '\nWorld total (weighted) ' + fmt(c.totalBefore) + ' → ' + fmt(c.totalAfter) + ' · restricted left out ' + fmt(c.restrictedExcluded) +
+      '\nBests from Season 0: easy ' + fmt((c.fromS0 || {}).easy) + ', medium ' + fmt((c.fromS0 || {}).medium) + ', hard ' + fmt((c.fromS0 || {}).hard)));
+    box.appendChild(el('div', 'name', 'Countries'));
+    box.appendChild(table(['#', 'Country', 'Now', 'After', 'Change'], (r.countries || []).map(function (x) {
+      return [x.after ? x.after.rank : '—', x.country, x.before ? fmt(x.before.totalScore) + ' (#' + x.before.rank + ')' : '—',
+        x.after ? fmt(x.after.totalScore) + ' · ' + fmt(x.after.playerCount) + ' pilots' : '—', (x.change >= 0 ? '+' : '') + fmt(x.change)];
+    })));
+    box.appendChild(el('div', 'name', 'Top pilots after'));
+    box.appendChild(table(['#', 'Pilot', 'Country', 'Score', 'From'], (r.topAfter || []).map(function (p) {
+      return [p.rank, p.name + ' #' + p.tag, p.country || '??', fmt(p.score), p.difficulty + ' · S' + p.season]; })));
+    box.appendChild(el('div', 'name', 'Top pilots now'));
+    box.appendChild(table(['#', 'Pilot', 'Country', 'Score'], (r.topBefore || []).map(function (p) { return [p.rank, p.name + ' #' + p.tag, p.country || '??', fmt(p.score)]; })));
+    box.appendChild(el('div', 'name', 'Flagged (' + (r.flagged || []).length + ')'));
+    if (!(r.flagged || []).length) box.appendChild(el('div', 'empty', 'Nothing flagged.'));
+    else box.appendChild(table(['Pilot', 'Country', 'Scores', 'Reason'], r.flagged.map(function (f) {
+      return [(f.name || '(erased)') + (f.tag ? ' #' + f.tag : ''), f.country || '??',
+        Object.keys(f.scores || {}).map(function (d) { return d + ' ' + fmt(f.scores[d]); }).join(', ') || '—', f.reason]; })));
+    if (r.allPass) {
+      box.appendChild(el('p', 'note', 'To apply: a checked backup from the last 60 minutes is needed (BACK UP NOW). Type ' + r.confirm + ' within 60 minutes of this dry run.'));
+      var inp = document.createElement('input'); inp.type = 'text'; inp.autocomplete = 'off'; inp.spellcheck = false; inp.setAttribute('autocapitalize', 'characters');
+      inp.placeholder = r.confirm; inp.className = 'wgConfirm';
+      var res = el('div');
+      var applyBtn = btn('APPLY NOW', 'danger', function () { var b = this;
+        if (inp.value !== r.confirm) { say('Type ' + r.confirm + ' exactly.', 'err'); return; }
+        act(b, 'APPLYING…', async function () {
+          var o = await post('world-grid-apply', { id: r.id, confirm: inp.value });
+          if (o.status === 401) { sessionEnded(); throw new Error('Your session ended. Log in again — what you typed is kept.'); }
+          res.textContent = '';
+          b.disabled = inp.value !== r.confirm; b.textContent = 'APPLY NOW';
+          if (o.data.needBackup) {
+            res.appendChild(el('p', 'note err', o.data.error));
+            res.appendChild(btn('BACK UP NOW', 'go', function () { var bb = this; act(bb, 'BACKING UP…', async function () {
+              var k = await call('backup-now'); bb.remove(); say('Backup ' + k.snapshot.id + ' saved and checked ✓ Press APPLY NOW again.', 'ok'); }); }));
+            say(o.data.error, 'err'); return;
+          }
+          if (!o.ok) { wgChecks(res, o.data.checks); throw new Error(o.data.error || ('Error ' + o.status)); }
+          box.textContent = ''; box.appendChild(el('div', 'name ok', 'APPLIED ✓ · the World Grid is combined'));
+          box.appendChild(el('div', 'meta', 'Backup checked: ' + o.data.backupId + '\nSafety copy before the switch: ' + o.data.safetyId + '\nChecks on the live grid:'));
+          wgChecks(box, o.data.checks);
+          renderWgState(o.data.worldGrid); say('Applied and checked. REVERT switches back at any time.', 'ok');
+        });
+      });
+      applyBtn.disabled = true;
+      inp.oninput = function () { applyBtn.disabled = inp.value !== r.confirm; };
+      var row = el('div', 'row'); row.appendChild(inp); row.appendChild(applyBtn);
+      box.appendChild(row); box.appendChild(res);
+    }
+    out.appendChild(box);
+  }
+  async function wgRevert() {
+    if (!confirm('Switch the World Grid back to Season 1 only?\n\nNo score is changed or deleted; APPLY switches it on again.')) return;
+    var o = await call('world-grid-revert');
+    renderWgState(o.worldGrid); $('wgReport').textContent = '';
+    say(o.wasCombined ? 'Switched back: the World Grid shows Season 1 only.' : 'The World Grid already showed Season 1 only.', 'ok');
+  }
+
+  /* ---------------- FOUNDING PILOT ---------------- */
+  function fpCounterText(f) {
+    if (!f) return 'Unavailable right now.';
+    if (f.layout === 'old') return 'Needs the new storage layout (STORAGE above).';
+    return (f.on ? 'ON' : 'OFF') + ' · ' + fmt(f.given) + ' / ' + fmt(f.cap) + ' given · ' + fmt(f.left) + ' spot' + (f.left === 1 ? '' : 's') + ' left' +
+      (f.on && f.done === false ? '\nNumbering not finished: press CONTINUE under FOUNDING PILOT.' : '');
+  }
+  function renderFp(f) {
+    var box = $('fpState'); box.textContent = '';
+    var c = el('div', 'card'), h = el('div');
+    h.appendChild(el('span', 'name', 'Founding Pilot'));
+    h.appendChild(el('span', 'pill ' + (f && f.on ? 'amber' : 'pink'), f && f.on ? 'ON' : 'OFF'));
+    c.appendChild(h); c.appendChild(el('div', 'meta', fpCounterText(f)));
+    if (f && f.on && f.done === false) { var a = el('div', 'actions'); a.appendChild(btn('CONTINUE', 'go', function () { var b = this; act(b, 'NUMBERING…', async function () { fpDone(await call('founding-continue', {})); }); })); c.appendChild(a); }
+    (f && f.log || []).slice(-8).forEach(function (x) { c.appendChild(el('div', 'logrow', when(x.at) + ' · ' + x.event)); });
+    box.appendChild(c);
+    var ex = $('fpExcl'); ex.textContent = '';
+    var list = (f && f.excluded) || [];
+    if (!list.length) ex.appendChild(el('div', 'empty', 'Nobody is on the exclusion list.'));
+    list.forEach(function (x) {
+      var r = el('div', 'card'); r.appendChild(el('div', 'name', x.name + ' #' + x.tag)); r.appendChild(el('div', 'meta', 'excluded ' + when(x.at)));
+      var a = el('div', 'actions');
+      a.appendChild(btn('REMOVE', 'ghost', function () { var b = this; act(b, 'SAVING…', async function () { renderFp(await call('founding-exclude', { tag: x.tag, remove: true })); say('#' + x.tag + ' can be numbered again.', 'ok'); }); }));
+      a.appendChild(btn('TAKE BACK', 'danger', function () { fpTakeBack(x.tag); }));
+      r.appendChild(a); ex.appendChild(r);
+    });
+  }
+  function fpPilots(list) { return (list || []).map(function (p) { return '#' + p.n + ' ' + p.name + ' #' + p.tag; }).join('\n') || '—'; }
+  async function fpLoad() { say('Loading…'); renderFp(await call('founding-status')); say(''); }
+  async function fpDry() {
+    say('Running the dry run…');
+    var r = await call('founding-dry-run');
+    renderFp(r);
+    var out = $('fpReport'); out.textContent = '';
+    var c = el('div', 'card');
+    c.appendChild(el('div', 'name', 'DRY RUN · nothing was changed'));
+    c.appendChild(el('div', 'meta', (r.wouldNumber ? fmt(r.wouldNumber) + ' pilots would be numbered #' + r.from + ' to #' + r.to : 'Nobody would be numbered now.') +
+      '\nRows it would write: ' + fmt(r.wouldNumber ? r.rowsWouldWrite : 0) + ' (one per pilot + 2) · spots left after: ' + fmt(r.leftAfter) +
+      '\nLeft out: ' + fmt(r.excludedCount) + ' · removed and privacy-deleted pilots are never counted'));
+    c.appendChild(el('div', 'name', 'First'));
+    c.appendChild(el('div', 'meta', fpPilots(r.first)));
+    if ((r.last || []).length) { c.appendChild(el('div', 'name', 'Last')); c.appendChild(el('div', 'meta', fpPilots(r.last))); }
+    c.appendChild(el('div', 'name', 'Left out (' + fmt(r.excludedCount) + ')'));
+    if (!(r.skipped || []).length) c.appendChild(el('div', 'empty', 'Nobody.'));
+    else c.appendChild(table(['Pilot', 'Why'], r.skipped.map(function (x) { return [x.name + ' #' + x.tag, x.why]; })));
+    out.appendChild(c);
+    say('Dry run done. Nothing was changed.', 'ok');
+  }
+  function fpDone(d) {
+    renderFp(d);
+    say('Numbered ' + fmt(d.numbered) + ' pilot' + (d.numbered === 1 ? '' : 's') + ' · ' + fmt(d.rowsWritten) + ' rows written · ' + fmt(d.left) + ' spots left.' + (d.more ? ' Press CONTINUE.' : ''), 'ok');
+  }
+  async function fpOn() {
+    var inp = $('fpConfirm'), b = $('fpOn');
+    if (inp.value.trim() !== 'FOUNDING ON') { say('Type FOUNDING ON exactly.', 'err'); return; }
+    b.disabled = true; b.textContent = 'TURNING ON…';
+    try {
+      var o = await post('founding-switch', { on: true, confirm: inp.value.trim() });
+      if (o.status === 401) { sessionEnded(); throw new Error('Your session ended. Log in again — what you typed is kept.'); }
+      if (o.data && o.data.needBackup === true) {
+        var res = $('fpReport'); res.textContent = '';
+        res.appendChild(el('p', 'note err', o.data.error));
+        res.appendChild(btn('BACK UP NOW', 'go', function () { var bb = this; act(bb, 'BACKING UP…', async function () {
+          var k = await call('backup-now'); bb.remove(); say('Backup ' + k.snapshot.id + ' saved and checked ✓ Press TURN ON again.', 'ok'); }); }));
+        throw new Error(o.data.error);
+      }
+      if (!o.ok) throw new Error(o.data.error || ('Error ' + o.status));
+      inp.value = ''; fpDone(o.data);
+    } finally { b.textContent = 'TURN ON'; b.disabled = inp.value.trim() !== 'FOUNDING ON'; }
+  }
+  async function fpOff() {
+    if (!confirm('Turn the Founding Pilot offer OFF?\n\nNo new numbers are given and the spots-left line is hidden. Numbers already given stay.')) return;
+    renderFp(await call('founding-switch', { on: false }));
+    say('The offer is OFF. Numbers already given stay.', 'ok');
+  }
+  async function fpAdd() {
+    var t = $('fpTag').value.trim();
+    if (!t) { say('Type the pilot\u2019s #TAG.', 'err'); return; }
+    var d = await call('founding-exclude', { tag: t });
+    $('fpTag').value = ''; renderFp(d);
+    say(d.note || 'Added to the exclusion list.', d.note ? 'err' : 'ok');
+  }
+  async function fpTakeBack(tag) {
+    var phrase = 'TAKE BACK #' + String(tag).replace(/^#/, '').toUpperCase();
+    var typed = prompt('Take this pilot\u2019s Founding Pilot number back? Their free Solar Inferno goes too (a purchase stays). The number is never given again.\n\nType ' + phrase);
+    if (typed == null) return;
+    try { var d = await call('founding-take-back', { tag: tag, confirm: typed.trim() }); renderFp(d); say('#' + d.takenBack + ' taken back.', 'ok'); }
+    catch (e) { say(e.message, 'err'); }
+  }
+
+  /* FOUNDING PILOT by hand: CHECK (writes nothing), then GIVE NUMBER with the phrase CHECK showed. */
+  var fgPlan = null;
+  function fgReset() { fgPlan = null; $('fgGo').hidden = true; $('fgConfirm').value = ''; $('fgGive').disabled = true; }
+  var FG_STATUS = { numbered: 'ALREADY A FOUNDING PILOT', 'not-found': 'NOT FOUND', restricted: 'RESTRICTED', full: 'NO NUMBER LEFT', removed: 'REMOVED',
+    'taken-back': 'NUMBER TAKEN BACK', excluded: 'ON THE EXCLUSION LIST', 'came-back': 'REMOVED, THEN PLAYED AGAIN', skipped: 'LEFT OUT AT SWITCH-ON',
+    'offer-never-on': 'OFFER NEVER ON', missed: 'JOINED WITHOUT A NUMBER', invalid: 'CHECK THE LINE', ambiguous: 'MORE THAN ONE PILOT', changed: 'RENAMED' };
+  async function fgCheck() {
+    var line = $('fgLine').value.trim();
+    if (!line) { say('Type the pilot as NAME #TAG.', 'err'); return; }
+    fgReset(); $('fgResult').textContent = ''; say('Checking…');
+    var r = await call('founding-grant-check', { line: line });
+    var out = $('fgReport'); out.textContent = '';
+    var c = el('div', 'card'), h = el('div');
+    h.appendChild(el('span', 'name', 'CHECK · nothing was changed'));
+    h.appendChild(el('span', 'pill ' + (r.canGive ? 'amber' : 'pink'), FG_STATUS[r.status] || r.status));
+    c.appendChild(h);
+    var p = r.pilot, lines = [];
+    if (p) {
+      var b = Object.keys(p.bests || {}).map(function (d) { return d + ' ' + fmt(p.bests[d]); }).join(' · ') || 'no scores';
+      lines.push(p.name + ' #' + p.tag + ' · ' + (p.country || '—') + ' · ' + b + (p.onServer ? '' : ' (in the backup)') + (p.purchases ? ' · owns ' + p.purchases + ' purchase(s)' : ''));
+    }
+    lines.push('Why: ' + r.why);
+    if (r.canGive) lines.push('\nGIVE NUMBER would:\n' + r.steps.map(function (x, i) { return (i + 1) + '. ' + x; }).join('\n') + '\nRows it would write: ' + fmt(r.rowsWouldWrite) + ' · a safety backup is taken first.');
+    lines.push('Offer: ' + (r.offer.on ? 'ON' : 'OFF') + ' · ' + fmt(r.offer.given) + ' / ' + fmt(r.offer.cap) + ' given');
+    c.appendChild(el('div', 'meta', lines.join('\n')));
+    out.appendChild(c);
+    if (r.canGive) { fgPlan = { line: line, id: r.id, confirm: r.confirm }; $('fgGo').hidden = false; $('fgConfirm').placeholder = 'Type ' + r.confirm; }
+    say(r.note || 'Nothing was changed.', 'ok');
+  }
+  async function fgGive() {
+    if (!fgPlan) return;
+    var inp = $('fgConfirm'), b = $('fgGive');
+    if (inp.value.trim() !== fgPlan.confirm) { say('Type ' + fgPlan.confirm + ' exactly.', 'err'); return; }
+    b.disabled = true; b.textContent = 'GIVING…';
+    var res = $('fgResult'); res.textContent = '';
+    try {
+      var o = await post('founding-grant', { line: fgPlan.line, id: fgPlan.id, confirm: inp.value.trim() });
+      if (o.status === 401) { sessionEnded(); throw new Error('Your session ended. Log in again — what you typed is kept.'); }
+      if (o.data && o.data.needBackup === true) {
+        res.appendChild(el('p', 'note err', o.data.error));
+        res.appendChild(btn('BACK UP NOW', 'go', function () { var bb = this; act(bb, 'BACKING UP…', async function () {
+          var k = await call('backup-now'); bb.remove(); say('Backup ' + k.snapshot.id + ' saved and checked ✓ Press GIVE NUMBER again.', 'ok'); }); }));
+        throw new Error(o.data.error);
+      }
+      if (!o.ok) { if (o.data && o.data.changed) fgReset(); throw new Error(o.data.error || ('Error ' + o.status)); }
+      var d = o.data, c = el('div', 'card'), h = el('div');
+      h.appendChild(el('span', 'name', 'Founding Pilot #' + d.given + ' · ' + d.pilot.name + ' #' + d.pilot.tag));
+      h.appendChild(el('span', 'pill ' + (d.pass ? 'amber' : 'pink'), d.pass ? 'CHECK PASS ✓' : 'CHECK FAIL ✗'));
+      c.appendChild(h);
+      c.appendChild(el('div', 'meta', (d.restored ? 'Brought back from the backup, then numbered.\n' : '') + 'Backup ' + d.backupId + ' · safety backup ' + d.safetyId +
+        '\nOn that device: open FLUX while online; the badge and the one-time message appear.'));
+      (d.checks || []).forEach(function (x) { c.appendChild(el('div', 'logrow', (x.ok ? 'PASS ✓ ' : 'FAIL ✗ ') + x.label + (x.detail ? '\n' + x.detail : ''))); });
+      res.appendChild(c);
+      renderFp(d); fgReset(); $('fgReport').textContent = '';
+      say(d.pass ? 'Founding Pilot #' + d.given + ' given. Every check passed.' : 'Given, but a check FAILED: see below.', d.pass ? 'ok' : 'err');
+    } finally { b.textContent = 'GIVE NUMBER'; b.disabled = !fgPlan || inp.value.trim() !== (fgPlan && fgPlan.confirm); }
+  }
+
+  /* ---------------- storage (the 2 MB move) ---------------- */
+  var SG = null;
+  function pct(x) { return (Math.round(x * 10) / 10) + '%'; }
+  function sgCard(title, pillText, pillKind) {
+    var c = el('div', 'card'), h = el('div');
+    h.appendChild(el('span', 'name', title));
+    if (pillText) h.appendChild(el('span', 'pill ' + (pillKind || 'amber'), pillText));
+    c.appendChild(h); return c;
+  }
+  function sgChecks(box, checks) {
+    (checks || []).forEach(function (x) {
+      box.appendChild(el('div', 'logrow', (x.pass ? 'PASS ✓ ' : 'FAIL ✗ ') + x.name + (x.detail ? '\n' + x.detail : '')));
+    });
+  }
+  function sgTyped(box, phrase, label, cls, onGo, extraOk) {
+    var inp = document.createElement('input'); inp.type = 'text'; inp.autocomplete = 'off'; inp.spellcheck = false; inp.setAttribute('autocapitalize', 'characters');
+    inp.placeholder = phrase; inp.className = 'sgConfirm';
+    var goBtn = btn(label, cls, function () { var b = this;
+      if (inp.value !== phrase) { say('Type ' + phrase + ' exactly.', 'err'); return; }
+      act(b, 'WORKING…', async function () { await onGo(inp.value, b); b.disabled = false; b.textContent = label; });
+    });
+    goBtn.disabled = true;
+    inp.oninput = function () { goBtn.disabled = inp.value !== phrase || (extraOk ? !extraOk() : false); };
+    var row = el('div', 'row'); row.appendChild(inp); row.appendChild(goBtn); box.appendChild(row);
+    return goBtn;
+  }
+  function renderStorage(d) {
+    SG = d;
+    var box = $('storage'); box.textContent = '';
+    var oldL = d.layout !== 'new', ov = d.oldValue, bk = d.backup || {}, mig = d.mig || {}, dry = d.dry, chk = d.check;
+    var near = oldL && ov && ov.pct >= 75;
+    var c = sgCard(oldL ? 'Layout: OLD (one 2 MB value)' : 'Layout: NEW (one row per pilot)', oldL ? (near ? 'NEAR THE 2 MB LIMIT' : 'NOT MOVED YET') : 'MOVED ✓', near ? 'pink' : 'amber');
+    var lines = [fmt(d.pilots) + ' pilots'];
+    if (ov) lines.push((oldL ? 'Old value: ' : 'Old layout copy (kept until CLEAN UP): ') + kb(ov.bytes) + ' of 2 MB (' + pct(ov.pct) + ')' + (ov.kept === false ? ' — cleaned up' : ''));
+    lines.push('Newest checked backup: ' + (bk.createdAt ? when(bk.createdAt) + ' (' + bk.ageMin + ' min ago' + (bk.fresh ? ', recent enough ✓' : ', older than 60 min') + ')' : 'none'));
+    lines.push('Move: ' + ({ none: 'not started', copying: 'copying (' + fmt(mig.cursor) + ' of ' + fmt(mig.total) + ')', paused: 'paused for today', switched: 'done ✓ ' + when(mig.switchedAt), failed: 'refused — the copy did not match; nothing changed', cancelled: 'cancelled', rolledback: 'rolled back to the old layout', cleaned: 'done ✓, old layout cleaned up' }[d.phase] || d.phase));
+    if (d.restoring) lines.push('A RESTORE IS UNFINISHED: score uploads are paused. Run that restore again, or restore its safety backup.');
+    c.appendChild(el('div', 'meta', lines.join('\n')));
+    box.appendChild(c);
+    if (oldL && d.phase !== 'switched') {
+      var s1 = sgCard('1 · BACK UP', bk.fresh ? 'READY ✓' : 'NEEDED', bk.fresh ? 'amber' : 'pink');
+      s1.appendChild(el('div', 'meta', 'The move needs a checked backup from the last 60 minutes.'));
+      var a1 = el('div', 'actions'); a1.appendChild(btn('BACK UP NOW', 'go', function () { var b = this; act(b, 'BACKING UP…', async function () {
+        var o = await call('backup-now'); await loadStorage(); say('Backup ' + o.snapshot.id + ' saved and checked ✓', 'ok'); }); }));
+      s1.appendChild(a1); box.appendChild(s1);
+      var s2 = sgCard('2 · DRY RUN', dry ? (dry.pass ? 'PASS ✓' : 'FAIL ✗') : '', dry && !dry.pass ? 'pink' : 'amber');
+      if (dry) {
+        var e = dry.est || {}, n = dry.counts || {}, b2 = n.bests || {};
+        s2.appendChild(el('div', 'meta', dry.id + ' · ' + when(dry.at) + '\n' + fmt(dry.pilots) + ' pilots · bests easy ' + fmt(b2.easy) + ' / medium ' + fmt(b2.medium) + ' / hard ' + fmt(b2.hard) +
+          '\nbuyers ' + fmt(n.purchasePilots) + ' (Solar Inferno ' + fmt(n.solarInferno) + ') · flags ' + fmt(n.flags) + ' · name bans ' + fmt(n.nameBans) + ' · restrictions ' + fmt(n.restricted) +
+          '\nThe move will write about ' + fmt(e.rowsWritten) + ' rows (' + e.pctOfDailyWrites + '% of a free day) in ' + fmt(e.batches) + ' batch(es), about ' + fmt(e.seconds) + ' s.'));
+        sgChecks(s2, dry.checks);
+      } else s2.appendChild(el('div', 'meta', 'Builds the new layout in memory and compares everything. Changes nothing.'));
+      var a2 = el('div', 'actions'); a2.appendChild(btn('DRY RUN', 'ghost', function () { var b = this; act(b, 'COMPARING…', async function () {
+        var o = await call('migrate-storage-dry-run'); await loadStorage(); say(o.pass ? 'Dry run: every check passed. Nothing was changed.' : 'Dry run: something did not match. Do not move; nothing was changed.', o.pass ? 'ok' : 'err'); }); }));
+      s2.appendChild(a2); box.appendChild(s2);
+      if (dry && dry.pass) {
+        var s3 = sgCard('3 · APPROVE AND MOVE', mig.phase === 'copying' || mig.phase === 'paused' ? 'IN PROGRESS' : '');
+        s3.appendChild(el('p', 'note', 'Type ' + dry.confirm + ' to enable the move. A safety backup is taken first. Players keep playing.'));
+        var prog = el('div', 'meta', '');
+        sgTyped(s3, dry.confirm, 'MOVE NOW', 'danger', async function (phrase) {
+          for (var i = 0; i < 200; i++) {
+            var o;
+            try { o = await call('migrate-storage', { confirm: phrase }); }
+            catch (err) { if (/60 minutes/.test(err.message)) { prog.textContent = err.message; } throw err; }
+            if (o.copied != null) prog.textContent = 'Copied ' + fmt(o.copied) + ' of ' + fmt(o.total) + ' pilots…';
+            if (!o.more || o.paused || o.switched) break;
+          }
+          await loadStorage();
+          if (o.paused) say(o.message, 'err'); else if (o.switched) say('Moved ✓ Every comparison passed. Now run the CHECK.', 'ok');
+        }, function () { return !!(SG && SG.backup && SG.backup.fresh); });
+        s3.appendChild(prog); box.appendChild(s3);
+      }
+      if (mig.phase === 'copying' || mig.phase === 'paused') {
+        var sc = sgCard('CANCEL THE MOVE', ''); sc.appendChild(el('p', 'note', 'FLUX never left the old layout. Type ROLLBACK to drop the half-made copy.'));
+        sgTyped(sc, 'ROLLBACK', 'CANCEL', 'warn', async function (phrase) { await call('migrate-storage-rollback', { confirm: phrase }); await loadStorage(); say('Cancelled. FLUX stays on the old layout.', 'ok'); });
+        box.appendChild(sc);
+      }
+    }
+    if (!oldL) {
+      var s4 = sgCard('4 · CHECK', chk && chk.done ? (chk.pass ? 'PASS ✓' : 'FAIL ✗') : '', chk && chk.done && !chk.pass ? 'pink' : 'amber');
+      if (chk) {
+        var P = chk.pilots || {};
+        s4.appendChild(el('div', 'meta', (chk.mode === 'all' ? 'Every pilot' : 'A sample') + (chk.done ? ' · ' + when(chk.at) : ' · running') + '\n' + fmt(P.compared) + ' compared · ' + fmt(P.failed) + ' failed · ' + fmt(P.skipped) + ' changed since the move (not failures)' + ((P.examples || []).length ? '\nfailed: ' + P.examples.join(' ') : '')));
+        sgChecks(s4, chk.checks);
+      } else s4.appendChild(el('div', 'meta', 'Compares every public answer between the old and the new layout.'));
+      var a4 = el('div', 'actions');
+      [['CHECK A SAMPLE', 'sample'], ['CHECK EVERY PILOT', 'all']].forEach(function (x) {
+        a4.appendChild(btn(x[0], 'ghost', function () { var b = this; act(b, 'CHECKING…', async function () {
+          var cur = 0, o;
+          for (var i = 0; i < 1000; i++) { o = await call('migrate-storage-check', { mode: x[1], cursor: cur }); b.textContent = 'CHECKED ' + fmt(o.cursor) + ' / ' + fmt(o.total); if (!o.more) break; cur = o.cursor; }
+          await loadStorage(); say(o.pass ? 'Check passed ✓' : 'Check FAILED — see the list; you can ROLL BACK.', o.pass ? 'ok' : 'err'); }); }));
+      });
+      s4.appendChild(a4); box.appendChild(s4);
+      if (d.phase === 'switched') {
+        var s5 = sgCard('ROLL BACK', chk && chk.done && !chk.pass ? 'RECOMMENDED' : '', 'pink');
+        s5.appendChild(el('p', 'note', 'Only if the check failed. FLUX goes back to the old layout with every score and purchase made since the move. Type ROLLBACK.'));
+        sgTyped(s5, 'ROLLBACK', 'ROLL BACK', 'danger', async function (phrase) { await call('migrate-storage-rollback', { confirm: phrase }); await loadStorage(); say('Rolled back to the old layout.', 'ok'); });
+        box.appendChild(s5);
+        var fullOk = !!(chk && chk.mode === 'all' && chk.done && chk.pass);
+        var s6 = sgCard('5 · CLEAN UP (LATER)', fullOk ? 'ALLOWED' : 'AFTER CHECK EVERY PILOT');
+        s6.appendChild(el('p', 'note', 'Removes the old layout\'s copy. Only after CHECK EVERY PILOT passed; a safety backup is taken first. Type CLEANUP ' + mig.id + '.'));
+        sgTyped(s6, 'CLEANUP ' + mig.id, 'CLEAN UP', 'warn', async function (phrase) { await call('migrate-storage-cleanup', { confirm: phrase }); await loadStorage(); say('Old layout cleaned up.', 'ok'); }, function () { return fullOk; });
+        box.appendChild(s6);
+      }
+    }
+    var cost = (d.costs || {}), fp = d.freePlan || {};
+    var cc = sgCard('FREE PLAN BUDGET', '');
+    var rowsOf = function (k, label) { var x = cost[k]; return x ? label + ': a daily backup reads ' + fmt(x.dailyBackup.rowsRead) + ' rows and writes ' + fmt(x.dailyBackup.rowsWritten) : ''; };
+    cc.appendChild(el('div', 'meta', 'Per day (free plan): ' + fmt(fp.rowsReadPerDay) + ' rows read · ' + fmt(fp.rowsWrittenPerDay) + ' rows written · 5 GB. Check the dashboard for the current limits.' +
+      '\nNew layout — a run writes 1-6 rows; a restart reads about 10; a leaderboard is served from memory.\n' + [rowsOf('now', 'Now'), rowsOf('at10k', '10,000 pilots'), rowsOf('at50k', '50,000 pilots'), rowsOf('at200k', '200,000 pilots')].filter(Boolean).join('\n')));
+    box.appendChild(cc);
+  }
+  async function loadStorage() {
+    say('Loading storage…');
+    renderStorage(await call('storage-status'));
+    say('');
+  }
+
   function guard(fn) { return function () { fn().catch(function (e) { say(e.message, 'err'); }); }; }
   $('loginForm').onsubmit = login;
   $('logout').onclick = guard(logout);
@@ -946,9 +1782,27 @@
   checkSession(false).catch(function (e) { showLogin(e.message); });
   $('stLoad').onclick = guard(loadStats);
   $('s0Load').onclick = guard(loadSeason0);
+  $('usageLoad').onclick = guard(function () { return loadUsage(false); });
   $('bkLoad').onclick = guard(loadBackups);
   $('bkNow').onclick = guard(backupNow);
   $('bkUpload').onclick = guard(uploadBackup);
+  $('wgDry').onclick = guard(wgDryRun);
+  $('rpDry').onclick = guard(rpDryRun);
+  $('rpRemove').onclick = guard(rpRemoveNow);
+  $('rpConfirm').oninput = function () { $('rpRemove').disabled = !rpDry || $('rpConfirm').value !== rpDry.confirm; };
+  $('rpLines').oninput = function () { if (rpDry) { rpReset(); $('rpReport').textContent = ''; } };
+  $('wgRevert').onclick = guard(wgRevert);
+  $('sgLoad').onclick = guard(loadStorage);
+  $('fpLoad').onclick = guard(fpLoad);
+  $('fpDry').onclick = guard(fpDry);
+  $('fpOn').onclick = guard(fpOn);
+  $('fpOff').onclick = guard(fpOff);
+  $('fpAdd').onclick = guard(fpAdd);
+  $('fpConfirm').oninput = function () { $('fpOn').disabled = this.value.trim() !== 'FOUNDING ON'; };
+  $('fgCheck').onclick = guard(fgCheck);
+  $('fgGive').onclick = guard(fgGive);
+  $('fgConfirm').oninput = function () { $('fgGive').disabled = !fgPlan || this.value.trim() !== fgPlan.confirm; };
+  $('fgLine').oninput = function () { if (fgPlan) { fgReset(); $('fgReport').textContent = ''; } };
   $('loadEx').onclick = guard(loadExceptions);
   $('find').onclick = guard(find);
   $('q').addEventListener('keydown', function (e) { if (e.key === 'Enter') guard(find)(); });

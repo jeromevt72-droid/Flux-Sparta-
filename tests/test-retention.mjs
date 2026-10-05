@@ -1,4 +1,4 @@
-// RETENTION measurements + edge catch + "run it back", in the release gate.
+// RETENTION measurements + "run it back", in the release gate.
 // Real game page and real admin page in the harness vm; the real worker with a fake Durable Object.
 //   S1 the server adds game overs, restarts (+ delay buckets), sessions (games, how they ended) and
 //      first-run survival into day totals for everyone, by difficulty ("d:") and by source ("s:"),
@@ -15,10 +15,7 @@
 //      first-run survival median, by difficulty and by source;
 //   A2 BAD FAILURES table: bad vs normal by difficulty and step;
 //   A3 both tables are drawn in PLAYER STATS (text only) and the guide explains them;
-//   E1 "CLOSE!" on edge catches only (outer 15% of the launcher, past its end, the generous margin);
-//   E2 it never changes score, perfect, FLUX meter, combo, orb value, ball, randomness, flash or shake;
-//   E3 Reduce Motion: a calmer burst (fewer, slower sparks, no rising text, shorter);
-//   E4 it never overlaps the HUD, the "+ 2" popup or the launcher (measured iPhone/iPad layouts);
+//   E1 no "CLOSE!" edge-catch effect (owner: removed; the game looks exactly as before this PR);
 //   R1 RUN IT BACK: in the game loop the ball moves on the first frame after the tap (< 1 s), at
 //      level 1, speed step 0, with no countdown, banner or hold; the first-ever run keeps its hint.
 // Ends with negative controls (each mutates the sources and must be caught).
@@ -31,11 +28,8 @@ const GAME_HTML = fs.readFileSync(path.join(ROOT, 'public', 'play', 'index.html'
 const ADMIN_HTML = fs.readFileSync(path.join(ROOT, 'public', 'admin.html'), 'utf8');
 const WORKER_SRC = fs.readFileSync(path.join(ROOT, 'worker.js'), 'utf8');
 const scriptsOf = (h) => [...h.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
-const DEVICES = JSON.parse(fs.readFileSync(path.join(__dirname, 'test-level-banner.mjs'), 'utf8').match(/const DEVICES = (\[[\s\S]*?\n\]);/)[1]);
 const ORIGIN = 'https://flux.example', T0 = Date.parse('2026-10-01T12:00:00Z'), H = { 'x-admin-token': 'pw' }, MIN = 60000;
 const P = (n) => '0000000' + n + '-aaaa-4bbb-8ccc-00000000000' + n;
-const hit = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
-const WITHOUT_FX = (h) => h.replace('   if(edgeCatch) closeCatchFx(ball.x,edgeDx);\n', '');
 
 class FakeStorage {
   constructor() { this.map = new Map(); }
@@ -214,62 +208,9 @@ async function suite({ gameHtml, adminHtml, workerMod, quiet = false }) {
       !/innerHTML/.test(statsJs) && /Reading RETENTION and BAD FAILURES/.test(guide) && /30 minutes/.test(guide) && /Restart rate/.test(guide) && /Restart delay/.test(guide) && /Games \/ session/.test(guide) && /First-run survival/.test(guide) && /within 10 seconds/.test(guide));
   } catch (e) { ck('admin section ran', false, String(e.stack || e).slice(0, 300)); }
 
-  // ---------------- edge catch ----------------
-  try {
-    const catchAt = (html, frac, { runs = 4, calm = false, extra = 0 } = {}) => {   // frac: ball centre offset in launcher half-widths
-      const { store } = makeStore({ fluxPlayerId: 'ec-1', fluxCallsign: 'T', fluxProfileComplete: '1', fluxColorHintSeen: '1', fluxRunsPlayed: String(runs) });
-      const g = boot(scriptsOf(html), { origin: ORIGIN, path: '/play/', store }); const run = (c) => vm.runInContext(c, g.ctx);
-      let seed = 7; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }; const realR = Math.random; Math.random = rnd;
-      try {
-        g.ctx.newGame();
-        run('reduceMotion=' + calm + '; playing=true; targets=[]; combo=3; comboTimer=2; flux=10; paddle.x=W/2; ball.vx=0; ball.vy=6; ball.x=paddle.x+(' + frac + ')*paddle.w/2+' + extra + '; ball.y=paddle.y-paddle.h/2-ball.r-2; texts=[]; particles=[]; shake=0;');
-        const f0 = run('flashStarts'), m0 = run('misses'); let caught = false;
-        for (let i = 0; i < 40; i++) { g.ctx.update(1 / 60); if (run('ball.vy') < 0) { caught = true; break; } if (run('misses') !== m0) break; }
-        const st = JSON.parse(run('JSON.stringify({score,flux,combo,comboTimer:+comboTimer.toFixed(4),orbValue,vx:+ball.vx.toFixed(6),vy:+ball.vy.toFixed(6),texts:texts.map(t=>t.s),parts:particles.length,flashes:flashStarts-' + f0 + ',shake,perfect:perfectFlash>0,hitFlash:paddle.hitFlash})'));
-        st.caught = caught; st.close = run('closeFx?JSON.stringify({n:closeFx.sparks.length,life:closeFx.max,rise:closeFx.rise,sp:Math.max(...closeFx.sparks.map(p=>Math.hypot(p.vx,p.vy)))}):null'); st.nextRandom = Math.random();
-        return { st, g, run };
-      } finally { Math.random = realR; }
-    };
-    const shows = (frac, o) => { const r = catchAt(gameHtml, frac, o); return r.st.caught && !!r.st.close; };
-    const res = { center: shows(0), mid: shows(0.5), in69: shows(0.68), at70: shows(0.72), left: shows(-0.85), end: shows(1.0), margin: shows(1.0, { runs: 0, extra: 13 + 6 }) };
-    ck('E1 "CLOSE!" on edge catches only: not in the middle or at half-way; yes in the outer 15% (either side), at the end and on a generous-margin save',
-      !res.center && !res.mid && !res.in69 && res.at70 && res.left && res.end && res.margin, JSON.stringify(res));
-    const same = [];
-    for (const [frac, o] of [[0.85, {}], [-0.9, {}], [1.0, { runs: 0, extra: 19 }], [0.72, { calm: true }]]) {
-      const a = catchAt(gameHtml, frac, o).st, b = catchAt(WITHOUT_FX(gameHtml), frac, o).st;
-      const strip = (x) => JSON.stringify(Object.assign({}, x, { close: null }));
-      same.push(a.caught && !!a.close && strip(a) === strip(b) && !a.texts.some((t) => /PERFECT/.test(t)) && a.flashes === 0 && !a.perfect);
-      if (same.length === 1) same.push(a.score - (b.score) === 0 && a.flux === b.flux && a.orbValue === b.orbValue);
-    }
-    ck('E2 it changes nothing: score, perfect, FLUX meter, combo, orb value, the ball, game randomness, flash (none) and shake are exactly as without it', WITHOUT_FX(gameHtml) !== gameHtml && same.every(Boolean), JSON.stringify(same));
-    const normal = catchAt(gameHtml, 0.85).st.close, calm = catchAt(gameHtml, 0.85, { calm: true }).st.close;
-    const nc = JSON.parse(normal || '{}'), cc = JSON.parse(calm || '{}');
-    ck('E3 Reduce Motion: a calmer burst (fewer, slower sparks, no rising text, shorter)', nc.n > cc.n && cc.n <= 4 && cc.sp < nc.sp && cc.rise === 0 && nc.rise > 0 && cc.life < nc.life, JSON.stringify([nc, cc]));
-    // E4 layout on measured devices, both launcher ends
-    const bad = [];
-    for (const d of DEVICES) for (const side of [-1, 1]) {
-      const { store } = makeStore({ fluxPlayerId: 'ec-2', fluxCallsign: 'T', fluxProfileComplete: '1', fluxColorHintSeen: '1', fluxRunsPlayed: '4' });
-      const g = boot(scriptsOf(gameHtml), { origin: ORIGIN, path: '/play/', store }); const run = (c) => vm.runInContext(c, g.ctx);
-      g.ctx.newGame();
-      run('W=' + d.W + ';H=' + d.H + ';paddle.y=H-Math.max(42,Math.min(90,H*.095));paddle.w=' + (d.W <= 430 ? 132 : 150) + ';cachedHudRects=' + JSON.stringify(d.hud) + ';');
-      run('setPaddle(' + (side < 0 ? 0 : d.W) + '); playing=true; targets=[]; ball.vx=0; ball.vy=6; ball.x=paddle.x+(' + side + ')*paddle.w*.46; ball.y=paddle.y-paddle.h/2-ball.r-2; texts=[];');
-      for (let i = 0; i < 40 && run('ball.vy') > 0; i++) g.ctx.update(1 / 60);
-      const cx = run('ctx'); const tx = [];
-      cx.measureText = (t) => ({ width: String(t).length * parseFloat(String(cx.font).match(/(\d+(?:\.\d+)?)px/)[1]) * 0.72 });
-      cx.fillText = (t, x, y) => { const px = parseFloat(String(cx.font).match(/(\d+(?:\.\d+)?)px/)[1]), w = cx.measureText(t).width; tx.push({ t: String(t), box: { left: x - w / 2, right: x + w / 2, top: y - px * 0.8, bottom: y + px * 0.2 } }); };
-      for (let f = 0; f < 36; f++) {   // the whole life of the effect, while the "+ 2" rises
-        tx.length = 0; g.ctx.draw();
-        const c = tx.find((t) => t.t === 'CLOSE!'); if (!c) { if (f === 0) bad.push(d.name + ' ' + side + ': not drawn'); break; }
-        const top = run('maxHudBottom()'), launcher = run('({left:paddle.x-paddle.w/2,right:paddle.x+paddle.w/2,top:paddle.y-paddle.h/2,bottom:paddle.y+paddle.h/2})');
-        const plus = tx.filter((t) => /^\+ /.test(t.t)).map((t) => t.box), hud = [d.stats, d.fluxbar].concat(d.hud);
-        if (c.box.top < top || hud.some((x) => hit(c.box, x))) { bad.push(d.name + ' ' + side + ': over the HUD'); break; }
-        if (plus.some((p) => hit(c.box, p))) { bad.push(d.name + ' ' + side + ': over the "+ 2"'); break; }
-        if (hit(c.box, launcher) || c.box.left < 0 || c.box.right > d.W) { bad.push(d.name + ' ' + side + ': over the launcher / off screen'); break; }
-        g.ctx.update(1 / 60); run('ball.y=H*.4; ball.vy=-3;');
-      }
-    }
-    ck('E4 "CLOSE!" never overlaps the HUD, the "+ 2" popup or the launcher, and stays on screen (' + DEVICES.length + ' layouts, both ends)', bad.length === 0, bad.slice(0, 4).join(' | '));
-  } catch (e) { ck('edge catch section ran', false, String(e.stack || e).slice(0, 300)); }
+  // ---------------- no edge catch (owner: "CLOSE!" removed) ----------------
+  ck('E1 no "CLOSE!" edge-catch effect: no text, no burst, nothing extra in the game loop or the drawing',
+    !/CLOSE!|closeFx|closeCatchFx|isEdgeCatch|EDGE_CATCH|edgeCatch/.test(gameHtml));
 
   // ---------------- run it back ----------------
   try {
@@ -323,14 +264,7 @@ await control('median read at the bucket start', 'A1', { admin: rep('return isFi
 await control('bad share over normal game overs', 'A2', { admin: rep('c.badShare = c.go ? c.bad / c.go : NaN;', 'c.badShare = c.normal ? c.bad / c.normal : NaN;') });
 await control('RETENTION table not drawn', 'A3', { admin: rep("box.appendChild(el('h2', null, 'RETENTION'));", '') });
 await control('guide loses the retention note', 'A3', { admin: rep('<h3>Reading RETENTION and BAD FAILURES</h3>', '<h3>Retention</h3>') });
-await control('edge zone widened to the whole outer half', 'E1', { game: rep('const EDGE_CATCH_ZONE=.15', 'const EDGE_CATCH_ZONE=.3') });
-await control('margin catches get no CLOSE!', 'E1', { game: rep('function isEdgeCatch(dx,marginCatch){ return !!marginCatch ||', 'function isEdgeCatch(dx,marginCatch){ return !marginCatch &&') });
-await control('CLOSE! gives points', 'E2', { game: rep('function closeCatchFx(bx,dx){', 'function closeCatchFx(bx,dx){ score+=5;') });
-await control('CLOSE! flashes the screen', 'E2', { game: rep('function closeCatchFx(bx,dx){', 'function closeCatchFx(bx,dx){ flash(.1);') });
-await control('CLOSE! uses the game\'s random numbers', 'E2', { game: rep('function closeRand(a,b){ closeFxSeed=', 'function closeRand(a,b){ Math.random(); closeFxSeed=') });
-await control('Reduce Motion ignored', 'E3', { game: rep('const calm=!!reduceMotion,', 'const calm=false,') });
-await control('CLOSE! drawn over the "+ 2"', 'E4', { game: rep('const tx=Math.max(44,Math.min(W-44,bx-side*CLOSE_TEXT_GAP));', 'const tx=Math.max(44,Math.min(W-44,bx));') });
-await control('CLOSE! not kept below the HUD', 'E4', { game: (s) => rep('const y=Math.max(top+12,closeFx.y-(1-k)*closeFx.rise);', 'const y=closeFx.y-(1-k)*closeFx.rise;')(rep('const ty=Math.max(maxHudBottom()+28,paddle.y-paddle.h/2-30);', 'const ty=paddle.y-paddle.h/2-30-H*.7;')(s)) });
+await control('a "CLOSE!" text drawn at an edge catch', 'E1', { game: rep(' if(paddle.hitFlash>0) paddle.hitFlash=', ' if(ball && Math.abs(ball.x-paddle.x)>paddle.w*.35) texts.push({s:\'CLOSE!\',x:ball.x,y:paddle.y-30,life:.6,col:\'#ffd45c\'});\n if(paddle.hitFlash>0) paddle.hitFlash=') });
 await control('a 1.5 s intro hold added to RUN IT BACK', 'R1', { game: rep("classList.remove('hidden');newGame();paused=false;", "classList.remove('hidden');newGame();levelHold=1.5;playing=false;paused=false;") });
 const total = main.F + NC;
 console.log('\n' + (total ? 'RETENTION FAILED: ' + main.F + ' check(s), ' + NC + ' uncaught control(s)' : 'RETENTION PASSED: all checks and all negative controls'));

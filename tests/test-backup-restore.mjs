@@ -376,7 +376,8 @@ async function suite({ workerMod, adminHtml, quiet = false }) {
       && /idFromName\("backups"\)/.test(workerMod.__src || WORKER_SRC));
     { let mainCfg = null;
       try { const r = spawnSync('git', ['show', 'origin/main:wrangler.jsonc'], { cwd: ROOT, encoding: 'utf8' }); if (r.status === 0 && r.stdout) mainCfg = r.stdout; } catch (e) {}
-      const strip = (t) => JSON.stringify(JSON.parse(t.replace(/^\s*\/\/.*$/mg, '')));
+      // Only the parts this check is about (FREE PLAN changes the "assets" routing, not these).
+      const strip = (t) => { const c = JSON.parse(t.replace(/^\s*\/\/.*$/mg, '')); return JSON.stringify([c.durable_objects, c.migrations, c.triggers, c.kv_namespaces, c.r2_buckets, c.d1_databases]); };
       ck('B10 wrangler.jsonc has the same bindings, migrations and triggers as main (checked against origin/main when git is available)', mainCfg === null || strip(mainCfg) === strip(WRANGLER), mainCfg === null ? 'git not available: fixed checks above only' : ''); }
     // The two roles never mix.
     const G = mk(new FakeStorage(seed(0, 20)), new FakeStorage(new Map(), { limit: true }));
@@ -430,7 +431,7 @@ await control('restore without a safety backup', 'B3 a verified safety backup', 
 await control('restore goes ahead when the safety backup failed', 'B3 if the safety backup cannot be made', { worker: rep('const safety = await this.takeSnapshot("safety", "before restoring " + id, liveText);', 'let safety; try { safety = await this.takeSnapshot("safety", "before restoring " + id, liveText); } catch (e) { safety = { verified: true, id: "none" }; }') });
 await control('restore not in one transaction', 'B3 a write failure part-way', { worker: rep('if (typeof st.transaction === "function") await st.transaction(apply); else await apply(st);', 'await apply(st);') });
 await control('restore keeps keys that are not in the backup', 'B3 the leaderboard storage is identical', { worker: rep('for (let i = 0; i < gone.length; i += BACKUP_PUT_KEYS) await st.delete(gone.slice(i, i + BACKUP_PUT_KEYS));', '') });
-await control('restore does not reload the leaderboard memory', 'B3 the public routes answer exactly as before', { worker: rep('this.ready = false; this.tagCache = null; this.pidCache = new Map();\n    });\n    await this.load();', '});') });
+await control('restore does not reload the leaderboard memory', 'B3 the public routes answer exactly as before', { worker: rep('this.ready = false; this.tagCache = null; this.rowsCache = null; this.pidCache = new Map();\n    });\n    await this.load();', '});') });
 await control('restore goes ahead with a damaged backup', 'B6 a changed chunk is detected', { worker: rep('const { resp, v } = await this.checked(id); if (resp) return resp;\n    const liveText = await this.dumpLive();\n    const safety', 'const v = await this.verify(id); if (!v.meta) return json({ error: "No such backup." }, 404);\n    if (!v.text) { const parts = []; for (let i = 0; i < v.meta.chunks; i++) parts.push(await this.state.storage.get(this.chunkKey(id, v.meta.gen, i))); v.text = parts.join(""); }\n    const liveText = await this.dumpLive();\n    const safety') });
 await control('cron backs up on every run', 'B4 later runs the same day do nothing', { worker: rep('if (d && (d.ok || d.attempts >= BACKUP_DAILY_ATTEMPTS)) return', 'if (false) return') });
 await control('cron never takes the daily backup', 'B4 the first cron run', { worker: rep('    if (env.LEADERBOARD_DO) ctx.waitUntil(backupDO(env, "/daily"', '    if (false) ctx.waitUntil(backupDO(env, "/daily"') });

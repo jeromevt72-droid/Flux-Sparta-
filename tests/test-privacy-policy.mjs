@@ -85,7 +85,7 @@ const edit = (file, a, b) => (fl) => { if (!fl[file].includes(a)) throw new Erro
 control('Google Analytics added to the game', 'P2', edit('public/play/index.html', '</head>', '<script async src="https://www.googletagmanager.com/gtag/js?id=G-X"></script></head>'));
 control('ads switched on', 'P2', edit('public/play/index.html', 'const ADS_ENABLED = false;', 'const ADS_ENABLED = true;'));
 control('a cookie set by the Gateway', 'P2', edit('public/index.html', '</body>', '<script>document.cookie="v=1"</script></body>'));
-control('a cookie set on a player API response', 'P2', edit('worker.js', 'return withCors(await submitScore(request, env));', 'return withCors(json({ ok: true }, 200, { "Set-Cookie": "pid=1" }));'));
+control('a cookie set on a player API response', 'P2', edit('worker.js', 'return withCors(await submitRun(request, env, ctx));', 'return withCors(json({ ok: true }, 200, { "Set-Cookie": "pid=1" }));'));
 control('the admin cookie opened to the whole site', 'P2', edit('worker.js', '"; Path=/api/admin; HttpOnly;', '"; Path=/; HttpOnly;'));
 control('placeholder left in the retired copy', 'P1', edit('public/welcome/privacy.html', 'Effective date:', 'Effective date: [OWNER INPUT REQUIRED: date]'));
 control('"not ready" note back', 'P1', edit('public/privacy.html', '<h1>Privacy Policy</h1>', '<h1>Privacy Policy</h1><div class="todo">Not yet ready for publication.</div>'));
