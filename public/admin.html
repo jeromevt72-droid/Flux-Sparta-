@@ -771,7 +771,7 @@
     if (!(ins.findings || []).length) c.appendChild(el('div', 'find', 'No findings: no rule fired.'));
     var ck = ins.checked || [], thin = ck.filter(function (r) { return !r.enough; }).length;
     c.appendChild(el('div', 'asof', 'Checked ' + ck.length + ' fixed rules · ' + fmt(ins.firedCount) + ' fired' + (ins.firedCount > (ins.findings || []).length ? ' (top ' + ins.findings.length + ' shown)' : '') +
-      ' · ' + thin + ' need more data · last complete days up to ' + ins.today + ' (UTC). See GUIDE › Owner summary.'));
+      ' · ' + thin + ' need more data · last complete days up to yesterday (UTC). See GUIDE › Owner summary.'));
     var out = el('div');
     var row = el('div', 'actions'); row.appendChild(btn('EXPORT REPORT', 'ghost', function () { exportReport(ins['export'] || '', out); }));
     c.appendChild(row); c.appendChild(out);

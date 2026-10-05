@@ -317,6 +317,8 @@ async function suite({ adminHtml, workerMod, quiet = false }) {
     ck('U1 the page draws the status and each finding with "Measured:", "Possible reason:", sample and confidence (as text)',
       g.errors.length === 0 && text.includes(ins.status) && finds.length === ins.findings.length && finds.every((f) => /Measured: /.test(f.textContent) && /Possible reason: /.test(f.textContent) && (f.textContent.includes('CONFIDENCE: ' + ins.findings[finds.indexOf(f)].confidence) || /DIRECT COUNT \(NOT A SAMPLE\)/.test(f.textContent))),
       g.errors.join(';') + ' ' + finds.length);
+    ck('U1 ...the periods line says the last complete days run up to yesterday (UTC), not a date (today is not complete)',
+      /last complete days up to yesterday \(UTC\)/.test(text) && !/up to \d{4}-\d{2}-\d{2}/.test(text), (text.match(/last complete days[^.]*/) || [''])[0]);
     const btnOf = () => box.all().find((n) => n.tagName === 'BUTTON' && n.textContent === 'EXPORT REPORT');
     g.ctx.navigator.clipboard = undefined;
     btnOf().onclick(); await tick();
@@ -350,6 +352,7 @@ async function control(label, expect, { admin = (s) => s, worker = (s) => s }) {
   } finally { try { fs.unlinkSync(tmp); } catch (e) {} }
 }
 const rep = (a, b) => (s) => (s.includes(a) ? s.replace(a, b) : s);
+await control('periods line shows today\'s date again', 'U1 ...the periods line', { admin: rep("last complete days up to yesterday (UTC).", "last complete days up to ' + ins.today + ' (UTC).") });
 await control('confidence boundary off by one (100 -> 101)', 'C1', { worker: rep('[100, "MODERATE"]', '[101, "MODERATE"]') });
 await control('Day-1 rule fires ON the threshold', 'R-D1_LOW', { worker: rep('if (r.n1 < this.minSample || !(v < this.threshold - OI_EPS)) return [];', 'if (r.n1 < this.minSample || !(v <= this.threshold + OI_EPS)) return [];') });
 await control('Day-1 rule ignores its minimum sample', 'R-D1_LOW', { worker: rep('if (r.n1 < this.minSample || !(v < this.threshold - OI_EPS)) return [];', 'if (!(v < this.threshold - OI_EPS)) return [];') });
