@@ -37,6 +37,13 @@
      FLUX_GAME_URL -- where PLAY FREE goes (/play/) */
 window.FLUX_ORIGIN = window.location.origin;
 window.FLUX_GAME_URL = window.location.origin + '/play/';
+/* FIRST-RUN MEASURE (owner): where a PLAY button goes -- the game, with this
+   page's ?src= tag (where the player came from) kept when it is a valid tag. */
+window.FLUX_GAME_LINK = (function(){
+  try { var s = String(new URLSearchParams(window.location.search).get('src') || '').trim().toLowerCase();
+        return /^[a-z0-9_-]{1,24}$/.test(s) ? window.FLUX_GAME_URL + '?src=' + s : window.FLUX_GAME_URL; }
+  catch (e) { return window.FLUX_GAME_URL; }
+})();
 
 /* ONE-APP (RC2.5.6 audit): the app now installs from this Gateway page, but
    only the game page registered the service worker. A player who installed
@@ -998,7 +1005,7 @@ try{
         var ctaText = (idx===0)
           ? ('PLAY NOW — DEFEND ' + window.escapeHtml2(meta2.name.toUpperCase()) + "'S LEAD")
           : ('PLAY NOW — HELP ' + window.escapeHtml2(meta2.name.toUpperCase()) + ' CLOSE THE GAP');
-        sideHtml += '<a class="btn primary" style="display:block;text-align:center;margin-top:14px" href="'+window.FLUX_GAME_URL+'">'+ctaText+'</a>';
+        sideHtml += '<a class="btn primary" style="display:block;text-align:center;margin-top:14px" href="'+window.FLUX_GAME_LINK+'">'+ctaText+'</a>';
       }
     } else {
       sideHtml += '<div class="gapCard">Pick your flag above to see exactly how many points your country needs to pass its next rival.</div>';
@@ -1213,7 +1220,7 @@ window.__gwSoundOn = false;
 // changes every navigation path in one edit.
 document.addEventListener('DOMContentLoaded', function(){
   try{
-    document.querySelectorAll('[data-flux-play]').forEach(function(a){ a.href = window.FLUX_GAME_URL; });
+    document.querySelectorAll('[data-flux-play]').forEach(function(a){ a.href = window.FLUX_GAME_LINK; });
   }catch(e){}
 });
 // D-01: stop the demo doing gameplay work while the real game is open.
@@ -1311,7 +1318,7 @@ try{
     if(window.setHeroDemoSuspended) window.setHeroDemoSuspended(true);
     // Top-level navigation. Same-window, same origin as every other FLUX
     // launch, so the game sees the one and only fluxPlayerId.
-    window.location.href = window.FLUX_GAME_URL;
+    window.location.href = window.FLUX_GAME_LINK;
   }
   function closePlayScreen(){
     var overlay = document.getElementById('playScreen');
@@ -1418,7 +1425,7 @@ try{
         deferredInstallPrompt = null;
         promptRef.prompt();
         promptRef.userChoice.finally(function(){
-          window.location.href = window.FLUX_GAME_URL;
+          window.location.href = window.FLUX_GAME_LINK;
         });
         return;
       }
@@ -1430,7 +1437,7 @@ try{
           if(continueBtn){
             continueBtn.onclick = function(){
               overlay.style.display = 'none';
-              window.location.href = window.FLUX_GAME_URL;
+              window.location.href = window.FLUX_GAME_LINK;
             };
           }
         }

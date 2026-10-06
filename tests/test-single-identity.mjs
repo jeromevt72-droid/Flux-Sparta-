@@ -10,11 +10,13 @@ const code = t => blocks(t).join('\n;\n').replace(/\/\*[\s\S]*?\*\//g,'').replac
 const gw = code(gwSrc), sp = code(spSrc);
 
 console.log('-- Play no longer iframes the game --');
-ck('openPlayScreen navigates top-level', /function openPlayScreen\(\)\{[\s\S]{0,700}window\.location\.href = window\.FLUX_GAME_URL;/.test(gw));
-ck('no longer sets playFrame.src', !gw.includes('frame.src = window.FLUX_GAME_URL'));
+// FIRST-RUN MEASURE: play goes to FLUX_GAME_LINK = the canonical FLUX_GAME_URL + this page's ?src= tag.
+const LINK_FROM_URL = /window\.FLUX_GAME_LINK = \(function\(\)\{[\s\S]{0,400}\? window\.FLUX_GAME_URL \+ '\?src=' \+ s : window\.FLUX_GAME_URL;/.test(gw);
+ck('openPlayScreen navigates top-level', /function openPlayScreen\(\)\{[\s\S]{0,700}window\.location\.href = window\.FLUX_GAME_LINK;/.test(gw) && LINK_FROM_URL);
+ck('no longer sets playFrame.src', !gw.includes('frame.src = window.FLUX_GAME_URL') && !gw.includes('frame.src = window.FLUX_GAME_LINK'));
 ck('demo silenced before leaving', /openPlayScreen\(\)\{[\s\S]{0,400}setHeroDemoSuspended\(true\)/.test(gw));
 ck('navigates to the canonical constant, not a literal',
-   /window\.location\.href = window\.FLUX_GAME_URL/.test(gw) &&
+   /window\.location\.href = window\.FLUX_GAME_LINK/.test(gw) && LINK_FROM_URL &&
    (gw.match(/window\.FLUX_GAME_URL = window\.location\.origin \+ '\/play\/';/g)||[]).length===1);
 
 console.log('-- RUNTIME: execute the page and prove where Play goes --');

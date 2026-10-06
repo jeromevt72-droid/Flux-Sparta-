@@ -95,7 +95,7 @@ async function suite(src, quiet = false) {
     ck('S1 one Worker request per run: the score reply comes back and the server fans out -- 1 leaderboard + 1 stats DO request',
       r.status === 200 && r.data && r.data.ok === true && lbReq.length === 1 && lbReq[0].path === '/submit' && anReq.length === 1 && anReq[0].path === '/an-ingest', env.S.req.map((x) => x.id + x.path).join(','));
     ck('S1 ...the stats are cleaned as /api/events cleans them: one-way code, chosen country, src, only known events, no name or playerId',
-      /^[0-9a-f]{16}$/.test(an.h || '') && an.country === 'PH' && an.src === 'tiktok' && JSON.stringify(an.events) === JSON.stringify([{ e: 'open', home: true }, { e: 'run_end', lvl: 3, diff: 'medium', sec: 42 }]) && !JSON.stringify(an).includes('TITAN') && !JSON.stringify(an).includes(PID), JSON.stringify(an).slice(0, 160));
+      /^[0-9a-f]{16}$/.test(an.h || '') && an.country === 'PH' && an.src === 'tiktok' && JSON.stringify(an.events) === JSON.stringify([{ e: 'open', home: true, iab: false }, { e: 'run_end', lvl: 3, diff: 'medium', sec: 42 }]) && !JSON.stringify(an).includes('TITAN') && !JSON.stringify(an).includes(PID), JSON.stringify(an).slice(0, 160));
     ck('S1 ...and they are counted (1 run, 1 open)', day.all && day.all.runs === 1 && day.all.opens === 1, JSON.stringify(day.all || {}));
     const lbBoard = await call(env, '/api/leaderboard?limit=50');
     ck('S1 ...and the score is on the board', lbBoard.data && lbBoard.data.top && lbBoard.data.top.length === 1 && (lbBoard.data.top[0].points || lbBoard.data.top[0].score) === 3000);
@@ -288,7 +288,7 @@ async function control(label, expect, mutate) {
 }
 await control('the run\'s stats not put into the score upload', 'C1', rep('game', "  if(run) fluxMergeStats(item, fluxStatsTake());", ''));
 await control('the same best uploaded again at every game over', 'C1', rep('game', 'if(!item || (run && fluxAlreadyUploaded(item))){', 'if(!item){'));
-await control('the 8-second stats timer back', 'C2', rep('game', '    let hideSent=false;', '    let hideSent=false; setTimeout(fluxStatsFlush,8000);'));
+await control('the 8-second stats timer back', 'C2', rep('game', '    let hideSent=false, hideFirstSent=false;', '    let hideSent=false, hideFirstSent=false; setTimeout(fluxStatsFlush,8000);'));
 await control('the 3-second entitlements repeat back', 'C2', rep('game', '  if (back) setTimeout(syncEntitlements, 3000);', '  setTimeout(syncEntitlements, 3000);'));
 await control('the leaderboard copy never reused', 'C3', rep('game', "FLUX_LB_TTL_MS=60000", "FLUX_LB_TTL_MS=0"));
 await control('the Gateway ignores the shared copy', 'C3', rep('gw', "var LB_KEY = 'fluxLbCache', LB_TRY = 'fluxLbTry', LB_TTL = 60000;", "var LB_KEY = 'fluxLbCacheGw', LB_TRY = 'fluxLbTryGw', LB_TTL = 60000;"));

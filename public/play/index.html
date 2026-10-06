@@ -4761,9 +4761,18 @@ function fluxTrack(e,extra){
    request per run); fluxStatsFlush sends them alone only when there is no
    score to upload, or once per page load when the app is hidden. Offline or
    past the daily limit they stay here and ride with the next upload. */
+/* FIRST-RUN MEASURE (owner): "open" says, yes or no, whether the game was opened
+   inside another app's built-in browser (TikTok, Instagram, Facebook...; which
+   app is never sent). The in-app check runs after this script, so the flag is
+   filled in when the events leave. */
+function fluxStatsEvents(){
+  const ev=fluxStatsQueue.slice(0,40);
+  for(const e of ev) if(e.e==='open' && e.iab===undefined) e.iab=!!window.FLUX_IN_APP;
+  return ev;
+}
 function fluxStatsTake(){
   if(!fluxStatsQueue.length) return null;
-  const s={src:fluxStatsSrc(),events:fluxStatsQueue.slice(0,40)};
+  const s={src:fluxStatsSrc(),events:fluxStatsEvents()};
   fluxStatsQueue=[];
   return s;
 }
@@ -4771,7 +4780,7 @@ function fluxStatsFlush(){
   try{
     if(typeof fluxNetHeld==='function' && fluxNetHeld() && fluxStatsQueue.length) return;   // kept for the next upload
     if(!fluxStatsQueue.length || !navigator.sendBeacon) { fluxStatsQueue=[]; return; }
-    const body=JSON.stringify({pid:playerId,country:country,src:fluxStatsSrc(),bid:fluxRandomId(),events:fluxStatsQueue.slice(0,40)});   // bid: the server counts a batch once
+    const body=JSON.stringify({pid:playerId,country:country,src:fluxStatsSrc(),bid:fluxRandomId(),events:fluxStatsEvents()});   // bid: the server counts a batch once
     fluxStatsQueue=[];
     navigator.sendBeacon(FLUX_STATS_URL,new Blob([body],{type:'text/plain'}));   // fire and forget
   }catch(x){ fluxStatsQueue=[]; }
@@ -4811,9 +4820,13 @@ function fluxStatsFlush(){
     if(sb) sb.onclick=function(){ fluxTrack('share'); return typeof share0==='function' ? share0.apply(this,arguments) : undefined; };   // FREE PLAN: rides with the next upload
     // FREE PLAN: no timer. The app-open event rides with the first run's upload;
     // if the app is hidden first, whatever is waiting goes ONCE per page load.
-    let hideSent=false;
+    // FIRST-RUN MEASURE (owner): plus ONE more hidden send, only while a first run
+    // is waiting (hidden once, back, first run started, then closed mid-run).
+    let hideSent=false, hideFirstSent=false;
     document.onvisibilitychange=function(){ fluxSessVisible(!document.hidden);   // RETENTION: the session's hide / return (queued; sent by the rules below)
-      if(document.hidden && !hideSent && fluxStatsQueue.length && !(typeof fluxNetHeld==='function' && fluxNetHeld())){ hideSent=true; fluxStatsFlush(); } };
+      if(!document.hidden || !fluxStatsQueue.length || (typeof fluxNetHeld==='function' && fluxNetHeld())) return;
+      if(!hideSent){ hideSent=true; fluxStatsFlush(); }
+      else if(!hideFirstSent && fluxStatsQueue.some(function(e){ return e.e==='first_run'; })){ hideFirstSent=true; fluxStatsFlush(); } };
   }catch(x){}
 })();
 </script>
