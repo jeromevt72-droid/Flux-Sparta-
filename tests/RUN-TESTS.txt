@@ -77,3 +77,4 @@ node test-lightning-zone.mjs       # lightning orbs only in the upper half of th
 node test-battery-lifecycle.mjs    # battery PR A: hidden / pause stop all work, menus stamp a still field, FLUX look written once per change
 node test-battery-rendering.mjs    # battery PR B: glow sprites (particles, trail, launcher at rest; hit pulse live), Lite, cached gradients, in-place particles
 node test-first-run-measure.mjs    # first-run measure: in-app yes/no on open, extra hidden send for a waiting first run, owner-summary split, Gateway keeps ?src=
+node test-android-icon.mjs        # Android icon: maskable / Play-ready icons, favicon.ico, page icons + application-name, manifest name, one-time Chrome tip

@@ -316,7 +316,7 @@ ck('ROOT API never requested under /play/', '/play/api' not in _gs and 'FLUX_GAM
 ck('ROOT Stripe returns forwarded to the game', "window.location.replace(window.location.origin + '/play/' + q)" in _gwraw)
 ck('ROOT forwarding only for Stripe params', "/[?&](session_id|checkout)=/.test(q)" in _gwraw)
 ck('ROOT game links the one manifest absolutely', '<link rel="manifest" href="/manifest.webmanifest">' in _spraw)
-ck('ROOT game icon absolute', '<link rel="apple-touch-icon" href="/icon-192.png">' in _spraw)
+ck('ROOT game icon absolute', '<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">' in _spraw)   # ANDROID ICON: an opaque 180 touch icon, absolute
 ck('ROOT SW game shell is /play/', "SHELL_URL  = new URL('./play/index.html', self.location)" in _swt)
 ck('ROOT SW never treats "/" as the game', "SCOPE_ROOT," not in _swt.split('const PRECACHE')[1].split('];')[0])
 ck('ROOT retired /welcome/ only forwards', '<link rel="manifest"' not in open('FLUX-Sparta/public/welcome/index.html',encoding='utf-8').read()
