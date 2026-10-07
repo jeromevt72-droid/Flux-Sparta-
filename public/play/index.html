@@ -4264,7 +4264,7 @@ function fluxSolarUsed(){
   return false;
 }
 function fluxFoundingRefresh(){
-  const left=fluxFoundingLeftNow(), quiet=fluxSolarUsed() || left===0;   // MENU CLEANUP: used Solar Inferno, or no spots left
+  const left=fluxFoundingLeftNow(), quiet=fluxSolarUsed() || !(left>0);   // MENU CLEANUP: used Solar Inferno, no spots left, or the offer switched off
   const v=quiet ? fluxFoundingView(0,null) : fluxFoundingView(fluxFoundingNum(),left);
   try{ const b=document.getElementById('foundingBadge'); if(b){ b.textContent=v.badge; b.classList.toggle('hidden',!v.badge); } }catch(e){}
   try{ const l=document.getElementById('foundingLeft'); if(l){ l.textContent=v.line; l.classList.toggle('hidden',!v.line); } }catch(e){}
