@@ -4249,8 +4249,23 @@ function fluxFoundingRun(b,item){
   }catch(e){}
   fluxFoundingRefresh();
 }
+/* MENU CLEANUP (owner): a pilot who has put on Solar Inferno at least once no longer sees the two
+   Founding Pilot lines in the menu (the badge and "spots left"), even after switching to another skin;
+   once all 1,000 spots are taken nobody sees them. Only these two lines; everything else is as before.
+   The game keeps no history of skins, so the mark is made here: when Solar Inferno is put on (skin or
+   backdrop -- TRY IT NOW puts on both), or found on now for a pilot from before this mark existed.
+   Kept per pilot (this device's pilot id), like the other Founding Pilot marks. */
+var FLUX_SOLAR_USED_KEY='fluxSolarUsed';
+function fluxSolarUsed(){
+  try{
+    if(localStorage.getItem(FLUX_SOLAR_USED_KEY)===playerId) return true;
+    if(activeSkin==='solar' || activeBackground==='solar'){ localStorage.setItem(FLUX_SOLAR_USED_KEY,playerId); return true; }
+  }catch(e){}
+  return false;
+}
 function fluxFoundingRefresh(){
-  const v=fluxFoundingView(fluxFoundingNum(),fluxFoundingLeftNow());
+  const left=fluxFoundingLeftNow(), quiet=fluxSolarUsed() || left===0;   // MENU CLEANUP: used Solar Inferno, or no spots left
+  const v=quiet ? fluxFoundingView(0,null) : fluxFoundingView(fluxFoundingNum(),left);
   try{ const b=document.getElementById('foundingBadge'); if(b){ b.textContent=v.badge; b.classList.toggle('hidden',!v.badge); } }catch(e){}
   try{ const l=document.getElementById('foundingLeft'); if(l){ l.textContent=v.line; l.classList.toggle('hidden',!v.line); } }catch(e){}
   fluxSkinsDot();
@@ -4288,6 +4303,11 @@ document.getElementById('fwTry').onclick=function(){
   fluxFoundingEquip().then(function(ok){ fluxNameToast(ok ? 'Solar Inferno is on ✓ Change it any time in THEMES & SKINS.' : 'Solar Inferno unlocks when you are online: open THEMES & SKINS then.', 4500); });
 };
 document.getElementById('fwLater').onclick=function(){ fluxFoundingChoose(); };
+(function(){   // MENU CLEANUP: putting on Solar Inferno (THEMES & SKINS, TRY IT NOW) hides the two menu lines at once
+  const equip0=equipSkin, bg0=setBackground;
+  equipSkin=function(sku){ const r=equip0.apply(this,arguments); if(sku==='solar') fluxFoundingRefresh(); return r; };
+  setBackground=function(bg){ const r=bg0.apply(this,arguments); if(bg==='solar') fluxFoundingRefresh(); return r; };
+})();
 /* The NEW dot on THEMES & SKINS: a Founding Pilot who has not opened it yet; gone for good once opened. */
 var FLUX_SKINS_SEEN_KEY='fluxSkinsSeen';
 function fluxSkinsDot(){

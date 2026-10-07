@@ -393,12 +393,15 @@ async function suite({ mod, main, game = GAME_HTML, adminHtml = ADMIN_HTML, gate
       };
       const A = await start({ playerId: 'pilot-a', skus: ['solar'], founding: 7, foundingLeft: 993 });
       ck('FP9 the game boots without errors', A.g.errors.length === 0, A.g.errors.join(' | '));
+      // MENU CLEANUP (owner): the menu lines as a founder sees them BEFORE putting on Solar Inferno
+      const menuBefore = { badge: A.g.els.foundingBadge && A.g.els.foundingBadge.textContent, line: A.g.els.foundingLeft && A.g.els.foundingLeft.textContent };
       const pkg = A.run(`(function(){ const own=ownsSkin('solar'); equipSkin('solar'); setBackground('solar');
         const bgs=Object.entries(SKINS).filter(function(e){ return e[1].bg && ownsSkin(e[0]); }).map(function(e){ return e[0]; });
         return { own:own, skin:activeSkin, colors:colors===SKINS.solar.colors, five:colors.length===5, launcher:launcherColour(), backdrop:skinBackdropOn(), bg:activeBackground, bgs:bgs }; })()`);
       ck('FP9 a founder owns the COMPLETE Solar Inferno package: skin with its 5 orb colours, the orange launcher, the backdrop', pkg.own && pkg.skin === 'solar' && pkg.colors && pkg.five && pkg.launcher === '#ff7a18' && pkg.backdrop && pkg.bg === 'solar' && pkg.bgs.includes('solar'), JSON.stringify(pkg));
-      ck('FP9 the menu shows the badge "FOUNDING PILOT #7"', A.g.els.foundingBadge && A.g.els.foundingBadge.textContent === 'FOUNDING PILOT #7', A.g.els.foundingBadge && A.g.els.foundingBadge.textContent);
-      ck('FP9 the menu line "Founding Pilot spots left: 993"', A.g.els.foundingLeft && A.g.els.foundingLeft.textContent === 'Founding Pilot spots left: 993', A.g.els.foundingLeft && A.g.els.foundingLeft.textContent);
+      ck('FP9 the menu shows the badge "FOUNDING PILOT #7" (before Solar Inferno is put on)', menuBefore.badge === 'FOUNDING PILOT #7', menuBefore.badge);
+      ck('FP9 the menu line "Founding Pilot spots left: 993" (before Solar Inferno is put on)', menuBefore.line === 'Founding Pilot spots left: 993', menuBefore.line);
+      ck('FP9 ...and once Solar Inferno is on, neither line (MENU CLEANUP)', A.g.els.foundingBadge.textContent === '' && A.g.els.foundingLeft.textContent === '', JSON.stringify([A.g.els.foundingBadge.textContent, A.g.els.foundingLeft.textContent]));
       A.run('fluxFoundingRefresh(); fluxFoundingRefresh();');
       ck('FP9 the one-time message, exact text, shown once', A.toasts.length === 1 && A.toasts[0] === MSG(7), JSON.stringify(A.toasts));
       const A2 = await start({ playerId: 'pilot-a', skus: ['solar'], founding: 7, foundingLeft: 993 }, { fluxFoundingShown: 'pilot-a' });
