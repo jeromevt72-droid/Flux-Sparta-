@@ -78,3 +78,4 @@ node test-battery-lifecycle.mjs    # battery PR A: hidden / pause stop all work,
 node test-battery-rendering.mjs    # battery PR B: glow sprites (particles, trail, launcher at rest; hit pulse live), Lite, cached gradients, in-place particles
 node test-first-run-measure.mjs    # first-run measure: in-app yes/no on open, extra hidden send for a waiting first run, owner-summary split, Gateway keeps ?src=
 node test-founding-menu.mjs       # Founding Pilot menu cleanup: badge + spots-left hidden for pilots who used Solar Inferno, and for everyone at 0 spots
+node test-android-icon.mjs        # Android icon: maskable / Play-ready icons, favicon.ico, page icons + application-name, manifest name, one-time Chrome tip
