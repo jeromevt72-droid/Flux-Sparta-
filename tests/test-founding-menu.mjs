@@ -5,7 +5,7 @@
 //      is kept per pilot so switching back to another skin keeps them hidden; pilots from before the mark
 //      existed count when Solar Inferno is on now;
 //   M4 putting on Solar Inferno (THEMES & SKINS or TRY IT NOW) hides them at once;
-//   M5 all 1,000 spots taken: neither line for anyone;
+//   M5 all 1,000 spots taken, or the offer switched off: neither line for anyone;
 //   M6 only the two lines: the welcome card, the NEW dot, the board badge code and the grant are untouched.
 // Ends with negative controls.
 import fs from 'fs'; import path from 'path'; import vm from 'vm';
@@ -57,7 +57,7 @@ async function suite(html, quiet = false) {
     const z1 = menu({ fp: 57, left: 0 }).now(), z2 = menu({ left: 0 }).now();
     ck('M5 all 1,000 spots taken: neither line for a Founding Pilot nor for anyone else', z1.badge === '' && z1.line === '' && z2.badge === '' && z2.line === '', JSON.stringify([z1, z2]));
     const o = menu({ fp: 57, left: null }).now();
-    ck('M5 ...offer switched off (no count): the badge stays as before', o.badge === 'FOUNDING PILOT #57' && o.line === '', JSON.stringify(o));
+    ck('M5 ...offer switched off (no count): neither line either, the badge hidden too', o.badge === '' && o.line === '', JSON.stringify(o));
     const w = menu({ fp: 57, store: { fluxSkin: 'solar', fluxFoundingShown: '' } }); w.run("document.getElementById('start').classList = { contains(){ return false; } };");
     ck('M6 only the two lines: the welcome card, the NEW dot and the board badge are driven as before',
       /function fluxFoundingToast\(\)\{/.test(html) && /function fluxSkinsDot\(\)\{/.test(html) && /badge:n>0 \? 'FOUNDING PILOT #'\+n/.test(html) && w.run('typeof fluxFoundingNum') === 'function' && w.run('fluxFoundingNum()') === 57);
@@ -77,13 +77,13 @@ async function control(label, expect, mut) {
   console.log((ok ? '  PASS  ' : '  FAIL  ') + 'caught: ' + label + '  [' + (ok ? hit[0] : 'expected ' + expect + '; failed: ' + (r.failed.join(' | ') || 'none')) + ']');
   if (!ok) NC++;
 }
-await control('Solar Inferno users still see the lines', 'M3 Solar', rep("const left=fluxFoundingLeftNow(), quiet=fluxSolarUsed() || left===0;", "const left=fluxFoundingLeftNow(), quiet=left===0;"));
+await control('Solar Inferno users still see the lines', 'M3 Solar', rep("const left=fluxFoundingLeftNow(), quiet=fluxSolarUsed() || !(left>0);", "const left=fluxFoundingLeftNow(), quiet=!(left>0);"));
 await control('only the current skin counts (switching back shows them again)', 'M3 ...used once', rep('if(localStorage.getItem(FLUX_SOLAR_USED_KEY)===playerId) return true;', ''));
 await control('the mark is not per pilot', 'M3 ...the mark belongs', rep('if(localStorage.getItem(FLUX_SOLAR_USED_KEY)===playerId) return true;', 'if(localStorage.getItem(FLUX_SOLAR_USED_KEY)) return true;'));
 await control('the backdrop alone does not count', 'M3 ...the Solar Inferno backdrop', rep("if(activeSkin==='solar' || activeBackground==='solar')", "if(activeSkin==='solar')"));
 await control('putting on Solar Inferno does not refresh the menu', 'M4 putting', rep("equipSkin=function(sku){ const r=equip0.apply(this,arguments); if(sku==='solar') fluxFoundingRefresh(); return r; };", "equipSkin=function(sku){ return equip0.apply(this,arguments); };"));
-await control('the badge stays when all spots are taken', 'M5 all', rep('quiet=fluxSolarUsed() || left===0;', 'quiet=fluxSolarUsed();'));
-await control('badge hidden whenever the count is unknown', 'M5 ...offer', rep('quiet=fluxSolarUsed() || left===0;', 'quiet=fluxSolarUsed() || !(left>0);'));
+await control('the badge stays when all spots are taken', 'M5 all', rep('quiet=fluxSolarUsed() || !(left>0);', 'quiet=fluxSolarUsed() || left===null;'));
+await control('the badge stays when the offer is switched off', 'M5 ...offer', rep('quiet=fluxSolarUsed() || !(left>0);', 'quiet=fluxSolarUsed() || left===0;'));
 const total = res.F + NC;
 console.log('\n' + (total ? 'FOUNDING MENU FAILED: ' + res.F + ' check(s), ' + NC + ' uncaught control(s)' : 'FOUNDING MENU PASSED: all checks and all negative controls') + '  (' + ((Date.now() - t0) / 1000).toFixed(0) + ' s)');
 process.exit(total ? 1 : 0);
