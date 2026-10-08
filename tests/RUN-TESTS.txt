@@ -79,3 +79,4 @@ node test-battery-rendering.mjs    # battery PR B: glow sprites (particles, trai
 node test-first-run-measure.mjs    # first-run measure: in-app yes/no on open, extra hidden send for a waiting first run, owner-summary split, Gateway keeps ?src=
 node test-founding-menu.mjs       # Founding Pilot menu cleanup: badge + spots-left hidden for pilots who used Solar Inferno, and for everyone at 0 spots
 node test-android-icon.mjs        # Android icon: maskable / Play-ready icons, favicon.ico, page icons + application-name, manifest name, one-time Chrome tip
+node test-custom-domain.mjs      # Custom domain: fluxsparta.com declared in wrangler.jsonc, workers.dev kept, no www route, nothing else changed

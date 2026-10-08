@@ -32,6 +32,17 @@
   "name": "flux-sparta-3",
   "main": "worker.js",
   "compatibility_date": "2026-09-14",
+  // CUSTOM DOMAIN (owner): FLUX also lives at https://fluxsparta.com (same Worker, same
+  // Durable Object, same data). Declared HERE, not only in the dashboard, so a deploy
+  // never wipes it. "workers_dev": true keeps the old address
+  // https://flux-sparta-3.jeromevt72.workers.dev working for every player and every
+  // Home Screen app installed from it. www.fluxsparta.com is NOT attached to the
+  // Worker: a zone Redirect Rule (dashboard) sends it to fluxsparta.com, so a pilot
+  // never splits between two addresses.
+  "workers_dev": true,
+  "routes": [
+    { "pattern": "fluxsparta.com", "custom_domain": true }
+  ],
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
