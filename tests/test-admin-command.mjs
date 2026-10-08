@@ -325,7 +325,9 @@ async function suite({ adminHtml, workerMod, swSrc, manifestSrc, quiet = false }
       const sc = res.headers.get('set-cookie'); if (sc) jar.v = /Max-Age=0/.test(sc) ? null : cookieOf(sc);
       return res;
     };
-    const until = async (fn, n = 400) => { for (let i = 0; i < n; i++) { if (fn()) return true; await tick(); } return false; };
+    // waits up to 10 s of real time, not a fixed number of turns: the worker's crypto runs off the main
+    // thread, so on a busy machine it can need more turns than a quiet one (the old 400-turn cap failed then)
+    const until = async (fn, ms = 10000) => { const end = Date.now() + ms; for (let i = 0; ; i++) { if (fn()) return true; if (Date.now() > end) return false; await (i < 400 ? tick() : new Promise((r) => setTimeout(r, 5))); } };
     const { store } = makeStore({});
     const g = boot(scriptsOf(adminHtml), { origin: ORIGIN, path: '/admin.html', store, fetchImpl });
     const E = g.els;
