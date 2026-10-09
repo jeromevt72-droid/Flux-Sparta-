@@ -715,8 +715,8 @@ async function suite({ workerMod, adminHtml, quiet = false, parts = null, small 
       let mainCfg = null;
       try { const r = spawnSync('git', ['show', 'origin/main:wrangler.jsonc'], { cwd: ROOT, encoding: 'utf8' }); if (r.status === 0 && r.stdout) mainCfg = r.stdout; } catch (e) {}
       // CUSTOM DOMAIN: only the parts this check is about (a domain or address line is not a storage change).
-      const strip = (t) => { const c = JSON.parse(t.replace(/^\s*\/\/.*$/mg, '')); delete c.routes; delete c.workers_dev; return JSON.stringify(c); };
-      ck('SF15 wrangler.jsonc is identical to main (apart from the domain lines)', mainCfg === null || strip(mainCfg) === strip(WRANGLER), mainCfg === null ? 'git not available' : '');
+      const strip = (t) => { const c = JSON.parse(t.replace(/^\s*\/\/.*$/mg, '')); delete c.routes; delete c.workers_dev; if (c.vars) delete c.vars.SITE_URL; return JSON.stringify(c); };   // NEW ADDRESS: SITE_URL is not a storage change
+      ck('SF15 wrangler.jsonc is identical to main (apart from the domain lines and SITE_URL)', mainCfg === null || strip(mainCfg) === strip(WRANGLER), mainCfg === null ? 'git not available' : '');
     }
   } catch (e) { ck('suite ran to the end', false, String(e.stack || e).slice(0, 600)); }
   finally { Date.now = realNow; console.error = realErr; }
