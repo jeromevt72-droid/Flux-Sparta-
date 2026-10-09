@@ -486,6 +486,8 @@ async function submitHelp(request, env) {
    once used or after MOVE_TTL_MS. The keys are stored in their own "move" instance under
    "mv:<ticket>", deleted when the ticket is redeemed or by the alarm once MOVE_TTL_MS has passed;
    nothing else is kept (no log, no address, no count). Any failure leaves the old address unchanged. */
+/* NEW ADDRESS: the two addresses FLUX is served from (a Stripe purchase returns to the one it started on). */
+const SITE_ORIGINS = new Set(["https://fluxsparta.com", "https://flux-sparta-3.jeromevt72.workers.dev"]);
 const MOVE_TTL_MS = 10 * 60 * 1000, MOVE_MAX_OPEN = 2000, MOVE_MAX_KEYS = 60, MOVE_MAX_BYTES = 16384;
 const MOVE_KEY = /^flux[A-Za-z0-9_]{1,40}$/, MOVE_TICKET = /^[0-9a-f]{32}$/, MOVE_PREFIX = "mv:";
 function moveDO(env, path, init) {
@@ -901,7 +903,10 @@ async function createCheckout(request, env) {
     return json({ error: "Server is not configured with a Stripe key yet" }, 500);
   }
 
-  const siteUrl = env.SITE_URL || new URL(request.url).origin;
+  // NEW ADDRESS: a purchase returns to the address it started on (fluxsparta.com or the old address), where
+  // this browser's pending purchase is stored; SITE_URL (fluxsparta.com) for anything else.
+  const reqOrigin = new URL(request.url).origin;
+  const siteUrl = SITE_ORIGINS.has(reqOrigin) ? reqOrigin : (env.SITE_URL || reqOrigin);
   const params = new URLSearchParams();
   params.append("mode", "payment");
   params.append("line_items[0][price]", price);

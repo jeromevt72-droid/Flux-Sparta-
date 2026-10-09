@@ -414,7 +414,7 @@ ck('D-37 admin page asks how the player was verified', 'How did you verify them?
 ck('D-36 confirm screen names the SAVED pilot (EDIT clears the in-memory flag)', 'restorePilotLabel(savedName,curTag' in _g9 and 'profileComplete?callsign' not in _g9)
 ck('D-36/37 suite is in the release gate', "'test-d36-d37.mjs'" in open('run-all-tests.mjs').read())
 _gw38=open('FLUX-Sparta/public/index.html',encoding='utf-8').read()
-ck('D-38 robots.txt and sitemap.xml exist with full addresses', os.path.exists('FLUX-Sparta/public/robots.txt') and 'https://flux-sparta-3.jeromevt72.workers.dev/play/' in open('FLUX-Sparta/public/sitemap.xml').read())
+ck('D-38 robots.txt and sitemap.xml exist with full addresses', os.path.exists('FLUX-Sparta/public/robots.txt') and 'https://fluxsparta.com/play/' in open('FLUX-Sparta/public/sitemap.xml').read())
 ck('D-38 in-app banner on both pages, never touches identity', 'IN-APP BROWSER BANNER' in _gw38 and 'IN-APP BROWSER BANNER' in _g9)
 ck('D-38 suite is in the release gate', "'test-d38.mjs'" in open('run-all-tests.mjs').read())
 ck('D-39 an empty name no longer blocks the first run', "if (!profileComplete && document.getElementById('callsign').value.trim())" in _g9 and 'function uploadOrAskName()' in _g9)
