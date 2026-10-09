@@ -234,6 +234,7 @@ async function suite(src, workerMod, quiet = false) {
     ck('P2 move.html runs nothing else: one inline script, no other script, stylesheet, image, frame or service worker; noindex, no referrer', ms.length === 1 && !/<script[^>]+src=|<link\b|<img\b|<iframe\b|serviceWorker|addEventListener/.test(src.move)
       && /<meta name="robots" content="noindex">/.test(src.move) && /<meta name="referrer" content="no-referrer">/.test(src.move));
     ck('P3 the privacy page says what is sent, why, and that it is deleted on use and always within 10 minutes', /Moving to fluxsparta\.com\.<\/strong>[^<]*one-time ticket[^<]*deletes them as soon as that ticket is used, and always within 10 minutes/.test(src.privacy));
+    ck('P3 ...and its storage table lists the two move markers (fluxMoveTried for the tab only, fluxMoveStay)', /<td>Move already tried \(fluxMoveTried\)<\/td><td>[^<]*until the browser tab is closed[^<]*<\/td>/.test(src.privacy) && /<td>Stay at the old address \(fluxMoveStay\)<\/td>/.test(src.privacy));
     ck('P4 listener counts kept (game 17, admin 2); requestAnimationFrame(loop) still 2', (src.game.match(/addEventListener\(/g) || []).length === 17 && (src.admin.match(/addEventListener\(/g) || []).length === 2 && (src.game.match(/requestAnimationFrame\(loop\)/g) || []).length === 2);
   } catch (e) { ck('page rules section ran', false, String(e.stack || e)); }
   return { F, failed };
