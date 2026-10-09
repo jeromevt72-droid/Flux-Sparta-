@@ -25,7 +25,9 @@ ck('Gateway game URL is on its OWN origin, at /play/', gw.includes("window.FLUX_
 ck('API origin is the site root', gw.includes('window.FLUX_ORIGIN = window.location.origin;'));
 // D-38: search/preview tags need the full address; they are metadata, not navigation.
 const nometa = t => t.replace(/<(link rel="canonical"|meta property="og:(url|image)"|meta name="twitter:image")[^>]*>/g,'');
-ck('no hardcoded other origin anywhere in the Gateway (search/preview tags excepted)', !/flux-sparta-3\.jeromevt72\.workers\.dev/.test(nometa(strip(gwHtml))));
+// PILOT MOVE: the hand-off block (acts only on the old address, see test-pilot-move.mjs) is the one script allowed to name it.
+const noMove = t => t.replace(/<script>\n\/\* MOVE TO fluxsparta\.com \(owner\)[\s\S]*?<\/script>\n/,'');
+ck('no hardcoded other origin anywhere in the Gateway (search/preview tags and the move hand-off excepted)', !/flux-sparta-3\.jeromevt72\.workers\.dev/.test(nometa(strip(noMove(gwHtml)))));
 ck('old separate Gateway folder retired', !fs.existsSync(path.join(__dirname,'FLUX-Gateway-InstallOnly')));
 
 console.log('\n== LOOP PIECE 2: installed-app scope covers the game ==');

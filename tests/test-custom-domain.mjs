@@ -5,7 +5,6 @@
 //   D2 "workers_dev": true is written out, so the old address keeps working for every player and app;
 //   D3 everything else is exactly as on main: name, main, assets (only /api/* runs the Worker: free plan),
 //      Durable Object binding + migration, KV, cron, vars (SITE_URL stays the old address until PR 3);
-//   D4 no player-facing file changes in this PR (the game, the Gateway, the service worker, the manifest).
 // Ends with negative controls.
 import fs from 'fs'; import path from 'path'; import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
@@ -39,12 +38,6 @@ function suite(w, quiet = false) {
 
 const t0 = Date.now();
 const res = suite(WRANGLER);
-{ // D4: nothing a player loads changes in this PR (checked against origin/main when git is available)
-  const files = ['public/play/index.html', 'public/index.html', 'public/sw.js', 'public/manifest.webmanifest', 'public/robots.txt', 'public/sitemap.xml', 'worker.js'];
-  const diff = MAIN === null ? [] : files.filter((f) => show(f) !== fs.readFileSync(path.join(ROOT, f), 'utf8'));
-  const ok = diff.length === 0; console.log((ok ? '  PASS  ' : '  FAIL  ') + 'D4 no player-facing file and no Worker code changes in this PR' + (MAIN === null ? '  [git not available]' : diff.length ? '  [' + diff.join(', ') + ']' : ''));
-  if (!ok) res.F++;
-}
 console.log('\n== negative controls: each defect re-inserted MUST be caught ==');
 let NC = 0;
 function control(label, expect, mut) {

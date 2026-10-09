@@ -105,6 +105,8 @@ transmitted anywhere unless listed in section 5:</p>
   <tr><td>Personal best score and level</td><td>Per difficulty</td></tr>
   <tr><td>Player identifier</td><td>Random value described above</td></tr>
   <tr><td>Restore in progress</td><td>Present for a moment while a restore code is being applied, then deleted</td></tr>
+  <tr><td>Move already tried (fluxMoveTried)</td><td>At FLUX's old address only, and only until the browser tab is closed: a marker so the move to fluxsparta.com is tried at most once per tab</td></tr>
+  <tr><td>Stay at the old address (fluxMoveStay)</td><td>At FLUX's old address only: a marker that this browser already has a different pilot at fluxsparta.com, so the pilot here stays here and is not moved</td></tr>
   <tr><td>Owned skins</td><td>Local cache of purchases</td></tr>
   <tr><td>Pending score submissions</td><td>Runs finished while offline, queued for later</td></tr>
   <tr><td>Chosen background and selected skin</td><td>Appearance settings</td></tr>
@@ -119,6 +121,7 @@ all of it. We cannot recover it, and we cannot see it. If you saved your
 restore code, entering it in FLUX brings your pilot back.</p>
 
 <h2>5. Information sent to our server</h2>
+<p><strong>Moving to fluxsparta.com.</strong> When you open FLUX at its old address (flux-sparta-3.jeromevt72.workers.dev) in a browser tab, the game sends the FLUX settings, player identifier and personal bests stored there to our server once, so they can be copied into the same browser at fluxsparta.com; the server keeps them under a random one-time ticket and deletes them as soon as that ticket is used, and always within 10 minutes.</p>
 <p>When you finish a run and a score is submitted, FLUX sends:</p>
 <ul>
   <li>your player identifier</li>
