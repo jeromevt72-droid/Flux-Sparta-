@@ -81,3 +81,4 @@ node test-founding-menu.mjs       # Founding Pilot menu cleanup: badge + spots-l
 node test-android-icon.mjs        # Android icon: maskable / Play-ready icons, favicon.ico, page icons + application-name, manifest name, one-time Chrome tip
 node test-custom-domain.mjs      # Custom domain: fluxsparta.com declared in wrangler.jsonc, workers.dev kept, no www route, nothing else changed
 node test-pilot-move.mjs        # Pilot move: one-time ticket (used / expired / wrong), old-address hand-off, move.html clears the ticket first, never overwrites a real pilot, every failure changes nothing
+node test-new-address.mjs       # New address: tags, sitemap/robots and SITE_URL on fluxsparta.com; Stripe returns to the address a purchase started on; share links to fluxsparta.com

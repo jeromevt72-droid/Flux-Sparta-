@@ -35,7 +35,7 @@ Add these (do this for both "Production" and "Preview" environments):
 | `STRIPE_SECRET_KEY` | `sk_test_...` | Mark as **Secret**, not plain text |
 | `STRIPE_PRICE_TOXIC` | `price_...` | From step 1 |
 | `STRIPE_PRICE_COSMIC` | `price_...` | From step 1 |
-| `SITE_URL` | `https://your-project.pages.dev` | Your actual deployed URL |
+| `SITE_URL` | `https://fluxsparta.com` | Where Stripe returns when a purchase did not start on fluxsparta.com or the old workers.dev address (a purchase returns to the address it started on) |
 
 After adding variables, redeploy (Cloudflare Pages needs a fresh deploy to
 pick up new environment variables — re-uploading this zip does that).
