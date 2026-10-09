@@ -7,7 +7,9 @@ const gwSrc = fs.readFileSync(new URL('./FLUX-Sparta/public/index.html', import.
 const spSrc = fs.readFileSync(new URL('./FLUX-Sparta/public/play/index.html', import.meta.url),'utf8');
 const blocks = t => [...t.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map(m=>m[1]);
 const code = t => blocks(t).join('\n;\n').replace(/\/\*[\s\S]*?\*\//g,'').replace(/^\s*\/\/.*$/gm,'');
-const gw = code(gwSrc), sp = code(spSrc);
+// PILOT MOVE: the hand-off block acts only on the old address (see test-pilot-move.mjs); the identity rules cover the rest.
+const noMove = t => t.replace(/<script>\n\/\* MOVE TO fluxsparta\.com \(owner\)[\s\S]*?<\/script>\n/,'');
+const gw = code(noMove(gwSrc)), sp = code(noMove(spSrc));
 
 console.log('-- Play no longer iframes the game --');
 // FIRST-RUN MEASURE: play goes to FLUX_GAME_LINK = the canonical FLUX_GAME_URL + this page's ?src= tag.

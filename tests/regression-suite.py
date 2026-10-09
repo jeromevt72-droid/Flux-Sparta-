@@ -185,6 +185,13 @@ ck('D-18 still frozen (href="#" on install CTA)', 'id="getAppPlayBtn"' in _gw)
 print('\n--- AUDIT-F01 / F02 / F03 guards ---')
 _gwraw=open('FLUX-Sparta/public/index.html',encoding='utf-8').read()
 _spraw=open('FLUX-Sparta/public/play/index.html',encoding='utf-8').read()
+# PILOT MOVE: the hand-off to fluxsparta.com is the one block allowed to name the old and the new address
+# (it acts ONLY on the old address and carries the pilot with it); the rules below apply to everything else.
+_MOVE_RE=re.compile(r'<script>\n/\* MOVE TO fluxsparta\.com \(owner\)[\s\S]*?</script>\n')
+_mv=_MOVE_RE.findall(_gwraw)
+ck('MOVE the Gateway and the game carry one identical hand-off block, and it acts only on the old address',
+   len(_mv)==1 and _MOVE_RE.findall(_spraw)==_mv and "if(location.hostname!==OLD) return;" in _mv[0] and "var OLD='flux-sparta-3.jeromevt72.workers.dev', NEW='https://fluxsparta.com';" in _mv[0])
+_gwraw=_MOVE_RE.sub('',_gwraw); _spraw=_MOVE_RE.sub('',_spraw)
 _strip=lambda t: re.sub(r'/\*[\s\S]*?\*/','',re.sub(r'^\s*//.*$','',t,flags=re.M))
 _gs, _ss = _strip(_gwraw), _strip(_spraw)
 

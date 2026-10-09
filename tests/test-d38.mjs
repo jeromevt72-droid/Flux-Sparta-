@@ -77,7 +77,8 @@ async function suite({ gw, game, admin, robots, sitemap, workerMod, quiet = fals
     ck('S4 ' + n + ' preview image is a full address to a 1200x630 JPG', h.includes('<meta property="og:image" content="' + BASE + '/og-image.jpg">') && h.includes('og:image:width" content="1200"') && h.includes('og:image:height" content="630"'));
     ck('S4 ' + n + ' has exactly one title and one description', (h.match(/<title>/g) || []).length === 1 && (h.match(/name="description"/g) || []).length === 1);
   }
-  const nm = gw.replace(/<(link rel="canonical"|meta property="og:(url|image)"|meta name="twitter:image")[^>]*>/g, '');
+  // PILOT MOVE: the hand-off block (acts only on the old address, see test-pilot-move.mjs) is the one script allowed to name it.
+  const nm = gw.replace(/<script>\n\/\* MOVE TO fluxsparta\.com \(owner\)[\s\S]*?<\/script>\n/, '').replace(/<(link rel="canonical"|meta property="og:(url|image)"|meta name="twitter:image")[^>]*>/g, '');
   ck('S7 the full address appears ONLY in search/preview tags, never in links or scripts', !nm.includes('flux-sparta-3.jeromevt72.workers.dev'));
   ck('S4 old relative preview image removed', !gw.includes('content="assets/solar.webp"'));
   const img = (() => { try { return fs.readFileSync(path.join(PUB, 'og-image.jpg')); } catch (e) { return null; } })();

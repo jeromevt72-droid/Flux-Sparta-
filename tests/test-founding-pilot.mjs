@@ -461,7 +461,7 @@ async function suite({ mod, main, game = GAME_HTML, adminHtml = ADMIN_HTML, gate
       ck('FP9 a founder\'s run reply makes no request once Solar Inferno is owned (no extra request per run)', D.calls.length === n0, D.calls.slice(n0).join(','));
       const mainGame = execFileSync('git', ['show', 'origin/main:public/play/index.html'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
       const cnt = (h, re) => (scriptsOf(h).join('\n').match(re) || []).length;
-      ck('FP9 no new fetch, timer or polling in the game (fetch / setInterval counts equal main\'s)', cnt(game, /\bfetch\((?!'\/api\/help')/g) === cnt(mainGame, /\bfetch\((?!'\/api\/help')/g) && cnt(game, /setInterval\(/g) === cnt(mainGame, /setInterval\(/g), cnt(game, /\bfetch\(/g) + ' fetch');
+      ck('FP9 no new fetch, timer or polling in the game (fetch / setInterval counts equal main\'s)', cnt(game, /\bfetch\((?!'\/api\/help'|'\/api\/move\/)/g) === cnt(mainGame, /\bfetch\((?!'\/api\/help'|'\/api\/move\/)/g) && cnt(game, /setInterval\(/g) === cnt(mainGame, /setInterval\(/g), cnt(game, /\bfetch\(/g) + ' fetch');
       /* board rows */
       const data = { boards: { medium: [{ pid: 'p1', tag: 'AAAAAAA', name: 'ACE', country: 'US', score: 900, fp: 1 }, { pid: 'p2', tag: 'BBBBBBB', name: 'BOB', country: 'US', score: 800 }] }, countries: [] };
       const html = A.run('fluxBoardHtml(fluxBoardView(' + JSON.stringify(data) + ",'medium','world',{ pid:'zz', country:'US' }))");
