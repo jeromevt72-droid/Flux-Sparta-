@@ -626,7 +626,9 @@ async function suite({ workerMod, gameHtml, gateHtml, adminHtml, quiet = false, 
       wc.errors.length === 0 && wc.note.hidden === false && /Season 0 and Season 1 combined: each pilot's best of both counts once\./.test(wc.note.text) && (wc.html.match(/class="rankTable"/g) || []).length === 1 && noTabs(wc.html + wc.scorers)
       && (wc.html.match(/class="rankRow/g) || []).length === Math.min(50, lbCombined.countries.length), wc.errors.join(';') + JSON.stringify(wc.note));
     ck('W13 before APPLY the gateway is as today (note hidden and empty)', ws.errors.length === 0 && ws.note.hidden === true && ws.note.text === '' && (ws.html.match(/class="rankTable"/g) || []).length === 1);
-    ck('W13 the gateway adds no event listener (19 sites, as on main)', (gateHtml.match(/addEventListener\(/g) || []).length === 19 && /<p class="gridCombinedNote" id="gridCombinedNote" hidden><\/p>/.test(gateHtml));
+    // GATEWAY CLEAN TAPS (owner): +4 for the flag guard (window scroll; flag bar pointerdown / pointermove / pointercancel) -> 23
+    ck('W13 the gateway adds no event listener (23 sites: 19 + the 4 of the flag clean-tap guard)', (gateHtml.match(/addEventListener\(/g) || []).length === 23
+      && /window\.addEventListener\('scroll', function\(\)\{ lastScrollAt = Date\.now\(\);/.test(gateHtml) && /heroFlagBarEl\.addEventListener\('pointerdown'/.test(gateHtml) && /heroFlagBarEl\.addEventListener\('pointermove'/.test(gateHtml) && /heroFlagBarEl\.addEventListener\('pointercancel'/.test(gateHtml) && /<p class="gridCombinedNote" id="gridCombinedNote" hidden><\/p>/.test(gateHtml));
 
     /* ================= W14 the Season 1 message ================= */
     if (!quiet) console.log('== W14 the Season 1 message ==');
