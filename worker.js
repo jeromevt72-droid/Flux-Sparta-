@@ -125,6 +125,8 @@ const RATE_LIMITS = {
   restore: { ip: 30,  player: 20 },
   admin:   { ip: 30 },
   help:    { ip: 10,  player: 3 },        // HELP: a tap on a topic in the game menu
+  move:    { ip: 20,  player: 6 },        // MOVE: a browser on the old address hands its pilot over (once per tab)
+  movetake: { ip: 30 },                   // MOVE: fluxsparta.com/move.html redeems a ticket
 };
 /* Replay protection. Each finished run's upload carries a random run id
    (runId), reused on every retry of that same upload. The leaderboard keeps the
@@ -192,6 +194,12 @@ export default {
         }
         if (path === "/api/restore-check" && request.method === "POST") {
           return withCors(await restoreCheck(request, env));   // D-35
+        }
+        if (path === "/api/move/put" && request.method === "POST") {
+          return withCors(await movePut(request, env));        // MOVE: old address -> one-time ticket
+        }
+        if (path === "/api/move/take" && request.method === "POST") {
+          return withCors(await moveTake(request, env));       // MOVE: fluxsparta.com redeems the ticket once
         }
         if (path === "/api/help" && request.method === "POST") {
           return withCors(await submitHelp(request, env));     // HELP: one topic from the game menu, no personal data
@@ -467,6 +475,55 @@ async function submitHelp(request, env) {
       body: JSON.stringify({ pid, topic, name: cleanName(body.name) }) }));
     if (r.status === 429) return r;
     return json({ ok: r.ok }, r.ok ? 200 : 500);
+  } catch (e) { return json({ ok: false }, 500); }
+}
+/* MOVE TO fluxsparta.com (owner). A pilot lives in the browser storage of ONE address, so a browser
+   tab on the old address (flux-sparta-3.jeromevt72.workers.dev) hands its pilot to fluxsparta.com:
+     1. the old page sends its own FLUX keys here (/api/move/put) and gets a random one-time ticket;
+     2. it opens fluxsparta.com/move.html?to=<page>#t=<ticket>; that page removes the ticket from the
+        address bar before anything else, redeems it here (/api/move/take), writes the keys, opens <page>.
+   Only the ticket ever appears in an address (and so in the browser's History list): it is worthless
+   once used or after MOVE_TTL_MS. The keys are stored in their own "move" instance under
+   "mv:<ticket>", deleted when the ticket is redeemed or by the alarm once MOVE_TTL_MS has passed;
+   nothing else is kept (no log, no address, no count). Any failure leaves the old address unchanged. */
+const MOVE_TTL_MS = 10 * 60 * 1000, MOVE_MAX_OPEN = 2000, MOVE_MAX_KEYS = 60, MOVE_MAX_BYTES = 16384;
+const MOVE_KEY = /^flux[A-Za-z0-9_]{1,40}$/, MOVE_TICKET = /^[0-9a-f]{32}$/, MOVE_PREFIX = "mv:";
+function moveDO(env, path, init) {
+  useCount("d");
+  return env.LEADERBOARD_DO.get(env.LEADERBOARD_DO.idFromName("move")).fetch("https://do.internal" + path, init);
+}
+function moveKeysOk(keys, playerId) {
+  if (!keys || typeof keys !== "object" || Array.isArray(keys)) return false;
+  const names = Object.keys(keys);
+  if (!names.length || names.length > MOVE_MAX_KEYS || keys.fluxPlayerId !== playerId) return false;
+  if (!names.every((k) => MOVE_KEY.test(k) && typeof keys[k] === "string" && keys[k].length <= 4096)) return false;
+  return JSON.stringify(keys).length <= MOVE_MAX_BYTES;
+}
+async function movePut(request, env) {
+  try {
+    const body = await readJsonObject(request);
+    const playerId = body && typeof body.playerId === "string" ? body.playerId : "";
+    if (!validPlayerId(playerId) || !moveKeysOk(body.keys, playerId)) return json({ ok: false, error: "Bad request" }, 400);
+    if (!env.LEADERBOARD_DO) return json({ ok: false }, 500);
+    const pid = await pidHash(playerId);
+    const r = await rlFromDO(await moveDO(env, "/move-put", { method: "POST", headers: await rlHeaders("move", request, pid, { "Content-Type": "application/json" }),
+      body: JSON.stringify({ keys: body.keys }) }));
+    if (r.status === 429) return r;
+    const d = r.ok ? await r.json().catch(() => null) : null;
+    return d && d.ok === true && MOVE_TICKET.test(d.ticket || "") ? json({ ok: true, ticket: d.ticket }) : json({ ok: false }, r.ok ? 500 : r.status);
+  } catch (e) { return json({ ok: false }, 500); }
+}
+async function moveTake(request, env) {
+  try {
+    const body = await readJsonObject(request);
+    const ticket = body && typeof body.ticket === "string" ? body.ticket : "";
+    if (!MOVE_TICKET.test(ticket)) return json({ ok: false, reason: "wrong" }, 400);
+    if (!env.LEADERBOARD_DO) return json({ ok: false }, 500);
+    const r = await rlFromDO(await moveDO(env, "/move-take", { method: "POST", headers: await rlHeaders("movetake", request, null, { "Content-Type": "application/json" }),
+      body: JSON.stringify({ ticket }) }));
+    if (r.status === 429) return r;
+    const d = await r.json().catch(() => null);
+    return json(d && typeof d === "object" ? d : { ok: false }, r.status);
   } catch (e) { return json({ ok: false }, 500); }
 }
 async function adminHelpDone(request, env) {
@@ -2460,6 +2517,7 @@ export class LeaderboardDO {
     if (url0.pathname.startsWith("/auth-")) return this.handleCommandAuth(request, url0);   // FLUX COMMAND instance: never loads the leaderboard
     if (url0.pathname.startsWith("/bk/")) return this.handleBackups(request, url0);    // BACKUPS instance: never loads the leaderboard
     if (url0.pathname.startsWith("/help-")) return this.handleHelp(request, url0);    // HELP instance: never loads the leaderboard
+    if (url0.pathname.startsWith("/move-")) return this.handleMove(request, url0);    // MOVE instance: never loads the leaderboard
     // BACKUPS: the "backups" instance never serves leaderboard routes.
     if (this.role === undefined) this.role = (await this.state.storage.get(BACKUP_ROLE_KEY)) || "";
     if (this.role) return json({ error: "Not found" }, 404);
@@ -2607,6 +2665,52 @@ export class LeaderboardDO {
       this.bk = new BackupStore(this.state, this.env);
     }
     return this.bk.fetch(request, url.pathname.slice(3));
+  }
+
+  /* MOVE (see movePut): one-time tickets, "mv:<ticket>" -> { keys, exp }, one request at a time.
+     Every request also deletes the expired tickets; the alarm deletes them when nobody calls. */
+  handleMove(request, url) {
+    const run = async () => {
+      try {
+        const st = this.state.storage, now = Date.now(), b = (await request.json().catch(() => null)) || {};
+        if (url.pathname === "/move-put") {
+          if (await this.moveSweep(now) >= MOVE_MAX_OPEN) return json({ ok: false, error: "busy" }, 503);
+          const ticket = [...crypto.getRandomValues(new Uint8Array(16))].map((v) => v.toString(16).padStart(2, "0")).join("");
+          await st.put(MOVE_PREFIX + ticket, { keys: b.keys, exp: now + MOVE_TTL_MS });
+          const al = await st.getAlarm();
+          if (al === null || al === undefined || al > now + MOVE_TTL_MS + 1000) await st.setAlarm(now + MOVE_TTL_MS + 1000);
+          return json({ ok: true, ticket });
+        }
+        if (url.pathname === "/move-take") {
+          const k = MOVE_PREFIX + String(b.ticket || ""), rec = MOVE_TICKET.test(String(b.ticket || "")) ? await st.get(k) : undefined;
+          if (!rec) return json({ ok: false, reason: "unknown" }, 404);          // wrong, or already used
+          await st.delete(k);                                                    // one use only, whatever happens next
+          await this.moveSweep(now);
+          if (!(rec.exp > now)) return json({ ok: false, reason: "expired" }, 410);
+          return json({ ok: true, keys: rec.keys });
+        }
+        return json({ error: "Not found" }, 404);
+      } catch (e) { return json({ ok: false, error: "move failed" }, 500); }
+    };
+    const p = (this.moveChain || Promise.resolve()).then(run, run);
+    this.moveChain = p.then(() => {}, () => {});
+    return p;
+  }
+  /* Deletes every expired ticket; returns how many are still open. */
+  async moveSweep(now) {
+    const st = this.state.storage, all = await st.list({ prefix: MOVE_PREFIX }), gone = [];
+    let open = 0;
+    for (const [k, v] of all) { if (v && v.exp > now) open++; else gone.push(k); }
+    if (gone.length) await st.delete(gone);
+    return open;
+  }
+  /* MOVE: only the "move" instance ever sets an alarm. */
+  async alarm() {
+    const st = this.state.storage, now = Date.now();
+    await this.moveSweep(now);
+    let next = null;
+    for (const [, v] of await st.list({ prefix: MOVE_PREFIX })) if (v && (next === null || v.exp < next)) next = v.exp;
+    if (next !== null) await st.setAlarm(next + 1000);
   }
 
   /* HELP (see submitHelp): the open requests, one stored value, one request at a time. */

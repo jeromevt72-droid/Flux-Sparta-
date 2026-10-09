@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#07091d">
+<title>FLUX</title>
+<style>html,body{margin:0;height:100%;background:#050719}</style>
+<script>
+/* MOVE TO fluxsparta.com (owner): the arrival page of a pilot coming from the old address.
+   It is the ONLY script on this page and its FIRST step removes the ticket from the address bar and
+   from this tab's history, before any request is made (no analytics, share, service worker or game
+   code ever runs here). Then it redeems the ticket once (/api/move/take) and:
+     - this browser has no pilot here, or only a new empty one (auto-named, nothing uploaded, nothing
+       waiting): writes the pilot through the restore journal (all or nothing), opens the page;
+     - the same pilot is already here: changes nothing, opens the page;
+     - another real pilot is here: changes nothing, goes back to the old address, which then keeps its
+       own pilot in this browser for good (#fluxstay);
+     - anything fails (wrong, used or expired ticket, network, storage): changes nothing, goes back to
+       the old address, where the pilot is unchanged (that tab does not try again). */
+(function(){
+  var h=String(location.hash||'');
+  try{ history.replaceState(null,'',location.pathname+location.search); }catch(e){}
+  var OLD='https://flux-sparta-3.jeromevt72.workers.dev';
+  var KEYS=['fluxPlayerId','fluxCallsign','fluxCountry','fluxPublicTag','fluxProfileComplete','fluxAutoName','fluxDifficulty',
+    'fluxSkin','fluxBackground','fluxSolarUsed','fluxFounding','fluxFoundingShown','fluxSkinsSeen','fluxRunsPlayed','fluxWelcomeDone',
+    'fluxColorHintSeen','fluxSeason','fluxSeasonNotice','fluxGeoAsked','fluxNameClaimOffered','fluxNameNotice','fluxUploadedBest',
+    'fluxStatFirstRun','fluxStatFirstSec','fluxSrc','fluxLite','fluxLbScope'];
+  ['easy','medium','hard'].forEach(function(d){ KEYS.push('fluxBest_'+d,'fluxBestLevel_'+d,'fluxBestRun_'+d); });
+  /* caches and markers that belong to the pilot being replaced: cleared, re-checked with the server */
+  var CLEAR=['fluxEntitlementsV1','fluxOwned_toxic','fluxOwned_cosmic','fluxOwned_solar','fluxRankSnap','fluxLastSubmitError'];
+  var to='/';
+  try{ var t=new URLSearchParams(location.search).get('to')||'/';
+    if(/^\/(?!\/)[A-Za-z0-9_\-.\/?=&%]{0,200}$/.test(t) && t.indexOf('/move.html')!==0) to=t; }catch(e){}
+  var done=false, go=function(u){ if(done) return; done=true; location.replace(u); };
+  var back=function(stay){ go(OLD+to+(stay?'#fluxstay':'')); };
+  var m=/^#t=([0-9a-f]{32})$/.exec(h);
+  if(!m){ go(to); return; }
+  var ls; try{ ls=window.localStorage; ls.getItem('fluxPlayerId'); }catch(e){ back(false); return; }
+  var get=function(k){ try{ return ls.getItem(k); }catch(e){ return null; } };
+  setTimeout(function(){ back(false); },8000);
+  fetch('/api/move/take',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ticket:m[1]})})
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(r){
+      if(done) return;                                                     // gave up already (8 s)
+      var k=r && r.ok===true && r.keys && typeof r.keys==='object' ? r.keys : null;
+      var id=k && typeof k.fluxPlayerId==='string' && /^[A-Za-z0-9_-]{1,64}$/.test(k.fluxPlayerId) ? k.fluxPlayerId : null;
+      if(!id){ back(false); return; }
+      var cur=get('fluxPlayerId');
+      if(cur===id){ go(to); return; }                                      // already moved
+      var q=[]; try{ q=JSON.parse(get('fluxPendingSubmits')||'[]'); }catch(e){ q=[1]; }
+      if(get('fluxRestoreJournal')!==null || get('fluxPendingCheckout')!==null || !Array.isArray(q) || q.length){ back(false); return; }
+      var empty=get('fluxProfileComplete')!=='1' || (get('fluxAutoName')==='1' && !get('fluxPublicTag'));
+      if(cur && !empty){ back(true); return; }                             // never overwrite a real pilot
+      var after={}, before={}, i, n;
+      for(i=0;i<KEYS.length;i++){ n=KEYS[i]; after[n]=(typeof k[n]==='string' && k[n].length<=4096) ? k[n] : null; }
+      for(i=0;i<CLEAR.length;i++) after[CLEAR[i]]=null;
+      after.fluxSubmitFailCount='0';
+      for(n in after) before[n]=get(n);
+      var put=function(map){ for(var x in map){ if(map[x]===null) ls.removeItem(x); else ls.setItem(x,map[x]); } };
+      try{
+        ls.setItem('fluxRestoreJournal',JSON.stringify({v:1,after:after,before:before}));
+        put(after);
+        for(n in after){ if(ls.getItem(n)!==after[n]) throw new Error('verify '+n); }
+        ls.removeItem('fluxRestoreJournal');
+      }catch(e){
+        // all put back -> drop the journal; if even that fails, the journal stays and the game's own
+        // replay on the next launch ends with one whole pilot (never a mixture of two)
+        try{ put(before); ls.removeItem('fluxRestoreJournal'); }catch(e2){}
+        back(false); return;
+      }
+      go(to);
+    })['catch'](function(){ back(false); });
+})();
+</script>
+</head>
+<body></body>
+</html>

@@ -4,6 +4,55 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <script>
+/* MOVE TO fluxsparta.com (owner) -- must stay the FIRST script on this page (the Gateway "/" and the
+   game "/play/" carry the same copy). Only on the OLD address, in a normal browser tab:
+     - no pilot here: open the same page on fluxsparta.com;
+     - a pilot here: hand this browser's own FLUX keys to the server for a one-time ticket
+       (/api/move/put), then open fluxsparta.com/move.html?to=<this page>#t=<ticket>, which redeems it.
+   Never in a Home Screen app (it stays on this address), inside the Gateway's frame, offline, on a
+   purchase return, while runs wait to upload, a purchase or a restore is in progress, or a second
+   time in the same tab. Nothing here is ever deleted: if anything fails, the pilot simply stays. */
+(function(){
+  var OLD='flux-sparta-3.jeromevt72.workers.dev', NEW='https://fluxsparta.com';
+  var KEYS=['fluxPlayerId','fluxCallsign','fluxCountry','fluxPublicTag','fluxProfileComplete','fluxAutoName','fluxDifficulty',
+    'fluxSkin','fluxBackground','fluxSolarUsed','fluxFounding','fluxFoundingShown','fluxSkinsSeen','fluxRunsPlayed','fluxWelcomeDone',
+    'fluxColorHintSeen','fluxSeason','fluxSeasonNotice','fluxGeoAsked','fluxNameClaimOffered','fluxNameNotice','fluxUploadedBest',
+    'fluxStatFirstRun','fluxStatFirstSec','fluxSrc','fluxLite','fluxLbScope'];
+  var de=document.documentElement, show=function(){ try{ de.style.visibility=''; }catch(e){} };
+  try{
+    if(location.hostname!==OLD) return;
+    var ls=window.localStorage, ss=window.sessionStorage;
+    if(location.hash==='#fluxstay'){ ls.setItem('fluxMoveStay','1'); history.replaceState(null,'',location.pathname+location.search); }
+    if(ls.getItem('fluxMoveStay')==='1') return;                       // this browser already has another pilot on fluxsparta.com
+    if(window.top!==window) return;
+    var mm=function(q){ try{ return !!(window.matchMedia && window.matchMedia(q).matches); }catch(e){ return false; } };
+    if(navigator.standalone===true || mm('(display-mode: standalone)') || mm('(display-mode: fullscreen)') || mm('(display-mode: minimal-ui)')) return;
+    if(navigator.onLine===false) return;
+    if(/[?&](session_id|checkout)=/.test(location.search)) return;
+    if(ss.getItem('fluxMoveTried')==='1') return;
+    if(ls.getItem('fluxRestoreJournal')!==null || ls.getItem('fluxPendingCheckout')!==null) return;
+    var q=JSON.parse(ls.getItem('fluxPendingSubmits')||'[]');
+    if(!Array.isArray(q) || q.length) return;
+    var to=location.pathname+location.search, id=ls.getItem('fluxPlayerId');
+    ss.setItem('fluxMoveTried','1');
+    if(!id){ location.replace(NEW+to); return; }
+    var keys={}, i, d, v;
+    for(i=0;i<KEYS.length;i++){ v=ls.getItem(KEYS[i]); if(v!==null) keys[KEYS[i]]=v; }
+    for(i=0;i<3;i++){ d=['easy','medium','hard'][i];
+      ['fluxBest_','fluxBestLevel_','fluxBestRun_'].forEach(function(p){ var x=ls.getItem(p+d); if(x!==null) keys[p+d]=x; }); }
+    de.style.visibility='hidden';
+    var over=false, give=setTimeout(function(){ over=true; show(); },6000);
+    fetch('/api/move/put',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({playerId:id,keys:keys})})
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(r){
+        if(over) return; clearTimeout(give);
+        if(r && r.ok===true && /^[0-9a-f]{32}$/.test(r.ticket||'')) location.replace(NEW+'/move.html?to='+encodeURIComponent(to)+'#t='+r.ticket);
+        else show();
+      })['catch'](function(){ if(!over){ clearTimeout(give); show(); } });
+  }catch(e){ show(); }
+})();
+</script>
+<script>
 /* ---------------------------------------------------------------------------
    AUDIT-F01 (RC2.5.2) — CANONICAL GAME/API BASE URL, ASSIGNED FIRST.
 
