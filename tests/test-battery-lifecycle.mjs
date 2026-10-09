@@ -27,6 +27,8 @@ function suite(html, quiet = false) {
     const g = boot(scriptsOf(html), { origin: 'https://x.test', path: '/play/', store });
     const run = (c) => vm.runInContext(c, g.ctx);
     g.ctx.readSafeBottom = () => 34; run('innerWidth=390; innerHeight=844;'); g.ctx.resize();
+    // SEEDED: the same orbs, ball and spawns every run (unseeded, a ball could hit an orb in B1's single step about 1 run in 60)
+    run('(function(){ var s=20261009; Math.random=function(){ s=(s*16807)%2147483647; return (s-1)/2147483646; }; })();');
     run(`difficulty='${diff}'; fluxPerfN=1e9;`); g.ctx.newGame(); run('playing=true; paused=false;');
     // spies: what each frame really does
     run(`window.__u=[]; window.__d=0; window.__f=0; window.__s=0;
@@ -54,7 +56,10 @@ function suite(html, quiet = false) {
     ck('B1 hidden: no frame simulates or draws', hid.u === 0 && hid.d === 0, JSON.stringify(hid));
     ck('B1 ...score, combo, lives, level, run clock and spawn timers are untouched while hidden', JSON.stringify(before) === JSON.stringify(during), '');
     ck('B1 back: the first frame is one normal step (dt 0.016), never a jump, however long it was away', back.u === 1 && Math.abs(back.lastDt - .016) < 1e-9 && back.d === 1, JSON.stringify(back));
-    ck('B1 ...and the state moved by exactly that one step (score, combo, lives, level unchanged)', after.score === before.score && after.combo === before.combo && after.misses === before.misses && after.level === before.level && after.runClock - before.runClock < .02, JSON.stringify({ rc: [before.runClock, after.runClock] }));
+    // the same seeded run, never hidden, one normal step: being away must leave EXACTLY that state
+    const Z = start(); for (let i = 0; i < 30; i++) Z.frame(); Z.frame(16); const twin = Z.state();   // the return step is a fixed 16 ms
+    ck('B1 ...and the state moved by exactly that one step (score, combo, lives, level unchanged)', after.score === before.score && after.combo === before.combo && after.misses === before.misses && after.level === before.level && after.runClock - before.runClock < .02
+      && JSON.stringify(after) === JSON.stringify(twin), JSON.stringify({ rc: [before.runClock, after.runClock], twin: JSON.stringify(after) === JSON.stringify(twin) }));
   } catch (e) { ck('B1 section ran', false, String(e.stack || e).slice(0, 300)); }
 
   try {
