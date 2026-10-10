@@ -409,6 +409,20 @@ main{position:relative;z-index:3}
 .mission strong{font-size:18px}
 .mission span{display:block;color:#aaaabd;margin-top:6px}
 .worldline{font-size:clamp(15px,2.4vw,22px);font-weight:850;letter-spacing:.08em;margin:0;text-align:center}
+/* NARROW PHONES (owner): on a portrait screen 400px wide or less, the country buttons wrap into many rows and
+   the bottom-anchored stack grew UP under the header (blurred by its backdrop) and over the greeting. The
+   script below (fitHeroCta) measures the real stack and applies the FIRST of these steps that lets the
+   headline start below the greeting; with none needed (every iPhone 6.1"+, iPad, desktop) nothing changes. */
+body.heroCta-measuring .heroCTA,body.heroCta-measuring .heroCTA *{transition:none!important}   /* measure the final layout, not a frame of .flag's 0.18s transition */
+body.heroCta-t1 .countryBar{gap:6px;margin-top:14px}
+body.heroCta-t1 .flag{padding:7px 11px;font-size:13px;letter-spacing:.06em}
+body.heroCta-t1 .actions{margin-top:16px}
+body.heroCta-t2 .countryBar{gap:5px;margin-top:10px}
+body.heroCta-t2 .flag{padding:6px 9px;font-size:12px;letter-spacing:.04em}
+body.heroCta-t2 .warmLine{margin-top:6px}
+body.heroCta-t2 .actions{margin-top:12px;gap:8px}
+body.heroCta-t2 .actions .btn{padding:12px 20px}
+body.heroCta-t2 .trustLine{margin-top:8px}
 .grid{margin:0 7vw 120px;padding:60px;border:1px solid #ffffff18;border-radius:32px;background:radial-gradient(circle at 20% 20%,#5d31ff25,transparent 30%),#080810}
 .grid .kicker{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .liveTag{font-size:10px;letter-spacing:.15em;font-weight:900;padding:5px 11px;border-radius:999px;background:#4dffb022;border:1px solid #4dffb055;color:#4dffb0}
@@ -954,8 +968,28 @@ try{
   };
   var heroFlagBarEl = document.getElementById('heroFlagBar');
   if(heroFlagBarEl){
+    /* CLEAN TAPS ONLY (owner, BLU G45): a finger that lands on a flag while scrolling -- or that stops the
+       page's scroll -- must never pick a country. A flag is picked only by a clean tap: finger down and up on
+       the SAME flag, moving less than FLAG_TAP_SLOP px, the page not scrolled meanwhile, no scroll in the
+       FLAG_SCROLL_QUIET ms before the finger came down, released within FLAG_TAP_MAX_MS. Keyboard and screen
+       readers (a click with no pointer) still pick normally. */
+    var FLAG_TAP_SLOP = 10, FLAG_SCROLL_QUIET = 300, FLAG_TAP_MAX_MS = 1000;
+    var flagTap = null, lastScrollAt = 0;
+    window.addEventListener('scroll', function(){ lastScrollAt = Date.now(); if(flagTap) flagTap.ok = false; }, { passive: true });
+    heroFlagBarEl.addEventListener('pointerdown', function(e){
+      var btn = e.target.closest('.flag');
+      flagTap = btn ? { id: e.pointerId, btn: btn, x: e.clientX, y: e.clientY, sy: window.scrollY, t: Date.now(), ok: Date.now() - lastScrollAt >= FLAG_SCROLL_QUIET } : null;
+    }, { passive: true });
+    heroFlagBarEl.addEventListener('pointermove', function(e){
+      if(flagTap && e.pointerId === flagTap.id && (Math.abs(e.clientX - flagTap.x) > FLAG_TAP_SLOP || Math.abs(e.clientY - flagTap.y) > FLAG_TAP_SLOP)) flagTap.ok = false;
+    }, { passive: true });
+    heroFlagBarEl.addEventListener('pointercancel', function(){ if(flagTap) flagTap.ok = false; });   // the browser took the touch for a scroll
     heroFlagBarEl.addEventListener('click', function(e){
       var btn = e.target.closest('.flag'); if(!btn) return;
+      var tap = flagTap; flagTap = null;
+      if(e.detail !== 0){                       // a pointer click (0 = keyboard / screen reader)
+        if(!tap || !tap.ok || tap.btn !== btn || Math.abs(window.scrollY - tap.sy) > FLAG_TAP_SLOP || Date.now() - tap.t > FLAG_TAP_MAX_MS) return;
+      }
       window.setPreferredCountry(btn.dataset.code);
     });
   }
@@ -1613,10 +1647,44 @@ try{
     };
   }
 
+  /* NARROW PHONES (owner): see the heroCta-t1/t2 rules. Portrait, 400px wide or less only. Step 0 = today's
+     layout; t1, t2 = tighter country buttons; if even t2 does not fit, the hero grows just enough for the
+     stack to sit below the greeting (the page scrolls a little; nothing ever slides under the header). */
+  var CTA_TIERS = ['', 'heroCta-t1', 'heroCta-t2'], CTA_GAP = 8, lastCtaFit = null;
+  function fitHeroCta(){
+    var cta = document.querySelector('.heroCTA'), hero = document.querySelector('.hero'), rot = document.getElementById('welcomeRotator');
+    if(!cta || !hero || !rot) return null;
+    document.body.classList.add('heroCta-measuring');
+    try{ return fitHeroCtaNow(cta, hero, rot); } finally { void cta.offsetHeight; document.body.classList.remove('heroCta-measuring'); }
+  }
+  function fitHeroCtaNow(cta, hero, rot){
+    for(var j=1;j<CTA_TIERS.length;j++) document.body.classList.remove(CTA_TIERS[j]);
+    hero.style.minHeight = '';
+    var narrow = window.innerWidth <= 400 && window.innerHeight > window.innerWidth;
+    if(!narrow){ lastCtaFit = { tier: 'none' }; return lastCtaFit; }
+    var need = function(){ return rot.getBoundingClientRect().bottom + CTA_GAP - cta.getBoundingClientRect().top; };   // > 0: overlaps
+    var chosen = null, over = 0;
+    for(var i=0;i<CTA_TIERS.length;i++){
+      if(i>0) document.body.classList.add(CTA_TIERS[i]);
+      if(i>1) document.body.classList.remove(CTA_TIERS[i-1]);
+      void cta.offsetHeight;
+      over = need();
+      if(over <= 0){ chosen = i; break; }
+    }
+    if(chosen === null){                      // still too tall: grow the hero by what is missing
+      hero.style.minHeight = Math.ceil(hero.getBoundingClientRect().height + over) + 'px';
+      chosen = 'grow';
+    }
+    lastCtaFit = { tier: chosen === 0 ? 'none' : (chosen === 'grow' ? 'grow' : 'tier' + chosen), clearance: -Math.round(need()) };
+    return lastCtaFit;
+  }
+  window.__fluxCtaFit = function(){ return lastCtaFit; };
+
   function fitHeroBrand(){
     var brand = document.querySelector('.heroBrand');
     var cta = document.querySelector('.heroCTA');
     if(!brand || !cta) return;
+    fitHeroCta();                             // NARROW PHONES: the stack first, then the brand reveal fits above it
 
     document.body.classList.add('heroBrand-measuring');
     clearHeroTiers();
