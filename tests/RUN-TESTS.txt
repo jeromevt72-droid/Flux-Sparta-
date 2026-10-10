@@ -82,3 +82,4 @@ node test-android-icon.mjs        # Android icon: maskable / Play-ready icons, f
 node test-custom-domain.mjs      # Custom domain: fluxsparta.com declared in wrangler.jsonc, workers.dev kept, no www route, nothing else changed
 node test-pilot-move.mjs        # Pilot move: one-time ticket (used / expired / wrong), old-address hand-off, move.html clears the ticket first, never overwrites a real pilot, every failure changes nothing
 node test-gateway-narrow.mjs    # Gateway on narrow phones: flags picked only by a clean tap; headline fits at 320-400 px portrait, larger screens unchanged
+node test-new-address.mjs       # New address: tags, sitemap/robots and SITE_URL on fluxsparta.com; Stripe returns to the address a purchase started on; share links to fluxsparta.com

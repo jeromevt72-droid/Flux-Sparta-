@@ -38,7 +38,8 @@
   // https://flux-sparta-3.jeromevt72.workers.dev working for every player and every
   // Home Screen app installed from it. www.fluxsparta.com is NOT attached to the
   // Worker: a zone Redirect Rule (dashboard) sends it to fluxsparta.com, so a pilot
-  // never splits between two addresses.
+  // never splits between two addresses. SITE_URL (below) is the address Stripe returns
+  // to when a purchase starts anywhere else; a purchase started on either address returns there.
   "workers_dev": true,
   "routes": [
     { "pattern": "fluxsparta.com", "custom_domain": true }
@@ -77,7 +78,7 @@
     }
   ],
   "vars": {
-    "SITE_URL": "https://flux-sparta-3.jeromevt72.workers.dev",
+    "SITE_URL": "https://fluxsparta.com",
     "STRIPE_PRICE_TOXIC": "price_1UFmSPD3WappewxnvZMd3Uti",
     "STRIPE_PRICE_COSMIC": "price_1UFmXnD3WappewxnIBJOTvtj",
     "STRIPE_PRICE_SOLAR": "price_1UG5raD3WappewxnfLlKnVUP",

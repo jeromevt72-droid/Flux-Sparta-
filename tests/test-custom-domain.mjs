@@ -4,7 +4,7 @@
 //      splits between two addresses), no wildcard, no zone route that would run the Worker on every file;
 //   D2 "workers_dev": true is written out, so the old address keeps working for every player and app;
 //   D3 everything else is exactly as on main: name, main, assets (only /api/* runs the Worker: free plan),
-//      Durable Object binding + migration, KV, cron, vars (SITE_URL stays the old address until PR 3);
+//      Durable Object binding + migration, KV, cron, vars; SITE_URL is fluxsparta.com (NEW ADDRESS, PR 3);
 // Ends with negative controls.
 import fs from 'fs'; import path from 'path'; import { spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
@@ -14,7 +14,7 @@ const WRANGLER = fs.readFileSync(path.join(ROOT, 'wrangler.jsonc'), 'utf8');
 const parse = (t) => JSON.parse(t.replace(/^\s*\/\/.*$/mg, ''));
 const show = (f) => { try { const r = spawnSync('git', ['show', 'origin/main:' + f], { cwd: ROOT, encoding: 'utf8' }); return r.status === 0 ? r.stdout : null; } catch (e) { return null; } };
 const MAIN = show('wrangler.jsonc');
-const OLD = 'https://flux-sparta-3.jeromevt72.workers.dev';
+const OLD = 'https://flux-sparta-3.jeromevt72.workers.dev', NEW = 'https://fluxsparta.com';
 
 function suite(w, quiet = false) {
   let F = 0; const failed = [];
@@ -28,9 +28,9 @@ function suite(w, quiet = false) {
     ck('D3 free plan: only /api/* runs the Worker; every file is still served by the asset layer', JSON.stringify(c.assets && c.assets.run_worker_first) === '["/api/*"]' && c.assets.directory === './public' && c.assets.not_found_handling === '404-page');
     ck('D3 same Worker, Durable Object, migration, KV and cron', c.name === 'flux-sparta-3' && c.main === 'worker.js' && JSON.stringify(c.durable_objects.bindings) === JSON.stringify([{ name: 'LEADERBOARD_DO', class_name: 'LeaderboardDO' }])
       && JSON.stringify(c.migrations) === JSON.stringify([{ tag: 'v1', new_sqlite_classes: ['LeaderboardDO'] }]) && c.kv_namespaces.length === 1 && JSON.stringify(c.triggers) === JSON.stringify({ crons: ['*/30 * * * *'] }));
-    ck('D3 SITE_URL still the workers.dev address (it moves in PR 3), store still closed', c.vars.SITE_URL === OLD && c.vars.STORE_OPEN === 'false', c.vars.SITE_URL);
-    if (MAIN) { const strip = (x) => { const o = parse(x); delete o.routes; delete o.workers_dev; return JSON.stringify(o); };
-      ck('D3 apart from the two domain lines, wrangler.jsonc is identical to main', strip(MAIN) === strip(w)); }
+    ck('D3 SITE_URL is fluxsparta.com (NEW ADDRESS), store still closed', c.vars.SITE_URL === NEW && c.vars.STORE_OPEN === 'false', c.vars.SITE_URL);
+    if (MAIN) { const strip = (x) => { const o = parse(x); delete o.routes; delete o.workers_dev; if (o.vars) delete o.vars.SITE_URL; return JSON.stringify(o); };
+      ck('D3 apart from the two domain lines and SITE_URL, wrangler.jsonc is identical to main', strip(MAIN) === strip(w)); }
     else ck('D3 (git not available: compared with the fixed values above only)', true);
   } catch (e) { ck('wrangler.jsonc parsed', false, String(e).slice(0, 200)); }
   return { F, failed };
@@ -55,7 +55,7 @@ control('a zone wildcard route', 'D1 ...and it is the only route', rep(DOM, DOM 
 control('workers.dev switched off', 'D2', rep('  "workers_dev": true,\n', '  "workers_dev": false,\n'));
 control('workers.dev left to the default', 'D2', rep('  "workers_dev": true,\n', ''));
 control('every file runs the Worker', 'D3 free plan', rep('"/api/*"\n    ],', '"/api/*", "/*"\n    ],'));
-control('SITE_URL moved already', 'D3 SITE_URL', rep('"SITE_URL": "' + OLD + '"', '"SITE_URL": "https://fluxsparta.com"'));
+control('SITE_URL left on the old address', 'D3 SITE_URL', rep('"SITE_URL": "' + NEW + '"', '"SITE_URL": "' + OLD + '"'));
 control('a new Durable Object migration', 'D3 same Worker', rep('"tag": "v1",', '"tag": "v2",'));
 const total = res.F + NC;
 console.log('\n' + (total ? 'CUSTOM DOMAIN FAILED: ' + res.F + ' check(s), ' + NC + ' uncaught control(s)' : 'CUSTOM DOMAIN PASSED: all checks and all negative controls') + '  (' + ((Date.now() - t0) / 1000).toFixed(0) + ' s)');

@@ -24,7 +24,7 @@ import { boot, makeStore } from './harness.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const GAME_HTML = fs.readFileSync(path.join(__dirname, 'FLUX-Sparta', 'public', 'play', 'index.html'), 'utf8');
 const scriptsOf = (h) => [...h.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
-const CANON = 'flux-sparta-3.jeromevt72.workers.dev';
+const CANON = 'fluxsparta.com';   // NEW ADDRESS
 const UA_IG = 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 350.0.0.0 (iPhone15,2; iOS 26_0; en_US)';
 
 async function suite(gameHtml, quiet = false) {

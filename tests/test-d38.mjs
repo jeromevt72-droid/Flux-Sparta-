@@ -6,7 +6,7 @@ import fs from 'fs'; import path from 'path'; import vm from 'vm';
 import { fileURLToPath, pathToFileURL } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUB = path.join(__dirname, 'FLUX-Sparta', 'public');
-const BASE = 'https://flux-sparta-3.jeromevt72.workers.dev';
+const BASE = 'https://fluxsparta.com';   // NEW ADDRESS: the site's address in search and preview tags
 const rd = (f) => { try { return fs.readFileSync(path.join(PUB, f), 'utf8'); } catch (e) { return ''; } };
 const WORKER_SRC = fs.readFileSync(path.join(__dirname, 'FLUX-Sparta', 'worker.js'), 'utf8');
 const realNow = Date.now; let skew = 0; Date.now = () => realNow() + skew;
