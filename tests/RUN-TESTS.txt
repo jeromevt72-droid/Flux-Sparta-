@@ -83,3 +83,4 @@ node test-custom-domain.mjs      # Custom domain: fluxsparta.com declared in wra
 node test-pilot-move.mjs        # Pilot move: one-time ticket (used / expired / wrong), old-address hand-off, move.html clears the ticket first, never overwrites a real pilot, every failure changes nothing
 node test-gateway-narrow.mjs    # Gateway on narrow phones: flags picked only by a clean tap; headline fits at 320-400 px portrait, larger screens unchanged
 node test-new-address.mjs       # New address: tags, sitemap/robots and SITE_URL on fluxsparta.com; Stripe returns to the address a purchase started on; share links to fluxsparta.com
+node test-sound-match.mjs       # Sound match: one master volume (.30) for game and Gateway demo; Android Chrome / Samsung Internet +8.5 dB after the compressor with a -0.3 dBFS ceiling; every other browser unchanged
