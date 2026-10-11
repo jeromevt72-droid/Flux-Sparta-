@@ -917,8 +917,25 @@ try{
   window.fmtScore = function(n){ return Math.round(n).toLocaleString('en-US'); };
 
   var GATEWAY_COUNTRY_KEY = 'fluxGatewayCountry'; // Gateway-only display preference
-  window.getPreferredCountry = function(){ try{return localStorage.getItem(GATEWAY_COUNTRY_KEY)||'';}catch(e){return '';} };
+  /* PILOT'S OWN COUNTRY (owner): a pilot who has set a country in the game (EDIT) sees THAT country here by
+     default, on every visit. A flag tapped here still changes what this page shows for the rest of the visit
+     (it never changes the pilot's real country: the game does not read this page's choice). Without a pilot
+     country, the remembered Gateway choice works exactly as before. */
+  var gatewayVisitChoice = null;   // a flag tapped during THIS visit
+  window.pilotCountry = function(){
+    try{
+      if(localStorage.getItem('fluxProfileComplete') !== '1') return '';
+      var c = localStorage.getItem('fluxCountry') || '';
+      return /^[A-Z]{2}$/.test(c) && window.COUNTRY_META && Object.prototype.hasOwnProperty.call(window.COUNTRY_META, c) ? c : '';
+    }catch(e){ return ''; }
+  };
+  window.getPreferredCountry = function(){
+    if(gatewayVisitChoice !== null) return gatewayVisitChoice;
+    var pc = window.pilotCountry(); if(pc) return pc;
+    try{return localStorage.getItem(GATEWAY_COUNTRY_KEY)||'';}catch(e){return '';}
+  };
   window.setPreferredCountry = function(code){
+    gatewayVisitChoice = code || '';
     try{ if(code) localStorage.setItem(GATEWAY_COUNTRY_KEY,code); else localStorage.removeItem(GATEWAY_COUNTRY_KEY); }catch(e){}
     window.applyPreferredCountryUI();
     if(window.__gridData) window.renderGrid(window.__gridData);
