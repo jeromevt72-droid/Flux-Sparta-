@@ -956,7 +956,36 @@ function setPaddle(x){paddle.x=Math.max(paddle.w/2+8,Math.min(W-paddle.w/2-8,x))
 // FLUX SPARTA AUDIO + HAPTIC ENGINE
 let audioCtx=null, masterGain=null, audioLimiter=null;
 let audioReady=false;
-const SOUND_LEVEL=.30, SOUND_FADE_IN_S=1.5;   // D-61
+const SOUND_LEVEL=.30, SOUND_FADE_IN_S=1.5;   // D-61; the Gateway demo uses the same SOUND_LEVEL
+/* SOUND MATCH (owner). The game and the Gateway demo share ONE master volume (SOUND_LEVEL) and this output
+   block, identical in both pages. Measured: Android Chrome plays exactly what FLUX's code produces, while the
+   iPhone comes out ~8.5 dB louder (added by iOS after FLUX's graph). So ONLY on Android Chrome and Samsung
+   Internet, the compressor's output gets +8.5 dB, then a safety ceiling: exactly linear below 85% of full
+   scale (every normal sound is untouched), a smooth curve above it, never past 96.6% (-0.3 dBFS), so the
+   loudest moments never clip. Every other browser (iPhone, iPad, desktop, in-app browsers, Firefox, other Android
+   browsers) keeps today's path exactly: compressor -> speakers, nothing added. The phone's own volume and
+   mute settings are unchanged. */
+const SOUND_BOOST_DB=8.5, SOUND_SAFE_KNEE=.85, SOUND_SAFE_MAX=.966;   // ceiling -0.3 dBFS
+function soundBoostOn(){
+  try{
+    const ua=navigator.userAgent||'';
+    if(!/Android/.test(ua)) return false;
+    if(/SamsungBrowser\//.test(ua)) return true;
+    return /Chrome\/\d/.test(ua) && !/; wv\)|EdgA\/|OPR\/|YaBrowser\/|UCBrowser\/|MiuiBrowser\/|HuaweiBrowser\/|HeyTapBrowser\/|VivoBrowser\/|Firefox\//.test(ua);
+  }catch(e){ return false; }
+}
+function soundSafeCurve(){   // input range +-2 (halved before the curve), so peaks up to 6 dB over full scale still land smoothly
+  const n=4097, c=new Float32Array(n);
+  for(let i=0;i<n;i++){ const a=Math.abs(2*(i*2/(n-1)-1)); c[i]=Math.sign(i-(n-1)/2)*(a<=SOUND_SAFE_KNEE?a:SOUND_SAFE_KNEE+(SOUND_SAFE_MAX-SOUND_SAFE_KNEE)*Math.tanh((a-SOUND_SAFE_KNEE)/(SOUND_SAFE_MAX-SOUND_SAFE_KNEE))); }
+  return c;
+}
+function soundConnectOutput(ctx,limiter){
+  if(!soundBoostOn()){ limiter.connect(ctx.destination); return; }
+  const boost=ctx.createGain(), safe=ctx.createWaveShaper();
+  boost.gain.value=Math.pow(10,SOUND_BOOST_DB/20)/2;   // /2: the curve works on half-scale input
+  safe.curve=soundSafeCurve(); safe.oversample='none';
+  limiter.connect(boost); boost.connect(safe); safe.connect(ctx.destination);
+}
 function initAudio(){
   try{
     const AC=window.AudioContext||window.webkitAudioContext;
@@ -979,7 +1008,7 @@ function initAudio(){
       audioLimiter.attack.value=.003;
       audioLimiter.release.value=.12;
       masterGain.connect(audioLimiter);
-      audioLimiter.connect(audioCtx.destination);
+      soundConnectOutput(audioCtx,audioLimiter);   // SOUND MATCH
     }
     // AUDIO REOPEN (owner): iOS parks the context of a reopened Home Screen app in 'interrupted', not
     // 'suspended', so PLAY never woke it and the whole run stayed silent. Anything not running is resumed
