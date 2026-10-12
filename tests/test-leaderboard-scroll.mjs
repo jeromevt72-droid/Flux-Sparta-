@@ -43,7 +43,7 @@ function suite(html, quiet = false) {
     ck('L3 the paddle still gets every finger move first (pointer() runs in all cases)', (g.ctx.__pc || 0) === 9, g.ctx.__pc);
     const css = (html.match(/\.lbBody\{[^}]*\}/) || [''])[0];
     ck('L4 the list box: overflow auto as before, scrolling contained to the list (no visual change)', /overflow:auto/.test(css) && /overscroll-behavior:contain/.test(css) && /flex:1;min-height:0/.test(css), css);
-    ck('L4 top 10 rows per tab; the pilot\'s own row is highlighted in them or pinned below them, inside the same scrolling list', /const FLUX_LB_SHOW=10;/.test(html) && /<div id="lbBody" class="lbBody">/.test(html) && /h\+='<div class="lbPinned">'/.test(html));
+    ck('L4 top 100 rows per planet tab (LONGER LEADERBOARD); the pilot\'s own row is highlighted in them or pinned below them, inside the same scrolling list', /const FLUX_LB_SHOW=100;/.test(html) && /<div id="lbBody" class="lbBody">/.test(html) && /h\+='<div class="lbPinned">'/.test(html));
   } catch (e) { ck('section ran', false, String(e.stack || e).slice(0, 300)); }
   return { F, failed };
 }

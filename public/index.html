@@ -1195,7 +1195,7 @@ try{
     var sideArea = document.getElementById('gridSideArea');
     if(rankArea && !cached) rankArea.innerHTML = gridLoadingState();
     if(sideArea && !cached) sideArea.innerHTML = '';
-    fetch(window.FLUX_ORIGIN + '/api/leaderboard?limit=50&boards=1')   // LEADERBOARD REFRESH: the game's URL too, so both share ONE cached copy
+    fetch(window.FLUX_ORIGIN + '/api/leaderboard?limit=100&boards=1')   // LEADERBOARD REFRESH: the game's URL too, so both share ONE cached copy (LONGER LEADERBOARD: top 100)
       .then(function(res){
         if(!res.ok){
           return res.json().catch(function(){return null;}).then(function(errBody){

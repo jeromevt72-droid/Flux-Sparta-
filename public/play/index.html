@@ -3004,7 +3004,7 @@ function myPidHash(){
    once a minute -- by any view or tab ("fluxLbTry" marks the last fetch). A
    manual reopen inside that minute shows the copy. Offline, or past the
    server's daily limit, the last copy is shown. */
-const FLUX_LB_KEY='fluxLbCache', FLUX_LB_TRY_KEY='fluxLbTry', FLUX_LB_TTL_MS=60000, FLUX_LB_URL='/api/leaderboard?limit=50&boards=1';   // LEADERBOARD REFRESH: + the three planet boards, same one request
+const FLUX_LB_KEY='fluxLbCache', FLUX_LB_TRY_KEY='fluxLbTry', FLUX_LB_TTL_MS=60000, FLUX_LB_URL='/api/leaderboard?limit=100&boards=1';   // LEADERBOARD REFRESH: + the three planet boards, same one request
 let fluxLbInflight=null;
 function fluxLbCached(){
   try{ const c=JSON.parse(localStorage.getItem(FLUX_LB_KEY)||'null'); if(c && c.data && c.data.boards && Number.isFinite(c.at)) return c; }catch(e){}   // LEADERBOARD REFRESH: a copy without the planet boards (older page) is fetched again
@@ -3053,7 +3053,8 @@ function fluxLbLoad(){
    ================================================================== */
 const FLUX_LB_TABS=['easy','medium','hard','world'];
 const FLUX_WORLD_SVG='<svg class="pl" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8.6" fill="#0b2a4a" stroke="#62eaff" stroke-width="1.2"/><ellipse cx="10" cy="10" rx="3.6" ry="8.6" fill="none" stroke="#62eaff" stroke-width="1"/><path d="M1.6 10h16.8M3 6h14M3 14h14" stroke="#62eaff" stroke-width="1" fill="none"/></svg>';   // WORLD tab: a simple globe (inline SVG, no emoji)
-const FLUX_LB_SHOW=10;                                  // rows shown per tab; the pilot's own row is always shown (highlighted or pinned)
+const FLUX_LB_SHOW=100;                                 // LONGER LEADERBOARD (owner): rows on EARTH / MARS / JUPITER / MY COUNTRY (was 10); the pilot's own row is always shown (highlighted or pinned)
+const FLUX_LB_SHOW_WORLD=10;                            // the WORLD countries view stays as it was: #1 spotlight + #2-#10
 const FLUX_RANK_SNAP_KEY='fluxRankSnap', FLUX_LB_SCOPE_KEY='fluxLbScope';
 const FLUX_BEHIND_MAX=500;                              // game over: "N points behind <pilot>" only within this
 /* Emoji flag from the ISO2 code (regional indicators); the code as text when unknown / XX. */
@@ -3116,8 +3117,8 @@ function fluxBoardView(data,d,scope,me){
 function fluxWorldView(data,myCountry){
   const cs=((data && data.countries) || []).slice().sort(function(a,b){ return b.totalScore-a.totalScore; });
   const myI=cs.findIndex(function(c){ return c.country===myCountry; });
-  const v={ spotlight:cs[0]||null, rows:cs.slice(1,FLUX_LB_SHOW).map(function(c,i){ return { rank:i+2, c:c, mine:i+1===myI }; }), mine:myI===0, pinned:null, missing:false };
-  if(myI>=FLUX_LB_SHOW) v.pinned={ rank:myI+1, c:cs[myI], behind:cs[myI-1].totalScore-cs[myI].totalScore, aboveRank:myI };
+  const v={ spotlight:cs[0]||null, rows:cs.slice(1,FLUX_LB_SHOW_WORLD).map(function(c,i){ return { rank:i+2, c:c, mine:i+1===myI }; }), mine:myI===0, pinned:null, missing:false };
+  if(myI>=FLUX_LB_SHOW_WORLD) v.pinned={ rank:myI+1, c:cs[myI], behind:cs[myI-1].totalScore-cs[myI].totalScore, aboveRank:myI };
   else if(myI<0 && myCountry && myCountry!=='OTHER') v.missing=true;
   return v;
 }

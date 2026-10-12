@@ -163,26 +163,29 @@ async function suite({ gameHtml, gateHtml, workerMod, quiet = false }) {
     ck('T2 the board opens on the difficulty just played (or last selected); a click event is not a tab', opened.join(',') === 'easy,hard,hard', opened.join(','));
     // B1..B4
     const rows = (n, ccOf, base = 20000) => Array.from({ length: n }, (_, i) => ({ pid: 'p' + i, tag: 'T' + i, name: 'N' + i, country: ccOf(i), score: base - i * 100 }));
-    const data = { boards: { easy: [], medium: rows(50, (i) => (i % 2 ? 'US' : 'FR')), hard: rows(50, () => 'JP') }, countries: [] };
+    const data = { boards: { easy: [], medium: rows(250, (i) => (i % 2 ? 'US' : 'FR'), 50000), hard: rows(150, () => 'JP') }, countries: [] };   // LONGER LEADERBOARD: top 100 shown
     const view = (d, scope, pid, extra = {}) => { const { run } = bootGame({ ...ME, ...extra }); run('var __d=' + JSON.stringify(data)); return run('JSON.stringify(fluxBoardView(__d,' + JSON.stringify(d) + ',' + JSON.stringify(scope) + ',{pid:' + JSON.stringify(pid) + ",country:'FR'}))"); };
     const v1 = JSON.parse(view('medium', 'world', 'p4'));
-    ck('B1 in the top 10: the pilot\'s own row is highlighted, nothing pinned', v1.rows.length === 10 && v1.rows[4].mine === true && v1.rows.filter((r) => r.mine).length === 1 && !v1.pinned);
-    const v2 = JSON.parse(view('medium', 'world', 'p23'));
-    ck('B2 outside the top 10: pinned at the bottom with the rank and "points to #N" (N = the rank just above)', v2.rows.length === 10 && !v2.rows.some((r) => r.mine) && v2.pinned && v2.pinned.rank === 24 && v2.pinned.toRank === 23 && v2.pinned.toPts === 101, JSON.stringify(v2.pinned));
-    { const { run } = bootGame(ME); run('var __d=' + JSON.stringify(data)); const h = run("fluxBoardHtml(fluxBoardView(__d,'medium','world',{pid:'p23',country:'FR'}))");
-      ck('B2 the pinned row reads "#24 ... 101 points to #23"', /<div class="lbPinned"><div class="lbRow lbMine"><span class="lbRank">#24<\/span>[^]*101 points to #23/.test(h)); }
+    ck('B1 in the top 100: the pilot\'s own row is highlighted, nothing pinned', v1.rows.length === 100 && v1.rows[4].mine === true && v1.rows.filter((r) => r.mine).length === 1 && !v1.pinned);
+    const v2 = JSON.parse(view('medium', 'world', 'p123'));
+    ck('B2 outside the top 100: pinned at the bottom with the rank and "points to #N" (N = the rank just above)', v2.rows.length === 100 && !v2.rows.some((r) => r.mine) && v2.pinned && v2.pinned.rank === 124 && v2.pinned.toRank === 123 && v2.pinned.toPts === 101, JSON.stringify(v2.pinned));
+    { const { run } = bootGame(ME); run('var __d=' + JSON.stringify(data)); const h = run("fluxBoardHtml(fluxBoardView(__d,'medium','world',{pid:'p123',country:'FR'}))");
+      ck('B2 the pinned row reads "#124 ... 101 points to #123"', /<div class="lbPinned"><div class="lbRow lbMine"><span class="lbRank">#124<\/span>[^]*101 points to #123/.test(h)); }
     // Beyond the fetched rows: the rank from the server's reply to the last upload.
-    const snap = JSON.stringify({ pid: P(1), season: 1, d: { hard: { rank: 120, total: 300, countryRank: 9, countryTotal: 20, country: 'FR', best: 5000, above: { rank: 119, name: 'ACE', tag: 'X', score: 5080 }, at: 1 } } });
+    const snap = JSON.stringify({ pid: P(1), season: 1, d: { hard: { rank: 220, total: 300, countryRank: 9, countryTotal: 20, country: 'FR', best: 5000, above: { rank: 219, name: 'ACE', tag: 'X', score: 5080 }, at: 1 } } });
     const v3 = JSON.parse(view('hard', 'world', 'zzz', { fluxRankSnap: snap, fluxBestRun_hard: JSON.stringify({ score: 5000, level: 3 }) }));
-    ck('B2 beyond the fetched rows: pinned with the server\'s rank and "points to" the pilot just above', v3.pinned && v3.pinned.rank === 120 && v3.pinned.toRank === 119 && v3.pinned.toPts === 81 && v3.pinned.score === 5000, JSON.stringify(v3.pinned));
+    ck('B2 beyond the fetched rows: pinned with the server\'s rank and "points to" the pilot just above', v3.pinned && v3.pinned.rank === 220 && v3.pinned.toRank === 219 && v3.pinned.toPts === 81 && v3.pinned.score === 5000, JSON.stringify(v3.pinned));
     const v4 = JSON.parse(view('hard', 'world', 'zzz', { fluxBestRun_hard: JSON.stringify({ score: 5000, level: 3 }) }));
-    ck('B2 no reply yet: pinned "#51+" with the points to the last row shown', v4.pinned && v4.pinned.rankText === '#51+' && v4.pinned.toRank === 50 && v4.pinned.toPts === data.boards.hard[49].score - 5000 + 1, JSON.stringify(v4.pinned));
+    ck('B2 no reply yet: pinned "#151+" with the points to the last row fetched', v4.pinned && v4.pinned.rankText === '#151+' && v4.pinned.toRank === 150 && v4.pinned.toPts === data.boards.hard[149].score - 5000 + 1, JSON.stringify(v4.pinned));
     const un = ['easy', 'medium', 'hard'].map((d) => JSON.parse(view(d, 'world', 'nobody')).unplayed);
     ck('B3 an unplayed tab says so, per planet', un[0] === "You haven't reached Earth yet. Play Easy to get on this board." && un[1] === "You haven't reached Mars yet. Play Medium to get on this board." && un[2] === "You haven't reached Jupiter yet. Play Hard to get on this board.", un.join(' | '));
-    const v5 = JSON.parse(view('medium', 'country', 'p24'));
-    ck('B4 MY COUNTRY: the same board filtered to the pilot\'s country, ranked within it', v5.rows.length === 10 && v5.rows.every((r) => r.country === 'FR') && v5.rows[0].name === 'N0' && v5.rows[1].name === 'N2' && v5.pinned && v5.pinned.rank === 13 && v5.pinned.toRank === 12, JSON.stringify(v5.pinned));
-    { const { run } = bootGame(ME); run('var __d=' + JSON.stringify(data)); const h = run("fluxBoardHtml(fluxBoardView(__d,'medium','country',{pid:'p24',country:'FR'}))");
+    const v5 = JSON.parse(view('medium', 'country', 'p224'));
+    ck('B4 MY COUNTRY: the same board filtered to the pilot\'s country, ranked within it', v5.rows.length === 100 && v5.rows.every((r) => r.country === 'FR') && v5.rows[0].name === 'N0' && v5.rows[1].name === 'N2' && v5.pinned && v5.pinned.rank === 113 && v5.pinned.toRank === 112, JSON.stringify(v5.pinned));
+    { const { run } = bootGame(ME); run('var __d=' + JSON.stringify(data)); const h = run("fluxBoardHtml(fluxBoardView(__d,'medium','country',{pid:'p224',country:'FR'}))");
       ck('B4 every difficulty tab has the WORLD / MY COUNTRY switch', /data-scope="world" class="">WORLD<\/button><button type="button" data-scope="country" class="on">MY COUNTRY/.test(h)); }
+    { const { run } = bootGame(ME); const cs = Array.from({ length: 30 }, (_, i) => ({ country: ['US','BR','PH','IN','FR','DE','JP','MX','CA','AU','GB','CN','NG','ID','PK','EG','ZA','KR','IT','ES','AR','CO','PE','CL','TR','SA','TH','VN','PL','NL'][i], totalScore: 900000 - i * 1000, playerCount: 3 }));
+      const w = JSON.parse(run('JSON.stringify(fluxWorldView(' + JSON.stringify({ countries: cs }) + ",'NL'))"));
+      ck('B5 WORLD countries view unchanged by the longer boards: #1 spotlight + #2-#10, a country further down pinned', w.rows.length === 9 && w.rows[8].rank === 10 && w.pinned && w.pinned.rank === 30, JSON.stringify({ n: w.rows.length, pin: w.pinned && w.pinned.rank })); }
     // A1
     const shown = (h) => h.replace(/<script\b[\s\S]*?<\/script>/g, '').replace(/<style\b[\s\S]*?<\/style>/g, '').replace(/<!--[\s\S]*?-->/g, '');
     const lits = (h) => scriptsOf(h).join('\n').replace(/\/\*[\s\S]*?\*\//g, '').split('\n').map((l) => l.replace(/(^|[\s;,){])\/\/.*$/, '$1')).join('\n').match(/(['"])(?:(?!\1)[^\\\n]|\\.)*\1/g) || [];
@@ -248,7 +251,7 @@ async function suite({ gameHtml, gateHtml, workerMod, quiet = false }) {
     ck('N2 never "This is Sparta" anywhere', everywhere.every((s) => !/this\s+is\s+sparta/i.test(s)));
     // S2 client: one shared URL, through the once-a-minute cache
     const url = (gameHtml.match(/FLUX_LB_URL='([^']+)'/) || [])[1];
-    ck('S2 the game and the Gateway fetch the SAME board URL (?boards=1), once a minute via the shared cache', url === '/api/leaderboard?limit=50&boards=1' && gateHtml.includes("'/api/leaderboard?limit=50&boards=1'") &&
+    ck('S2 the game and the Gateway fetch the SAME board URL (?boards=1), once a minute via the shared cache', url === '/api/leaderboard?limit=100&boards=1' && gateHtml.includes("'/api/leaderboard?limit=100&boards=1'") &&
       (scriptsOf(gameHtml).join('\n').match(/fetch\([^)]*\/api\/leaderboard/g) || []).length === 0 && /fluxLbLoad\(\)\.then\(render\)/.test(gameHtml), url);
     ck('S2 a cached copy without the planet boards is not used as fresh', /c\.data\.boards/.test(gameHtml));
   } catch (e) { ck('C client block ran', false, e.stack); }
@@ -329,9 +332,9 @@ await control('planet colour on an orb', 'P2 the planet colours', { game: rep('c
 await control('tabs without icons', 'P2 every tab', { game: rep("(p?planetIcon(t)+p.name", "(p?p.name") });
 await control('tab order changed', 'T1 tabs', { game: rep("const FLUX_LB_TABS=['easy','medium','hard','world'];", "const FLUX_LB_TABS=['world','easy','medium','hard'];") });
 await control('board always opens on Mars', 'T2 the board opens', { game: rep("function fluxLbDefaultTab(){ return FLUX_PLANETS[difficulty] ? difficulty : 'medium'; }", "function fluxLbDefaultTab(){ return 'medium'; }") });
-await control('own row not highlighted', 'B1 in the top 10', { game: rep('score:r.score, mine:i===myI };', 'score:r.score, mine:false };') });
-await control('own row not pinned', 'B2 outside the top 10', { game: rep('  if(myI>=FLUX_LB_SHOW){\n', '  if(false){\n') });
-await control('points to the wrong rank', 'B2 outside the top 10', { game: rep('toRank:myI, toPts:up.score-rows[myI].score+1 };', 'toRank:myI+1, toPts:up.score-rows[myI].score+1 };') });
+await control('own row not highlighted', 'B1 in the top 100', { game: rep('score:r.score, mine:i===myI };', 'score:r.score, mine:false };') });
+await control('own row not pinned', 'B2 outside the top 100', { game: rep('  if(myI>=FLUX_LB_SHOW){\n', '  if(false){\n') });
+await control('points to the wrong rank', 'B2 outside the top 100', { game: rep('toRank:myI, toPts:up.score-rows[myI].score+1 };', 'toRank:myI+1, toPts:up.score-rows[myI].score+1 };') });
 await control('server rank ignored beyond the rows', 'B2 beyond the fetched rows', { game: rep('const rank=known>rows.length ? known : 0;', 'const rank=0;') });
 await control('unplayed tab silent', 'B3 an unplayed tab', { game: rep('v.unplayed="You haven\'t reached "+p.word+" yet. Play "+p.sub+" to get on this board.";', '') });
 await control('MY COUNTRY not filtered', 'B4 MY COUNTRY', { game: rep("const rows=inCountry ? all.filter(function(r){ return r.country===me.country; }) : all;", 'const rows=all;') });
@@ -346,7 +349,7 @@ await control('share text says FLUX only', 'N1 "FLUX Sparta" on the title', { ga
 await control('link preview without the full name', 'N1 "FLUX Sparta" in <title>', { gate: rep('<meta name="twitter:title" content="FLUX Sparta — The world is the scoreboard">', '<meta name="twitter:title" content="FLUX">') });
 await control('This is Sparta', 'N2 never', { game: rep('<title>Play FLUX Sparta', '<title>This is Sparta! Play FLUX Sparta') });
 await control('a second leaderboard fetch', 'S2 the game and the Gateway', { game: rep('function refreshGridCard(){\n', "function refreshGridCard(){\n  fetch('/api/leaderboard?limit=10');\n") });
-await control('Gateway on its own URL', 'S2 the game and the Gateway', { gate: rep("'/api/leaderboard?limit=50&boards=1'", "'/api/leaderboard?limit=50'") });
+await control('Gateway on its own URL', 'S2 the game and the Gateway', { gate: rep("'/api/leaderboard?limit=100&boards=1'", "'/api/leaderboard?limit=100'") });
 await control('ball a little faster (gameplay)', 'GP gameplay unchanged', { game: rep('ball={x:W/2,y:paddle.y-28,r:13,vx:rand(-3.5,3.5),vy:-launchSpeed(6.2*DIFFICULTY[difficulty].speed)', 'ball={x:W/2,y:paddle.y-28,r:13,vx:rand(-3.5,3.5),vy:-launchSpeed(6.3*DIFFICULTY[difficulty].speed)') });
 await control('light text on Jupiter gold', 'P3 every planet label', { game: rep('.difficulty button[data-d=hard].selected{background:#F2C27A;color:#050a18;', '.difficulty button[data-d=hard].selected{background:#F2C27A;color:#ffffff;') });
 await control('faded small labels', 'P3 every planet label', { game: rep('.lbTab small{display:block;margin-top:2px;font-size:11px;font-weight:700;letter-spacing:0}', '.lbTab small{display:block;margin-top:2px;font-size:11px;font-weight:700;letter-spacing:0;opacity:.6}') });
