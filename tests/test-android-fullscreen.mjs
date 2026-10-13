@@ -9,7 +9,7 @@
 //   A4 pause, quit and game over leave full screen (menus keep the buttons); RESUME enters it again;
 //      FLUX only leaves a full screen it asked for;
 //   A5 wiring: no new listeners (17), the frame loop untouched (2), the resize keeps the same stars when the
-//      size did not change.
+//      size did not change (and still draws the same random numbers as main, so seeded runs are identical).
 // Ends with negative controls.
 import fs from 'fs'; import path from 'path'; import vm from 'vm';
 import { fileURLToPath } from 'url';
@@ -37,7 +37,7 @@ function rig(src, { ua = UA.android, standalone = true, framed = false, platform
   if (touch) document.ontouchend = null;
   const win = { matchMedia: (q) => ({ matches: standalone && /display-mode: standalone/.test(q) }) };
   win.self = win; win.top = framed ? {} : win;
-  const g = { navigator: { userAgent: ua, platform }, document, window: win, innerHeight: 728, innerWidth: 360, resize: () => { resizes++; } };
+  const g = { navigator: { userAgent: ua, platform }, document, window: win, innerHeight: 728, innerWidth: 360, resize: () => { resizes++; }, newGame: () => {} };
   vm.createContext(g); vm.runInContext(src.slice(a, z) + '\n;globalThis.__fsH=()=>fluxFsH;', g);
   const api = {
     g, calls, cls, props, settle: () => {},
@@ -82,7 +82,7 @@ function suite(src, quiet = false) {
     r = rig(src); r.enter(); r.settle(); r.entered(); r.exit();
     ck('A4 a full screen FLUX asked for is left when asked', r.calls.join() === 'enter:hide,exit', r.calls.join());
     const body = (name) => { const i = src.indexOf(name); return src.slice(i, src.indexOf('\n}', i)); };
-    ck('A4 a new run enters full screen', /updateHud\(\); playing=true; runActive=true;\n fluxFsEnter\(\);/.test(body('function newGame(){')));
+    ck('A4 a new run enters full screen (newGame itself, gameplay, untouched)', /\{ const newGame0=newGame; newGame=function\(\)\{ const r=newGame0\.apply\(this,arguments\); fluxFsEnter\(\); return r; \}; \}/.test(src) && !/fluxFs/.test(body('function newGame(){')));
     ck('A4 game over leaves it', /fluxFsExit\(\);/.test(body('function endGame(){').slice(0, 400)));
     const sp = body('function setPaused(next){');
     ck('A4 pause leaves it, RESUME enters it again', /pauseOverlay'\)\.classList\.remove\('hidden'\);\n   fluxFsExit\(\);/.test(sp) && /last=performance\.now\(\);\n   fluxFsEnter\(\);/.test(sp));
@@ -90,7 +90,7 @@ function suite(src, quiet = false) {
 
     ck('A5 no new listeners in the game (17)', (src.match(/addEventListener\(/g) || []).length === 17, (src.match(/addEventListener\(/g) || []).length);
     ck('A5 the frame loop is untouched (2)', (src.match(/requestAnimationFrame\(loop\)/g) || []).length === 2);
-    ck('A5 full-screen changes that keep the size keep the same stars and canvas (no reshuffle)', /if\(!same\)\{c\.width=W\*dpr;c\.height=H\*dpr;/.test(src) && /if\(!same\)makeStars\(\);/.test(src));
+    ck('A5 full-screen changes that keep the size keep the same stars and canvas (no reshuffle)', /if\(!same\)\{c\.width=W\*dpr;c\.height=H\*dpr;/.test(src) && /if\(same\)\{const s0=stars,n0=nebulae;makeStars\(\);stars=s0;nebulae=n0;\}else makeStars\(\);/.test(src));
   } catch (e) { ck('suite ran', false, String(e.stack || e).slice(0, 300)); }
   return { F, failed };
 }
@@ -113,7 +113,8 @@ control('requests stack', 'A3 one request', 'if(fluxFsAsking || !fluxFsWanted()'
 control('never asks again after back', 'A3 the next finger lift', "if(runActive && !paused && e.type==='touchend' && !document.fullscreenElement) fluxFsEnter(); ", '');
 control('exits a full screen it did not ask for', 'A4 FLUX only leaves', 'if(!fluxFsH || !document.fullscreenElement) return;', 'if(!document.fullscreenElement && false) return;');
 control('pause keeps full screen', 'A4 pause leaves it', "   fluxFsExit();   // ANDROID FULL SCREEN: the pause menu shows the buttons\n", '');
-control('stars reshuffle on every full-screen change', 'A5 full-screen changes', 'if(!same)makeStars();', 'makeStars();');
+control('stars reshuffle on every full-screen change', 'A5 full-screen changes', 'if(same){const s0=stars,n0=nebulae;makeStars();stars=s0;nebulae=n0;}else makeStars();', 'makeStars();');
+control('a new run does not hide the buttons', 'A4 a new run', ' fluxFsEnter(); return r;', ' return r;');
 const total = res.F + NC;
 console.log('\n' + (total ? 'ANDROID FULL SCREEN FAILED: ' + res.F + ' check(s), ' + NC + ' uncaught control(s)' : 'ANDROID FULL SCREEN PASSED: all checks and all negative controls'));
 process.exit(total ? 1 : 0);

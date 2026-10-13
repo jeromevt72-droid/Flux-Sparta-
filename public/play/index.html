@@ -986,7 +986,8 @@ function fluxFsDrop(){ if(!fluxFsH) return; fluxFsH=0; document.documentElement.
 function fluxFsDropIfOut(){ if(!document.fullscreenElement && fluxFsH){ fluxFsDrop(); resize(); } }
 function fluxFsCheckWidth(){ if(fluxFsH && innerWidth!==fluxFsW) fluxFsDrop(); }   // turned sideways in full screen: the normal layout
 document.onfullscreenchange=function(){ fluxFsAsking=false; if(!document.fullscreenElement) fluxFsDropIfOut(); };
-function resize(){const pW=W,pH=H,pD=dpr;dpr=window.__fluxLite?1:Math.min(devicePixelRatio||1,2);fluxFsCheckWidth();W=innerWidth;H=fluxFsH||innerHeight;const same=(W===pW&&H===pH&&dpr===pD&&c.width===Math.floor(W*dpr));if(!same){c.width=W*dpr;c.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);}fluxSafeBottom=readSafeBottom();paddle.y=Math.min(H-Math.max(42,Math.min(90,H*.095)),H-fluxSafeBottom-GRIP_GAP-GRIP_D-GRIP_STEM-paddle.h/2);if(!same)makeStars();refreshHudRects();if(skinBackdropOn())applySkinBackground();/* backdrop re-fits on rotation / window changes */}
+{ const newGame0=newGame; newGame=function(){ const r=newGame0.apply(this,arguments); fluxFsEnter(); return r; }; }   // a new run hides the system buttons (newGame itself is gameplay: untouched)
+function resize(){const pW=W,pH=H,pD=dpr;dpr=window.__fluxLite?1:Math.min(devicePixelRatio||1,2);fluxFsCheckWidth();W=innerWidth;H=fluxFsH||innerHeight;const same=(W===pW&&H===pH&&dpr===pD&&c.width===Math.floor(W*dpr));if(!same){c.width=W*dpr;c.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);}fluxSafeBottom=readSafeBottom();paddle.y=Math.min(H-Math.max(42,Math.min(90,H*.095)),H-fluxSafeBottom-GRIP_GAP-GRIP_D-GRIP_STEM-paddle.h/2);if(same){const s0=stars,n0=nebulae;makeStars();stars=s0;nebulae=n0;}else makeStars();refreshHudRects();if(skinBackdropOn())applySkinBackground();/* backdrop re-fits on rotation / window changes */}
 addEventListener('resize',resize);resize();
 function rand(a,b){return a+Math.random()*(b-a)}
 function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
@@ -1180,7 +1181,6 @@ function newGame(){
  ball.color=pickBallColour();   // the first ball matches an orb on the field
  if(difficulty==='easy'){ ball.color=easyPickColour(ball.color); easyTopUpMatches(); }   // Easy: at least two matching orbs
  updateHud(); playing=true; runActive=true;
- fluxFsEnter();   // ANDROID FULL SCREEN: the run hides the system buttons
 }
 function addTarget(color,x,y,r=18+Math.random()*6){
  targets.push({
