@@ -320,6 +320,8 @@ html.is-standalone .welcomeRotator{top:calc(env(safe-area-inset-top, 0px) + 78px
 .actions{margin-top:28px;display:flex;justify-content:center;gap:12px;flex-wrap:wrap}
 .btn{border:1px solid #ffffff40;background:#ffffff10;color:white;text-decoration:none;padding:15px 24px;border-radius:999px;font-weight:800;letter-spacing:.12em;font-size:12px;backdrop-filter:blur(12px);transition:.2s}
 .btn.primary{background:#fff;color:#080811}
+.actions .btn{text-align:center}   /* PLAY NOW (owner): a two-line button is centered, see fluxBalanceCta */
+.ctaText{display:inline-block;vertical-align:top}
 .btn:hover{transform:translateY(-2px);box-shadow:0 12px 50px #7045ff44}
 .trustLine{margin-top:14px;font-size:11px;letter-spacing:.08em;color:#9c9cb8}
 .scroll{position:absolute;z-index:5;bottom:25px;font-size:10px;letter-spacing:.25em;opacity:.55}
@@ -680,7 +682,7 @@ footer{position:relative;z-index:3;padding:40px 7vw 50px;color:#777;font-size:12
       <button class="flag" data-code="CA">🇨🇦 CANADA</button>
       <button class="flag" data-code="">🌎 OTHER COUNTRY</button>
     </div>
-    <div class="actions"><a class="btn primary" id="heroPlayBtn" href="/play/" data-flux-play rel="noopener">PLAY FREE · REPRESENT YOUR COUNTRY</a><a class="btn" href="#grid">SEE THE WORLD GRID</a></div>
+    <div class="actions"><a class="btn primary" id="heroPlayBtn" data-cta-balance href="/play/" data-flux-play rel="noopener">PLAY FREE · REPRESENT YOUR COUNTRY</a><a class="btn" href="#grid">SEE THE WORLD GRID</a></div>
     <div class="trustLine">No signup. Just play.</div>
   </div>
   <div class="scroll">EVERY COUNTRY WELCOME · ONE GLOBAL GRID ↓</div>
@@ -914,6 +916,46 @@ try{
     YE:{flag:'🇾🇪',name:'Yemen'}, ZA:{flag:'🇿🇦',name:'South Africa'}, ZM:{flag:'🇿🇲',name:'Zambia'}, ZW:{flag:'🇿🇼',name:'Zimbabwe'}
   };
   window.countryMeta = function(code){ return window.COUNTRY_META[code] || {flag:'🌎',name:code||'Unknown'}; };
+  /* PLAY NOW WORDING (owner): the PLAY NOW buttons say a country the short way people say it out loud
+     ("DEFEND THE USA'S LEAD"). Every other country keeps its usual name. */
+  var CTA_SHORT_NAME = {
+    US:'THE USA', GB:'THE UK', AE:'THE UAE', CD:'DR CONGO', BA:'BOSNIA',
+    PH:'THE PHILIPPINES', NL:'THE NETHERLANDS', BS:'THE BAHAMAS', GM:'THE GAMBIA', MV:'THE MALDIVES',
+    MH:'THE MARSHALL ISLANDS', SB:'THE SOLOMON ISLANDS', DO:'THE DOMINICAN REPUBLIC', CF:'THE CENTRAL AFRICAN REPUBLIC'
+  };
+  window.ctaCountryName = function(code){ return CTA_SHORT_NAME[code] || window.countryMeta(code).name.toUpperCase(); };
+  // "THE USA'S LEAD", "CHINA'S LEAD", but "THE PHILIPPINES' LEAD" (a plural name takes only the apostrophe).
+  window.ctaPossessive = function(nm){ return /^THE .*S$/.test(nm) ? nm + "'" : nm + "'S"; };
+  /* EVEN LINES (owner): a PLAY NOW text that needs two lines breaks evenly and stays centered -- never one
+     lone word on the second line. The text sits in an inline-block that is narrowed to the smallest width
+     that still needs the same number of lines. Done here in script (not text-wrap:balance) so iPhone, iPad
+     and Android break the line in the very same place, older Safari included. */
+  window.fluxBalanceCta = function(btn){
+    if(!btn) return;
+    var sp = btn.querySelector('.ctaText');
+    if(!sp || sp.parentNode !== btn || btn.childNodes.length !== 1){
+      sp = document.createElement('span'); sp.className = 'ctaText';
+      sp.textContent = btn.textContent; btn.textContent = ''; btn.appendChild(sp);
+    }
+    sp.style.maxWidth = ''; btn.style.minWidth = '';
+    var full = sp.getBoundingClientRect(), box = btn.getBoundingClientRect();
+    if(!full.width || !full.height) return;          // hidden: balanced on the next fit
+    var h = full.height, lo = 0, hi = Math.ceil(full.width);
+    while(hi - lo > 1){
+      var mid = (lo + hi) >> 1;
+      sp.style.maxWidth = mid + 'px';
+      if(sp.getBoundingClientRect().height > h + 1) lo = mid; else hi = mid;
+    }
+    if(hi >= full.width){ sp.style.maxWidth = ''; return; }
+    sp.style.maxWidth = hi + 'px';
+    // the white button itself keeps the size it had: only the words inside move
+    var cs = getComputedStyle(btn), extra = cs.boxSizing === 'border-box' ? 0
+      : parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth);
+    btn.style.minWidth = (box.width - extra) + 'px';
+  };
+  window.fluxBalanceAllCtas = function(){
+    document.querySelectorAll('[data-cta-balance]').forEach(function(b){ window.fluxBalanceCta(b); });
+  };
   window.fmtScore = function(n){ return Math.round(n).toLocaleString('en-US'); };
 
   var GATEWAY_COUNTRY_KEY = 'fluxGatewayCountry'; // Gateway-only display preference
@@ -970,17 +1012,17 @@ try{
     var playBtn = document.getElementById('heroPlayBtn');
     if(playBtn){
       if(code){
-        var m=window.countryMeta(code);
-        var NM=m.name.toUpperCase();
+        var NM=window.ctaCountryName(code);
         // Wording follows the country's ACTUAL standing, not a fixed string.
         // Falls back to the "on the board" phrasing until the Grid has loaded
         // or when that country has no ranked runs yet.
         var st=window.countryStanding(code);
-        playBtn.textContent = (st==='leader') ? ('PLAY NOW — DEFEND ' + NM + "'S LEAD")
+        playBtn.textContent = (st==='leader') ? ('PLAY NOW — DEFEND ' + window.ctaPossessive(NM) + ' LEAD')
           : (st==='chasing') ? ('PLAY NOW — HELP ' + NM + ' CLOSE THE GAP')
           : ('PLAY NOW — PUT ' + NM + ' ON THE BOARD');
       }
       else { playBtn.textContent = 'PLAY FREE · REPRESENT YOUR COUNTRY'; }
+      window.fluxBalanceCta(playBtn);
     }
   };
   var heroFlagBarEl = document.getElementById('heroFlagBar');
@@ -1106,10 +1148,11 @@ try{
         }
         // idx is this country's zero-based global rank, so idx===0 is the
         // world leader -- they defend, everyone else closes the gap.
+        var ctaNm = window.ctaCountryName(preferred);
         var ctaText = (idx===0)
-          ? ('PLAY NOW — DEFEND ' + window.escapeHtml2(meta2.name.toUpperCase()) + "'S LEAD")
-          : ('PLAY NOW — HELP ' + window.escapeHtml2(meta2.name.toUpperCase()) + ' CLOSE THE GAP');
-        sideHtml += '<a class="btn primary" style="display:block;text-align:center;margin-top:14px" href="'+window.FLUX_GAME_LINK+'">'+ctaText+'</a>';
+          ? ('PLAY NOW — DEFEND ' + window.escapeHtml2(window.ctaPossessive(ctaNm)) + ' LEAD')
+          : ('PLAY NOW — HELP ' + window.escapeHtml2(ctaNm) + ' CLOSE THE GAP');
+        sideHtml += '<a class="btn primary" data-cta-balance style="display:block;text-align:center;margin-top:14px" href="'+window.FLUX_GAME_LINK+'">'+ctaText+'</a>';
       }
     } else {
       sideHtml += '<div class="gapCard">Pick your flag above to see exactly how many points your country needs to pass its next rival.</div>';
@@ -1122,6 +1165,7 @@ try{
       + '<div class="matchSide"><div class="ic">'+leaderMeta.flag+'</div><b>'+window.escapeHtml2(leaderMeta.name)+'</b><span>CURRENT LEADER</span></div>'
       + '</div>';
     sideArea.innerHTML = sideHtml;
+    window.fluxBalanceAllCtas();
     window.renderScorers(data);
   };
 
@@ -1701,6 +1745,7 @@ try{
     var brand = document.querySelector('.heroBrand');
     var cta = document.querySelector('.heroCTA');
     if(!brand || !cta) return;
+    window.fluxBalanceAllCtas();   // EVEN LINES first
     fitHeroCta();                             // NARROW PHONES: the stack first, then the brand reveal fits above it
 
     document.body.classList.add('heroBrand-measuring');
