@@ -86,6 +86,9 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#050719;col
 body{touch-action:none}
 #app{position:fixed;inset:0;background:radial-gradient(circle at 50% 15%,#111b43 0,#07091d 48%,#03040d 100%);transition:filter .5s ease,background 1.4s ease}
 canvas{position:absolute;inset:0;width:100%;height:100%}
+/* ANDROID FULL SCREEN DURING A RUN: the game area keeps its size (see fluxFsEnter); the strip below is plain background */
+html.fluxFsRun #app{bottom:auto;height:var(--fluxFsH)}
+html.fluxFsRun,html.fluxFsRun body{background-color:#03040d}
 /* SKIN BACKDROP LAYER — optional full-image backdrop for skins that define
    one (see SKINS[...].bg in the script below). Sits behind #celestialMotion
    and the canvas, above #app's own gradient. Opacity is kept well under 1
@@ -947,7 +950,44 @@ function makeStars(){
   });
   nebulae=Array.from({length:4},()=>({x:rand(0,W),y:rand(0,H),r:rand(120,260),hue:['#2a2f6b','#3a1f5e','#1f3a5e','#2f1f4a'][Math.floor(rand(0,4))],vx:rand(-10,10),vy:rand(6,16),phase:rand(0,Math.PI*2)}));
 }
-function resize(){dpr=window.__fluxLite?1:Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;c.width=W*dpr;c.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);fluxSafeBottom=readSafeBottom();paddle.y=Math.min(H-Math.max(42,Math.min(90,H*.095)),H-fluxSafeBottom-GRIP_GAP-GRIP_D-GRIP_STEM-paddle.h/2);makeStars();refreshHudRects();if(skinBackdropOn())applySkinBackground();/* backdrop re-fits on rotation / window changes */}
+/* ANDROID FULL SCREEN DURING A RUN (owner). In the installed Android app (and the Play Store app later, which
+   runs the same page) a run asks for full screen with the system buttons hidden (back, home, recent); the
+   Gateway and every menu keep them. iPhone / iPad never take this path.
+   - SAME GAME: the game area keeps exactly the size it had before the bars went away (fluxFsH), so orbs,
+     the field and the launcher are the same as today; the freed strip below is plain background (touches
+     there still move the launcher), so the launcher sits further from the screen edge, not closer.
+   - EDGE SWIPES: Chrome hides the bars "sticky": a swipe from the edge shows them for a moment, they go
+     again by themselves, and the run is never paused or ended by it. If the back button is pressed while
+     they show, Chrome only leaves full screen; the run goes on and the next finger lift brings full screen
+     back (a lift counts as a tap for the browser, a touch-down does not).
+   - Pause and game over leave full screen (menus show the buttons); RESUME and a new run enter it again. */
+let fluxFsH=0, fluxFsW=0, fluxFsAsking=false;   // the game-area height kept while in full screen (0 = not kept), and the width it is for
+function fluxFsWanted(){
+  try{
+    if(!/Android/i.test(navigator.userAgent) || fluxIsIOSDevice() || window.top!==window.self) return false;
+    if(!document.documentElement.requestFullscreen || document.fullscreenEnabled===false) return false;
+    const mm=q=>window.matchMedia && window.matchMedia(q).matches;
+    return mm('(display-mode: standalone)') || mm('(display-mode: fullscreen)') || mm('(display-mode: minimal-ui)');   // the installed app only; a Chrome tab is unchanged
+  }catch(e){ return false; }
+}
+function fluxIsIOSDevice(){ try{ return /iP(hone|od|ad)/.test(navigator.platform) || (navigator.userAgent.indexOf('Mac')!==-1 && 'ontouchend' in document); }catch(e){ return false; } }
+function fluxFsEnter(){
+  if(fluxFsAsking || !fluxFsWanted() || document.fullscreenElement) return;   // one request at a time
+  fluxFsAsking=true;
+  if(!fluxFsH){ fluxFsH=innerHeight; fluxFsW=innerWidth; }
+  const root=document.documentElement; root.style.setProperty('--fluxFsH',fluxFsH+'px'); root.classList.add('fluxFsRun');
+  try{ const p=root.requestFullscreen({navigationUI:'hide'}); if(p && p.then) p.then(function(){ fluxFsAsking=false; },function(){ fluxFsAsking=false; fluxFsDropIfOut(); }); else fluxFsAsking=false; }catch(e){ fluxFsAsking=false; fluxFsDropIfOut(); }
+}
+function fluxFsExit(){
+  if(!fluxFsH || !document.fullscreenElement) return;
+  try{ const p=document.exitFullscreen(); if(p && p.catch) p.catch(function(){}); }catch(e){}
+}
+function fluxFsDrop(){ if(!fluxFsH) return; fluxFsH=0; document.documentElement.classList.remove('fluxFsRun'); }
+function fluxFsDropIfOut(){ if(!document.fullscreenElement && fluxFsH){ fluxFsDrop(); resize(); } }
+function fluxFsCheckWidth(){ if(fluxFsH && innerWidth!==fluxFsW) fluxFsDrop(); }   // turned sideways in full screen: the normal layout
+document.onfullscreenchange=function(){ fluxFsAsking=false; if(!document.fullscreenElement) fluxFsDropIfOut(); };
+{ const newGame0=newGame; newGame=function(){ const r=newGame0.apply(this,arguments); fluxFsEnter(); return r; }; }   // a new run hides the system buttons (newGame itself is gameplay: untouched)
+function resize(){const pW=W,pH=H,pD=dpr;dpr=window.__fluxLite?1:Math.min(devicePixelRatio||1,2);fluxFsCheckWidth();W=innerWidth;H=fluxFsH||innerHeight;const same=(W===pW&&H===pH&&dpr===pD&&c.width===Math.floor(W*dpr));if(!same){c.width=W*dpr;c.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);}fluxSafeBottom=readSafeBottom();paddle.y=Math.min(H-Math.max(42,Math.min(90,H*.095)),H-fluxSafeBottom-GRIP_GAP-GRIP_D-GRIP_STEM-paddle.h/2);if(same){const s0=stars,n0=nebulae;makeStars();stars=s0;nebulae=n0;}else makeStars();refreshHudRects();if(skinBackdropOn())applySkinBackground();/* backdrop re-fits on rotation / window changes */}
 addEventListener('resize',resize);resize();
 function rand(a,b){return a+Math.random()*(b-a)}
 function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
@@ -1679,6 +1719,7 @@ function endGame(){
  const runNo=(+localStorage.fluxRunsPlayed||0)+1;   // D-60: counted before the wrapper below increments it
  capScore();   // RUN POINTS CAP
  playing=false; runActive=false;
+ fluxFsExit();   // ANDROID FULL SCREEN: game over is a menu, the buttons come back
  document.getElementById('pauseBtn').classList.add('hidden');
  document.getElementById('pauseOverlay')?.classList.add('hidden');
  playGameOver();haptic(90);
@@ -2335,6 +2376,7 @@ function setPaused(next){
  if(paused){
    playing=false;
    document.getElementById('pauseOverlay').classList.remove('hidden');
+   fluxFsExit();   // ANDROID FULL SCREEN: the pause menu shows the buttons
    // While paused, RESUME is the single clear action. Hide the duplicate top-left control.
    document.getElementById('pauseBtn').classList.add('hidden');
  }else{
@@ -2343,6 +2385,7 @@ function setPaused(next){
    document.getElementById('pauseBtn').classList.remove('hidden');
    playing=true;
    last=performance.now();
+   fluxFsEnter();   // ANDROID FULL SCREEN: back to the run
  }
 }
 
@@ -2464,7 +2507,7 @@ function pointer(e){
 }
 window.ontouchstart=function(e){ pointer(e); };   // touch-down puts the launcher under the finger
 window.onpointerdown=function(e){ if(e.pointerType && e.pointerType!=='mouse') pointer(e); };   // same, from the pointer side; a mouse click changes nothing
-window.ontouchend=window.ontouchcancel=function(e){ tryResumeAudio(); if(!drag) return; const ts=e.touches||[]; for(let i=0;i<ts.length;i++) if(ts[i].identifier===drag.id) return; drag=null; };
+window.ontouchend=window.ontouchcancel=function(e){ tryResumeAudio(); if(runActive && !paused && e.type==='touchend' && !document.fullscreenElement) fluxFsEnter(); if(!drag) return; const ts=e.touches||[]; for(let i=0;i<ts.length;i++) if(ts[i].identifier===drag.id) return; drag=null; };
 window.onpointerup=window.onpointercancel=function(e){ tryResumeAudio(); if(drag && drag.pid!=null && e.pointerId===drag.pid) drag=null; };
 // ---------------------------------------------------------------------------
 // D-11 — PAGE LIFECYCLE
@@ -2536,6 +2579,7 @@ document.getElementById('pauseMenuBtn').onclick=()=>{
   if(score>best){best=score;}
   if(profileComplete) submitScore();   // D-39: unnamed pilots upload once they name themselves
   playing=false;paused=false;runActive=false;
+  fluxFsExit();
   document.getElementById('pauseOverlay').classList.add('hidden');
   document.getElementById('pauseBtn').classList.add('hidden');
   refreshMenu();
