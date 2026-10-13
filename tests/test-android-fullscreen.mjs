@@ -8,6 +8,11 @@
 //      the layout is the normal one, and the next finger lift during the run asks again; one request at a time;
 //   A4 pause, quit and game over leave full screen (menus keep the buttons); RESUME enters it again;
 //      FLUX only leaves a full screen it asked for;
+//   B1 ONE BACKGROUND TO THE EDGES (BLU G45 follow-up): the background layers fill the whole screen, so the
+//      strip where the system bars were shows no band -- also in FLUX MODE (its brightening covers the whole
+//      screen) and with the pressure glow; inside the kept game area every layer is drawn exactly as before
+//      (the level background and the pressure glow keep their shape in px); a new level or skin in full screen
+//      keeps it; leaving full screen gives back today's background; a skin backdrop is left alone;
 //   A5 wiring: no new listeners (17), the frame loop untouched (2), the resize keeps the same stars when the
 //      size did not change (and still draws the same random numbers as main, so seeded runs are identical).
 // Ends with negative controls.
@@ -37,14 +42,19 @@ function rig(src, { ua = UA.android, standalone = true, framed = false, platform
   if (touch) document.ontouchend = null;
   const win = { matchMedia: (q) => ({ matches: standalone && /display-mode: standalone/.test(q) }) };
   win.self = win; win.top = framed ? {} : win;
-  const g = { navigator: { userAgent: ua, platform }, document, window: win, innerHeight: 728, innerWidth: 360, resize: () => { resizes++; }, newGame: () => {} };
+  const app = { style: { background: '' } }; document.getElementById = (id) => (id === 'app' ? app : null);
+  const THEMES = ['radial-gradient(circle at 50% 15%,#111b43 0,#07091d 48%,#03040d 100%)', 'radial-gradient(circle at 50% 12%,#152852 0,#0a1230 48%,#03040d 100%)'];
+  const g = { navigator: { userAgent: ua, platform }, document, window: win, innerHeight: 728, innerWidth: 360, resize: () => { resizes++; }, newGame: () => {},
+    CELESTIAL_BG_ENABLED: true, CELESTIAL_THEMES: THEMES, celestialIndex: 0, skin: false, Math, String,
+    applyCelestialBackground(l) { g.celestialIndex = l - 1; app.style.background = THEMES[g.celestialIndex]; }, applySkinBackground() { app.style.background = g.skin ? 'transparent' : THEMES[g.celestialIndex]; } };
+  g.skinBackdropOn = () => g.skin;
   vm.createContext(g); vm.runInContext(src.slice(a, z) + '\n;globalThis.__fsH=()=>fluxFsH;', g);
   const api = {
     g, calls, cls, props, settle: () => {},
     enter: () => g.fluxFsEnter(), exit: () => g.fluxFsExit(),
     entered() { fsEl = root; g.innerHeight = 800; document.onfullscreenchange && document.onfullscreenchange(); },
     left() { fsEl = null; g.innerHeight = 728; document.onfullscreenchange && document.onfullscreenchange(); },
-    get H() { return g.__fsH(); }, get resizes() { return resizes; },
+    get H() { return g.__fsH(); }, get resizes() { return resizes; }, app, THEMES,
   };
   return api;
 }
@@ -60,10 +70,25 @@ function suite(src, quiet = false) {
 
     r = rig(src); r.enter(); r.settle(); r.entered();
     ck('A2 the game area keeps the height it had before the bars went away (728 of 800)', r.H === 728 && r.props['--fluxFsH'] === '728px' && r.cls.has('fluxFsRun'), r.H + ' ' + r.props['--fluxFsH']);
-    ck('A2 the page keeps the game area that size (CSS) and paints the freed strip as background',
-      /html\.fluxFsRun #app\{bottom:auto;height:var\(--fluxFsH\)\}/.test(src) && /html\.fluxFsRun,html\.fluxFsRun body\{background-color:#03040d\}/.test(src));
+    ck('A2 the field keeps the game-area size (CSS): the canvas and the FLUX MODE glow', /html\.fluxFsRun #game,html\.fluxFsRun #fluxGlow\{bottom:auto;height:var\(--fluxFsH\)\}/.test(src));
     ck('A2 the game reads that height (resize: H=fluxFsH||innerHeight)', /fluxFsCheckWidth\(\);W=innerWidth;H=fluxFsH\|\|innerHeight;/.test(src));
+    // B1: one background to the edges
+    ck('B1 the background layer (#app, which FLUX MODE brightens) is no longer cut at the game area: it fills the screen', !/html\.fluxFsRun #app[{,]/.test(src));
+    const geo = r.app.style.background.match(/circle ([\d.]+)px at 50% ([\d.]+)px/) || [];
+    const y = 728 * .15, R = Math.sqrt(180 * 180 + (728 - y) * (728 - y));
+    ck('B1 the level background keeps its exact shape (centre 15% down, sized to the far corner of the 728 px game area), now in px so it carries on into the strip',
+      Math.abs(+geo[2] - y) < 0.06 && Math.abs(+geo[1] - R) < 0.06 && r.app.style.background.endsWith(',#111b43 0,#07091d 48%,#03040d 100%)'), r.app.style.background);
+    ck('B1 the pressure glow too (sized to the far corner of the game area, centred on its bottom edge)', r.props['--fluxFsPR'] === Math.hypot(180, 728).toFixed(1) + 'px' &&
+      ['#ffc44730 0%,transparent 60%', '#ffc44755 0%,transparent 62%', '#ff4f6870 0%,transparent 66%'].every((st) => src.includes('radial-gradient(circle var(--fluxFsPR) at 50% var(--fluxFsH),' + st + ')')), r.props['--fluxFsPR']);
+    ck('B1 the star layers and the nebula keep their place (the star layers still reach the bottom edge)',
+      /html\.fluxFsRun #celestialMotion\{top:calc\(var\(--fluxFsH\)\*-\.12\);bottom:auto;height:calc\(var\(--fluxFsH\)\*1\.24 \+ 100vh - var\(--fluxFsH\)\)\}/.test(src) && /html\.fluxFsRun #nebulaDrift\{top:calc\(var\(--fluxFsH\)\*\.2728\)\}/.test(src));
+    r.g.applyCelestialBackground(2);
+    ck('B1 a new level in full screen: the new background, same edge-to-edge shape', /^radial-gradient\(circle [\d.]+px at 50% 87\.4px,#152852/.test(r.app.style.background), r.app.style.background);
+    r.g.skin = true; r.g.applySkinBackground();
+    ck('B1 a skin backdrop (already painted over the whole screen) is left alone', r.app.style.background === 'transparent', r.app.style.background);
+    r.g.skin = false; r.g.applySkinBackground();
     r.g.innerWidth = 800; r.g.fluxFsCheckWidth();
+    ck('B1 leaving the kept size gives back today\'s background exactly', r.app.style.background === r.THEMES[1], r.app.style.background);
     ck('A2 turning the phone in full screen drops the lock (normal layout)', r.H === 0 && !r.cls.has('fluxFsRun'));
 
     r = rig(src); r.enter(); r.settle(); r.entered(); const before = r.resizes; r.left();
@@ -114,6 +139,12 @@ control('never asks again after back', 'A3 the next finger lift', "if(runActive 
 control('exits a full screen it did not ask for', 'A4 FLUX only leaves', 'if(!fluxFsH || !document.fullscreenElement) return;', 'if(!document.fullscreenElement && false) return;');
 control('pause keeps full screen', 'A4 pause leaves it', "   fluxFsExit();   // ANDROID FULL SCREEN: the pause menu shows the buttons\n", '');
 control('stars reshuffle on every full-screen change', 'A5 full-screen changes', 'if(same){const s0=stars,n0=nebulae;makeStars();stars=s0;nebulae=n0;}else makeStars();', 'makeStars();');
+control('the band again: #app cut at the game area', 'B1 the background layer', 'html.fluxFsRun #game,html.fluxFsRun #fluxGlow{bottom:auto;height:var(--fluxFsH)}', 'html.fluxFsRun #app,html.fluxFsRun #game,html.fluxFsRun #fluxGlow{bottom:auto;height:var(--fluxFsH)}');
+control('level background stretched to the full screen', 'B1 the level background keeps', "return 'circle '+r.toFixed(1)+'px at 50% '+y.toFixed(1)+'px';", "return m;");
+control('pressure glow centred on the screen edge', 'B1 the pressure glow', "html.fluxFsRun #pressureGlow.critical{background:radial-gradient(circle var(--fluxFsPR) at 50% var(--fluxFsH),#ff4f6870 0%,transparent 66%)}", '');
+control('a level-up in full screen loses the shape', 'B1 a new level', 'applyCelestialBackground=function(){ const r=cel0.apply(this,arguments); if(fluxFsH) fluxFsPaintApp(); return r; };', '');
+control('skin backdrop overpainted', 'B1 a skin backdrop', "if(!app || skinBackdropOn()) return;", "if(!app) return;");
+control("today's background not given back", 'B1 leaving the kept size', "else app.style.background=CELESTIAL_BG_ENABLED ? theme : '';", '');
 control('a new run does not hide the buttons', 'A4 a new run', ' fluxFsEnter(); return r;', ' return r;');
 const total = res.F + NC;
 console.log('\n' + (total ? 'ANDROID FULL SCREEN FAILED: ' + res.F + ' check(s), ' + NC + ' uncaught control(s)' : 'ANDROID FULL SCREEN PASSED: all checks and all negative controls'));
