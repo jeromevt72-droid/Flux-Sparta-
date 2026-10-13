@@ -87,7 +87,17 @@ body{touch-action:none}
 #app{position:fixed;inset:0;background:radial-gradient(circle at 50% 15%,#111b43 0,#07091d 48%,#03040d 100%);transition:filter .5s ease,background 1.4s ease}
 canvas{position:absolute;inset:0;width:100%;height:100%}
 /* ANDROID FULL SCREEN DURING A RUN: the game area keeps its size (see fluxFsEnter); the strip below is plain background */
-html.fluxFsRun #app{bottom:auto;height:var(--fluxFsH)}
+/* ONE BACKGROUND TO THE EDGES (owner, BLU G45): the background layers fill the whole screen, top to bottom,
+   so nothing shows a band where the system bars were (FLUX MODE brightens all of it). Inside the kept game
+   area every layer is drawn exactly as before: the field (#game), the FLUX MODE glow and the star layers keep
+   the game-area size; the level background and the pressure glow keep their shape in px (fluxFsGeom) and
+   simply carry on into the strip. */
+html.fluxFsRun #game,html.fluxFsRun #fluxGlow{bottom:auto;height:var(--fluxFsH)}
+html.fluxFsRun #celestialMotion{top:calc(var(--fluxFsH)*-.12);bottom:auto;height:calc(var(--fluxFsH)*1.24 + 100vh - var(--fluxFsH))}
+html.fluxFsRun #nebulaDrift{top:calc(var(--fluxFsH)*.2728)}   /* 22% of the star layers' kept height, as before */
+html.fluxFsRun #pressureGlow{background:radial-gradient(circle var(--fluxFsPR) at 50% var(--fluxFsH),#ffc44730 0%,transparent 60%)}
+html.fluxFsRun #pressureGlow.warn{background:radial-gradient(circle var(--fluxFsPR) at 50% var(--fluxFsH),#ffc44755 0%,transparent 62%)}
+html.fluxFsRun #pressureGlow.critical{background:radial-gradient(circle var(--fluxFsPR) at 50% var(--fluxFsH),#ff4f6870 0%,transparent 66%)}
 html.fluxFsRun,html.fluxFsRun body{background-color:#03040d}
 /* SKIN BACKDROP LAYER — optional full-image backdrop for skins that define
    one (see SKINS[...].bg in the script below). Sits behind #celestialMotion
@@ -975,18 +985,35 @@ function fluxFsEnter(){
   if(fluxFsAsking || !fluxFsWanted() || document.fullscreenElement) return;   // one request at a time
   fluxFsAsking=true;
   if(!fluxFsH){ fluxFsH=innerHeight; fluxFsW=innerWidth; }
-  const root=document.documentElement; root.style.setProperty('--fluxFsH',fluxFsH+'px'); root.classList.add('fluxFsRun');
+  const root=document.documentElement; root.style.setProperty('--fluxFsH',fluxFsH+'px'); root.style.setProperty('--fluxFsPR',Math.hypot(fluxFsW/2,fluxFsH).toFixed(1)+'px'); root.classList.add('fluxFsRun');
+  fluxFsPaintApp();
   try{ const p=root.requestFullscreen({navigationUI:'hide'}); if(p && p.then) p.then(function(){ fluxFsAsking=false; },function(){ fluxFsAsking=false; fluxFsDropIfOut(); }); else fluxFsAsking=false; }catch(e){ fluxFsAsking=false; fluxFsDropIfOut(); }
 }
 function fluxFsExit(){
   if(!fluxFsH || !document.fullscreenElement) return;
   try{ const p=document.exitFullscreen(); if(p && p.catch) p.catch(function(){}); }catch(e){}
 }
-function fluxFsDrop(){ if(!fluxFsH) return; fluxFsH=0; document.documentElement.classList.remove('fluxFsRun'); }
+function fluxFsDrop(){ if(!fluxFsH) return; fluxFsH=0; document.documentElement.classList.remove('fluxFsRun'); fluxFsPaintApp(); }
+/* The level background ('circle at 50% P%', sized to the farthest corner of the game area) written with the
+   same centre and size in px: identical inside the kept game area, and it carries on into the strip. */
+function fluxFsGeom(bg){
+  return String(bg).replace(/circle at 50% ([\d.]+)%/, function(m, p){ const y=fluxFsH*p/100, r=Math.hypot(fluxFsW/2, Math.max(y, fluxFsH-y)); return 'circle '+r.toFixed(1)+'px at 50% '+y.toFixed(1)+'px'; });
+}
+function fluxFsPaintApp(){
+  try{
+    const app=document.getElementById('app'); if(!app || skinBackdropOn()) return;   // a skin backdrop already covers the whole screen
+    const theme=CELESTIAL_BG_ENABLED ? CELESTIAL_THEMES[celestialIndex] : CELESTIAL_THEMES[0];
+    if(fluxFsH) app.style.background=fluxFsGeom(theme);
+    else app.style.background=CELESTIAL_BG_ENABLED ? theme : '';   // what applySkinBackground / applyCelestialBackground write
+  }catch(e){}
+}
 function fluxFsDropIfOut(){ if(!document.fullscreenElement && fluxFsH){ fluxFsDrop(); resize(); } }
 function fluxFsCheckWidth(){ if(fluxFsH && innerWidth!==fluxFsW) fluxFsDrop(); }   // turned sideways in full screen: the normal layout
 document.onfullscreenchange=function(){ fluxFsAsking=false; if(!document.fullscreenElement) fluxFsDropIfOut(); };
-{ const newGame0=newGame; newGame=function(){ const r=newGame0.apply(this,arguments); fluxFsEnter(); return r; }; }   // a new run hides the system buttons (newGame itself is gameplay: untouched)
+{ const newGame0=newGame; newGame=function(){ const r=newGame0.apply(this,arguments); fluxFsEnter(); return r; }; }
+{ const cel0=applyCelestialBackground, skin0=applySkinBackground;   // a new level / skin while in full screen: the same shape, edge to edge
+  applyCelestialBackground=function(){ const r=cel0.apply(this,arguments); if(fluxFsH) fluxFsPaintApp(); return r; };
+  applySkinBackground=function(){ const r=skin0.apply(this,arguments); if(fluxFsH) fluxFsPaintApp(); return r; }; }   // a new run hides the system buttons (newGame itself is gameplay: untouched)
 function resize(){const pW=W,pH=H,pD=dpr;dpr=window.__fluxLite?1:Math.min(devicePixelRatio||1,2);fluxFsCheckWidth();W=innerWidth;H=fluxFsH||innerHeight;const same=(W===pW&&H===pH&&dpr===pD&&c.width===Math.floor(W*dpr));if(!same){c.width=W*dpr;c.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);}fluxSafeBottom=readSafeBottom();paddle.y=Math.min(H-Math.max(42,Math.min(90,H*.095)),H-fluxSafeBottom-GRIP_GAP-GRIP_D-GRIP_STEM-paddle.h/2);if(same){const s0=stars,n0=nebulae;makeStars();stars=s0;nebulae=n0;}else makeStars();refreshHudRects();if(skinBackdropOn())applySkinBackground();/* backdrop re-fits on rotation / window changes */}
 addEventListener('resize',resize);resize();
 function rand(a,b){return a+Math.random()*(b-a)}
