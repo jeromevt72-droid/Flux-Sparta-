@@ -34,14 +34,14 @@ const P = (n) => 'aaaaaaaa-bbbb-4ccc-8ddd-' + String(n).padStart(12, '0');
 const tick = () => new Promise((r) => setTimeout(r, 2));
 /* GP: frame trace of main's game (origin/main before this change): 3 difficulties x 2 seeds x 2400 frames.
    Recompute only for an intended gameplay change. */
-const GAMEPLAY_TRACE = 'a10f5daa3edb0f02a0c4e0a5';
+const GAMEPLAY_TRACE = 'ca3dfaa8fbd4186b02ec6c18';   // LAUNCHER HEIGHT (owner-approved, option 2): the launcher placement rule and the 12% orb-free share move the launcher and the orb floor, so the seeded trace changes
 /* GP: the gameplay constants and functions, byte for byte as on main (difficulty table, level thresholds and
    multipliers, weights, speed curve, skins + orb palette, orb gap/outline, points cap, countdowns, launcher,
    physics update, misses/lives, launch speed, audio + haptics). Hash of their source text on origin/main. */
 const GAMEPLAY_NAMES = ['DIFFICULTY', 'LEVEL_SCORE_THRESHOLDS', 'LEVEL_SCORE_MULT', 'DIFF_WEIGHT', 'SPEED_CURVE', 'SKINS', 'ORB_GAP', 'ORB_OUTLINE', 'RUN_SCORE_CAP',
   'levelScoreAt', 'levelForScore', 'fieldCapAt', 'setPaddle', 'playGameOver', 'haptic', 'newGame', 'addTarget', 'easyPickColour', 'capScore', 'registerMiss',
   'launchSpeed', 'speedAfterLostBall', 'update', 'currentPalette', 'weighted'];
-const GAMEPLAY_SRC = '3d59cb43f989626e893564d1';   // BATTERY PR B (owner-requested): update() drops spent particles/texts in place and reuses the oldest trail point; the seeded frame trace below is unchanged
+const GAMEPLAY_SRC = '1b38e842e57bbb00b8e57f21';   // LAUNCHER HEIGHT (owner-approved, option 2): the orb bounds in update() use orbFloor() (12% of the play field kept free above the launcher) instead of 79% of the screen. Before that:   // BATTERY PR B (owner-requested): update() drops spent particles/texts in place and reuses the oldest trail point; the seeded frame trace below is unchanged
 
 /* ---------------- fake Durable Object runtime (test-season-reset pattern) ---------------- */
 class FakeStorage {

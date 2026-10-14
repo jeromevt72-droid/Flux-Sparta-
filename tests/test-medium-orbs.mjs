@@ -87,7 +87,7 @@ function suite(gameHtml, quiet = false) {
         if (!run('playing')) continue;
         played++; maxN = Math.max(maxN, run(NORMAL));
         const gm = run(GAPMIN); worstGap = Math.min(worstGap, gm); if (gm < 9.5) shortGap++;
-        const lowOrb = run('targets.filter(t=>t.y+t.r>Math.max(maxHudBottom()+60,H*.79)+.5).length');
+        const lowOrb = run('targets.filter(t=>t.y+t.r>Math.max(maxHudBottom()+60,orbFloor())+.5).length');
         if (lowOrb) { low++; if (lowAt.length < 3) lowAt.push(w + 'x' + h + ' frame ' + f); }
         if (run(MATCHES) < 1) noMatch++;
       }
