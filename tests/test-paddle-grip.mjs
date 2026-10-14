@@ -114,7 +114,7 @@ function control(label, expect, mutate) {
 }
 const rep = (a, b) => (s) => (s.includes(a) ? s.replace(a, b) : s);
 control('grip too small', 'G1', rep('const GRIP_D=58,', 'const GRIP_D=40,'));
-control('grip under the home indicator', 'G1', rep('const gap=Math.max(safe+LAUNCHER_GAP_SAFE*S, LAUNCHER_GAP_MIN*S,', 'const gap=Math.max(0,'));   // LAUNCHER HEIGHT: no safe-area / minimum gap
+control('grip under the home indicator', 'G1', rep('H-fluxSafeBottom-GRIP_GAP-GRIP_D-GRIP_STEM-paddle.h/2', 'H-GRIP_GAP-GRIP_D-GRIP_STEM-paddle.h/2'));
 control('grip in a fixed colour', 'G2', rep("ctx.fillStyle=col;ctx.beginPath();ctx.arc(paddle.x,cy,r,0,Math.PI*2);ctx.fill();", "ctx.fillStyle='#62eaff';ctx.beginPath();ctx.arc(paddle.x,cy,r,0,Math.PI*2);ctx.fill();"));
 control('no pulse at the start of a run', 'G3', rep('gripPulse=1.6; drag=null;', 'gripPulse=0; drag=null;'));
 control('relative drag back (the grip slides away from the thumb)', 'D1', rep('drag.x=x; drag.y=y; setPaddle(x);', 'const dx=x-drag.x; drag.x=x; drag.y=y; setPaddle(paddle.x+dx*1.6);'));

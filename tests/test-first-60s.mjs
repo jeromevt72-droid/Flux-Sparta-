@@ -37,7 +37,7 @@ function suite(gameHtml, quiet = false) {
       g.win.document.getElementById('startBtn').onclick();
       run('W=' + d.W + ';H=' + d.H + ';paddle.y=H-Math.max(42,Math.min(90,H*.095));paddle.handleH=W<=700?22:28;paddle.x=W/2;cachedHudRects=' + JSON.stringify(d.hud) + ';');
       texts.length = 0; g.ctx.draw();
-      const ht = texts.filter((x) => /HIT THE ORB|MATCHES YOUR BALL/.test(x.t)); const top = run('maxHudBottom()'), fieldBottom = run('Math.max(maxHudBottom()+60,orbFloor())');
+      const ht = texts.filter((x) => /HIT THE ORB|MATCHES YOUR BALL/.test(x.t)); const top = run('maxHudBottom()'), fieldBottom = run('Math.max(maxHudBottom()+60,H*.79)');
       const r = ht.length ? ht.reduce((a, x) => ({ left: Math.min(a.left, x.box.left), right: Math.max(a.right, x.box.right), top: Math.min(a.top, x.box.top), bottom: Math.max(a.bottom, x.box.bottom) }), ht[0].box) : null;
       const pad = run('({left:paddle.x-paddle.w*.55-12,right:paddle.x+paddle.w*.55+12,top:paddle.y-paddle.h-12,bottom:paddle.y+paddle.handleH+6})');
       const hud = [d.stats, d.fluxbar].concat(d.hud.filter((x) => x.right - x.left < d.W * 0.9));

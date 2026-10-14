@@ -969,7 +969,7 @@ function makeStars(){
      run; any size change applies at the next run. The one exception is turning the device sideways, which
      re-fits the field once (the game's rotation support).
    - In the installed Android app the run starts once full screen is in (a moment after the tap; at most
-     FS_WAIT_MS), so the field is the whole screen from the run's first frame, like every other device.
+     FS_WAIT_MS), so the run is measured with the buttons already hidden (see LOWER LAUNCHER, SAME GAME).
    - EDGE SWIPES: Chrome hides the bars "sticky": a swipe from the edge shows them for a moment, they go
      again by themselves, and the run is never paused or ended by it. If the back button is pressed while
      they show, Chrome only leaves full screen; the run goes on with the same field and the next finger lift
@@ -981,22 +981,28 @@ function makeStars(){
    - BACK while they show: during a run (and the revive question) Chrome only leaves full screen and the run
      goes on, as #75; on the pause screen, game over and the game's menu FLUX then goes back, as today
      (fluxFsBack: only while the page is on screen, so Home / app switching never navigates). */
-let fluxRunField=null;   // {w,h,safe,fs,py}: the field kept for this run (null between runs)
+let fluxRunField=null;   // {w,h,s,safe,fs}: the field kept for this run (null between runs)
 let fluxFsAsking=false, fluxFsStartNext=null, fluxFsFit=false;
 let HS=0;   // the height the field canvas covers: the field, or the screen when that is taller (full screen came back
             // after a run started outside it). Play uses H, never HS.
 const FS_WAIT_MS=900;
-/* LAUNCHER HEIGHT (owner): one rule for every phone and tablet. The gap between the launcher's round grip and
-   the bottom of the screen is the largest of: 4.5% of the screen height; the safe area (iPhone / iPad home
-   indicator) plus 1%; and, in Android full screen, 6% (about the button bar that was hidden, so a slide never
-   starts in the swipe-up zone). Proportions, not fixed pixels. */
-const LAUNCHER_GAP_MIN=.045, LAUNCHER_GAP_SAFE=.01, LAUNCHER_GAP_ANDROID_FS=.06;
-function launcherY(S,safe,afs){ const gap=Math.max(safe+LAUNCHER_GAP_SAFE*S, LAUNCHER_GAP_MIN*S, afs?LAUNCHER_GAP_ANDROID_FS*S:0); return S-gap-(paddle.h/2+GRIP_STEM+GRIP_D); }
-/* ORB-FREE SHARE (owner, fairness): orbs stay above the launcher by the same share of the play field (score
-   boxes to launcher) on every device, so every player gets the same last stretch of reaction time. */
-const ORB_FREE_SHARE=.12;
-function orbFloor(){ return paddle.y-ORB_FREE_SHARE*(paddle.y-maxHudBottom()); }
-function fluxFieldMeasure(){ const fs=!!document.fullscreenElement && fluxFsWanted(), safe=readSafeBottom(); return { w:innerWidth, h:innerHeight, safe:safe, fs:fs, py:launcherY(innerHeight,safe,fs) }; }
+/* LOWER LAUNCHER, SAME GAME (owner, #78 option D). Only the installed Android app in full screen changes:
+   - the game itself is exactly today's: the field is the game area the phone had before the bars were hidden
+     (fluxPlainH), with today's launcher line, orb area and ball speed -- every number the game plays with
+     is today's, so the BLU G45 plays exactly as hard as today, never harder;
+   - only the picture moves: the whole field is drawn fluxFieldShift px lower (the score boxes stay at the
+     top), so the launcher's grip ends 6% of the screen height above the bottom edge (about the hidden button
+     bar, so a slide never starts in the swipe-up zone). A band of sky opens under the score boxes.
+   Every other device is exactly as today (shift 0). */
+const LAUNCHER_GAP_ANDROID_FS=.06;
+let fluxPlainH=null;     // {w,h}: the game area outside full screen (Android app), measured whenever not in full screen
+let fluxFieldShift=0;    // px the field is drawn lower than today (Android full screen only; 0 elsewhere)
+function fluxFsLow(){ return !!document.fullscreenElement && fluxFsWanted(); }   // installed Android app, in full screen
+function fluxFieldMeasure(){
+  const fs=fluxFsLow(), keep=fs && fluxPlainH && fluxPlainH.w===innerWidth;
+  return { w:innerWidth, h:keep?fluxPlainH.h:innerHeight, s:innerHeight, safe:readSafeBottom(), fs:fs };
+}
+function fluxLowLauncherY(S,safe){ return S-Math.max(safe+.01*S, LAUNCHER_GAP_ANDROID_FS*S)-(paddle.h/2+GRIP_STEM+GRIP_D); }
 function fluxFsWanted(){
   try{
     if(!/Android/i.test(navigator.userAgent) || fluxIsIOSDevice() || window.top!==window.self) return false;
@@ -1010,6 +1016,7 @@ function fluxFsGo(){ const go=fluxFsStartNext; fluxFsStartNext=null; if(go) go()
 function fluxFsEnter(){
   if(fluxFsAsking) return;   // one request at a time (a waiting run starts when Chrome answers)
   if(!fluxFsWanted() || document.fullscreenElement){ fluxFsGo(); return; }
+  fluxPlainH={w:innerWidth,h:innerHeight};   // today's game area, just before the bars go
   fluxFsAsking=true;
   try{ const p=document.documentElement.requestFullscreen({navigationUI:'hide'}); if(p && p.then) p.then(function(){ fluxFsAsking=false; },function(){ fluxFsAsking=false; fluxFsGo(); }); else fluxFsAsking=false; }catch(e){ fluxFsAsking=false; fluxFsGo(); }
 }
@@ -1040,16 +1047,21 @@ function fluxFsPaintApp(){
     else app.style.background=CELESTIAL_BG_ENABLED ? theme : '';   // what applySkinBackground / applyCelestialBackground write
   }catch(e){}
 }
-/* The screen is not the field's size (a run's field kept while the bars came and went): the background layers
-   keep the field's shape and fill the whole screen (fluxFsRun, see the CSS). */
+/* The screen is not the field's size (Android full screen: today's field on a taller screen; or a run's field kept
+   while the bars came and went): the background layers keep the field's shape and fill the whole screen
+   (fluxFsRun, see the CSS). */
 function fluxFieldFit(){
-  const root=document.documentElement, fit=!!fluxRunField && innerHeight!==H;
+  const root=document.documentElement, fit=innerHeight!==H;
   if(fit){ root.style.setProperty('--fluxFsH',H+'px'); root.style.setProperty('--fluxFsPR',Math.hypot(W/2,H).toFixed(1)+'px'); }
   if(fit!==fluxFsFit || fit){ fluxFsFit=fit; root.classList.toggle('fluxFsRun',fit); fluxFsPaintApp(); }
 }
 { const newGame0=newGame; newGame=function(){   // a run starts: its field is measured once (after full screen is in, in the Android app)
     const self=this, args=arguments;
-    const start=function(){ fluxRunField=null; resize(); fluxRunField=fluxFieldMeasure(); resize(); return newGame0.apply(self,args); };   // newGame itself is gameplay: untouched
+    const start=function(){   // newGame itself is gameplay: untouched
+      const prev=fluxRunField, m=fluxFieldMeasure(); fluxRunField=m;
+      // re-lay out only if the field changed: an unchanged screen draws no new random numbers (same run as today)
+      if(prev ? (prev.w!==m.w||prev.h!==m.h||prev.s!==m.s||prev.safe!==m.safe||prev.fs!==m.fs) : (m.w!==W||m.h!==H||m.safe!==fluxSafeBottom||m.fs!==(fluxFieldShift>0))) resize();
+      return newGame0.apply(self,args); };
     if(fluxFsWanted() && !document.fullscreenElement){ fluxFsStartNext=start; fluxFsEnter(); setTimeout(fluxFsGo,FS_WAIT_MS); return; }
     return start(); }; }
 { const endGame0=endGame; endGame=function(){ const r=endGame0.apply(this,arguments); fluxRunEnd(); return r; }; }
@@ -1057,7 +1069,7 @@ function fluxRunEnd(){ if(!fluxRunField) return; fluxRunField=null; resize(); } 
 { const cel0=applyCelestialBackground, skin0=applySkinBackground;   // a new level / skin while the field is kept: the same shape, edge to edge
   applyCelestialBackground=function(){ const r=cel0.apply(this,arguments); if(fluxFsFit) fluxFsPaintApp(); return r; };
   applySkinBackground=function(){ const r=skin0.apply(this,arguments); if(fluxFsFit) fluxFsPaintApp(); return r; }; }
-function resize(){const pW=W,pH=H,pD=dpr;dpr=window.__fluxLite?1:Math.min(devicePixelRatio||1,2);if(fluxRunField&&innerWidth!==fluxRunField.w)fluxRunField=fluxFieldMeasure();/* turned sideways mid-run: the one re-fit */const f=fluxRunField||{w:innerWidth,h:innerHeight};W=f.w;H=f.h;HS=Math.max(H,innerHeight);const same=(W===pW&&H===pH&&dpr===pD);if(!same||c.width!==Math.floor(W*dpr)||c.height!==Math.floor(HS*dpr)){c.width=W*dpr;c.height=HS*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);}if(c.style)c.style.height=fluxRunField?HS+'px':'';fluxSafeBottom=fluxRunField?fluxRunField.safe:readSafeBottom();paddle.y=fluxRunField?fluxRunField.py:launcherY(H,fluxSafeBottom,!!document.fullscreenElement&&fluxFsWanted());if(same){const s0=stars,n0=nebulae;makeStars();stars=s0;nebulae=n0;}else makeStars();refreshHudRects();fluxFieldFit();if(skinBackdropOn())applySkinBackground();/* backdrop re-fits on rotation / window changes */}
+function resize(){const pW=W,pH=H,pD=dpr;dpr=window.__fluxLite?1:Math.min(devicePixelRatio||1,2);if(!document.fullscreenElement&&!fluxFsAsking)fluxPlainH={w:innerWidth,h:innerHeight};/* the game area outside full screen (not mid-request: the screen may already be growing) */if(fluxRunField&&innerWidth!==fluxRunField.w)fluxRunField=fluxFieldMeasure();/* turned sideways mid-run: the one re-fit */const f=fluxRunField||fluxFieldMeasure();W=f.w;H=f.h;HS=Math.max(H,innerHeight);const same=(W===pW&&H===pH&&dpr===pD);if(!same||c.width!==Math.floor(W*dpr)||c.height!==Math.floor(HS*dpr)){c.width=W*dpr;c.height=HS*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);}if(c.style)c.style.height=(fluxRunField||HS!==innerHeight)?HS+'px':'';fluxSafeBottom=f.safe;paddle.y=Math.min(H-Math.max(42,Math.min(90,H*.095)),H-fluxSafeBottom-GRIP_GAP-GRIP_D-GRIP_STEM-paddle.h/2);fluxFieldShift=f.fs?Math.max(0,fluxLowLauncherY(f.s,fluxSafeBottom)-paddle.y):0;if(same){const s0=stars,n0=nebulae;makeStars();stars=s0;nebulae=n0;}else makeStars();refreshHudRects();fluxFieldFit();if(skinBackdropOn())applySkinBackground();/* backdrop re-fits on rotation / window changes */}
 addEventListener('resize',resize);resize();
 function rand(a,b){return a+Math.random()*(b-a)}
 function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
@@ -1318,7 +1330,7 @@ function maxHudBottom(){
   return m;
 }
 function safeSpawnPoint(r=20,zone=null){
- const pad=isPhone()?34:42, top=zone?zone.top:maxHudBottom(), bottom=zone?zone.bottom:Math.max(top+80,orbFloor());
+ const pad=isPhone()?34:42, top=zone?zone.top:maxHudBottom(), bottom=zone?zone.bottom:Math.max(top+80,H*.79);
  const xLo=zone?zone.left:pad, xHi=zone?zone.right:W-pad;   // LIGHTNING ZONE: the growing orb's spawn area
  const hudRects=hudExclusionRects();
  for(let tries=0;tries<40;tries++){
@@ -1381,7 +1393,7 @@ function spawnGrowingOrb(){
    unchanged. Deterministic, so seeded games stay repeatable. Runs at the end
    of each frame, so an orb spawned after a hit is spaced before it is drawn. */
 const ORB_GAP=10;
-function orbInField(t){ const topBound=maxHudBottom()+t.r, botBound=Math.max(topBound+60,orbFloor())-t.r;
+function orbInField(t){ const topBound=maxHudBottom()+t.r, botBound=Math.max(topBound+60,H*.79)-t.r;
   t.x=Math.max(t.r+16,Math.min(W-t.r-16,t.x)); t.y=Math.max(topBound,Math.min(botBound,t.y)); }
 function keepOrbGap(){
   const n=targets.length; if(n<2) return;
@@ -1985,7 +1997,7 @@ function update(dt){
    const drift = .45+.55*Math.max(0,Math.min(1,speedLevel-4));   // .45 up to level 4, 1 from level 5; eased between during the ramp
    t.x += (t.vx + Math.cos(t.phase)*.08)*dt*60*drift;
    t.y += (t.vy + Math.sin(t.phase*.83)*.06)*dt*60*drift;
-   const topBound=maxHudBottom()+t.r, botBound=Math.max(topBound+60,orbFloor())-t.r;
+   const topBound=maxHudBottom()+t.r, botBound=Math.max(topBound+60,H*.79)-t.r;
    if(t.x<t.r+16 || t.x>W-t.r-16){t.vx*=-1;t.x=Math.max(t.r+16,Math.min(W-t.r-16,t.x));}
    if(t.y<topBound || t.y>botBound){t.vy*=-1;t.y=Math.max(topBound,Math.min(botBound,t.y));}
    if(t.growing){   // LIGHTNING ZONE: the growing / lightning orb keeps its centre in the zone
@@ -2198,7 +2210,7 @@ function draw(){
  const nowT=performance.now()*.001;
  drawSky(nowT);
  if(reduceMotion) shake=0;   // REDUCE MOTION: no screen shake
- const sx=shake?rand(-shake,shake):0,sy=shake?rand(-shake,shake):0;ctx.save();ctx.translate(sx,sy);
+ const sx=shake?rand(-shake,shake):0,sy=shake?rand(-shake,shake):0;ctx.save();ctx.translate(sx,sy+fluxFieldShift);   // LOWER LAUNCHER, SAME GAME: the field drawn lower (0 elsewhere)
  drawCeiling(nowT);
  if(fieldIsStill()) stampField(); else drawField();   // BATTERY (menus): a still field is stamped from its copy
  ctx.restore();
@@ -4846,7 +4858,7 @@ function tickJuice(dt){
 function juiceBurst(x,y,col,n){ const k=window.__fluxLite?Math.ceil(n/2):n+juiceExtraParticles(n); for(let i=0;i<k;i++)particles.push({x:x,y:y,vx:juiceRand(-6,6),vy:juiceRand(-6,6),life:1,col:col}); }
 function juiceExtraParticles(n){ return window.__fluxLite ? 0 : Math.round(n*JUICE_BURST_MAX*juice); }
 // The area orbs can ever occupy (same bounds as the orb movement in update()).
-function orbFieldRect(){ const top=maxHudBottom(); return { left:16, right:W-16, top:top, bottom:Math.max(top+60,orbFloor()) }; }
+function orbFieldRect(){ const top=maxHudBottom(); return { left:16, right:W-16, top:top, bottom:Math.max(top+60,H*.79) }; }
 function juiceEdgeColour(){ return fluxMode>0 ? '98,234,255' : (juice>.6 ? '255,92,190' : '120,140,255'); }
 let juiceBandGrads=new Map();
 function juiceBandGradient(rgb,x0,y0,x1,y1){
@@ -4861,7 +4873,8 @@ function drawJuiceUnderOrbs(){
   ctx.save();
   ctx.beginPath();
   const G=JUICE_EDGE_GAP, top=Math.max(0,f.top-G), bot=Math.min(H,f.bottom+G), sl=Math.max(0,f.left-G), sr=Math.min(W,f.right+G);
-  ctx.rect(0,0,W,top); ctx.rect(0,bot,W,H-bot); if(HS>H) ctx.rect(0,H,W,HS-H);   // FIELD TO THE EDGE: and the strip below the play area if(sl>=6) ctx.rect(0,top,sl,bot-top); if(W-sr>=6) ctx.rect(sr,top,W-sr,bot-top);
+  ctx.rect(0,0,W,top); ctx.rect(0,bot,W,H-bot); if(HS>H) ctx.rect(0,H,W,HS-H);   // FIELD TO THE EDGE: and the strip below the play area
+  if(fluxFieldShift) ctx.rect(0,-fluxFieldShift,W,fluxFieldShift);   // LOWER LAUNCHER: and the band above the field drawn lower if(sl>=6) ctx.rect(0,top,sl,bot-top); if(W-sr>=6) ctx.rect(sr,top,W-sr,bot-top);
   ctx.clip();
   const a=(lite?JUICE_EDGE_ALPHA_LITE:JUICE_EDGE_ALPHA)*juice, rgb=juiceEdgeColour();
   // Each band fades to nothing at its inner edge, so there is no visible seam.
@@ -4869,6 +4882,7 @@ function drawJuiceUnderOrbs(){
   ctx.globalAlpha=a;
   const band=function(x0,y0,x1,y1,rx,ry,rw,rh){ ctx.fillStyle=juiceBandGradient(rgb,x0,y0,x1,y1); ctx.fillRect(rx,ry,rw,rh); };
   band(0,0,0,top, 0,0,W,top);                 // top (HUD band)
+  if(fluxFieldShift){ ctx.fillStyle='rgb('+rgb+')'; ctx.fillRect(0,-fluxFieldShift,W,fluxFieldShift); }   // LOWER LAUNCHER: the top light carries on to the screen top
   band(0,H,0,bot, 0,bot,W,H-bot);             // bottom (launcher band)
   if(HS>H){ ctx.fillStyle='rgb('+rgb+')'; ctx.fillRect(0,H,W,HS-H); }   // FIELD TO THE EDGE: the light carries on, full strength, to the screen bottom
   if(sl>=6) band(0,0,sl,0, 0,top,sl,bot-top);  // left strip (skipped when too thin to fade)

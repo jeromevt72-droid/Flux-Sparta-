@@ -10,8 +10,7 @@
 //   Z4 safety net: it only turns into ⚡ while its centre is inside the zone (outside it waits, full size);
 //   Z5 unchanged: timer 13-19 s, one at a time, 4.2 s growth, bonus, 1.35x kick, about as many
 //      lightning orbs per run as before (same random seed, main vs this build);
-//   Z6 unchanged: regular orbs (spawn area down to the orb floor, drift bounds; LAUNCHER HEIGHT, owner: the floor keeps
-//      12% of the play field free above the launcher), the launcher position (the LAUNCHER HEIGHT rule), orb
+//   Z6 unchanged: regular orbs (spawn area down to 79%, drift bounds), the launcher position, orb
 //      colours and the flash effect.
 // Ends with negative controls.
 import fs from 'fs'; import path from 'path'; import vm from 'vm';
@@ -121,17 +120,17 @@ function suite(html, quiet = false) {
 
   try {
     const A = scriptsOf(html).join('\n');
-    ck('Z6 regular orbs unchanged: spawn area down to the orb floor and drift bounds', /function spawnTarget\(/.test(A) && /const \[x,y\]=safeSpawnPoint\(30,lightningZone\(\)\);/.test(A) && (A.match(/lightningZone\(\)/g) || []).length === 4
-      && /const topBound=maxHudBottom\(\)\+t\.r, botBound=Math\.max\(topBound\+60,orbFloor\(\)\)-t\.r;/.test(A) && /bottom=zone\?zone\.bottom:Math\.max\(top\+80,orbFloor\(\)\);/.test(A), '');
+    ck('Z6 regular orbs unchanged: spawn area down to 79% and drift bounds', /function spawnTarget\(/.test(A) && /const \[x,y\]=safeSpawnPoint\(30,lightningZone\(\)\);/.test(A) && (A.match(/lightningZone\(\)/g) || []).length === 4
+      && /const topBound=maxHudBottom\(\)\+t\.r, botBound=Math\.max\(topBound\+60,H\*\.79\)-t\.r;/.test(A) && /bottom=zone\?zone\.bottom:Math\.max\(top\+80,H\*\.79\);/.test(A), '');
     if (MAIN_HTML) {
       const M = scriptsOf(MAIN_HTML).join('\n');
       const pick = (src, re) => (re.exec(src) || [''])[0];
       const same = (re) => pick(A, re) !== '' && pick(A, re) === pick(M, re);
-      ck('Z6 orb colours and the flash effect are exactly as on main', same(/const SKINS=\{[\s\S]*?\n\};/) && same(/function flash\([^]*?\n\}/) && same(/function burst\([^]*?\n\}/), '');
-      const pos = DEVICES.map((dev) => { const a = bootGame(html, 'hard', dev); return Math.abs(a.run('paddle.y') - a.run('launcherY(H,fluxSafeBottom,false)')) < 1e-9; });
-      ck('Z6 ...and the launcher sits where the LAUNCHER HEIGHT rule puts it on iPhone, iPad and iPad mini', pos.every(Boolean), pos.join(','));
-      const regular = DEVICES.map((dev) => { const a = bootGame(html, 'medium', dev, 9), b = bootGame(html, 'medium', dev, 9); const f = 'JSON.stringify(Array.from({length:40},function(){ return safeSpawnPoint(20).map(Math.round); }))'; const pa = JSON.parse(a.run(f)); const same = JSON.stringify(pa) === b.run(f), top = a.run('maxHudBottom()'), bot = a.run('Math.max(maxHudBottom()+80,orbFloor())'); const out = pa.filter(function(q){ return q[1] < top - 1 || q[1] > bot + 1; }); if (!quiet && (!same || out.length)) console.log('     ', dev, same, top, bot, JSON.stringify(out.slice(0, 3))); return same && out.length === 0; });
-      ck('Z6 ...and regular orbs spawn the same way for the same seed, inside the orb field (above the orb floor)', regular.every(Boolean), regular.join(','));
+      ck('Z6 the launcher position, orb colours and the flash effect are exactly as on main', same(/paddle\.y=Math\.min\([^;]*\);/) && same(/const SKINS=\{[\s\S]*?\n\};/) && same(/function flash\([^]*?\n\}/) && same(/function burst\([^]*?\n\}/), '');
+      const pos = DEVICES.map((dev) => { const a = bootGame(html, 'hard', dev), m = bootGame(MAIN_HTML, 'hard', dev); return a.run('paddle.y') === m.run('paddle.y'); });
+      ck('Z6 ...and the launcher sits at the same height as on main on iPhone, iPad and iPad mini', pos.every(Boolean), pos.join(','));
+      const regular = DEVICES.map((dev) => { const a = bootGame(html, 'medium', dev, 9), m = bootGame(MAIN_HTML, 'medium', dev, 9); const f = 'JSON.stringify(Array.from({length:40},function(){ return safeSpawnPoint(20).map(Math.round); }))'; return a.run(f) === m.run(f); });
+      ck('Z6 ...and regular orbs spawn exactly where they did on main (same seed)', regular.every(Boolean), regular.join(','));
     }
   } catch (e) { ck('Z6 section ran', false, String(e.stack || e).slice(0, 300)); }
   return { F, failed };

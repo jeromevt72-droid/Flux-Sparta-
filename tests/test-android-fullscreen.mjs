@@ -7,9 +7,12 @@
 //   W2 BACK while the buttons show: during a run (and the revive question) the run goes on, nothing pauses or
 //      ends it; on the pause screen, game over and the game's menu FLUX goes back, as today -- but never when the
 //      page was hidden (Home / app switch) and never off the end of the history;
-//   R1 a run in the Android app starts once full screen is in, so its field is the whole screen from the first
-//      frame; Chrome refusing or not answering (FS_WAIT_MS) starts it at once, and only once; one request at a
-//      time; elsewhere a run starts at once;
+//   R1 a run in the Android app starts once full screen is in; Chrome refusing or not answering (FS_WAIT_MS)
+//      starts it at once, and only once; one request at a time; elsewhere a run starts at once;
+//   D1 LOWER LAUNCHER, SAME GAME (owner, #78 option D): in Android full screen the game is exactly today's (the
+//      field is the game area before the bars went: 728 of 800 on the BLU G45; today's launcher line, orb area
+//      and ball speed); only the picture moves: the field is drawn lower so the launcher's grip ends 6% of the
+//      screen above the bottom edge; every other device is exactly as today (no shift);
 //   R2 ONE FIELD PER RUN: the back button / bars coming back never resize the field during the run;
 //   B1 the background layers keep the field's shape and fill the whole screen when the screen is not the
 //      field's size (no band); a new level keeps it; a skin backdrop is left alone; today's background comes back;
@@ -50,7 +53,7 @@ function rig(src, { ua = UA.android, standalone = true, framed = false, platform
   const history = { length: histLen, backs: 0, back() { history.backs++; } };
   const g = { navigator: { userAgent: ua, platform }, document, window: win, history, innerHeight: 728, innerWidth: 360, devicePixelRatio: 2, Math, String, JSON,
     W: 0, H: 0, dpr: 1, runActive: false, paused: false, fluxSafeBottom: 0, stars: [], nebulae: [],
-    c: { width: 0, height: 0, style: {} }, ctx: { setTransform() {} }, paddle: { h: 12, y: 0 }, GRIP_STEM: 10, GRIP_D: 58,
+    c: { width: 0, height: 0, style: {} }, ctx: { setTransform() {} }, paddle: { h: 12, y: 0 }, GRIP_STEM: 10, GRIP_D: 58, GRIP_GAP: 6,
     readSafeBottom: () => 0, maxHudBottom: () => 138, makeStars() {}, refreshHudRects() {},
     setTimeout: (f) => { timers.push(f); return timers.length; }, requestAnimationFrame: (f) => { f(0); return 1; },
     newGame() { starts.push({ H: g.H, W: g.W }); g.runActive = true; }, endGame() { g.runActive = false; },
@@ -58,7 +61,7 @@ function rig(src, { ua = UA.android, standalone = true, framed = false, platform
     applyCelestialBackground(l) { g.celestialIndex = l - 1; app.style.background = THEMES[g.celestialIndex]; }, applySkinBackground() { app.style.background = g.skin ? 'transparent' : THEMES[g.celestialIndex]; } };
   g.skinBackdropOn = () => g.skin;
   vm.createContext(g);
-  vm.runInContext(src.slice(a, z) + '\n;resize();globalThis.__st=()=>({field:fluxRunField,HS,fit:fluxFsFit,waiting:!!fluxFsStartNext});', g);
+  vm.runInContext(src.slice(a, z) + '\n;resize();globalThis.__st=()=>({field:fluxRunField,HS,fit:fluxFsFit,waiting:!!fluxFsStartNext,shift:fluxFieldShift});', g);
   const api = {
     g, calls, cls, props, starts, history, app, THEMES, overlay, settle: () => {},
     st: () => g.__st(),
@@ -82,8 +85,29 @@ function suite(src, quiet = false) {
 
     // R1: the run waits for full screen
     ck('R1 the Android app: the run does not start before full screen is in', r.starts.length === 0 && r.st().waiting);
+    r.g.innerHeight = 800; r.g.resize();   // the screen grows before Chrome reports full screen
     r.settle(); r.entered();
-    ck('R1 ...then it starts once, with its field the whole screen (800 of 800)', r.starts.length === 1 && r.starts[0].H === 800 && r.st().field && r.st().field.h === 800, JSON.stringify(r.starts));
+    ck('R1 ...then it starts once', r.starts.length === 1, JSON.stringify(r.starts));
+    const today = (H, safe) => Math.min(H - Math.max(42, Math.min(90, H * .095)), H - safe - 6 - 58 - 10 - 6);
+    ck('D1 the play field is today\'s: the game area before the bars went (728 of 800)', r.starts[0].H === 728 && r.st().field.h === 728 && r.st().field.s === 800 && r.st().HS === 800, JSON.stringify(r.st().field));
+    ck('D1 the game itself is today\'s: today\'s launcher line in the field, ball speed measured from it as today', r.g.paddle.y === today(728, 0) && /function playAreaHeight\(\)\{ return Math\.max\(200,paddle\.y-maxHudBottom\(\)\); \}/.test(src), r.g.paddle.y);
+    ck('D1 only the picture moves: the field is drawn lower, so the grip ends 6% of the screen (48 px) above the bottom edge', r.st().shift === 30 && Math.abs(800 - (r.g.paddle.y + r.st().shift + 6 + 10 + 58) - 48) < 1e-9 &&
+      /ctx\.save\(\);ctx\.translate\(sx,sy\+fluxFieldShift\);/.test(fn('function draw(){')), 'shift ' + r.st().shift);
+    ck('D1 ...the score boxes and their banners are not moved (drawn outside the shifted field)', /ctx\.restore\(\);\n drawSlotBanners\(\);/.test(fn('function draw(){')));
+    const ip = rig(src, { ua: UA.iphone, platform: 'iPhone' }); ip.g.innerHeight = 844; ip.g.readSafeBottom = () => 34; ip.g.resize(); ip.g.newGame();
+    ck('D1 every other device exactly as today: the launcher where it was, nothing shifted, orbs down to 79% of the screen',
+      ip.g.paddle.y === today(844, 34) && ip.st().shift === 0 && !/orbFloor|ORB_FREE_SHARE/.test(src) && (src.match(/H\*\.79/g) || []).length === 4, ip.g.paddle.y + ' / ' + ip.st().shift);
+    // B1 in full screen: today's field (728) on a taller screen (800)
+    const geo = r.app.style.background.match(/circle ([\d.]+)px at 50% ([\d.]+)px/) || [];
+    const y = 728 * .15, R = Math.sqrt(180 * 180 + (728 - y) * (728 - y));
+    ck('B1 the screen is taller than the field: the level background keeps the field\'s exact shape (in px) and fills the screen', r.cls.has('fluxFsRun') && r.props['--fluxFsH'] === '728px' && Math.abs(+geo[2] - y) < 0.06 && Math.abs(+geo[1] - R) < 0.06, r.app.style.background);
+    ck('B1 the pressure glow too', r.props['--fluxFsPR'] === Math.hypot(180, 728).toFixed(1) + 'px' &&
+      ['#ffc44730 0%,transparent 60%', '#ffc44755 0%,transparent 62%', '#ff4f6870 0%,transparent 66%'].every((st) => src.includes('radial-gradient(circle var(--fluxFsPR) at 50% var(--fluxFsH),' + st + ')')));
+    r.g.applyCelestialBackground(2);
+    ck('B1 a new level meanwhile: the new background, same shape', /^radial-gradient\(circle [\d.]+px at 50% 87\.4px,#152852/.test(r.app.style.background), r.app.style.background);
+    r.g.skin = true; r.g.applySkinBackground();
+    ck('B1 a skin backdrop (already painted over the whole screen) is left alone', r.app.style.background === 'transparent');
+    r.g.skin = false; r.g.applySkinBackground();
     r.tick();
     ck('R1 ...and the wait timer that fires later does not start it twice', r.starts.length === 1);
     let q = rig(src, { reject: true }); q.g.newGame(); q.settle();
@@ -96,25 +120,13 @@ function suite(src, quiet = false) {
     ck('R1 one request at a time, and a tap while Chrome is answering does not start the run early', okTap, why);
 
     // R2 + W2: back during a run
-    const fieldBefore = JSON.stringify([r.g.W, r.g.H, r.g.paddle.y]);
+    const fieldBefore = JSON.stringify([r.g.W, r.g.H, r.g.paddle.y, r.st().shift]);
     r.left();
-    ck('R2 ONE FIELD PER RUN: back pressed mid-run (the bars come back), the field keeps its size and launcher', JSON.stringify([r.g.W, r.g.H, r.g.paddle.y]) === fieldBefore && r.g.c.style.height === '800px', JSON.stringify([r.g.W, r.g.H, r.g.paddle.y]) + ' css ' + r.g.c.style.height);
+    ck('R2 ONE FIELD PER RUN: back pressed mid-run (the bars come back), the field keeps its size, launcher and place on screen', JSON.stringify([r.g.W, r.g.H, r.g.paddle.y, r.st().shift]) === fieldBefore && r.g.c.style.height === '728px', JSON.stringify([r.g.W, r.g.H, r.g.paddle.y, r.st().shift]) + ' css ' + r.g.c.style.height);
+    ck('B1 the screen is the field\'s size again (the bars are back): today\'s background exactly', !r.cls.has('fluxFsRun') && r.app.style.background === r.THEMES[1], r.app.style.background);
     r.tick();
     ck('W2 back during a run: the run goes on (no going back, nothing paused or ended)', r.history.backs === 0 && r.g.runActive && !r.g.paused);
     ck('W2 ...the full-screen code never touches the run state', !/paused\s*=|playing\s*=|runActive\s*=|setPaused\(|endGame\(\)/.test(src.slice(src.indexOf('let fluxRunField=null;'), src.indexOf("{ const newGame0=newGame;"))));
-    // B1 while the screen (728) is not the field (800)
-    const geo = r.app.style.background.match(/circle ([\d.]+)px at 50% ([\d.]+)px/) || [];
-    const y = 800 * .15, R = Math.sqrt(180 * 180 + (800 - y) * (800 - y));
-    ck('B1 the screen is not the field\'s size: the level background keeps the field\'s exact shape (in px) and fills the screen', r.cls.has('fluxFsRun') && r.props['--fluxFsH'] === '800px' && Math.abs(+geo[2] - y) < 0.06 && Math.abs(+geo[1] - R) < 0.06, r.app.style.background);
-    ck('B1 the pressure glow too', r.props['--fluxFsPR'] === Math.hypot(180, 800).toFixed(1) + 'px' &&
-      ['#ffc44730 0%,transparent 60%', '#ffc44755 0%,transparent 62%', '#ff4f6870 0%,transparent 66%'].every((st) => src.includes('radial-gradient(circle var(--fluxFsPR) at 50% var(--fluxFsH),' + st + ')')));
-    r.g.applyCelestialBackground(2);
-    ck('B1 a new level meanwhile: the new background, same shape', /^radial-gradient\(circle [\d.]+px at 50% 96\.0px,#152852/.test(r.app.style.background), r.app.style.background);
-    r.g.skin = true; r.g.applySkinBackground();
-    ck('B1 a skin backdrop (already painted over the whole screen) is left alone', r.app.style.background === 'transparent');
-    r.g.skin = false; r.g.applySkinBackground();
-    r.entered();
-    ck('B1 the screen is the field\'s size again: today\'s background exactly', !r.cls.has('fluxFsRun') && r.app.style.background === r.THEMES[1], r.app.style.background);
 
     // W2 on the pause screen, game over, the menu
     r.overlay.hidden = false; r.g.paused = true; r.left(); r.tick();
@@ -142,7 +154,7 @@ function suite(src, quiet = false) {
     ck('C1 every frame clears the whole canvas', /function draw\(\)\{\n ctx\.clearRect\(0,0,W,HS\|\|H\);/.test(src));
     const jz = fn('function drawJuiceUnderOrbs(){');
     ck('C1 the combo / FLUX edge light carries on to the screen bottom', /ctx\.rect\(0,bot,W,H-bot\); if\(HS>H\) ctx\.rect\(0,H,W,HS-H\);/.test(jz) && /if\(HS>H\)\{ ctx\.fillStyle='rgb\('\+rgb\+'\)'; ctx\.fillRect\(0,H,W,HS-H\); \}/.test(jz));
-    const gp = ['function update(', 'function newGame(', 'function registerMiss(', 'function addTarget(', 'function setPaddle(', 'function orbFieldRect(', 'function orbFloor(', 'function launcherY('].filter((n) => /\bHS\b/.test(fn(n)));
+    const gp = ['function update(', 'function newGame(', 'function registerMiss(', 'function addTarget(', 'function setPaddle(', 'function orbFieldRect(', 'function playAreaHeight('].filter((n) => /\bHS\b/.test(fn(n)));
     ck('C1 gameplay never reads HS', gp.length === 0, gp.join(', '));
 
     ck('A5 no new listeners in the game (17)', (src.match(/addEventListener\(/g) || []).length === 17, (src.match(/addEventListener\(/g) || []).length);
@@ -167,21 +179,25 @@ control('the run starts before full screen is in', 'R1 the Android app', "if(flu
 control('the run can start twice', 'R1 ...and the wait timer', 'function fluxFsGo(){ const go=fluxFsStartNext; fluxFsStartNext=null; if(go) go(); }', 'function fluxFsGo(){ const go=fluxFsStartNext; if(go) go(); }');
 control('a refusal leaves the run waiting', 'R1 Chrome refuses', 'function(){ fluxFsAsking=false; fluxFsGo(); }); else', 'function(){ fluxFsAsking=false; }); else');
 control('a tap while waiting starts the run early', 'R1 one request', '  if(fluxFsAsking) return;   //', '  if(fluxFsAsking){ fluxFsGo(); return; }   //');
-control('the field follows the window mid-run', 'R2 ONE FIELD PER RUN', 'const f=fluxRunField||{w:innerWidth,h:innerHeight};', 'const f={w:innerWidth,h:innerHeight};');
+control('the field is not drawn lower', 'D1 only the picture', 'ctx.translate(sx,sy+fluxFieldShift);', 'ctx.translate(sx,sy);');
+control('the launcher itself moved (a longer field: the BLU harder)', 'D1 the game itself', 'fluxFieldShift=f.fs?Math.max(0,fluxLowLauncherY(f.s,fluxSafeBottom)-paddle.y):0;', 'fluxFieldShift=0;if(f.fs)paddle.y=fluxLowLauncherY(f.s,fluxSafeBottom);');
+control('the field grows to the whole screen', 'D1 the play field is today', 'h:keep?fluxPlainH.h:innerHeight', 'h:innerHeight');
+control('the growing screen is taken for today\'s area', 'D1 the play field is today', 'if(!document.fullscreenElement&&!fluxFsAsking)fluxPlainH=', 'if(!document.fullscreenElement)fluxPlainH=');
+control('the field follows the window mid-run', 'R2 ONE FIELD PER RUN', 'const f=fluxRunField||fluxFieldMeasure();', 'const f=fluxFieldMeasure();');
 control('back during a run goes back', 'W2 back during a run', '  if(runActive && !onPause) return;', '');
 control('back on pause does nothing', 'W2 back on the pause screen', 'if(history.length>1) history.back();', '');
 control('Home navigates back', 'W2 Home or app switching', 'if(document.hidden || document.fullscreenElement) return;', 'if(document.fullscreenElement) return;');
 control('back off the end of the history', 'W2 nothing to go back to', 'if(history.length>1) history.back();', 'history.back();');
 control('game over shows the buttons again', 'W1 FLUX never leaves', ' playing=false; runActive=false;\n', ' playing=false; runActive=false;\n try{ document.exitFullscreen(); }catch(e){}\n');
 control('only runs re-hide the buttons', 'W1 the next finger lift', "if(e.type==='touchend' && !document.fullscreenElement && !fluxFsStartNext) fluxFsEnter();", "if(runActive && !paused && e.type==='touchend' && !document.fullscreenElement && !fluxFsStartNext) fluxFsEnter();");
-control('the band again: #app cut at the field', 'B1 the screen is not', 'if(fit){ root.style.setProperty(', 'if(false){ root.style.setProperty(');
+control('the band again: #app cut at the field', 'B1 the screen is taller', 'if(fit){ root.style.setProperty(', 'if(false){ root.style.setProperty(');
 control('level-up loses the shape', 'B1 a new level', 'applyCelestialBackground=function(){ const r=cel0.apply(this,arguments); if(fluxFsFit) fluxFsPaintApp(); return r; };', '');
 control('skin backdrop overpainted', 'B1 a skin backdrop', "if(!app || skinBackdropOn()) return;", "if(!app) return;");
 control("today's background not given back", 'B1 the screen is the field', "else app.style.background=CELESTIAL_BG_ENABLED ? theme : '';", '');
 control('the canvas stays field-tall', 'C1 the field canvas', 'c.height=HS*dpr;', 'c.height=H*dpr;');
 control('the strip is never cleared', 'C1 every frame clears', 'ctx.clearRect(0,0,W,HS||H);', 'ctx.clearRect(0,0,W,H);');
 control('edge light stops at the field', 'C1 the combo / FLUX edge light', "  if(HS>H){ ctx.fillStyle='rgb('+rgb+')'; ctx.fillRect(0,H,W,HS-H); }", '');
-control('gameplay reads the screen height', 'C1 gameplay never reads HS', 'function orbFloor(){ return paddle.y-ORB_FREE_SHARE*(paddle.y-maxHudBottom()); }', 'function orbFloor(){ return paddle.y-ORB_FREE_SHARE*(paddle.y-maxHudBottom())+0*HS; }');
+control('gameplay reads the screen height', 'C1 gameplay never reads HS', 'bottom:Math.max(top+60,H*.79) }; }', 'bottom:Math.max(top+60,HS*.79) }; }');
 control('stars reshuffle on every full-screen change', 'A5 the same stars', 'if(same){const s0=stars,n0=nebulae;makeStars();stars=s0;nebulae=n0;}else makeStars();', 'makeStars();');
 const total = res.F + NC;
 console.log('\n' + (total ? 'ANDROID FULL SCREEN FAILED: ' + res.F + ' check(s), ' + NC + ' uncaught control(s)' : 'ANDROID FULL SCREEN PASSED: all checks and all negative controls'));
