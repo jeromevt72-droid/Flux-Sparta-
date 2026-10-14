@@ -89,10 +89,11 @@ canvas{position:absolute;inset:0;width:100%;height:100%}
 /* ANDROID FULL SCREEN DURING A RUN: the game area keeps its size (see fluxFsEnter); the strip below is plain background */
 /* ONE BACKGROUND TO THE EDGES (owner, BLU G45): the background layers fill the whole screen, top to bottom,
    so nothing shows a band where the system bars were (FLUX MODE brightens all of it). Inside the kept game
-   area every layer is drawn exactly as before: the field (#game), the FLUX MODE glow and the star layers keep
-   the game-area size; the level background and the pressure glow keep their shape in px (fluxFsGeom) and
-   simply carry on into the strip. */
-html.fluxFsRun #game,html.fluxFsRun #fluxGlow{bottom:auto;height:var(--fluxFsH)}
+   area every layer is drawn exactly as before: the FLUX MODE glow and the star layers keep the game-area
+   size; the level background and the pressure glow keep their shape in px (fluxFsGeom) and simply carry on
+   into the strip. FIELD TO THE EDGE: the field canvas covers the whole screen too (HS), so everything drawn
+   on it (the combo / FLUX edge light, sky glow, sparks) reaches the bottom edge; play itself still uses H. */
+html.fluxFsRun #fluxGlow{bottom:auto;height:var(--fluxFsH)}   /* the field canvas reaches the screen bottom (HS); play keeps H */
 html.fluxFsRun #celestialMotion{top:calc(var(--fluxFsH)*-.12);bottom:auto;height:calc(var(--fluxFsH)*1.24 + 100vh - var(--fluxFsH))}
 html.fluxFsRun #nebulaDrift{top:calc(var(--fluxFsH)*.2728)}   /* 22% of the star layers' kept height, as before */
 html.fluxFsRun #pressureGlow{background:radial-gradient(circle var(--fluxFsPR) at 50% var(--fluxFsH),#ffc44730 0%,transparent 60%)}
@@ -971,7 +972,8 @@ function makeStars(){
      they show, Chrome only leaves full screen; the run goes on and the next finger lift brings full screen
      back (a lift counts as a tap for the browser, a touch-down does not).
    - Pause and game over leave full screen (menus show the buttons); RESUME and a new run enter it again. */
-let fluxFsH=0, fluxFsW=0, fluxFsAsking=false;   // the game-area height kept while in full screen (0 = not kept), and the width it is for
+let fluxFsH=0, fluxFsW=0, fluxFsAsking=false;
+let HS=0;   // FIELD TO THE EDGE: the height the field canvas covers (the whole screen in full screen; H otherwise). Play still uses H.   // the game-area height kept while in full screen (0 = not kept), and the width it is for
 function fluxFsWanted(){
   try{
     if(!/Android/i.test(navigator.userAgent) || fluxIsIOSDevice() || window.top!==window.self) return false;
@@ -1014,7 +1016,7 @@ document.onfullscreenchange=function(){ fluxFsAsking=false; if(!document.fullscr
 { const cel0=applyCelestialBackground, skin0=applySkinBackground;   // a new level / skin while in full screen: the same shape, edge to edge
   applyCelestialBackground=function(){ const r=cel0.apply(this,arguments); if(fluxFsH) fluxFsPaintApp(); return r; };
   applySkinBackground=function(){ const r=skin0.apply(this,arguments); if(fluxFsH) fluxFsPaintApp(); return r; }; }   // a new run hides the system buttons (newGame itself is gameplay: untouched)
-function resize(){const pW=W,pH=H,pD=dpr;dpr=window.__fluxLite?1:Math.min(devicePixelRatio||1,2);fluxFsCheckWidth();W=innerWidth;H=fluxFsH||innerHeight;const same=(W===pW&&H===pH&&dpr===pD&&c.width===Math.floor(W*dpr));if(!same){c.width=W*dpr;c.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);}fluxSafeBottom=readSafeBottom();paddle.y=Math.min(H-Math.max(42,Math.min(90,H*.095)),H-fluxSafeBottom-GRIP_GAP-GRIP_D-GRIP_STEM-paddle.h/2);if(same){const s0=stars,n0=nebulae;makeStars();stars=s0;nebulae=n0;}else makeStars();refreshHudRects();if(skinBackdropOn())applySkinBackground();/* backdrop re-fits on rotation / window changes */}
+function resize(){const pW=W,pH=H,pD=dpr;dpr=window.__fluxLite?1:Math.min(devicePixelRatio||1,2);fluxFsCheckWidth();W=innerWidth;H=fluxFsH||innerHeight;HS=fluxFsH?Math.max(H,innerHeight):H;const same=(W===pW&&H===pH&&dpr===pD);if(!same||c.width!==Math.floor(W*dpr)||c.height!==Math.floor(HS*dpr)){c.width=W*dpr;c.height=HS*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);}fluxSafeBottom=readSafeBottom();paddle.y=Math.min(H-Math.max(42,Math.min(90,H*.095)),H-fluxSafeBottom-GRIP_GAP-GRIP_D-GRIP_STEM-paddle.h/2);if(same){const s0=stars,n0=nebulae;makeStars();stars=s0;nebulae=n0;}else makeStars();refreshHudRects();if(skinBackdropOn())applySkinBackground();/* backdrop re-fits on rotation / window changes */}
 addEventListener('resize',resize);resize();
 function rand(a,b){return a+Math.random()*(b-a)}
 function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
@@ -2151,7 +2153,7 @@ function orbGradient(col,r,fresh){
 }
 function orbSymbol(x,y,r,col,sym){ctx.save();ctx.globalAlpha=1;ctx.fillStyle=hexLum(col)>.28?'#10132a':'#ffffff';ctx.font='900 '+Math.max(11,r*.8)+'px -apple-system,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(sym,x,y+1);ctx.restore();}
 function draw(){
- ctx.clearRect(0,0,W,H);
+ ctx.clearRect(0,0,W,HS||H);   // FIELD TO THE EDGE: the whole canvas (it reaches the screen bottom in full screen)
  // celestial background — drifting nebula glow + slow-scrolling, twinkling starfield
  const nowT=performance.now()*.001;
  drawSky(nowT);
@@ -4820,7 +4822,7 @@ function drawJuiceUnderOrbs(){
   ctx.save();
   ctx.beginPath();
   const G=JUICE_EDGE_GAP, top=Math.max(0,f.top-G), bot=Math.min(H,f.bottom+G), sl=Math.max(0,f.left-G), sr=Math.min(W,f.right+G);
-  ctx.rect(0,0,W,top); ctx.rect(0,bot,W,H-bot); if(sl>=6) ctx.rect(0,top,sl,bot-top); if(W-sr>=6) ctx.rect(sr,top,W-sr,bot-top);
+  ctx.rect(0,0,W,top); ctx.rect(0,bot,W,H-bot); if(HS>H) ctx.rect(0,H,W,HS-H);   // FIELD TO THE EDGE: and the strip below the play area if(sl>=6) ctx.rect(0,top,sl,bot-top); if(W-sr>=6) ctx.rect(sr,top,W-sr,bot-top);
   ctx.clip();
   const a=(lite?JUICE_EDGE_ALPHA_LITE:JUICE_EDGE_ALPHA)*juice, rgb=juiceEdgeColour();
   // Each band fades to nothing at its inner edge, so there is no visible seam.
@@ -4829,6 +4831,7 @@ function drawJuiceUnderOrbs(){
   const band=function(x0,y0,x1,y1,rx,ry,rw,rh){ ctx.fillStyle=juiceBandGradient(rgb,x0,y0,x1,y1); ctx.fillRect(rx,ry,rw,rh); };
   band(0,0,0,top, 0,0,W,top);                 // top (HUD band)
   band(0,H,0,bot, 0,bot,W,H-bot);             // bottom (launcher band)
+  if(HS>H){ ctx.fillStyle='rgb('+rgb+')'; ctx.fillRect(0,H,W,HS-H); }   // FIELD TO THE EDGE: the light carries on, full strength, to the screen bottom
   if(sl>=6) band(0,0,sl,0, 0,top,sl,bot-top);  // left strip (skipped when too thin to fade)
   if(W-sr>=6) band(W,0,sr,0, sr,top,W-sr,bot-top); // right strip
   ctx.restore();
