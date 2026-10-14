@@ -5018,6 +5018,16 @@ function fluxStatsSrc(){
   }
   return s;   // where this pilot first came from; kept, never overwritten
 }
+/* DAY-1 REPORT (owner): the kind of phone only -- 'ios' (iPhone/iPad), 'android' or 'other'. Never the
+   model, the version or anything else from the browser. iPadOS 13+ says "Macintosh" with touch. */
+function fluxOsKind(){
+  try{
+    const ua=String(navigator.userAgent||'');
+    if(/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && (navigator.maxTouchPoints||0)>1)) return 'ios';
+    if(/Android/i.test(ua)) return 'android';
+  }catch(e){}
+  return 'other';
+}
 function fluxTrack(e,extra){
   try{ if(fluxStatsQueue.length<60) fluxStatsQueue.push(Object.assign({e:e},extra||{})); }catch(x){}
 }
@@ -5052,7 +5062,7 @@ function fluxStatsFlush(){
 (function(){
   try{
     fluxStatsSrc();
-    fluxTrack('open',{home:!!(typeof fluxIsStandalone==='function' && fluxIsStandalone())});
+    fluxTrack('open',{home:!!(typeof fluxIsStandalone==='function' && fluxIsStandalone()),os:fluxOsKind()});   // DAY-1 REPORT: + iPhone/iPad, Android or other
     const newGame0=newGame;
     newGame=function(){
       try{

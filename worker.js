@@ -241,6 +241,9 @@ export default {
             "/api/admin/purchase-grant":    () => adminPurchaseChange(request, env, true),
             "/api/admin/issue-restore-code": () => adminIssueRestore(request, env),   // D-37
             "/api/admin/analytics":          () => adminAnalytics(request, env),     // STATS dashboard data
+            "/api/admin/day1":               () => adminDay1(request, env),          // DAY-1 REPORT: new pilots one by one (read-only)
+            "/api/admin/day1-mark":          () => adminDay1Mark(request, env),      // DAY-1 REPORT: mark the owner's own / test device
+            "/api/admin/day1-unmark":        () => adminDay1Unmark(request, env),    // DAY-1 REPORT: unmark it
             "/api/admin/season-archive":     () => adminDO(request, env, "/admin-season-archive", {}),   // SEASON 1: archived Season 0 scores, read-only
             "/api/admin/usage":              () => adminUsage(request, env),         // FREE PLAN: today's requests vs the free limits
             "/api/admin/backups":            () => adminBackup(request, env, "/list"),        // BACKUPS: list + last status
@@ -407,6 +410,7 @@ const AN_EVENTS = new Set(["open", "first_run", "run_end", "level_up", "share", 
 const AN_RD_EDGES = [0, 1, 2, 3, 4, 5, 7, 10, 15, 20, 30, 45, 60, 90, 120, 180, 300, 600, 1200];   // restart delay buckets (seconds, from)
 const AN_FS_EDGES = [0, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300, 420, 600, 900, 1800];        // first-run survival buckets (seconds, from)
 const AN_SESS_END = new Set(["over", "run", "menu"]);
+const AN_OS = new Set(["ios", "android", "other"]);   // DAY-1 REPORT: the kind of phone, recorded from the day-1 report's release on
 const anStep = (v) => anInt(v, 0, AN_MAX_STEP);   // the speed step a run ended at
 function anBucket(edges, v) { let b = edges[0]; for (const e of edges) if (v >= e) b = e; return b; }
 const AN_MAX_STEP = 8;
@@ -428,6 +432,7 @@ function cleanEvent(e) {
   if (!e || typeof e !== "object" || !AN_EVENTS.has(e.e)) return null;
   const out = { e: e.e };
   if (e.e === "open") { out.home = e.home === true; out.iab = e.iab === true; }   // FIRST-RUN MEASURE: opened in an app's built-in browser (yes/no)
+  if (e.e === "open" && e.os !== undefined) out.os = AN_OS.has(e.os) ? e.os : "other";   // DAY-1 REPORT: iPhone/iPad, Android or other -- never the model
   if (e.e === "run_end" || e.e === "level_up") {
     const lvl = Math.floor(Number(e.lvl)); out.lvl = lvl >= 1 && lvl <= MAX_LEVEL ? lvl : 1;
     out.diff = VALID_DIFFICULTIES.has(e.diff) ? e.diff : "medium";
@@ -606,6 +611,37 @@ async function adminAnalytics(request, env) {
   const denied = requireAdmin(request, env); if (denied) return denied;
   const b = (await readJsonObject(request)) || {};
   return analyticsDO(env, "/an-report?" + new URLSearchParams({ from: String(b.from || ""), to: String(b.to || "") }));
+}
+/* DAY-1 REPORT (owner): new pilots one by one -- how they opened FLUX (Home Screen app, browser tab,
+   an app's built-in browser), iPhone or Android, their first run (difficulty and REAL play time), runs
+   on their first day, and whether they came back on day 1 -- read from the raw events the stats
+   instance already keeps for 90 days. Read-only: it changes nothing for players and nothing in the
+   totals. The owner can mark their own and test devices so the report leaves them out; the mark is
+   made from FLUX COMMAND's FIND A PLAYER result (the pilot's public pid): the leaderboard instance
+   turns that pilot into its one-way STATS code, so the raw player ID never leaves the server and the
+   stats instance stores only that code and the owner's label. */
+async function adminDay1(request, env) {
+  const denied = requireAdmin(request, env); if (denied) return denied;
+  const b = await adminBody(request);
+  return analyticsDO(env, "/an-day1?" + new URLSearchParams({ from: String(b.from || ""), to: String(b.to || "") }));
+}
+const DAY1_LABEL_MAX = 60;
+function day1Label(v) { return String(v || "").replace(/[\u0000-\u001f<>]/g, "").replace(/\s+/g, " ").trim().slice(0, DAY1_LABEL_MAX); }
+async function adminDay1Mark(request, env) {
+  const denied = requireAdmin(request, env); if (denied) return denied;
+  const b = await adminBody(request);
+  if (!(typeof b.pid === "string" && PID_RE.test(b.pid))) return json({ error: "Invalid entry" }, 400);
+  const r = await forwardToDO(request, env, "/admin-stats-code", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pid: b.pid }) });
+  const d = (await r.json().catch(() => null)) || {};
+  if (!r.ok || !/^[0-9a-f]{16}$/.test(String(d.code || ""))) return json({ error: d.error || "Pilot not found" }, r.ok ? 404 : r.status);
+  return analyticsDO(env, "/an-excl", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ add: { h: d.code, label: day1Label(b.label) || "test device" } }) });
+}
+async function adminDay1Unmark(request, env) {
+  const denied = requireAdmin(request, env); if (denied) return denied;
+  const b = await adminBody(request);
+  if (!/^[0-9a-f]{16}$/.test(String(b.code || ""))) return json({ error: "Invalid entry" }, 400);
+  return analyticsDO(env, "/an-excl", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ remove: b.code }) });
 }
 const AN_DAY_MS = 86400000;
 const anDayStr = (d) => new Date(d * AN_DAY_MS).toISOString().slice(0, 10);
@@ -2550,6 +2586,7 @@ export class LeaderboardDO {
       "/import": () => this.handleImport(request),
       "/recompute": () => this.handleRecompute(),
       "/admin-find": () => this.handleAdminFind(request),
+      "/admin-stats-code": () => this.handleAdminStatsCode(request),   // DAY-1 REPORT (read-only)
       "/admin-remove-score": () => this.handleAdminRemoveScore(request),
       "/admin-remove-pilots-dry-run": () => json({ ok: false, moveStorageFirst: true, error: RP_MOVE_FIRST }, 409),   // REMOVE PILOTS: new layout only
       "/admin-remove-pilots": () => json({ ok: false, moveStorageFirst: true, error: RP_MOVE_FIRST }, 409),
@@ -2754,6 +2791,8 @@ export class LeaderboardDO {
         if (url.pathname === "/an-report") return await this.anReport(url);
         if (url.pathname === "/an-purge") return await this.anPurge(await this.anBody(request));
         if (url.pathname === "/an-usage") return await this.anUsage(await this.anBody(request));   // FREE PLAN
+        if (url.pathname === "/an-day1") return await this.anDay1(url);                              // DAY-1 REPORT (read-only)
+        if (url.pathname === "/an-excl" && request.method === "POST") return await this.anExcl(await this.anBody(request));   // DAY-1 REPORT: owner's devices
         return json({ error: "Not found" }, 404);
       } catch (e) { return json({ error: "stats failed" }, 500); }
     };
@@ -2876,6 +2915,90 @@ export class LeaderboardDO {
     }
     if (gone.length) await st.put("an:days", keep);
     return json({ ok: true, purgedDays: gone.length });
+  }
+  /* DAY-1 REPORT (see adminDay1). Start dates from..to (UTC days, like every stats day); by default
+     the same window as the owner summary's day-1 finding (today-30 .. today-2), so "everyone" here
+     matches that number. Came back on day 1 is the pilot's own record (the same mark the totals
+     use). Everything else comes from the pilot's raw events on their first day (and the next day,
+     for a first run that ended after midnight). Run length is REAL play time: the seconds the game
+     counted while the ball was in play (its "play" events), never the clock time between start and
+     game over, which also counts pauses and time the app was in the background. */
+  async anDay1(url) {
+    const st = this.state.storage, today = this.anToday();
+    let to = anDayNum(url.searchParams.get("to")), from = anDayNum(url.searchParams.get("from"));
+    if (!Number.isFinite(to)) to = today - 2;
+    if (!Number.isFinite(from)) from = today - 30;
+    to = Math.min(to, today);
+    from = Math.max(from, today - AN_KEEP_DAYS + 1, to - 89);
+    if (from > to) from = to;
+    const excl = (await st.get("an:excl")) || [], exclSet = new Set(excl.map((x) => x.h));
+    const per = new Map();   // code -> day -> rows, in arrival order
+    let rowsRead = 0;
+    for (let d = from; d <= Math.min(to + 1, today); d++) {
+      const n = (await st.get("an:evn:" + d)) || 0;
+      for (let i = 0; i < n; i++) {
+        const chunk = (await st.get("an:ev:" + d + ":" + i)) || [];
+        rowsRead += chunk.length;
+        for (const r of chunk) {
+          if (!r || typeof r.h !== "string") continue;
+          let x = per.get(r.h); if (!x) per.set(r.h, (x = new Map()));
+          let a = x.get(d); if (!a) x.set(d, (a = []));
+          a.push(r);
+        }
+      }
+    }
+    const rows = [];
+    for (const [h, days] of per) {
+      const p = await st.get("an:p:" + h);
+      if (!p || !Number.isFinite(p.f) || p.f < from || p.f > to) continue;
+      const d0 = days.get(p.f) || [], d01 = d0.concat(days.get(p.f + 1) || []);
+      const opens = d0.filter((r) => r.e === "open"), o = opens[0] || null;
+      const openedIn = !o ? "unknown" : o.home ? "home" : o.iab === true ? "inapp" : "browser";
+      const osRow = opens.find((r) => AN_OS.has(r.os));
+      // Runs on the first day, each with its real play time (the "play" rows right after its game over).
+      let runs = 0, playSec = 0, timed = 0;
+      const realSec = (list, i) => { let sec = 0, any = false; for (let j = i + 1; j < list.length && list[j].e === "play"; j++) { sec += Number(list[j].sec) || 0; any = true; } return any ? sec : null; };
+      for (let i = 0; i < d0.length; i++) {
+        if (d0[i].e !== "run_end") continue;
+        runs++;
+        const sec = realSec(d0, i);
+        if (sec !== null) { playSec += sec; timed++; }
+      }
+      // The first run: the game over that carries "fs" (sent on a pilot's very first run only).
+      let firstDiff = null, firstSec = null;
+      const fi = d01.findIndex((r) => r.e === "run_end" && r.fs !== undefined);
+      if (fi >= 0) { firstDiff = d01[fi].diff || null; firstSec = Number(d01[fi].fs) || 0; }
+      else {
+        const gi = d01.findIndex((r) => r.e === "run_end");   // older pages: no "fs"; the first game over seen
+        if (gi >= 0) { firstDiff = d01[gi].diff || null; firstSec = realSec(d01, gi); }
+      }
+      const started = d0.some((r) => r.e === "first_run") || runs > 0;
+      rows.push({
+        code: h, start: anDayStr(p.f), country: p.c || "XX", src: p.s || "direct",
+        openedIn, os: osRow ? osRow.os : "unknown",
+        started, firstDiff, firstSec, runs, playSec: Math.round(playSec), avgRunSec: timed ? Math.round(playSec / timed) : null,
+        back1: today - p.f >= 2 ? !!(p.r & 1) : null,   // null: day 1 is not over yet
+        excluded: exclSet.has(h),
+      });
+    }
+    rows.sort((a, b) => (a.start < b.start ? 1 : a.start > b.start ? -1 : a.code < b.code ? -1 : 1));
+    return json({ ok: true, from: anDayStr(from), to: anDayStr(to), today: anDayStr(today), keepDays: AN_KEEP_DAYS, rowsRead,
+      rows: rows.slice(0, 3000), more: Math.max(0, rows.length - 3000),
+      excluded: excl.map((x) => ({ code: x.h, label: x.label, at: x.at })) });
+  }
+  /* DAY-1 REPORT: the owner's own and test devices (STATS codes + the owner's label), at most 50. */
+  async anExcl(b) {
+    const st = this.state.storage;
+    let list = (await st.get("an:excl")) || [];
+    const ok = (h) => /^[0-9a-f]{16}$/.test(String(h || ""));
+    if (b && b.add && ok(b.add.h)) {
+      list = list.filter((x) => x.h !== b.add.h);
+      if (list.length >= 50) return json({ error: "At most 50 devices can be marked. Unmark one first." }, 400);
+      list.push({ h: b.add.h, label: String(b.add.label || "test device").slice(0, 60), at: Date.now() });
+    } else if (b && ok(b.remove)) list = list.filter((x) => x.h !== b.remove);
+    else return json({ error: "Invalid entry" }, 400);
+    await st.put("an:excl", list);
+    return json({ ok: true, excluded: list.map((x) => ({ code: x.h, label: x.label, at: x.at })) });
   }
   async anReport(url) {
     const st = this.state.storage, today = this.anToday();
@@ -3456,6 +3579,14 @@ export class LeaderboardDO {
     }
     matches.sort((a, b) => (bestOf({ bests: b.bests }) || { score: 0 }).score - (bestOf({ bests: a.bests }) || { score: 0 }).score);
     return json({ ok: true, matches: matches.slice(0, 25) });
+  }
+
+  /* DAY-1 REPORT: the pilot behind a public pid, as its one-way STATS code (never the player ID). */
+  async handleAdminStatsCode(request) {
+    const { pid } = await request.json();
+    const id = PID_RE.test(String(pid || "")) ? await this.findPlayerIdByPid(pid) : null;
+    if (!id) return json({ error: "Pilot not found" }, 404);
+    return json({ ok: true, code: await analyticsCode(id) });
   }
 
   /* Remove score: public scores only. Identity lives on the player's device and
@@ -6348,6 +6479,7 @@ class PilotLayoutV2 {
       "/import": () => this.importRecords(request),
       "/recompute": () => this.recompute(),
       "/admin-find": () => this.find(request),
+      "/admin-stats-code": () => this.statsCode(request),   // DAY-1 REPORT (read-only)
       "/admin-remove-score": () => this.removeScore(request),
       "/admin-remove-pilots-dry-run": () => this.removePilotsDryRun(request),   // REMOVE PILOTS (writes nothing)
       "/admin-remove-pilots": () => this.removePilots(request),
@@ -6608,6 +6740,13 @@ class PilotLayoutV2 {
       for (const v of shown) { const x = f.get(ids.get(v.pid)); if (x) v.founding = { n: x.n, takenBack: !!x.off }; }
     }
     return json({ ok: true, matches: shown });
+  }
+  /* DAY-1 REPORT: the pilot behind a public pid, as its one-way STATS code (never the player ID). */
+  async statsCode(request) {
+    const { pid } = await request.json();
+    const id = PID_RE.test(String(pid || "")) ? await this.findIdByPid(pid) : null;
+    if (!id) return json({ error: "Pilot not found" }, 404);
+    return json({ ok: true, code: await analyticsCode(id) });
   }
   async removeScore(request) {
     const o = this.o, { pid } = await request.json();
