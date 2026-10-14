@@ -964,16 +964,45 @@ function makeStars(){
 /* ANDROID FULL SCREEN DURING A RUN (owner). In the installed Android app (and the Play Store app later, which
    runs the same page) a run asks for full screen with the system buttons hidden (back, home, recent); the
    Gateway and every menu keep them. iPhone / iPad never take this path.
-   - SAME GAME: the game area keeps exactly the size it had before the bars went away (fluxFsH), so orbs,
-     the field and the launcher are the same as today; the freed strip below is plain background (touches
-     there still move the launcher), so the launcher sits further from the screen edge, not closer.
+   - ONE FIELD PER RUN (owner): the play field is measured when a run starts and keeps that size for the whole
+     run (fluxRunField). The back button, the bars coming back, a pause: nothing resizes the field during the
+     run; any size change applies at the next run. The one exception is turning the device sideways, which
+     re-fits the field once (the game's rotation support).
+   - In the installed Android app the run starts once full screen is in (a moment after the tap; at most
+     FS_WAIT_MS), so the run is measured with the buttons already hidden (see LOWER LAUNCHER, SAME GAME).
    - EDGE SWIPES: Chrome hides the bars "sticky": a swipe from the edge shows them for a moment, they go
      again by themselves, and the run is never paused or ended by it. If the back button is pressed while
-     they show, Chrome only leaves full screen; the run goes on and the next finger lift brings full screen
-     back (a lift counts as a tap for the browser, a touch-down does not).
-   - Pause and game over leave full screen (menus show the buttons); RESUME and a new run enter it again. */
-let fluxFsH=0, fluxFsW=0, fluxFsAsking=false;
-let HS=0;   // FIELD TO THE EDGE: the height the field canvas covers (the whole screen in full screen; H otherwise). Play still uses H.   // the game-area height kept while in full screen (0 = not kept), and the width it is for
+     they show, Chrome only leaves full screen; the run goes on with the same field and the next finger lift
+     brings full screen back (a lift counts as a tap for the browser, a touch-down does not).
+   - BUTTONS HIDDEN FOR THE WHOLE GAME (owner): runs, pause, game over and the game's own menu keep full screen;
+     the buttons show only on the Gateway (leaving this page ends full screen by itself). A swipe from the
+     bottom (or in from the side with gesture navigation) shows them for a moment, so a player can always tap
+     Home or Back; that never pauses or ends a run. The next finger lift anywhere in the game hides them again.
+   - BACK while they show: during a run (and the revive question) Chrome only leaves full screen and the run
+     goes on, as #75; on the pause screen, game over and the game's menu FLUX then goes back, as today
+     (fluxFsBack: only while the page is on screen, so Home / app switching never navigates). */
+let fluxRunField=null;   // {w,h,s,safe,fs}: the field kept for this run (null between runs)
+let fluxFsAsking=false, fluxFsStartNext=null, fluxFsFit=false;
+let HS=0;   // the height the field canvas covers: the field, or the screen when that is taller (full screen came back
+            // after a run started outside it). Play uses H, never HS.
+const FS_WAIT_MS=900;
+/* LOWER LAUNCHER, SAME GAME (owner, #78 option D). Only the installed Android app in full screen changes:
+   - the game itself is exactly today's: the field is the game area the phone had before the bars were hidden
+     (fluxPlainH), with today's launcher line, orb area and ball speed -- every number the game plays with
+     is today's, so the BLU G45 plays exactly as hard as today, never harder;
+   - only the picture moves: the whole field is drawn fluxFieldShift px lower (the score boxes stay at the
+     top), so the launcher's grip ends 6% of the screen height above the bottom edge (about the hidden button
+     bar, so a slide never starts in the swipe-up zone). A band of sky opens under the score boxes.
+   Every other device is exactly as today (shift 0). */
+const LAUNCHER_GAP_ANDROID_FS=.06;
+let fluxPlainH=null;     // {w,h}: the game area outside full screen (Android app), measured whenever not in full screen
+let fluxFieldShift=0;    // px the field is drawn lower than today (Android full screen only; 0 elsewhere)
+function fluxFsLow(){ return !!document.fullscreenElement && fluxFsWanted(); }   // installed Android app, in full screen
+function fluxFieldMeasure(){
+  const fs=fluxFsLow(), keep=fs && fluxPlainH && fluxPlainH.w===innerWidth;
+  return { w:innerWidth, h:keep?fluxPlainH.h:innerHeight, s:innerHeight, safe:readSafeBottom(), fs:fs };
+}
+function fluxLowLauncherY(S,safe){ return S-Math.max(safe+.01*S, LAUNCHER_GAP_ANDROID_FS*S)-(paddle.h/2+GRIP_STEM+GRIP_D); }
 function fluxFsWanted(){
   try{
     if(!/Android/i.test(navigator.userAgent) || fluxIsIOSDevice() || window.top!==window.self) return false;
@@ -983,40 +1012,64 @@ function fluxFsWanted(){
   }catch(e){ return false; }
 }
 function fluxIsIOSDevice(){ try{ return /iP(hone|od|ad)/.test(navigator.platform) || (navigator.userAgent.indexOf('Mac')!==-1 && 'ontouchend' in document); }catch(e){ return false; } }
+function fluxFsGo(){ const go=fluxFsStartNext; fluxFsStartNext=null; if(go) go(); }   // the waiting run starts (once)
 function fluxFsEnter(){
-  if(fluxFsAsking || !fluxFsWanted() || document.fullscreenElement) return;   // one request at a time
+  if(fluxFsAsking) return;   // one request at a time (a waiting run starts when Chrome answers)
+  if(!fluxFsWanted() || document.fullscreenElement){ fluxFsGo(); return; }
+  fluxPlainH={w:innerWidth,h:innerHeight};   // today's game area, just before the bars go
   fluxFsAsking=true;
-  if(!fluxFsH){ fluxFsH=innerHeight; fluxFsW=innerWidth; }
-  const root=document.documentElement; root.style.setProperty('--fluxFsH',fluxFsH+'px'); root.style.setProperty('--fluxFsPR',Math.hypot(fluxFsW/2,fluxFsH).toFixed(1)+'px'); root.classList.add('fluxFsRun');
-  fluxFsPaintApp();
-  try{ const p=root.requestFullscreen({navigationUI:'hide'}); if(p && p.then) p.then(function(){ fluxFsAsking=false; },function(){ fluxFsAsking=false; fluxFsDropIfOut(); }); else fluxFsAsking=false; }catch(e){ fluxFsAsking=false; fluxFsDropIfOut(); }
+  try{ const p=document.documentElement.requestFullscreen({navigationUI:'hide'}); if(p && p.then) p.then(function(){ fluxFsAsking=false; },function(){ fluxFsAsking=false; fluxFsGo(); }); else fluxFsAsking=false; }catch(e){ fluxFsAsking=false; fluxFsGo(); }
 }
-function fluxFsExit(){
-  if(!fluxFsH || !document.fullscreenElement) return;
-  try{ const p=document.exitFullscreen(); if(p && p.catch) p.catch(function(){}); }catch(e){}
+/* The buttons came back without a run going on (pause screen, game over, the game's menu): that was BACK, so go
+   back as today. During a run (or the revive question) nothing happens: the run goes on. Home / app switching
+   hides the page, and then nothing happens either. */
+function fluxFsBack(){
+  if(!fluxFsWanted()) return;
+  const onPause=!document.getElementById('pauseOverlay').classList.contains('hidden');
+  if(runActive && !onPause) return;
+  setTimeout(function(){ if(document.hidden || document.fullscreenElement) return; if(history.length>1) history.back(); }, 250);
 }
-function fluxFsDrop(){ if(!fluxFsH) return; fluxFsH=0; document.documentElement.classList.remove('fluxFsRun'); fluxFsPaintApp(); }
-/* The level background ('circle at 50% P%', sized to the farthest corner of the game area) written with the
-   same centre and size in px: identical inside the kept game area, and it carries on into the strip. */
+document.onfullscreenchange=function(){
+  fluxFsAsking=false;
+  if(document.fullscreenElement) requestAnimationFrame(function(){ requestAnimationFrame(fluxFsGo); });   // the screen has its full size: the waiting run starts
+  else { resize(); fluxFsBack(); }
+};
+/* The level background ('circle at 50% P%', sized to the farthest corner of the field) written with the same
+   centre and size in px: identical inside the field, and it carries on below it when the screen is taller. */
 function fluxFsGeom(bg){
-  return String(bg).replace(/circle at 50% ([\d.]+)%/, function(m, p){ const y=fluxFsH*p/100, r=Math.hypot(fluxFsW/2, Math.max(y, fluxFsH-y)); return 'circle '+r.toFixed(1)+'px at 50% '+y.toFixed(1)+'px'; });
+  return String(bg).replace(/circle at 50% ([\d.]+)%/, function(m, p){ const y=H*p/100, r=Math.hypot(W/2, Math.max(y, H-y)); return 'circle '+r.toFixed(1)+'px at 50% '+y.toFixed(1)+'px'; });
 }
 function fluxFsPaintApp(){
   try{
     const app=document.getElementById('app'); if(!app || skinBackdropOn()) return;   // a skin backdrop already covers the whole screen
     const theme=CELESTIAL_BG_ENABLED ? CELESTIAL_THEMES[celestialIndex] : CELESTIAL_THEMES[0];
-    if(fluxFsH) app.style.background=fluxFsGeom(theme);
+    if(fluxFsFit) app.style.background=fluxFsGeom(theme);
     else app.style.background=CELESTIAL_BG_ENABLED ? theme : '';   // what applySkinBackground / applyCelestialBackground write
   }catch(e){}
 }
-function fluxFsDropIfOut(){ if(!document.fullscreenElement && fluxFsH){ fluxFsDrop(); resize(); } }
-function fluxFsCheckWidth(){ if(fluxFsH && innerWidth!==fluxFsW) fluxFsDrop(); }   // turned sideways in full screen: the normal layout
-document.onfullscreenchange=function(){ fluxFsAsking=false; if(!document.fullscreenElement) fluxFsDropIfOut(); };
-{ const newGame0=newGame; newGame=function(){ const r=newGame0.apply(this,arguments); fluxFsEnter(); return r; }; }
-{ const cel0=applyCelestialBackground, skin0=applySkinBackground;   // a new level / skin while in full screen: the same shape, edge to edge
-  applyCelestialBackground=function(){ const r=cel0.apply(this,arguments); if(fluxFsH) fluxFsPaintApp(); return r; };
-  applySkinBackground=function(){ const r=skin0.apply(this,arguments); if(fluxFsH) fluxFsPaintApp(); return r; }; }   // a new run hides the system buttons (newGame itself is gameplay: untouched)
-function resize(){const pW=W,pH=H,pD=dpr;dpr=window.__fluxLite?1:Math.min(devicePixelRatio||1,2);fluxFsCheckWidth();W=innerWidth;H=fluxFsH||innerHeight;HS=fluxFsH?Math.max(H,innerHeight):H;const same=(W===pW&&H===pH&&dpr===pD);if(!same||c.width!==Math.floor(W*dpr)||c.height!==Math.floor(HS*dpr)){c.width=W*dpr;c.height=HS*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);}fluxSafeBottom=readSafeBottom();paddle.y=Math.min(H-Math.max(42,Math.min(90,H*.095)),H-fluxSafeBottom-GRIP_GAP-GRIP_D-GRIP_STEM-paddle.h/2);if(same){const s0=stars,n0=nebulae;makeStars();stars=s0;nebulae=n0;}else makeStars();refreshHudRects();if(skinBackdropOn())applySkinBackground();/* backdrop re-fits on rotation / window changes */}
+/* The screen is not the field's size (Android full screen: today's field on a taller screen; or a run's field kept
+   while the bars came and went): the background layers keep the field's shape and fill the whole screen
+   (fluxFsRun, see the CSS). */
+function fluxFieldFit(){
+  const root=document.documentElement, fit=innerHeight!==H;
+  if(fit){ root.style.setProperty('--fluxFsH',H+'px'); root.style.setProperty('--fluxFsPR',Math.hypot(W/2,H).toFixed(1)+'px'); }
+  if(fit!==fluxFsFit || fit){ fluxFsFit=fit; root.classList.toggle('fluxFsRun',fit); fluxFsPaintApp(); }
+}
+{ const newGame0=newGame; newGame=function(){   // a run starts: its field is measured once (after full screen is in, in the Android app)
+    const self=this, args=arguments;
+    const start=function(){   // newGame itself is gameplay: untouched
+      const prev=fluxRunField, m=fluxFieldMeasure(); fluxRunField=m;
+      // re-lay out only if the field changed: an unchanged screen draws no new random numbers (same run as today)
+      if(prev ? (prev.w!==m.w||prev.h!==m.h||prev.s!==m.s||prev.safe!==m.safe||prev.fs!==m.fs) : (m.w!==W||m.h!==H||m.safe!==fluxSafeBottom||m.fs!==(fluxFieldShift>0))) resize();
+      return newGame0.apply(self,args); };
+    if(fluxFsWanted() && !document.fullscreenElement){ fluxFsStartNext=start; fluxFsEnter(); setTimeout(fluxFsGo,FS_WAIT_MS); return; }
+    return start(); }; }
+{ const endGame0=endGame; endGame=function(){ const r=endGame0.apply(this,arguments); fluxRunEnd(); return r; }; }
+function fluxRunEnd(){ if(!fluxRunField) return; fluxRunField=null; resize(); }   // the run is over: the next run measures the screen again
+{ const cel0=applyCelestialBackground, skin0=applySkinBackground;   // a new level / skin while the field is kept: the same shape, edge to edge
+  applyCelestialBackground=function(){ const r=cel0.apply(this,arguments); if(fluxFsFit) fluxFsPaintApp(); return r; };
+  applySkinBackground=function(){ const r=skin0.apply(this,arguments); if(fluxFsFit) fluxFsPaintApp(); return r; }; }
+function resize(){const pW=W,pH=H,pD=dpr;dpr=window.__fluxLite?1:Math.min(devicePixelRatio||1,2);if(!document.fullscreenElement&&!fluxFsAsking)fluxPlainH={w:innerWidth,h:innerHeight};/* the game area outside full screen (not mid-request: the screen may already be growing) */if(fluxRunField&&innerWidth!==fluxRunField.w)fluxRunField=fluxFieldMeasure();/* turned sideways mid-run: the one re-fit */const f=fluxRunField||fluxFieldMeasure();W=f.w;H=f.h;HS=Math.max(H,innerHeight);const same=(W===pW&&H===pH&&dpr===pD);if(!same||c.width!==Math.floor(W*dpr)||c.height!==Math.floor(HS*dpr)){c.width=W*dpr;c.height=HS*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);}if(c.style)c.style.height=(fluxRunField||HS!==innerHeight)?HS+'px':'';fluxSafeBottom=f.safe;paddle.y=Math.min(H-Math.max(42,Math.min(90,H*.095)),H-fluxSafeBottom-GRIP_GAP-GRIP_D-GRIP_STEM-paddle.h/2);fluxFieldShift=f.fs?Math.max(0,fluxLowLauncherY(f.s,fluxSafeBottom)-paddle.y):0;if(same){const s0=stars,n0=nebulae;makeStars();stars=s0;nebulae=n0;}else makeStars();refreshHudRects();fluxFieldFit();if(skinBackdropOn())applySkinBackground();/* backdrop re-fits on rotation / window changes */}
 addEventListener('resize',resize);resize();
 function rand(a,b){return a+Math.random()*(b-a)}
 function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
@@ -1748,7 +1801,6 @@ function endGame(){
  const runNo=(+localStorage.fluxRunsPlayed||0)+1;   // D-60: counted before the wrapper below increments it
  capScore();   // RUN POINTS CAP
  playing=false; runActive=false;
- fluxFsExit();   // ANDROID FULL SCREEN: game over is a menu, the buttons come back
  document.getElementById('pauseBtn').classList.add('hidden');
  document.getElementById('pauseOverlay')?.classList.add('hidden');
  playGameOver();haptic(90);
@@ -2158,7 +2210,7 @@ function draw(){
  const nowT=performance.now()*.001;
  drawSky(nowT);
  if(reduceMotion) shake=0;   // REDUCE MOTION: no screen shake
- const sx=shake?rand(-shake,shake):0,sy=shake?rand(-shake,shake):0;ctx.save();ctx.translate(sx,sy);
+ const sx=shake?rand(-shake,shake):0,sy=shake?rand(-shake,shake):0;ctx.save();ctx.translate(sx,sy+fluxFieldShift);   // LOWER LAUNCHER, SAME GAME: the field drawn lower (0 elsewhere)
  drawCeiling(nowT);
  if(fieldIsStill()) stampField(); else drawField();   // BATTERY (menus): a still field is stamped from its copy
  ctx.restore();
@@ -2405,7 +2457,6 @@ function setPaused(next){
  if(paused){
    playing=false;
    document.getElementById('pauseOverlay').classList.remove('hidden');
-   fluxFsExit();   // ANDROID FULL SCREEN: the pause menu shows the buttons
    // While paused, RESUME is the single clear action. Hide the duplicate top-left control.
    document.getElementById('pauseBtn').classList.add('hidden');
  }else{
@@ -2536,7 +2587,7 @@ function pointer(e){
 }
 window.ontouchstart=function(e){ pointer(e); };   // touch-down puts the launcher under the finger
 window.onpointerdown=function(e){ if(e.pointerType && e.pointerType!=='mouse') pointer(e); };   // same, from the pointer side; a mouse click changes nothing
-window.ontouchend=window.ontouchcancel=function(e){ tryResumeAudio(); if(runActive && !paused && e.type==='touchend' && !document.fullscreenElement) fluxFsEnter(); if(!drag) return; const ts=e.touches||[]; for(let i=0;i<ts.length;i++) if(ts[i].identifier===drag.id) return; drag=null; };
+window.ontouchend=window.ontouchcancel=function(e){ tryResumeAudio(); if(e.type==='touchend' && !document.fullscreenElement && !fluxFsStartNext) fluxFsEnter();   /* ANDROID FULL SCREEN: the next lift anywhere in the game hides the buttons again */ if(!drag) return; const ts=e.touches||[]; for(let i=0;i<ts.length;i++) if(ts[i].identifier===drag.id) return; drag=null; };
 window.onpointerup=window.onpointercancel=function(e){ tryResumeAudio(); if(drag && drag.pid!=null && e.pointerId===drag.pid) drag=null; };
 // ---------------------------------------------------------------------------
 // D-11 — PAGE LIFECYCLE
@@ -2608,7 +2659,7 @@ document.getElementById('pauseMenuBtn').onclick=()=>{
   if(score>best){best=score;}
   if(profileComplete) submitScore();   // D-39: unnamed pilots upload once they name themselves
   playing=false;paused=false;runActive=false;
-  fluxFsExit();
+  fluxRunEnd();   // ONE FIELD PER RUN: the run is over; full screen ends and the menu takes the screen as it is
   document.getElementById('pauseOverlay').classList.add('hidden');
   document.getElementById('pauseBtn').classList.add('hidden');
   refreshMenu();
@@ -4822,7 +4873,8 @@ function drawJuiceUnderOrbs(){
   ctx.save();
   ctx.beginPath();
   const G=JUICE_EDGE_GAP, top=Math.max(0,f.top-G), bot=Math.min(H,f.bottom+G), sl=Math.max(0,f.left-G), sr=Math.min(W,f.right+G);
-  ctx.rect(0,0,W,top); ctx.rect(0,bot,W,H-bot); if(HS>H) ctx.rect(0,H,W,HS-H);   // FIELD TO THE EDGE: and the strip below the play area if(sl>=6) ctx.rect(0,top,sl,bot-top); if(W-sr>=6) ctx.rect(sr,top,W-sr,bot-top);
+  ctx.rect(0,0,W,top); ctx.rect(0,bot,W,H-bot); if(HS>H) ctx.rect(0,H,W,HS-H);   // FIELD TO THE EDGE: and the strip below the play area
+  if(fluxFieldShift) ctx.rect(0,-fluxFieldShift,W,fluxFieldShift);   // LOWER LAUNCHER: and the band above the field drawn lower if(sl>=6) ctx.rect(0,top,sl,bot-top); if(W-sr>=6) ctx.rect(sr,top,W-sr,bot-top);
   ctx.clip();
   const a=(lite?JUICE_EDGE_ALPHA_LITE:JUICE_EDGE_ALPHA)*juice, rgb=juiceEdgeColour();
   // Each band fades to nothing at its inner edge, so there is no visible seam.
@@ -4830,6 +4882,7 @@ function drawJuiceUnderOrbs(){
   ctx.globalAlpha=a;
   const band=function(x0,y0,x1,y1,rx,ry,rw,rh){ ctx.fillStyle=juiceBandGradient(rgb,x0,y0,x1,y1); ctx.fillRect(rx,ry,rw,rh); };
   band(0,0,0,top, 0,0,W,top);                 // top (HUD band)
+  if(fluxFieldShift){ ctx.fillStyle='rgb('+rgb+')'; ctx.fillRect(0,-fluxFieldShift,W,fluxFieldShift); }   // LOWER LAUNCHER: the top light carries on to the screen top
   band(0,H,0,bot, 0,bot,W,H-bot);             // bottom (launcher band)
   if(HS>H){ ctx.fillStyle='rgb('+rgb+')'; ctx.fillRect(0,H,W,HS-H); }   // FIELD TO THE EDGE: the light carries on, full strength, to the screen bottom
   if(sl>=6) band(0,0,sl,0, 0,top,sl,bot-top);  // left strip (skipped when too thin to fade)
