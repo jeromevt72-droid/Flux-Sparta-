@@ -13,6 +13,9 @@
 //      screen) and with the pressure glow; inside the kept game area every layer is drawn exactly as before
 //      (the level background and the pressure glow keep their shape in px); a new level or skin in full screen
 //      keeps it; leaving full screen gives back today's background; a skin backdrop is left alone;
+//   C1 FIELD TO THE EDGE (BLU G45, full meter / FLUX MODE / combo x12): the field canvas covers the whole screen
+//      too, so the combo / FLUX edge light, sky glow and sparks reach the bottom edge; play still uses H
+//      (gameplay never reads HS); off full screen the canvas is exactly today's;
 //   A5 wiring: no new listeners (17), the frame loop untouched (2), the resize keeps the same stars when the
 //      size did not change (and still draws the same random numbers as main, so seeded runs are identical).
 // Ends with negative controls.
@@ -70,7 +73,18 @@ function suite(src, quiet = false) {
 
     r = rig(src); r.enter(); r.settle(); r.entered();
     ck('A2 the game area keeps the height it had before the bars went away (728 of 800)', r.H === 728 && r.props['--fluxFsH'] === '728px' && r.cls.has('fluxFsRun'), r.H + ' ' + r.props['--fluxFsH']);
-    ck('A2 the field keeps the game-area size (CSS): the canvas and the FLUX MODE glow', /html\.fluxFsRun #game,html\.fluxFsRun #fluxGlow\{bottom:auto;height:var\(--fluxFsH\)\}/.test(src));
+    ck('A2 the FLUX MODE glow keeps the game-area size (CSS)', /html\.fluxFsRun #fluxGlow\{bottom:auto;height:var\(--fluxFsH\)\}/.test(src));
+    // C1 FIELD TO THE EDGE
+    const fn = (name) => { const i = src.indexOf(name); return i < 0 ? '' : src.slice(i, src.indexOf('\n}', i)); };
+    ck('C1 the field canvas is no longer cut at the play area: it covers the whole screen in full screen (HS), and play still uses H',
+      !/html\.fluxFsRun #game[,{]/.test(src) && /H=fluxFsH\|\|innerHeight;HS=fluxFsH\?Math\.max\(H,innerHeight\):H;/.test(src) && /c\.height=HS\*dpr;/.test(src) && !/c\.height=H\*dpr/.test(src));
+    ck('C1 every frame clears the whole canvas (nothing left over in the strip)', /function draw\(\)\{\n ctx\.clearRect\(0,0,W,HS\|\|H\);/.test(src));
+    const jz = fn('function drawJuiceUnderOrbs(){');
+    ck('C1 the combo / FLUX edge light carries on, at its edge strength, to the screen bottom (the band at full meter, FLUX MODE, combo x12)',
+      /ctx\.rect\(0,bot,W,H-bot\); if\(HS>H\) ctx\.rect\(0,H,W,HS-H\);/.test(jz) && /band\(0,H,0,bot, 0,bot,W,H-bot\);[^\n]*\n  if\(HS>H\)\{ ctx\.fillStyle='rgb\('\+rgb\+'\)'; ctx\.fillRect\(0,H,W,HS-H\); \}/.test(jz));
+    const gp = ['function update(', 'function newGame(', 'function registerMiss(', 'function addTarget(', 'function setPaddle(', 'function orbFieldRect('].filter((n) => /\bHS\b/.test(fn(n)));
+    ck('C1 gameplay never reads HS (orbs, ball, misses, launcher, orb field all keep H)', gp.length === 0, gp.join(', '));
+    ck('C1 off full screen (iPhone, iPad, Chrome tab, menus) HS is H: the canvas is exactly today\'s', /HS=fluxFsH\?Math\.max\(H,innerHeight\):H;/.test(src));
     ck('A2 the game reads that height (resize: H=fluxFsH||innerHeight)', /fluxFsCheckWidth\(\);W=innerWidth;H=fluxFsH\|\|innerHeight;/.test(src));
     // B1: one background to the edges
     ck('B1 the background layer (#app, which FLUX MODE brightens) is no longer cut at the game area: it fills the screen', !/html\.fluxFsRun #app[{,]/.test(src));
@@ -115,7 +129,7 @@ function suite(src, quiet = false) {
 
     ck('A5 no new listeners in the game (17)', (src.match(/addEventListener\(/g) || []).length === 17, (src.match(/addEventListener\(/g) || []).length);
     ck('A5 the frame loop is untouched (2)', (src.match(/requestAnimationFrame\(loop\)/g) || []).length === 2);
-    ck('A5 full-screen changes that keep the size keep the same stars and canvas (no reshuffle)', /if\(!same\)\{c\.width=W\*dpr;c\.height=H\*dpr;/.test(src) && /if\(same\)\{const s0=stars,n0=nebulae;makeStars\(\);stars=s0;nebulae=n0;\}else makeStars\(\);/.test(src));
+    ck('A5 full-screen changes that keep the play size keep the same stars (no reshuffle); the canvas is only resized when its pixel size changes', /const same=\(W===pW&&H===pH&&dpr===pD\);if\(!same\|\|c\.width!==Math\.floor\(W\*dpr\)\|\|c\.height!==Math\.floor\(HS\*dpr\)\)\{c\.width=W\*dpr;c\.height=HS\*dpr;/.test(src) && /if\(same\)\{const s0=stars,n0=nebulae;makeStars\(\);stars=s0;nebulae=n0;\}else makeStars\(\);/.test(src));
   } catch (e) { ck('suite ran', false, String(e.stack || e).slice(0, 300)); }
   return { F, failed };
 }
@@ -139,7 +153,12 @@ control('never asks again after back', 'A3 the next finger lift', "if(runActive 
 control('exits a full screen it did not ask for', 'A4 FLUX only leaves', 'if(!fluxFsH || !document.fullscreenElement) return;', 'if(!document.fullscreenElement && false) return;');
 control('pause keeps full screen', 'A4 pause leaves it', "   fluxFsExit();   // ANDROID FULL SCREEN: the pause menu shows the buttons\n", '');
 control('stars reshuffle on every full-screen change', 'A5 full-screen changes', 'if(same){const s0=stars,n0=nebulae;makeStars();stars=s0;nebulae=n0;}else makeStars();', 'makeStars();');
-control('the band again: #app cut at the game area', 'B1 the background layer', 'html.fluxFsRun #game,html.fluxFsRun #fluxGlow{bottom:auto;height:var(--fluxFsH)}', 'html.fluxFsRun #app,html.fluxFsRun #game,html.fluxFsRun #fluxGlow{bottom:auto;height:var(--fluxFsH)}');
+control('the band again: #app cut at the game area', 'B1 the background layer', 'html.fluxFsRun #fluxGlow{bottom:auto;height:var(--fluxFsH)}', 'html.fluxFsRun #app,html.fluxFsRun #fluxGlow{bottom:auto;height:var(--fluxFsH)}');
+control('the field canvas cut at the play area again', 'C1 the field canvas', 'html.fluxFsRun #fluxGlow{bottom:auto;height:var(--fluxFsH)}', 'html.fluxFsRun #game,html.fluxFsRun #fluxGlow{bottom:auto;height:var(--fluxFsH)}');
+control('the canvas stays play-area tall', 'C1 the field canvas', 'c.height=HS*dpr;', 'c.height=H*dpr;');
+control('the strip is never cleared', 'C1 every frame clears', 'ctx.clearRect(0,0,W,HS||H);', 'ctx.clearRect(0,0,W,H);');
+control('edge light stops at the play area (the faint band)', 'C1 the combo / FLUX edge light', "  if(HS>H){ ctx.fillStyle='rgb('+rgb+')'; ctx.fillRect(0,H,W,HS-H); }", '');
+control('gameplay reads the screen height', 'C1 gameplay never reads HS', 'function orbFieldRect(){ const top=maxHudBottom(); return { left:16, right:W-16, top:top, bottom:Math.max(top+60,H*.79) }; }', 'function orbFieldRect(){ const top=maxHudBottom(); return { left:16, right:W-16, top:top, bottom:Math.max(top+60,HS*.79) }; }');
 control('level background stretched to the full screen', 'B1 the level background keeps', "return 'circle '+r.toFixed(1)+'px at 50% '+y.toFixed(1)+'px';", "return m;");
 control('pressure glow centred on the screen edge', 'B1 the pressure glow', "html.fluxFsRun #pressureGlow.critical{background:radial-gradient(circle var(--fluxFsPR) at 50% var(--fluxFsH),#ff4f6870 0%,transparent 66%)}", '');
 control('a level-up in full screen loses the shape', 'B1 a new level', 'applyCelestialBackground=function(){ const r=cel0.apply(this,arguments); if(fluxFsH) fluxFsPaintApp(); return r; };', '');
