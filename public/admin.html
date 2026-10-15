@@ -711,9 +711,9 @@
     b.disabled = false;
   }
   function wipe() {
-    ['insights', 'stInsights', 'summary', 'usage', 'exceptions', 'results', 'stats', 'season0', 'purchases', 'bans', 'wgState', 'wgReport', 'rpReport', 'rpResult', 'fpState', 'fpReport', 'fpExcl', 'fgReport', 'fgResult', 'day1', 'd1Marked', 'd1CodeOut'].forEach(function (id) { $(id).textContent = ''; });
+    ['insights', 'stInsights', 'summary', 'usage', 'exceptions', 'results', 'stats', 'season0', 'purchases', 'bans', 'wgState', 'wgReport', 'rpReport', 'rpResult', 'fpState', 'fpReport', 'fpExcl', 'day1', 'd1Marked', 'd1CodeOut', 'fgReport', 'fgResult'].forEach(function (id) { $(id).textContent = ''; });
     $('usageAlert').classList.add('hidden');
-    ['q', 'pq', 'banName', 'rpLines', 'rpConfirm', 'fpConfirm', 'fpTag', 'fgLine', 'fgConfirm', 'd1Label', 'd1Confirm'].forEach(function (id) { $(id).value = ''; });
+    ['q', 'pq', 'banName', 'rpLines', 'rpConfirm', 'fpConfirm', 'fpTag', 'd1Label', 'd1Confirm', 'fgLine', 'fgConfirm'].forEach(function (id) { $(id).value = ''; });
     rpDry = null; $('rpGo').hidden = true; fgReset();
     say('');
   }

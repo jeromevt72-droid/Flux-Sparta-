@@ -177,7 +177,7 @@ async function suite({ workerMod, workerSrc, gameHtml, adminHtml, privacyHtml, q
     adminHtml.includes('<h2>DAY-1 BY PILOT</h2>') && adminHtml.includes('id="d1Code"') && adminHtml.includes('placeholder="Type MY PHONE"') &&
     adminHtml.includes("call('day1-mark-code', { label: $('d1Label').value, confirm: $('d1Confirm').value })") && adminHtml.includes("'COUNT AGAIN'") && d1js.length > 1000 && !/innerHTML/.test(d1js));
   ck('A1 no MARK AS MY DEVICE on FIND A PLAYER, no "(yours)" line, clears on logout',
-    !adminHtml.includes('MARK AS MY DEVICE') && !adminHtml.includes('(yours)') && /'day1', 'd1Marked', 'd1CodeOut'\]/.test(adminHtml));
+    !adminHtml.includes('MARK AS MY DEVICE') && !adminHtml.includes('(yours)') && /'day1', 'd1Marked', 'd1CodeOut', /.test(adminHtml) && /'d1Label', 'd1Confirm', /.test(adminHtml));
   ck('A1 admin listeners unchanged (2)', (adminHtml.match(/addEventListener\(/g) || []).length === 2);
   const flat = privacyHtml.replace(/\s+/g, ' ');
   ck('P1 privacy: time zone, per-code lines that cannot be linked to a pilot, the operator\'s own phones only on the phone itself',
