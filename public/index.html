@@ -138,12 +138,14 @@ window.addEventListener('load', function () {
   // LIGHT FIRST VISIT: on a slow connection the planet pictures (the small ones) start only now.
   if (window.FLUX_LITE) { try { document.documentElement.classList.add('gw-pics'); } catch (e) {} }
   if (!('serviceWorker' in navigator)) return;
-  // LIGHT FIRST VISIT: on a slow connection, a first visit in a browser tab leaves the copies to the
-  // game page, which registers this same worker once it is open. The Home Screen app registers here
-  // as before (so an installed app is ready offline from its first launch).
+  // LIGHT FIRST VISIT: a first visit in a browser tab leaves the copies to the game page, which registers
+  // this same worker itself. The Home Screen app and returning players register here as before (so an
+  // installed app is ready offline from its first launch).
   var standalone = false;
   try { standalone = window.navigator.standalone === true || !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches); } catch (e) {}
-  if (window.FLUX_LITE && !window.FLUX_PLAYED && !standalone) return;
+  // FIRST RUN SMOOTH: the same on any connection -- a first visit in a browser tab leaves the offline copy to
+  // the game, which stores it after the first run, never during it.
+  if (!window.FLUX_PLAYED && !standalone) return;
   navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function () {});
 });
 </script>

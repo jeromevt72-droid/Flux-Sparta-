@@ -2488,6 +2488,7 @@ function loop(ts){
  if(fluxLoopIdle){ fluxLoopIdle=false; last=ts; }   // BATTERY: back -- this frame is one normal step (dt .016), never a jump
  const dt=Math.min(.032,(ts-last)/1000||.016);
  if(playing && !paused) fluxPerfSample(ts-last);   // D-46
+ if(fluxMenuCheckOn && !paused) fluxMenuCheckSample(ts-last);   // FIRST RUN SMOOTH: the same check, on the menu (or the first second of a run)
  last=ts;
  if(playing && !paused) update(dt);
  else if(!paused && levelHold>0){
@@ -2505,6 +2506,7 @@ const FIELD_PAD=24;
 let fieldCopy=null, fieldCopyKey=null;
 function fieldIsStill(){
  if(playing || levelHold>0) return false;   // a run (or the level-up banner) is on screen: drawn live
+ if(fluxMenuCheckOn) return false;   // FIRST RUN SMOOTH: drawn live for the menu check (a run's drawing)
  for(const t of targets) if(t.bonus || (t.growing && t.matured)) return false;   // these pulse with the clock
  return true;
 }
@@ -3799,6 +3801,17 @@ refreshMenu();
    =========================================================================== */
 if('serviceWorker' in navigator){
   addEventListener('load',function(){
+    /* FIRST RUN SMOOTH: on a first visit (no worker yet) the offline copy -- the game page, icons and
+       pictures -- is fetched and stored only once the first run has ended (or after 20 s on the menu
+       without playing), never during a run. Later visits check for an update at load, as before. */
+    var swRunSeen=false, swIdleSince=0;
+    function fluxSwWhenIdle(){
+      if(playing || paused || runActive){ swRunSeen=true; swIdleSince=0; setTimeout(fluxSwWhenIdle,2000); return; }
+      if(!swIdleSince) swIdleSince=Date.now();
+      if(swRunSeen || Date.now()-swIdleSince>=20000) fluxSwRegister(); else setTimeout(fluxSwWhenIdle,2000);
+    }
+    if(navigator.serviceWorker.controller) fluxSwRegister(); else fluxSwWhenIdle();
+    function fluxSwRegister(){
     navigator.serviceWorker.register('/sw.js', {scope:'/'}).then(function(reg){
       // Version A -> Version B: a new worker installs alongside the old one and
       // waits. We activate it as soon as it is ready, but only when no run is
@@ -3821,6 +3834,7 @@ if('serviceWorker' in navigator){
         });
       });
     }).catch(function(){ /* no caching this session; game still works */ });
+    }
 
     var reloading=false;
     // LIGHT FIRST VISIT: on a first visit there is no old version to replace -- the worker taking control
@@ -3999,6 +4013,7 @@ document.getElementById('startBtn').onclick = () => {
   }
   document.getElementById('start').classList.add('hidden');
   document.getElementById('pauseBtn').classList.remove('hidden');
+  try{ fluxMenuCheckDone(true); }catch(e){}   // FIRST RUN SMOOTH: decided before the first frame of the run
   newGame();
   paused = false;
   document.getElementById('pauseBtn').textContent = 'Ⅱ';
@@ -4930,6 +4945,42 @@ function fluxPerfSample(ms){
   fluxPerfN++; if (ms > FLUX_PERF_SLOW_MS) fluxPerfSlow++;
   if (fluxPerfN === FLUX_PERF_FRAMES && fluxPerfSlow >= FLUX_PERF_FRAMES * FLUX_PERF_SLOW_SHARE) fluxEnableLite();
 }
+/* FIRST RUN SMOOTH. D-46 decides Lite from the first 60 frames of a run (after 20), so on a slow phone's
+   first visit -- Lite not remembered yet -- those ~80 frames were drawn at full quality: at 60-160 ms a
+   frame the game crawled in slow motion for ~5 s (each frame moves the game at most 32 ms), then Lite
+   switched on and stayed on. Now the same timing is taken while the menu is on screen, the field drawn
+   live as in a run, before the first run starts. Only a clearly slow phone (almost every frame over
+   25 ms and the middle frame over 40 ms -- stricter than D-46) switches to Lite here, so its first run
+   looks and plays the way all its later runs will. Anything less clear is left to D-46, exactly as before.
+   ENTER tapped before 12 menu frames were timed: the check goes on for the run's first frames and decides
+   at 12 (about a second on such a phone) instead of D-46's 80. */
+let fluxMenuCheckOn = false, fluxMenuCheckSkip = 0, fluxMenuCheckMs = [], fluxMenuCheckTarget = 24;
+const FLUX_MENU_CHECK_FRAMES = 24, FLUX_MENU_CHECK_MIN = 12;
+function fluxMenuCheckStart(){
+  if (window.__fluxLite || fluxMenuCheckOn || fluxMenuCheckMs.length || playing || runActive || document.hidden) return;
+  fluxMenuCheckOn = true; fluxMenuCheckSkip = 6; fluxMenuCheckMs = []; fluxMenuCheckTarget = FLUX_MENU_CHECK_FRAMES;
+}
+function fluxMenuCheckSample(ms){
+  if (!(ms > 0 && ms < 1000)) return;           // ignore paused / backgrounded gaps
+  if (fluxMenuCheckSkip > 0){ fluxMenuCheckSkip--; return; }
+  fluxMenuCheckMs.push(ms);
+  if (fluxMenuCheckMs.length >= fluxMenuCheckTarget) fluxMenuCheckDone(false);
+}
+function fluxMenuCheckDone(runStarting){   // runStarting: ENTER THE FLUX was tapped
+  if (runStarting && !fluxMenuCheckOn && !fluxMenuCheckMs.length && !window.__fluxLite && !document.hidden){   // tapped before the menu check began
+    fluxMenuCheckOn = true; fluxMenuCheckSkip = 3; fluxMenuCheckTarget = FLUX_MENU_CHECK_MIN; return;
+  }
+  if (!fluxMenuCheckOn) return;
+  if (runStarting && fluxMenuCheckMs.length < FLUX_MENU_CHECK_MIN){   // too few yet: go on for the run's first frames
+    fluxMenuCheckTarget = FLUX_MENU_CHECK_MIN; fluxMenuCheckSkip = Math.max(fluxMenuCheckSkip, 2); return;
+  }
+  fluxMenuCheckOn = false;
+  const x = fluxMenuCheckMs.slice().sort(function(a, b){ return a - b; }), n = x.length;
+  if (window.__fluxLite || n < FLUX_MENU_CHECK_MIN) return;
+  const slow = x.filter(function(v){ return v > FLUX_PERF_SLOW_MS; }).length, mid = x[n >> 1];
+  if (slow >= Math.ceil(n * 0.83) && mid > 40) fluxEnableLite();
+}
+(function fluxMenuCheckWhenLoaded(){ if (document.readyState !== 'complete'){ setTimeout(fluxMenuCheckWhenLoaded, 300); return; } setTimeout(fluxMenuCheckStart, 400); })();   // after the page has loaded (no listener)
 const fluxBurst0 = burst;
 function fluxApplyLiteParticles(){ burst = function(x, y, col, n){ return fluxBurst0(x, y, col, Math.max(3, Math.ceil((n == null ? 14 : n) / 2))); }; }
 function fluxEnableLite(){
