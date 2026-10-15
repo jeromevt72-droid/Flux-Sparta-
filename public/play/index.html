@@ -3823,7 +3823,12 @@ if('serviceWorker' in navigator){
     }).catch(function(){ /* no caching this session; game still works */ });
 
     var reloading=false;
+    // LIGHT FIRST VISIT: on a first visit there is no old version to replace -- the worker taking control
+    // changes nothing on screen. Reloading then cost the game page again (about 100 KB) and could wipe a
+    // run the player had just started. Only a real update (an older worker was in control) reloads.
+    var hadController=!!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange',function(){
+      if(!hadController){ hadController=true; return; }
       if(reloading) return; reloading=true;
       location.reload();     // Version B assets become authoritative
     });
