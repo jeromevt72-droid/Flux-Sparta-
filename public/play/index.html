@@ -2926,7 +2926,7 @@ let _flushing=null, _retryTimer=null, _flushAgain=false;
 function fluxMergeStats(item, stats){
   if(!item || !stats || !stats.events || !stats.events.length) return;
   const prev=(item.stats && item.stats.events) || [];
-  item.stats={ src:stats.src || (item.stats && item.stats.src), events:prev.concat(stats.events).slice(-40) };
+  item.stats={ src:stats.src || (item.stats && item.stats.src), events:prev.concat(stats.events).slice(-40), tz:stats.tz!==undefined ? stats.tz : (item.stats && item.stats.tz) };
 }
 function enqueueSubmission(item){
   if(!item) return;
@@ -4228,6 +4228,22 @@ async function openRestoreCode(){
   share.onclick=function(){ try{ navigator.share({title:'FLUX restore code',text:'My FLUX restore code (keep private): '+code}).catch(function(){}); }catch(e){} };
 }
 
+/* DAY-1 REPORT (owner only): FLUX COMMAND gives the owner a one-time code (MARK-XXXX-XXXX). Typed into
+   this box on one of the owner's own phones, it leaves this pilot out of every FLUX statistic from now
+   on. Players never see or need this: without such a code the box works exactly as before. */
+function fluxIsMarkCode(raw){ return /^MARK-?[2-9A-HJ-NP-Z]{4}-?[2-9A-HJ-NP-Z]{4}$/.test(String(raw||'').toUpperCase().replace(/[\s\u200B-\u200D\u2060\uFEFF]/g,'').replace(/[\u2010-\u2015\u2212]/g,'-')); }
+async function fluxMarkThisPhone(raw){
+  if(isOffline()) return 'This needs an internet connection.';
+  try{
+    const r=await fetch('/api/mark-device',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pid:playerId,code:String(raw||'')})});
+    const d=await r.json().catch(function(){ return {}; });
+    if(r.ok && d.ok) return d.already ? 'This phone was already left out of the statistics.' : 'Done: this phone is now left out of the statistics.';
+    if(r.status===404) return 'That code is wrong or has expired. Make a new one in FLUX COMMAND.';
+    if(r.status===429) return 'Too many tries. Wait a minute.';
+    return 'That did not work. Try again.';
+  }catch(e){ return 'Could not reach FLUX. Check your connection and try again.'; }
+}
+
 /* ---------- ENTER A RESTORE CODE ---------- */
 function openRestoreEntry(){
   const d=restoreOverlay(
@@ -4243,8 +4259,10 @@ function openRestoreEntry(){
   go.onclick=async function(){
     if(go.disabled) return;
     const say=function(t){ msg.textContent=t; };
+    const raw=d.querySelector('#restoreInput').value;
+    if(fluxIsMarkCode(raw)){ go.disabled=true; say('Checking...'); say(await fluxMarkThisPhone(raw)); go.disabled=false; return; }   // DAY-1 REPORT: the owner's own phone
     const blocked=restoreBlockedReason(); if(blocked){ say(blocked); return; }
-    const parsed=await parseRestoreCode(d.querySelector('#restoreInput').value);
+    const parsed=await parseRestoreCode(raw);
     if(!parsed.ok){ say(parsed.reason==='checksum' ? 'That code has a typo or was not copied completely. Copy it again from the other device.' : 'That is not a FLUX restore code. It starts with FX1-.'); return; }
     if(parsed.playerId===playerId){ say('This is already the pilot on this device.'); return; }
     if(isOffline()){ say('Restoring needs an internet connection.'); return; }
@@ -5074,6 +5092,16 @@ function fluxStatsSrc(){
   }
   return s;   // where this pilot first came from; kept, never overwritten
 }
+/* DAY-1 REPORT (owner): the kind of phone only -- 'ios' (iPhone/iPad), 'android' or 'other'. Never the
+   model, the version or anything else from the browser. iPadOS 13+ says "Macintosh" with touch. */
+function fluxOsKind(){
+  try{
+    const ua=String(navigator.userAgent||'');
+    if(/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && (navigator.maxTouchPoints||0)>1)) return 'ios';
+    if(/Android/i.test(ua)) return 'android';
+  }catch(e){}
+  return 'other';
+}
 function fluxTrack(e,extra){
   try{ if(fluxStatsQueue.length<60) fluxStatsQueue.push(Object.assign({e:e},extra||{})); }catch(x){}
 }
@@ -5090,9 +5118,12 @@ function fluxStatsEvents(){
   for(const e of ev) if(e.e==='open' && e.iab===undefined) e.iab=!!window.FLUX_IN_APP;
   return ev;
 }
+/* DAY-1 REPORT: the phone's time zone (minutes from UTC, as the phone reports it), so FLUX COMMAND counts
+   days as the player's own calendar days. Nothing else about the place is sent. */
+function fluxTz(){ try{ const n=new Date().getTimezoneOffset(); return Number.isInteger(n) ? n : undefined; }catch(e){ return undefined; } }
 function fluxStatsTake(){
   if(!fluxStatsQueue.length) return null;
-  const s={src:fluxStatsSrc(),events:fluxStatsEvents()};
+  const s={src:fluxStatsSrc(),events:fluxStatsEvents(),tz:fluxTz()};
   fluxStatsQueue=[];
   return s;
 }
@@ -5100,7 +5131,7 @@ function fluxStatsFlush(){
   try{
     if(typeof fluxNetHeld==='function' && fluxNetHeld() && fluxStatsQueue.length) return;   // kept for the next upload
     if(!fluxStatsQueue.length || !navigator.sendBeacon) { fluxStatsQueue=[]; return; }
-    const body=JSON.stringify({pid:playerId,country:country,src:fluxStatsSrc(),bid:fluxRandomId(),events:fluxStatsEvents()});   // bid: the server counts a batch once
+    const body=JSON.stringify({pid:playerId,country:country,src:fluxStatsSrc(),bid:fluxRandomId(),events:fluxStatsEvents(),tz:fluxTz()});   // bid: the server counts a batch once
     fluxStatsQueue=[];
     navigator.sendBeacon(FLUX_STATS_URL,new Blob([body],{type:'text/plain'}));   // fire and forget
   }catch(x){ fluxStatsQueue=[]; }
@@ -5108,7 +5139,7 @@ function fluxStatsFlush(){
 (function(){
   try{
     fluxStatsSrc();
-    fluxTrack('open',{home:!!(typeof fluxIsStandalone==='function' && fluxIsStandalone())});
+    fluxTrack('open',{home:!!(typeof fluxIsStandalone==='function' && fluxIsStandalone()),os:fluxOsKind()});   // DAY-1 REPORT: + iPhone/iPad, Android or other
     const newGame0=newGame;
     newGame=function(){
       try{

@@ -117,6 +117,7 @@
   .find p{margin:6px 0 0;font-size:13px;line-height:1.5}.find p b{color:var(--dim);font-weight:700}
   .find .hyp{color:var(--dim)}
   .conf{font-size:11px;letter-spacing:.12em;color:var(--dim);margin-top:6px}
+  .bigcode{font-family:ui-monospace,Menlo,monospace;font-size:26px;letter-spacing:.12em;text-align:center;padding:14px;margin:6px 0 10px;border:1px solid var(--line);border-radius:12px;color:var(--cyan);user-select:all;-webkit-user-select:all}
   textarea.export{width:100%;min-height:220px;background:#050a22;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px;
        font:12px/1.45 ui-monospace,Menlo,monospace;white-space:pre-wrap;user-select:text;-webkit-user-select:text;margin:8px 0}
   .logrow{color:var(--dim);font-size:12px;line-height:1.5;padding:6px 0;border-top:1px solid var(--line);white-space:pre-line}
@@ -203,6 +204,28 @@
     <button id="stLoad" class="go">SHOW</button>
   </div>
   <div id="stats"></div>
+
+  <h2>DAY-1 BY PILOT</h2>
+  <p class="note">New pilots one by one: how they opened FLUX, their phone, their first run and whether they came back the
+  next day. Read-only. Days are each player's <b>own calendar days</b> (their phone's time zone). Rates count only pilots whose
+  own day 1 is over. Run length is real play time. Your own phones (below) are counted nowhere and never listed.</p>
+  <div class="row">
+    <select id="d1Range" aria-label="Start dates"><option value="30" selected>Started: last 30 days</option><option value="14">Started: last 14 days</option><option value="60">Started: last 60 days</option><option value="88">Started: last 88 days</option></select>
+    <button id="d1Load" class="go">SHOW</button>
+  </div>
+  <div id="day1"></div>
+  <p class="note"><b>Your own phones</b> are left out of every statistic (totals, retention, the owner summary and this report)
+  from the moment they are marked. Marking is done on the phone itself: make a one-time code here, then on that phone open
+  FLUX → <b>EDIT</b> → <b>HAVE A RESTORE CODE?</b> (→ <b>RESTORE A DIFFERENT PILOT</b>) and type the code. Do it once in each
+  browser and each Home Screen app you play in. The code works once, for 15 minutes.</p>
+  <div class="row">
+    <input id="d1Label" type="text" autocomplete="off" spellcheck="false" maxlength="40" placeholder="Label, e.g. my BLU Chrome" aria-label="Phone label">
+    <input id="d1Confirm" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Type MY PHONE" aria-label="Confirmation">
+  </div>
+  <div class="row"><button id="d1Code" class="go" style="flex:1">MAKE A CODE FOR MY PHONE</button></div>
+  <div id="d1CodeOut"></div>
+  <div class="row"><button id="d1MarkedLoad" class="ghost" style="flex:1">SHOW MY MARKED PHONES</button></div>
+  <div id="d1Marked"></div>
 
   <h2>SEASON 0 SCORES (ARCHIVED)</h2>
   <p class="note">Read-only. Every best from before Season 1, kept when the boards were reset. Nothing here is public.</p>
@@ -501,6 +524,25 @@
       <li>Only totals by difficulty and step are kept here — no country, no source, nothing about a person.</li>
     </ul>
 
+    <h3>Day-1 by pilot</h3>
+    <ul>
+      <li><b>What it shows:</b> every pilot who started in the period, one line each (the start of an anonymous code, never a name or tag),
+      and the share who came back on day 1, split by country, how FLUX was opened (Home Screen app, browser tab, an app's
+      built-in browser), phone (iPhone/iPad or Android, recorded from this report's release on), first-run difficulty,
+      how long the first run lasted, runs on the first day, and src. Read-only: nothing changes for players.</li>
+      <li><b>Real play time:</b> the seconds the ball was in play. Pauses and time the app sat in the background do not count
+      (the "avg run" in PLAYER STATS is clock time from start to game over, so it is longer).</li>
+      <li><b>Your phones:</b> type a label and MY PHONE, press MAKE A CODE FOR MY PHONE, then type the code on that phone
+      (EDIT → HAVE A RESTORE CODE? → RESTORE A DIFFERENT PILOT). It works for phones that never posted a score. Each browser and
+      each Home Screen app is its own pilot, so mark each one. From then on that phone is counted nowhere; what it sent
+      before stays in the totals. Marked phones are never listed in the report, only counted. A pilot cannot be marked from
+      FLUX COMMAND: only a phone in your hands can mark itself. COUNT AGAIN puts a phone back in the statistics from then on.</li>
+      <li><b>Small groups:</b> under 10 pilots a group says "too few": its rate can swing a lot by chance.</li>
+      <li><b>Days:</b> each player's own calendar day, from their phone's time zone (midnight to midnight where they are).
+      Day 1 is their next calendar day. PLAYER STATS and the owner summary still use UTC days, so their day-1 number can
+      differ a little. Pilots who started before this report counted local days are shown only as one count (by UTC day).
+      Raw events are kept 90 days, so the report reaches back about 88 days.</li>
+    </ul>
     <h3>Owner summary (status and findings)</h3>
     <ul>
       <li>At the top of the first screen (<b>HOW FLUX IS DOING</b>) and of PLAYER STATS. The server checks the anonymous totals
@@ -669,9 +711,9 @@
     b.disabled = false;
   }
   function wipe() {
-    ['insights', 'stInsights', 'summary', 'usage', 'exceptions', 'results', 'stats', 'season0', 'purchases', 'bans', 'wgState', 'wgReport', 'rpReport', 'rpResult', 'fpState', 'fpReport', 'fpExcl', 'fgReport', 'fgResult'].forEach(function (id) { $(id).textContent = ''; });
+    ['insights', 'stInsights', 'summary', 'usage', 'exceptions', 'results', 'stats', 'season0', 'purchases', 'bans', 'wgState', 'wgReport', 'rpReport', 'rpResult', 'fpState', 'fpReport', 'fpExcl', 'day1', 'd1Marked', 'd1CodeOut', 'fgReport', 'fgResult'].forEach(function (id) { $(id).textContent = ''; });
     $('usageAlert').classList.add('hidden');
-    ['q', 'pq', 'banName', 'rpLines', 'rpConfirm', 'fpConfirm', 'fpTag', 'fgLine', 'fgConfirm'].forEach(function (id) { $(id).value = ''; });
+    ['q', 'pq', 'banName', 'rpLines', 'rpConfirm', 'fpConfirm', 'fpTag', 'd1Label', 'd1Confirm', 'fgLine', 'fgConfirm'].forEach(function (id) { $(id).value = ''; });
     rpDry = null; $('rpGo').hidden = true; fgReset();
     say('');
   }
@@ -1124,6 +1166,95 @@
     w.appendChild(t); return w;
   }
   function rate(x) { return isFinite(x) ? Math.round(x * 100) + '%' : '—'; }
+
+  /* ---------------- DAY-1 BY PILOT (read-only) ----------------
+     The server sends one line per new pilot (anonymous code, never a name); the groups are
+     counted here. Only pilots whose day 1 is over count in the rates. A group under 10 pilots
+     says so: with that few, a difference is not evidence. */
+  var D1_SMALL = 10;
+  function d1Open(v) { return { home: 'Home Screen app', browser: 'Browser tab', inapp: "An app's built-in browser", unknown: 'Not recorded' }[v] || v; }
+  function d1Os(v) { return { ios: 'iPhone / iPad', android: 'Android', other: 'Other', unknown: 'Not recorded yet' }[v] || v; }
+  function d1Len(r) {
+    if (!r.started) return 'Never started a run';
+    if (r.firstSec == null) return 'No game over recorded';
+    var x = r.firstSec; return x < 30 ? 'under 30 s' : x < 60 ? '30–60 s' : x < 120 ? '1–2 min' : x < 300 ? '2–5 min' : '5 min or more';
+  }
+  function d1Runs(n) { return n === 0 ? '0' : n === 1 ? '1' : n <= 3 ? '2–3' : n <= 6 ? '4–6' : '7 or more'; }
+  function d1Country(c) { return c === 'PH' ? 'Philippines' : c === 'US' ? 'USA' : 'Other countries'; }
+  function d1Group(rows, keyOf, order) {
+    var m = {};
+    rows.forEach(function (r) { var k = keyOf(r), g = m[k] || (m[k] = { k: k, n: 0, back: 0, wait: 0 }); if (r.back1 === null) g.wait++; else { g.n++; if (r.back1) g.back++; } });
+    var list = Object.keys(m).map(function (k) { return m[k]; });
+    list.sort(function (a, b) { var ia = order ? order.indexOf(a.k) : -1, ib = order ? order.indexOf(b.k) : -1; return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || b.n - a.n; });
+    return list;
+  }
+  function d1Row(g) { return [g.k, fmt(g.n), fmt(g.back), g.n ? rate(g.back / g.n) + (g.n < D1_SMALL ? ' (too few)' : '') : '—']; }
+  function renderDay1Marked(list) {   // labels and dates only: FLUX COMMAND never gets a marked phone's code
+    var box = $('d1Marked'); box.textContent = '';
+    if (!list.length) { box.appendChild(el('p', 'note', 'No phones marked yet.')); return; }
+    box.appendChild(el('p', 'note', 'Your marked phones (counted nowhere): ' + list.length));
+    list.forEach(function (x) {
+      var row = el('div', 'row');
+      row.appendChild(el('span', 'meta', x.label + ' · marked ' + when(x.at)));
+      row.appendChild(btn('COUNT AGAIN', 'ghost small', function () { var b = this;
+        if (!confirm('Count "' + x.label + '" in the statistics again, from now on?')) return;
+        act(b, 'UPDATING…', async function () { var r = await call('day1-unmark', { id: x.id }); renderDay1Marked(r.marked || []); say('Counted again from now on.', 'ok'); }); }));
+      box.appendChild(row);
+    });
+  }
+  async function loadDay1Marked() { var r = await call('day1-marked', {}); renderDay1Marked(r.marked || []); say(''); }
+  async function makeDay1Code() {
+    var out = $('d1CodeOut'); out.textContent = '';
+    var r = await call('day1-mark-code', { label: $('d1Label').value, confirm: $('d1Confirm').value });
+    $('d1Confirm').value = '';
+    out.appendChild(el('p', 'note', 'On your phone: FLUX → EDIT → HAVE A RESTORE CODE? (→ RESTORE A DIFFERENT PILOT), type this code, press CONTINUE. It works once, for ' + r.minutes + ' minutes.'));
+    out.appendChild(el('div', 'bigcode', r.code));
+    say('');
+  }
+  async function loadDay1() {
+    var box = $('day1'); box.textContent = '';
+    var span = +$('d1Range').value, DAY = 86400000, now = Date.now();
+    var to = new Date(now - 2 * DAY), from = new Date(now - span * DAY);
+    say('Loading the day-1 report…');
+    var rep = await call('day1', { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) });
+    var kept = rep.rows || [], old = rep.older || { n: 0, back: 0 };   // the server never sends a marked phone's line
+    var over = kept.filter(function (r) { return r.back1 !== null; }), back = over.filter(function (r) { return r.back1; }).length;
+    var tail = (rep.markedLeftOut ? ' Your own phones left out: ' + rep.markedLeftOut + '.' : '') +
+      (old.n ? ' Started before local days were counted (UTC days, not listed): ' + fmt(old.back) + ' of ' + fmt(old.n) + ' came back.' : '');
+    if (!kept.length) { box.appendChild(el('div', 'empty', 'No new pilots started in ' + rep.from + ' to ' + rep.to + ' (their own days).' + tail)); say(''); return; }
+    var lines = [];
+    var head = 'Started ' + rep.from + ' to ' + rep.to + ' (each player\'s own calendar day). Came back the next day: ' + fmt(back) + ' of ' + fmt(over.length) +
+      ' (' + rate(over.length ? back / over.length : NaN) + ').' + tail;
+    box.appendChild(el('p', 'note', head)); lines.push('DAY-1 BY PILOT', head, '');
+    var groups = [
+      ['COUNTRY (the flag they picked)', function (r) { return d1Country(r.country); }, ['Philippines', 'USA', 'Other countries']],
+      ['OPENED FLUX IN', function (r) { return d1Open(r.openedIn); }, ['Home Screen app', 'Browser tab', "An app's built-in browser", 'Not recorded']],
+      ['PHONE', function (r) { return d1Os(r.os); }, ['iPhone / iPad', 'Android', 'Other', 'Not recorded yet']],
+      ['FIRST-RUN DIFFICULTY', function (r) { return r.firstDiff ? r.firstDiff.toUpperCase() : (r.started ? 'No game over recorded' : 'Never started a run'); }, ['EASY', 'MEDIUM', 'HARD']],
+      ['FIRST RUN LASTED (real play time)', d1Len, ['under 30 s', '30–60 s', '1–2 min', '2–5 min', '5 min or more', 'No game over recorded', 'Never started a run']],
+      ['RUNS ON THEIR FIRST DAY', function (r) { return d1Runs(r.runs); }, ['0', '1', '2–3', '4–6', '7 or more']],
+      ['WHERE THEY CAME FROM (src)', function (r) { return r.src; }, null]
+    ];
+    groups.forEach(function (g) {
+      var list = d1Group(kept, g[1], g[2]);
+      box.appendChild(el('h2', null, g[0]));
+      box.appendChild(table(['Group', 'Pilots', 'Back day 1', 'Rate'], list.map(d1Row)));
+      lines.push(g[0]); list.forEach(function (x) { var r = d1Row(x); lines.push('  ' + r[0] + ': ' + r[2] + ' of ' + r[1] + ' = ' + r[3] + (x.wait ? ' (+' + x.wait + ' day 1 not over)' : '')); }); lines.push('');
+    });
+    box.appendChild(el('h2', null, 'EVERY NEW PILOT'));
+    box.appendChild(table(['Started', 'Code', 'Country', 'src', 'Opened in', 'Phone', 'First run', 'Runs day 0', 'Real play day 0', 'Avg run', 'Back day 1'],
+      kept.map(function (r) {
+        return [r.start, r.code, r.country, r.src, d1Open(r.openedIn), d1Os(r.os),
+          (r.firstDiff ? r.firstDiff.toUpperCase() + ' · ' : '') + (r.firstSec != null ? mins(r.firstSec) : (r.started ? '—' : 'none')),
+          fmt(r.runs), mins(r.playSec), r.avgRunSec == null ? '—' : mins(r.avgRunSec), r.back1 === null ? 'day 1 not over' : r.back1 ? 'YES' : 'no'];
+      })));
+    if (rep.more) box.appendChild(el('p', 'note', rep.more + ' more pilots not shown.'));
+    lines.push('Phone is recorded only from this report\'s release on; earlier pilots show "Not recorded yet".');
+    lines.push('Groups under ' + D1_SMALL + ' pilots are marked "too few": a difference there is not evidence.');
+    var ta = el('textarea', 'export'); ta.readOnly = true; ta.value = lines.join('\n');
+    box.appendChild(el('h2', null, 'REPORT TEXT (to copy)')); box.appendChild(ta);
+    say('');
+  }
   async function loadStats() {
     var box = $('stats'); box.textContent = '';
     var span = +$('stRange').value, by = $('stBy').value;
@@ -1784,6 +1915,9 @@
   if (navigator.onLine === false) offline(true);
   checkSession(false).catch(function (e) { showLogin(e.message); });
   $('stLoad').onclick = guard(loadStats);
+  $('d1Load').onclick = guard(loadDay1);   // DAY-1 REPORT
+  $('d1Code').onclick = guard(makeDay1Code);
+  $('d1MarkedLoad').onclick = guard(loadDay1Marked);
   $('s0Load').onclick = guard(loadSeason0);
   $('usageLoad').onclick = guard(function () { return loadUsage(false); });
   $('bkLoad').onclick = guard(loadBackups);
