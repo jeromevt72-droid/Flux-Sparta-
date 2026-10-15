@@ -19,6 +19,7 @@ async function offerUpdate(setup){
   const posted=[];
   g.win.navigator.serviceWorker.register = () => Promise.resolve({
     waiting:{ postMessage:(m)=>posted.push(m.type) }, installing:null, addEventListener(){} });
+  g.win.navigator.serviceWorker.controller = {};   // an update: an older worker is in control (FIRST RUN SMOOTH: a first visit registers after its first run)
   const timers=[]; g.win.setTimeout=(fn,ms)=>{ timers.push({fn,ms}); return timers.length; };
   setup(g);
   g.fire('load'); await tick();

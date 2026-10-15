@@ -12,7 +12,9 @@
 //      has not finished a run gets no preview (its src removed, its frame hidden); a player who has
 //      finished one gets it as before;
 //   L4 lite: the planets show the small pictures only after the page has loaded;
-//   L5 lite + first visit in a browser tab: the service worker is not registered from the Gateway
+//   L5 a first visit in a browser tab (any connection): the service worker is not registered from the Gateway
+//      (FIRST RUN SMOOTH: the game stores its offline copy after the first run); returning players and the
+//      Home Screen app register on load as before
 //      (the game page registers the same worker); the Home Screen app, a returning player, Wi-Fi and
 //      Safari register it as before; no new event listener on the Gateway (still 23);
 //   L6 the closing picture (Event Horizon) loads only near the bottom (IntersectionObserver, about
@@ -91,10 +93,11 @@ function suite(html, files = (p) => fs.existsSync(path.join(PUB, p)), quiet = fa
     // L5 service worker.
     const sw = (o) => { const r = run(head, o); r.fire('load'); return r; };
     const swWifi = sw({ conn: { effectiveType: '4g' } }), swSafari = sw({}), swLiteNew = sw({ conn: { effectiveType: '3g' } }),
-      swLitePlayed = sw({ conn: { effectiveType: '3g' }, played: true }), swLiteApp = sw({ conn: { effectiveType: '3g' }, standalone: true });
-    ck('L5 Wi-Fi, Safari, a returning player and the Home Screen app: registered on load as before',
-      swWifi.registered.length === 1 && swSafari.registered.length === 1 && swLitePlayed.registered.length === 1 && swLiteApp.registered.length === 1 && swWifi.registered[0] === '/sw.js {"scope":"/"}');
-    ck('L5 lite + first visit in a browser tab: not registered from the Gateway', swLiteNew.registered.length === 0);
+      swLitePlayed = sw({ conn: { effectiveType: '3g' }, played: true }), swLiteApp = sw({ conn: { effectiveType: '3g' }, standalone: true }),
+      swWifiPlayed = sw({ conn: { effectiveType: '4g' }, played: true }), swWifiApp = sw({ conn: { effectiveType: '4g' }, standalone: true });
+    ck('L5 a returning player and the Home Screen app (any connection): registered on load as before',
+      swLitePlayed.registered.length === 1 && swLiteApp.registered.length === 1 && swWifiPlayed.registered.length === 1 && swWifiApp.registered.length === 1 && swWifiPlayed.registered[0] === '/sw.js {"scope":"/"}');
+    ck('L5 first visit in a browser tab (Wi-Fi, Safari, slow): not registered from the Gateway', swLiteNew.registered.length === 0 && swWifi.registered.length === 0 && swSafari.registered.length === 0);
     ck('L5 no new event listener on the Gateway (still 23)', (html.match(/addEventListener\(/g) || []).length === 23, (html.match(/addEventListener\(/g) || []).length);
     // L6 closing picture.
     const f = run([head, tail], { conn: { effectiveType: '4g' } }), o = f.observed();
@@ -135,8 +138,9 @@ control('a lite rule not scoped (changes Wi-Fi)', 'L2', rep('.gw-lite.gw-nodemo 
 control('preview skipped for returning players too', 'L3', rep('if (!window.FLUX_LITE || window.FLUX_PLAYED) return;', 'if (!window.FLUX_LITE) return;'));
 control('cards keep the large pictures on slow connections', 'L3', rep("img.removeAttribute('srcset'); img.removeAttribute('sizes');", ''));
 control('planet pictures before the page has loaded', 'L4', rep("try { if (window.FLUX_LITE) document.documentElement.classList.add('gw-lite'); } catch (e) {}", "try { if (window.FLUX_LITE) { document.documentElement.classList.add('gw-lite'); document.documentElement.classList.add('gw-pics'); } } catch (e) {}"));
-control('Home Screen app no longer registers the worker on a slow connection', 'L5', rep('if (window.FLUX_LITE && !window.FLUX_PLAYED && !standalone) return;', 'if (window.FLUX_LITE && !window.FLUX_PLAYED) return;'));
-control('service worker always registered (copies compete with the game)', 'L5', rep('if (window.FLUX_LITE && !window.FLUX_PLAYED && !standalone) return;', 'if (false) return;'));
+control('Home Screen app no longer registers the worker', 'L5', rep('if (!window.FLUX_PLAYED && !standalone) return;', 'if (!window.FLUX_PLAYED) return;'));
+control('service worker always registered (copies compete with the game)', 'L5', rep('if (!window.FLUX_PLAYED && !standalone) return;', 'if (false) return;'));
+control('Wi-Fi first visit registers from the Gateway again', 'L5', rep('if (!window.FLUX_PLAYED && !standalone) return;', 'if (window.FLUX_LITE && !window.FLUX_PLAYED && !standalone) return;'));
 control('a new event listener added to the Gateway', 'L5', rep("var f = document.getElementById('gameFrame');", "var f = document.getElementById('gameFrame'); window.addEventListener('resize', function(){});"));
 control('closing picture loaded at once again', 'L6', rep('.final{min-height:75svh;display:grid;place-items:center;text-align:center;position:relative}', ".final{min-height:75svh;display:grid;place-items:center;text-align:center;background:url('assets/event.webp') center/cover;position:relative}"));
 control('Event Horizon sharp picture missing again', 'L6', (s) => s, (p) => p !== 'assets2x/event@2x.webp' && fs.existsSync(path.join(PUB, p)));
