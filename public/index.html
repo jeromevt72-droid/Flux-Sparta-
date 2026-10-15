@@ -94,17 +94,58 @@ window.FLUX_GAME_LINK = (function(){
   catch (e) { return window.FLUX_GAME_URL; }
 })();
 
+/* LIGHT FIRST VISIT (owner): most new players open the Gateway on a budget Android
+   phone on prepaid mobile data. The first visit used to download about 2.5 MB
+   (five large world pictures for the hero planets, the gameplay preview, the
+   world cards, the service worker's copies) before and while the game itself
+   loaded, so on slow 3G "ENTER THE FLUX" was ready about 35 s after the
+   Gateway opened. Measured on a BLU G45-sized screen with a 4x slower processor.
+   FLUX_LITE is true ONLY when the browser itself says the connection is slow or
+   the player turned on Data Saver (navigator.connection: saveData, or
+   effectiveType slow-2g / 2g / 3g -- Chrome on Android reports these). On Wi-Fi
+   and good mobile data it is false, and when the browser does not say (Safari:
+   iPhone, iPad) it is false too: everything there loads exactly as before.
+   With FLUX_LITE:
+     - the hero planets use the small world pictures, loaded after the page
+       itself (the planets show as glowing orbs until then);
+     - the gameplay preview loads only for a player who has finished a run
+       (fluxRunsPlayed > 0); a brand-new player goes straight to the real game;
+     - the world cards and the closing picture use the small pictures;
+     - the service worker is not registered here on a first visit in a browser
+       tab (the game registers the same worker once it is open; the Home Screen
+       app registers it here as before), so its copies never compete with the game.
+   For everyone, the world cards (far down the page) and the closing picture
+   load only as the player scrolls toward them, as the other cards already did. */
+window.FLUX_LITE = (function(){
+  try {
+    var c = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    if (!c) return false;
+    return c.saveData === true || /^(slow-2g|2g|3g)$/.test(String(c.effectiveType || ''));
+  } catch (e) { return false; }
+})();
+window.FLUX_PLAYED = (function(){
+  try { return +window.localStorage.getItem('fluxRunsPlayed') > 0; } catch (e) { return false; }
+})();
+try { if (window.FLUX_LITE) document.documentElement.classList.add('gw-lite'); } catch (e) {}
+
 /* ONE-APP (RC2.5.6 audit): the app now installs from this Gateway page, but
    only the game page registered the service worker. A player who installed
    here and went offline before ever tapping Play had no cached game at all.
    Registering the SAME worker, at the SAME root scope, precaches the game
    while the player is still on the home page. It is the identical worker the
    game registers -- one worker, one cache, one scope. */
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function () {
-    navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function () {});
-  });
-}
+window.addEventListener('load', function () {
+  // LIGHT FIRST VISIT: on a slow connection the planet pictures (the small ones) start only now.
+  if (window.FLUX_LITE) { try { document.documentElement.classList.add('gw-pics'); } catch (e) {} }
+  if (!('serviceWorker' in navigator)) return;
+  // LIGHT FIRST VISIT: on a slow connection, a first visit in a browser tab leaves the copies to the
+  // game page, which registers this same worker once it is open. The Home Screen app registers here
+  // as before (so an installed app is ready offline from its first launch).
+  var standalone = false;
+  try { standalone = window.navigator.standalone === true || !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches); } catch (e) {}
+  if (window.FLUX_LITE && !window.FLUX_PLAYED && !standalone) return;
+  navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function () {});
+});
 </script>
 <script>
 /* D-17: mark the installed standalone context before first paint, so the
@@ -191,6 +232,14 @@ body.anim .planet{animation:collide var(--dur) cubic-bezier(.62,0,.35,1) infinit
 .p3{--glow:#ff5cd6aa;background-image:url('assets/neon.webp');background-image:image-set(url('assets/neon.webp') 1x, url('assets2x/neon@2x.webp') 2x);--sx:-58vw;--sy:42vh}
 .p4{--glow:#6a7bffaa;background-image:url('assets/storm.webp');background-image:image-set(url('assets/storm.webp') 1x, url('assets2x/storm@2x.webp') 2x);--sx:60vw;--sy:44vh}
 .p5{--glow:#c98bffaa;background-image:url('assets/celestial.webp');background-image:image-set(url('assets/celestial.webp') 1x, url('assets2x/celestial@2x.webp') 2x);--sx:0vw;--sy:-58vh}
+/* LIGHT FIRST VISIT: slow connection -- no planet picture until the page has loaded, then the small one. */
+.gw-lite .planet{background-image:none}
+.gw-lite.gw-pics .p1{background-image:url('assets/solar.webp')}
+.gw-lite.gw-pics .p2{background-image:url('assets/frozen.webp')}
+.gw-lite.gw-pics .p3{background-image:url('assets/neon.webp')}
+.gw-lite.gw-pics .p4{background-image:url('assets/storm.webp')}
+.gw-lite.gw-pics .p5{background-image:url('assets/celestial.webp')}
+.gw-lite.gw-nodemo .gameWrap{display:none}
 @keyframes collide{
   0%{transform:translate(-50%,-50%) translate(var(--sx),var(--sy)) scale(.55) rotate(0deg);opacity:.85}
   46%{transform:translate(-50%,-50%) translate(calc(var(--sx)*.2),calc(var(--sy)*.2)) scale(.82) rotate(30deg);opacity:.92}
@@ -482,8 +531,11 @@ body.heroCta-t2 .trustLine{margin-top:8px}
 .matchSide span{display:block;font-size:11px;color:#8e8ea6;letter-spacing:.15em;margin-top:2px}
 .matchVs{font-size:12px;font-weight:900;letter-spacing:.2em;color:#b5a5ff;padding:8px 14px;border:1px solid #ffffff2e;border-radius:999px}
 
-.final{min-height:75svh;display:grid;place-items:center;text-align:center;background:url('assets/event.webp') center/cover;position:relative}
-.final{background-image:image-set(url('assets/event.webp') 1x, url('assets2x/event@2x.webp') 2x);background-position:center;background-size:cover}
+.final{min-height:75svh;display:grid;place-items:center;text-align:center;position:relative}
+/* LIGHT FIRST VISIT: the closing picture is fetched once the player scrolls near it (gw-bg). */
+.final.gw-bg{background:url('assets/event.webp') center/cover}
+.final.gw-bg{background-image:image-set(url('assets/event.webp') 1x, url('assets2x/event@2x.webp') 2x);background-position:center;background-size:cover}
+.gw-lite .final.gw-bg{background-image:url('assets/event.webp')}
 .final:before{content:"";position:absolute;inset:0;background:#03030bb8}
 .final>div{position:relative;padding:30px}
 .final h2{font-size:clamp(50px,10vw,120px);margin:10px 0}
@@ -656,6 +708,19 @@ footer{position:relative;z-index:3;padding:40px 7vw 50px;color:#777;font-size:12
     <div class="flash"></div>
     <div id="shards"></div>
     <div class="gameWrap"><div class="gameFrame"><iframe id="gameFrame" src="hero-demo.html" loading="lazy" title="FLUX gameplay preview" referrerpolicy="no-referrer"></iframe></div></div>
+    <script>
+    /* LIGHT FIRST VISIT: on a slow connection a player who has not finished a run yet skips the
+       preview (it is a running copy of the game: ~260 KB and work for a budget phone's processor).
+       Runs before the lazy frame starts loading; everywhere else it loads exactly as before. */
+    (function(){
+      try {
+        if (!window.FLUX_LITE || window.FLUX_PLAYED) return;
+        var f = document.getElementById('gameFrame');
+        if (f) { f.removeAttribute('src'); f.setAttribute('data-src', 'hero-demo.html'); }
+        document.documentElement.classList.add('gw-nodemo');
+      } catch (e) {}
+    })();
+    </script>
   </div>
   <div class="welcomeRotator" id="welcomeRotator">Welcome</div>
   <div class="heroContent">
@@ -743,7 +808,7 @@ footer{position:relative;z-index:3;padding:40px 7vw 50px;color:#777;font-size:12
 <section class="vault" id="worlds">
   <div class="sectionHead"><div><div class="kicker">FLUX WORLDS</div><h2>Where will you defend your colors?</h2></div><div class="ghost">Swipe →</div></div>
   <div class="skins">
-    <div class="card"><span class="statusTag live">LIVE NOW</span><img src="assets/solar.webp" srcset="assets/solar.webp 450w, assets2x/solar@2x.webp 900w" sizes="(min-width:1100px) 24vw, (min-width:701px) 46vw, 84vw" width="450" height="799" alt="Solar Inferno world backdrop" loading="eager" decoding="async"><div class="meta"><small>FLUX WORLD</small><h3>Solar Inferno</h3><p>Play on the edge of a star, where every hit burns brighter.</p><span class="price">PLAY THIS WORLD</span></div></div>
+    <div class="card"><span class="statusTag live">LIVE NOW</span><img src="assets/solar.webp" srcset="assets/solar.webp 450w, assets2x/solar@2x.webp 900w" sizes="(min-width:1100px) 24vw, (min-width:701px) 46vw, 84vw" width="450" height="799" alt="Solar Inferno world backdrop" loading="lazy" decoding="async"><div class="meta"><small>FLUX WORLD</small><h3>Solar Inferno</h3><p>Play on the edge of a star, where every hit burns brighter.</p><span class="price">PLAY THIS WORLD</span></div></div>
     <div class="card"><span class="statusTag soon">COMING SOON</span><img src="assets/celestial.webp" srcset="assets/celestial.webp 450w, assets2x/celestial@2x.webp 900w" sizes="(min-width:1100px) 24vw, (min-width:701px) 46vw, 84vw" width="450" height="799" alt="Celestial Forge world backdrop" loading="lazy" decoding="async"><div class="meta"><small>FLUX WORLD</small><h3>Celestial Forge</h3><p>Galaxies ignite around every run.</p><span class="price">WORLD PREVIEW</span></div></div>
     <div class="card"><span class="statusTag soon">COMING SOON</span><img src="assets/event.webp" srcset="assets/event.webp 450w, assets2x/event@2x.webp 900w" sizes="(min-width:1100px) 24vw, (min-width:701px) 46vw, 84vw" width="450" height="799" alt="Event Horizon world backdrop" loading="lazy" decoding="async"><div class="meta"><small>FLUX WORLD</small><h3>Event Horizon</h3><p>Play at the boundary where light disappears.</p><span class="price">WORLD PREVIEW</span></div></div>
     <div class="card"><span class="statusTag soon">COMING SOON</span><img src="assets/neon.webp" srcset="assets/neon.webp 450w, assets2x/neon@2x.webp 900w" sizes="(min-width:1100px) 24vw, (min-width:701px) 46vw, 84vw" width="450" height="799" alt="Neon Tokyo world backdrop" loading="lazy" decoding="async"><div class="meta"><small>FLUX WORLD</small><h3>Neon Tokyo</h3><p>A vertical city of light, velocity and electric nights.</p><span class="price">WORLD PREVIEW</span></div></div>
@@ -753,6 +818,16 @@ footer{position:relative;z-index:3;padding:40px 7vw 50px;color:#777;font-size:12
     <div class="card"><span class="statusTag soon">COMING SOON</span><img src="assets/matrix.webp" srcset="assets/matrix.webp 450w, assets2x/matrix@2x.webp 900w" sizes="(min-width:1100px) 24vw, (min-width:701px) 46vw, 84vw" width="450" height="799" alt="Digital Realm world backdrop" loading="lazy" decoding="async"><div class="meta"><small>FLUX WORLD</small><h3>Digital Realm</h3><p>Enter a synthetic world built from light and data.</p><span class="price">WORLD PREVIEW</span></div></div>
   </div>
 </section>
+<script>
+/* LIGHT FIRST VISIT: on a slow connection the world cards use the small pictures (450 px, about a
+   third of the data). Runs right after the cards, before any of these lazy images starts loading. */
+(function(){
+  try {
+    if (!window.FLUX_LITE) return;
+    document.querySelectorAll('#worlds .card img[srcset]').forEach(function(img){ img.removeAttribute('srcset'); img.removeAttribute('sizes'); });
+  } catch (e) {}
+})();
+</script>
 
 <section class="partners" id="partners">
   <div class="kicker">PARTNER WITH FLUX <span class="comingSoonTag">COMING SOON</span></div>
@@ -1891,6 +1966,25 @@ try{
     if (s) s.addEventListener('click', function(){ d.remove(); }, { once: true });
   }
   if (document.body) show(); else document.addEventListener('DOMContentLoaded', show, { once: true });
+})();
+</script>
+<script>
+/* LIGHT FIRST VISIT: the closing picture loads when the player scrolls within about 1.5 screens of
+   it (the same distance at which browsers start lazy pictures), so on Wi-Fi it is there before it
+   is seen. */
+(function(){
+  try {
+    var fin = document.querySelector('section.final');
+    if (fin) {
+      if (!('IntersectionObserver' in window)) fin.classList.add('gw-bg');
+      else {
+        var io = new IntersectionObserver(function(list){
+          for (var i = 0; i < list.length; i++) if (list[i].isIntersecting) { fin.classList.add('gw-bg'); io.disconnect(); return; }
+        }, { rootMargin: '1250px 0px 1250px 0px' });
+        io.observe(fin);
+      }
+    }
+  } catch (e) {}
 })();
 </script>
 </body>
