@@ -207,7 +207,9 @@ is used for advertising.</p>
   <li><strong>What comes with it:</strong> the random player identifier, the
   country you picked (or, if none, the country Cloudflare reports), and the
   "src" tag of the first FLUX link you opened (for example
-  <code>?src=tiktok</code> or <code>?src=share</code>).</li>
+  <code>?src=tiktok</code> or <code>?src=share</code>), and the time zone set
+  on the phone (for example UTC+8), so that a "day" in these statistics is the
+  player's own calendar day. The time zone is not a location.</li>
   <li><strong>What is kept:</strong> our server does not keep the player
   identifier itself: it turns it into a one-way code, different from the
   leaderboard's tag, so statistics cannot be matched to a leaderboard entry or a
@@ -217,11 +219,18 @@ is used for advertising.</p>
   <strong>90 days</strong>, then deleted; only totals (for example "runs per day
   in the Philippines") are kept after that.</li>
   <li><strong>Who sees it:</strong> only the FLUX operator, on the protected
-  admin page: as totals, and, for a new pilot's first two days, as one line per
-  one-way code (how FLUX was opened, the kind of phone, the first run, runs that
-  day and whether the pilot came back), so the operator can see why new players
-  do or do not return. No name or tag is shown with it. It is never sold or
-  shared.</li>
+  admin page. Most of it is shown as totals. For a new pilot's first two days,
+  the operator also sees one line per one-way code: how FLUX was opened, the
+  kind of phone, the first run, the number of runs that day and whether the
+  pilot came back the next day. This helps the operator understand why new
+  players do or do not return. These lines show no name, no tag and no player
+  identifier, and the admin page has no way to find out which pilot a line
+  belongs to. It is never sold or shared.</li>
+  <li><strong>The operator's own phones:</strong> so that the numbers are about
+  real players, the operator can leave their own test phones out of the
+  statistics. This can only be done on the phone itself, by typing a one-time
+  code into it; from then on nothing from that phone is counted. It cannot be
+  done to anyone else's phone.</li>
 </ul>
 <p>If the statistics cannot be sent (offline, blocked), the game simply carries
 on; nothing waits for them.</p>

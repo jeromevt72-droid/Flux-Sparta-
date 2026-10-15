@@ -185,6 +185,9 @@ export default {
         if (path === "/api/events" && request.method === "POST") {
           return withCors(await ingestEvents(request, env));   // STATS (in-house, anonymous)
         }
+        if (path === "/api/mark-device" && request.method === "POST") {
+          return withCors(await markDevice(request, env));   // DAY-1 REPORT: the owner's phone marks itself with a one-time code
+        }
         if (path === "/api/geo" && request.method === "GET") {
           const cc = (request.cf && request.cf.country) || "";
           return withCors(json({ country: ISO2.test(cc) ? cc : null }));
@@ -242,8 +245,9 @@ export default {
             "/api/admin/issue-restore-code": () => adminIssueRestore(request, env),   // D-37
             "/api/admin/analytics":          () => adminAnalytics(request, env),     // STATS dashboard data
             "/api/admin/day1":               () => adminDay1(request, env),          // DAY-1 REPORT: new pilots one by one (read-only)
-            "/api/admin/day1-mark":          () => adminDay1Mark(request, env),      // DAY-1 REPORT: mark the owner's own / test device
-            "/api/admin/day1-unmark":        () => adminDay1Unmark(request, env),    // DAY-1 REPORT: unmark it
+            "/api/admin/day1-mark-code":     () => adminDay1MarkCode(request, env),  // DAY-1 REPORT: a one-time code to type on one of the owner's own phones
+            "/api/admin/day1-marked":        () => adminDay1Marked(request, env),    // DAY-1 REPORT: the owner's marked phones (labels and a count only)
+            "/api/admin/day1-unmark":        () => adminDay1Unmark(request, env),    // DAY-1 REPORT: count one of them again
             "/api/admin/season-archive":     () => adminDO(request, env, "/admin-season-archive", {}),   // SEASON 1: archived Season 0 scores, read-only
             "/api/admin/usage":              () => adminUsage(request, env),         // FREE PLAN: today's requests vs the free limits
             "/api/admin/backups":            () => adminBackup(request, env, "/list"),        // BACKUPS: list + last status
@@ -410,6 +414,7 @@ const AN_EVENTS = new Set(["open", "first_run", "run_end", "level_up", "share", 
 const AN_RD_EDGES = [0, 1, 2, 3, 4, 5, 7, 10, 15, 20, 30, 45, 60, 90, 120, 180, 300, 600, 1200];   // restart delay buckets (seconds, from)
 const AN_FS_EDGES = [0, 10, 20, 30, 45, 60, 90, 120, 180, 240, 300, 420, 600, 900, 1800];        // first-run survival buckets (seconds, from)
 const AN_SESS_END = new Set(["over", "run", "menu"]);
+const DAY1_CODE_RE = /^[2-9A-HJ-NP-Z]{8}$/, DAY1_CODE_MS = 15 * 60000, DAY1_MARK_MAX = 50, DAY1_BAD_MAX = 20;   // DAY-1 REPORT: one-time phone codes
 const AN_OS = new Set(["ios", "android", "other"]);   // DAY-1 REPORT: the kind of phone, recorded from the day-1 report's release on
 const anStep = (v) => anInt(v, 0, AN_MAX_STEP);   // the speed step a run ended at
 function anBucket(edges, v) { let b = edges[0]; for (const e of edges) if (v >= e) b = e; return b; }
@@ -553,7 +558,7 @@ async function ingestEvents(request, env) {
     const cf = (request.cf && request.cf.country) || "";
     const country = ISO2.test(c) ? c : (ISO2.test(cf) ? cf : "XX");   // country only, never a precise location
     const r = await rlFromDO(await analyticsDO(env, "/an-ingest", { method: "POST", headers: await rlHeaders("events", request, h, { "Content-Type": "application/json" }),
-      body: JSON.stringify({ h, bid, src: cleanSrc(body.src), country, events, use: takeUse() }) }));
+      body: JSON.stringify({ h, bid, src: cleanSrc(body.src), country, events, tz: cleanTz(body.tz), use: takeUse() }) }));
     if (r.status === 429) return r;
     return json({ ok: r.ok }, r.ok ? 200 : 500);
   } catch (e) { return json({ ok: false }, 500); }
@@ -581,7 +586,7 @@ async function ingestRunStats(request, env, playerId, chosen, stats, runId) {
   const cf = (request.cf && request.cf.country) || "";
   const country = ISO2.test(c) ? c : (ISO2.test(cf) ? cf : "XX");   // country only, never a precise location
   const r = await analyticsDO(env, "/an-ingest", { method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ h: await analyticsCode(playerId), bid: runId, src: cleanSrc(stats.src), country, events: stats.events, use: takeUse() }) });
+    body: JSON.stringify({ h: await analyticsCode(playerId), bid: runId, src: cleanSrc(stats.src), country, events: stats.events, tz: cleanTz(stats.tz), use: takeUse() }) });
   return r.ok;
 }
 async function submitRun(request, env, ctx) {
@@ -614,35 +619,56 @@ async function adminAnalytics(request, env) {
 }
 /* DAY-1 REPORT (owner): new pilots one by one -- how they opened FLUX (Home Screen app, browser tab,
    an app's built-in browser), iPhone or Android, their first run (difficulty and REAL play time), runs
-   on their first day, and whether they came back on day 1 -- read from the raw events the stats
-   instance already keeps for 90 days. Read-only: it changes nothing for players and nothing in the
-   totals. The owner can mark their own and test devices so the report leaves them out; the mark is
-   made from FLUX COMMAND's FIND A PLAYER result (the pilot's public pid): the leaderboard instance
-   turns that pilot into its one-way STATS code, so the raw player ID never leaves the server and the
-   stats instance stores only that code and the owner's label. */
+   on their first day, and whether they came back the next day -- counted by the player's OWN calendar
+   day (the phone's time zone), read from the raw events the stats instance keeps for 90 days.
+   Read-only: it changes nothing for players and nothing in the totals.
+   The owner's own phones: FLUX COMMAND makes a one-time code (after a typed confirmation); the owner
+   types it on the phone itself (RESTORE A PILOT box). That phone's stats code goes on the marked list
+   and from then on it is counted nowhere: totals, retention, the owner summary and this report. Only
+   a phone in the owner's hands can be marked -- there is no way to mark a pilot from FLUX COMMAND or
+   to look up a pilot's stats code -- and a marked pilot's line is never shown, only how many there are. */
 async function adminDay1(request, env) {
   const denied = requireAdmin(request, env); if (denied) return denied;
   const b = await adminBody(request);
   return analyticsDO(env, "/an-day1?" + new URLSearchParams({ from: String(b.from || ""), to: String(b.to || "") }));
 }
-const DAY1_LABEL_MAX = 60;
+const DAY1_LABEL_MAX = 40, DAY1_CONFIRM = "MY PHONE";
 function day1Label(v) { return String(v || "").replace(/[\u0000-\u001f<>]/g, "").replace(/\s+/g, " ").trim().slice(0, DAY1_LABEL_MAX); }
-async function adminDay1Mark(request, env) {
+async function adminDay1MarkCode(request, env) {
   const denied = requireAdmin(request, env); if (denied) return denied;
   const b = await adminBody(request);
-  if (!(typeof b.pid === "string" && PID_RE.test(b.pid))) return json({ error: "Invalid entry" }, 400);
-  const r = await forwardToDO(request, env, "/admin-stats-code", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pid: b.pid }) });
-  const d = (await r.json().catch(() => null)) || {};
-  if (!r.ok || !/^[0-9a-f]{16}$/.test(String(d.code || ""))) return json({ error: d.error || "Pilot not found" }, r.ok ? 404 : r.status);
-  return analyticsDO(env, "/an-excl", { method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ add: { h: d.code, label: day1Label(b.label) || "test device" } }) });
+  if (String(b.confirm || "").trim().toUpperCase() !== DAY1_CONFIRM) return json({ error: "Type " + DAY1_CONFIRM + " to confirm it is your own phone." }, 400);
+  const label = day1Label(b.label);
+  if (!label) return json({ error: "Give the phone a label, for example: my BLU Chrome." }, 400);
+  return analyticsDO(env, "/an-mark-code", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ label }) });
+}
+async function adminDay1Marked(request, env) {
+  const denied = requireAdmin(request, env); if (denied) return denied;
+  return analyticsDO(env, "/an-marked", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
 }
 async function adminDay1Unmark(request, env) {
   const denied = requireAdmin(request, env); if (denied) return denied;
   const b = await adminBody(request);
-  if (!/^[0-9a-f]{16}$/.test(String(b.code || ""))) return json({ error: "Invalid entry" }, 400);
-  return analyticsDO(env, "/an-excl", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ remove: b.code }) });
+  if (!/^[0-9a-f]{8}$/.test(String(b.id || ""))) return json({ error: "Invalid entry" }, 400);
+  return analyticsDO(env, "/an-unmark", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: b.id }) });
 }
+/* DAY-1 REPORT: the owner's phone marks itself. The game sends its own player ID and the one-time
+   code; the server turns the ID into the one-way stats code (the ID is not kept). */
+async function markDevice(request, env) {
+  try {
+    const body = await readJsonObject(request);
+    const playerId = body && typeof body.pid === "string" ? body.pid.trim() : "";
+    const code = String((body && body.code) || "").toUpperCase().replace(/[^0-9A-Z]/g, "").replace(/^MARK/, "");
+    if (!validPlayerId(playerId) || !DAY1_CODE_RE.test(code)) return json({ ok: false, error: "bad" }, 400);
+    const h = await analyticsCode(playerId);
+    const r = await rlFromDO(await analyticsDO(env, "/an-mark", { method: "POST", headers: await rlHeaders("events", request, h, { "Content-Type": "application/json" }),
+      body: JSON.stringify({ h, code }) }));
+    return r;
+  } catch (e) { return json({ ok: false }, 500); }
+}
+/* DAY-1 REPORT: the phone's time zone (minutes, as Date.getTimezoneOffset() gives it), so days are the
+   player's own calendar days. Anything else: none. */
+function cleanTz(v) { if (typeof v !== "number") return null; return Number.isInteger(v) && v >= -840 && v <= 720 ? v : null; }   // pages from before send none: null, never UTC
 const AN_DAY_MS = 86400000;
 const anDayStr = (d) => new Date(d * AN_DAY_MS).toISOString().slice(0, 10);
 const anDayNum = (s) => (/^\d{4}-\d{2}-\d{2}$/.test(s || "") ? Math.floor(Date.parse(s + "T00:00:00Z") / AN_DAY_MS) : NaN);
@@ -2586,7 +2612,6 @@ export class LeaderboardDO {
       "/import": () => this.handleImport(request),
       "/recompute": () => this.handleRecompute(),
       "/admin-find": () => this.handleAdminFind(request),
-      "/admin-stats-code": () => this.handleAdminStatsCode(request),   // DAY-1 REPORT (read-only)
       "/admin-remove-score": () => this.handleAdminRemoveScore(request),
       "/admin-remove-pilots-dry-run": () => json({ ok: false, moveStorageFirst: true, error: RP_MOVE_FIRST }, 409),   // REMOVE PILOTS: new layout only
       "/admin-remove-pilots": () => json({ ok: false, moveStorageFirst: true, error: RP_MOVE_FIRST }, 409),
@@ -2792,7 +2817,10 @@ export class LeaderboardDO {
         if (url.pathname === "/an-purge") return await this.anPurge(await this.anBody(request));
         if (url.pathname === "/an-usage") return await this.anUsage(await this.anBody(request));   // FREE PLAN
         if (url.pathname === "/an-day1") return await this.anDay1(url);                              // DAY-1 REPORT (read-only)
-        if (url.pathname === "/an-excl" && request.method === "POST") return await this.anExcl(await this.anBody(request));   // DAY-1 REPORT: owner's devices
+        if (url.pathname === "/an-mark-code" && request.method === "POST") return await this.anMarkCode(await this.anBody(request));   // DAY-1 REPORT: owner's phones
+        if (url.pathname === "/an-mark" && request.method === "POST") return await this.anMark(await this.anBody(request));
+        if (url.pathname === "/an-marked" && request.method === "POST") return await this.anMarked();
+        if (url.pathname === "/an-unmark" && request.method === "POST") return await this.anUnmark(await this.anBody(request));
         return json({ error: "Not found" }, 404);
       } catch (e) { return json({ error: "stats failed" }, 500); }
     };
@@ -2806,14 +2834,20 @@ export class LeaderboardDO {
     const h = String(b.h || ""); if (!/^[0-9a-f]{16}$/.test(h)) return json({ ok: false }, 400);
     const events = (Array.isArray(b.events) ? b.events : []).slice(0, AN_MAX_BATCH);
     const country = ISO2.test(b.country || "") ? b.country : "XX";
+    // DAY-1 REPORT: one of the owner's own marked phones is counted nowhere (only the free-plan usage).
+    if ((await this.anMarkList()).some((x) => x.h === h)) { await this.anAddUse(b.use); return json({ ok: true, marked: true }); }
+    // DAY-1 REPORT: the player's own calendar day, from the phone's time zone (pages from before send none).
+    const tz = cleanTz(b.tz), nowMs = this.nowMs ? this.nowMs() : Date.now();
+    const ld = tz === null ? null : Math.floor((nowMs - tz * 60000) / AN_DAY_MS);
     // The pilot's own record: first day, first src (where they came from), last active day/month, retention marks.
     let p = await st.get("an:p:" + h), isNew = false;
-    if (!p) { p = { f: today, s: cleanSrc(b.src), l: -1, m: "", r: 0, k: 0, kd: today }; isNew = true; }
+    if (!p) { p = { f: today, s: cleanSrc(b.src), l: -1, m: "", r: 0, k: 0, kd: today }; isNew = true; if (ld !== null) { p.lf = ld; p.tz = tz; } }   // lf/tz: local first day
     if (p.kd !== today) { p.kd = today; p.k = 0; }
     // REPLAY PROTECTION: a batch id this pilot already sent is counted once.
     const bid = typeof b.bid === "string" && BATCH_ID_RE.test(b.bid) ? b.bid : "";
     if (bid && Array.isArray(p.b) && p.b.includes(bid)) return json({ ok: true, duplicate: true });
     if (p.k >= 500) return json({ ok: true, capped: true });   // a flood from one pilot is ignored for the day
+    if (Number.isFinite(p.lf) && ld === p.lf + 1) p.lb = 1;   // DAY-1 REPORT: back on their own next calendar day
     if (bid) p.b = (Array.isArray(p.b) ? p.b : []).concat([bid]).slice(-AN_BATCH_IDS_MAX);
     p.k += events.length;
     const groups = ["all", "c:" + country, "s:" + p.s];
@@ -2867,7 +2901,7 @@ export class LeaderboardDO {
     // Raw events for 90 days, in small chunks.
     const n = (await st.get("an:evn:" + today)) || 0, ck = "an:ev:" + today + ":" + Math.max(0, n - 1);
     let chunk = n ? ((await st.get(ck)) || []) : [];
-    const rows = events.map((e) => Object.assign({ h, c: country, s: p.s }, e));
+    const rows = events.map((e) => Object.assign({ h, c: country, s: p.s }, ld === null ? {} : { ld }, e));   // ld: the player's own day (DAY-1 REPORT)
     if (!n || chunk.length + rows.length > 400) { chunk = rows; puts["an:ev:" + today + ":" + n] = chunk; puts["an:evn:" + today] = n + 1; }
     else { chunk = chunk.concat(rows); puts[ck] = chunk; }
     const days = (await st.get("an:days")) || [];
@@ -2916,48 +2950,54 @@ export class LeaderboardDO {
     if (gone.length) await st.put("an:days", keep);
     return json({ ok: true, purgedDays: gone.length });
   }
-  /* DAY-1 REPORT (see adminDay1). Start dates from..to (UTC days, like every stats day); by default
-     the same window as the owner summary's day-1 finding (today-30 .. today-2), so "everyone" here
-     matches that number. Came back on day 1 is the pilot's own record (the same mark the totals
-     use). Everything else comes from the pilot's raw events on their first day (and the next day,
-     for a first run that ended after midnight). Run length is REAL play time: the seconds the game
-     counted while the ball was in play (its "play" events), never the clock time between start and
-     game over, which also counts pauses and time the app was in the background. */
+  /* DAY-1 REPORT (see adminDay1). A pilot's first day is THEIR OWN calendar day (the phone's time zone at
+     their first visit); "came back on day 1" = they played again on their own next calendar day. A pilot
+     whose own day 1 is not over yet shows null ("not over"), never "no". Start dates from..to are those
+     local days; by default the last 30 days up to two days ago. Pilots who started before local days were
+     recorded are only counted (by UTC day, as before), never mixed in. Run length is REAL play time:
+     the seconds the game counted while the ball was in play (its "play" events and the first run's
+     "fs"), never the clock time between start and game over. The owner's marked phones are never
+     listed: only how many there are. */
   async anDay1(url) {
-    const st = this.state.storage, today = this.anToday();
+    const st = this.state.storage, today = this.anToday(), nowMs = this.nowMs ? this.nowMs() : Date.now();
     let to = anDayNum(url.searchParams.get("to")), from = anDayNum(url.searchParams.get("from"));
     if (!Number.isFinite(to)) to = today - 2;
     if (!Number.isFinite(from)) from = today - 30;
     to = Math.min(to, today);
-    from = Math.max(from, today - AN_KEEP_DAYS + 1, to - 89);
+    from = Math.max(from, today - AN_KEEP_DAYS + 2, to - 89);
     if (from > to) from = to;
-    const excl = (await st.get("an:excl")) || [], exclSet = new Set(excl.map((x) => x.h));
-    const per = new Map();   // code -> day -> rows, in arrival order
+    const marked = await this.anMarkList(), markedSet = new Set(marked.map((x) => x.h));
+    const per = new Map();   // code -> that pilot's raw rows, in arrival order
     let rowsRead = 0;
-    for (let d = from; d <= Math.min(to + 1, today); d++) {
+    for (let d = from - 1; d <= Math.min(to + 2, today); d++) {   // a local day spans the UTC days around it
       const n = (await st.get("an:evn:" + d)) || 0;
       for (let i = 0; i < n; i++) {
         const chunk = (await st.get("an:ev:" + d + ":" + i)) || [];
         rowsRead += chunk.length;
         for (const r of chunk) {
           if (!r || typeof r.h !== "string") continue;
-          let x = per.get(r.h); if (!x) per.set(r.h, (x = new Map()));
-          let a = x.get(d); if (!a) x.set(d, (a = []));
+          let a = per.get(r.h); if (!a) per.set(r.h, (a = []));
           a.push(r);
         }
       }
     }
-    const rows = [];
-    for (const [h, days] of per) {
+    const rows = [], older = { n: 0, back: 0 }; let markedSeen = 0;
+    for (const [h, list] of per) {
       const p = await st.get("an:p:" + h);
-      if (!p || !Number.isFinite(p.f) || p.f < from || p.f > to) continue;
-      const d0 = days.get(p.f) || [], d01 = d0.concat(days.get(p.f + 1) || []);
+      if (!p) continue;
+      if (!Number.isFinite(p.lf)) {   // started before local days were recorded: counted, by UTC day, never listed
+        if (Number.isFinite(p.f) && p.f >= from && p.f <= to && !markedSet.has(h) && today - p.f >= 2) { older.n++; if (p.r & 1) older.back++; }
+        continue;
+      }
+      if (p.lf < from || p.lf > to) continue;
+      if (markedSet.has(h)) { markedSeen++; continue; }   // the owner's own phone: counted only, never shown
+      const d0 = list.filter((r) => r.ld === p.lf), d01 = list.filter((r) => r.ld === p.lf || r.ld === p.lf + 1);
       const opens = d0.filter((r) => r.e === "open"), o = opens[0] || null;
       const openedIn = !o ? "unknown" : o.home ? "home" : o.iab === true ? "inapp" : "browser";
       const osRow = opens.find((r) => AN_OS.has(r.os));
       // Runs on the first day, each with its real play time (the "play" rows right after its game over).
       let runs = 0, playSec = 0, timed = 0;
-      const realSec = (list, i) => { let sec = 0, any = false; for (let j = i + 1; j < list.length && list[j].e === "play"; j++) { sec += Number(list[j].sec) || 0; any = true; } return any ? sec : null; };
+      const realSec = (rs, i) => { let sec = 0, any = false; for (let j = i + 1; j < rs.length && rs[j].e === "play"; j++) { sec += Number(rs[j].sec) || 0; any = true; } return any ? sec : null; };
       for (let i = 0; i < d0.length; i++) {
         if (d0[i].e !== "run_end") continue;
         runs++;
@@ -2969,36 +3009,72 @@ export class LeaderboardDO {
       const fi = d01.findIndex((r) => r.e === "run_end" && r.fs !== undefined);
       if (fi >= 0) { firstDiff = d01[fi].diff || null; firstSec = Number(d01[fi].fs) || 0; }
       else {
-        const gi = d01.findIndex((r) => r.e === "run_end");   // older pages: no "fs"; the first game over seen
+        const gi = d01.findIndex((r) => r.e === "run_end");   // no "fs": the first game over seen
         if (gi >= 0) { firstDiff = d01[gi].diff || null; firstSec = realSec(d01, gi); }
       }
       const started = d0.some((r) => r.e === "first_run") || runs > 0;
+      const day1Over = nowMs >= (p.lf + 2) * AN_DAY_MS + (Number(p.tz) || 0) * 60000;   // the end of their own next day
       rows.push({
-        code: h, start: anDayStr(p.f), country: p.c || "XX", src: p.s || "direct",
+        code: h.slice(0, 6), start: anDayStr(p.lf), country: p.c || "XX", src: p.s || "direct",
         openedIn, os: osRow ? osRow.os : "unknown",
         started, firstDiff, firstSec, runs, playSec: Math.round(playSec), avgRunSec: timed ? Math.round(playSec / timed) : null,
-        back1: today - p.f >= 2 ? !!(p.r & 1) : null,   // null: day 1 is not over yet
-        excluded: exclSet.has(h),
+        back1: p.lb ? true : day1Over ? false : null,   // null: their day 1 is not over yet
       });
     }
     rows.sort((a, b) => (a.start < b.start ? 1 : a.start > b.start ? -1 : a.code < b.code ? -1 : 1));
-    return json({ ok: true, from: anDayStr(from), to: anDayStr(to), today: anDayStr(today), keepDays: AN_KEEP_DAYS, rowsRead,
-      rows: rows.slice(0, 3000), more: Math.max(0, rows.length - 3000),
-      excluded: excl.map((x) => ({ code: x.h, label: x.label, at: x.at })) });
+    return json({ ok: true, days: "local", from: anDayStr(from), to: anDayStr(to), today: anDayStr(today), keepDays: AN_KEEP_DAYS, rowsRead,
+      rows: rows.slice(0, 3000), more: Math.max(0, rows.length - 3000), older, markedLeftOut: markedSeen, markedPhones: marked.length });
   }
-  /* DAY-1 REPORT: the owner's own and test devices (STATS codes + the owner's label), at most 50. */
-  async anExcl(b) {
-    const st = this.state.storage;
-    let list = (await st.get("an:excl")) || [];
-    const ok = (h) => /^[0-9a-f]{16}$/.test(String(h || ""));
-    if (b && b.add && ok(b.add.h)) {
-      list = list.filter((x) => x.h !== b.add.h);
-      if (list.length >= 50) return json({ error: "At most 50 devices can be marked. Unmark one first." }, 400);
-      list.push({ h: b.add.h, label: String(b.add.label || "test device").slice(0, 60), at: Date.now() });
-    } else if (b && ok(b.remove)) list = list.filter((x) => x.h !== b.remove);
-    else return json({ error: "Invalid entry" }, 400);
-    await st.put("an:excl", list);
-    return json({ ok: true, excluded: list.map((x) => ({ code: x.h, label: x.label, at: x.at })) });
+  /* DAY-1 REPORT: the owner's own phones. The list keeps each phone's one-way stats code, the owner's label
+     and when it was marked; FLUX COMMAND only ever gets the labels, dates and a random id (never the code). */
+  async anMarkList() {
+    if (!this.anMarkL) this.anMarkL = (await this.state.storage.get("an:excl")) || [];
+    return this.anMarkL;
+  }
+  async anMarkSave(list) { await this.state.storage.put("an:excl", list); this.anMarkL = list; }
+  anMarkedOut(list) { return list.map((x) => ({ id: x.id, label: x.label, at: x.at })); }
+  async anMarked() { return json({ ok: true, marked: this.anMarkedOut(await this.anMarkList()), max: DAY1_MARK_MAX }); }
+  async anMarkCode(b) {
+    const st = this.state.storage, nowMs = this.nowMs ? this.nowMs() : Date.now();
+    const label = String((b && b.label) || "").slice(0, 40);
+    if (!label) return json({ error: "Invalid entry" }, 400);
+    if ((await this.anMarkList()).length >= DAY1_MARK_MAX) return json({ error: "At most " + DAY1_MARK_MAX + " phones can be marked. Count one again first." }, 409);
+    const A = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ".replace("L", ""), bytes = crypto.getRandomValues(new Uint8Array(8));
+    let code = ""; for (const x of bytes) code += A[x % A.length];
+    const pend = ((await st.get("an:markcodes")) || []).filter((x) => x.exp > nowMs).slice(-4);
+    pend.push({ code, label, exp: nowMs + DAY1_CODE_MS });
+    await st.put("an:markcodes", pend);
+    return json({ ok: true, code: "MARK-" + code.slice(0, 4) + "-" + code.slice(4), minutes: DAY1_CODE_MS / 60000 });
+  }
+  async anMark(b) {
+    const st = this.state.storage, nowMs = this.nowMs ? this.nowMs() : Date.now();
+    const h = String((b && b.h) || ""), code = String((b && b.code) || "");
+    if (!/^[0-9a-f]{16}$/.test(h) || !DAY1_CODE_RE.test(code)) return json({ ok: false, error: "bad" }, 400);
+    let pend = ((await st.get("an:markcodes")) || []).filter((x) => x.exp > nowMs);
+    const hit = pend.find((x) => x.code === code);
+    if (!hit) {   // a wrong code: after DAY1_BAD_MAX of them, every open code is cancelled
+      const bad = ((await st.get("an:markbad")) || 0) + 1;
+      if (bad >= DAY1_BAD_MAX) { await st.put({ "an:markcodes": [], "an:markbad": 0 }); }
+      else await st.put({ "an:markcodes": pend, "an:markbad": bad });
+      return json({ ok: false, error: "code" }, 404);
+    }
+    pend = pend.filter((x) => x !== hit);
+    let list = (await this.anMarkList()).slice(), already = list.some((x) => x.h === h);
+    if (!already) {
+      if (list.length >= DAY1_MARK_MAX) return json({ ok: false, error: "full" }, 409);
+      const id = Array.from(crypto.getRandomValues(new Uint8Array(4))).map((x) => x.toString(16).padStart(2, "0")).join("");
+      list.push({ h, id, label: hit.label, at: nowMs });
+    }
+    await st.put({ "an:markcodes": pend, "an:markbad": 0 });
+    await this.anMarkSave(list);
+    return json({ ok: true, already });
+  }
+  async anUnmark(b) {
+    const list = await this.anMarkList(), id = String((b && b.id) || "");
+    if (!list.some((x) => x.id === id)) return json({ error: "Not on the list" }, 404);
+    const next = list.filter((x) => x.id !== id);
+    await this.anMarkSave(next);
+    return json({ ok: true, marked: this.anMarkedOut(next), max: DAY1_MARK_MAX });
   }
   async anReport(url) {
     const st = this.state.storage, today = this.anToday();
@@ -3579,14 +3655,6 @@ export class LeaderboardDO {
     }
     matches.sort((a, b) => (bestOf({ bests: b.bests }) || { score: 0 }).score - (bestOf({ bests: a.bests }) || { score: 0 }).score);
     return json({ ok: true, matches: matches.slice(0, 25) });
-  }
-
-  /* DAY-1 REPORT: the pilot behind a public pid, as its one-way STATS code (never the player ID). */
-  async handleAdminStatsCode(request) {
-    const { pid } = await request.json();
-    const id = PID_RE.test(String(pid || "")) ? await this.findPlayerIdByPid(pid) : null;
-    if (!id) return json({ error: "Pilot not found" }, 404);
-    return json({ ok: true, code: await analyticsCode(id) });
   }
 
   /* Remove score: public scores only. Identity lives on the player's device and
@@ -6479,7 +6547,6 @@ class PilotLayoutV2 {
       "/import": () => this.importRecords(request),
       "/recompute": () => this.recompute(),
       "/admin-find": () => this.find(request),
-      "/admin-stats-code": () => this.statsCode(request),   // DAY-1 REPORT (read-only)
       "/admin-remove-score": () => this.removeScore(request),
       "/admin-remove-pilots-dry-run": () => this.removePilotsDryRun(request),   // REMOVE PILOTS (writes nothing)
       "/admin-remove-pilots": () => this.removePilots(request),
@@ -6740,13 +6807,6 @@ class PilotLayoutV2 {
       for (const v of shown) { const x = f.get(ids.get(v.pid)); if (x) v.founding = { n: x.n, takenBack: !!x.off }; }
     }
     return json({ ok: true, matches: shown });
-  }
-  /* DAY-1 REPORT: the pilot behind a public pid, as its one-way STATS code (never the player ID). */
-  async statsCode(request) {
-    const { pid } = await request.json();
-    const id = PID_RE.test(String(pid || "")) ? await this.findIdByPid(pid) : null;
-    if (!id) return json({ error: "Pilot not found" }, 404);
-    return json({ ok: true, code: await analyticsCode(id) });
   }
   async removeScore(request) {
     const o = this.o, { pid } = await request.json();

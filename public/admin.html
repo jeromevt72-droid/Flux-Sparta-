@@ -117,6 +117,7 @@
   .find p{margin:6px 0 0;font-size:13px;line-height:1.5}.find p b{color:var(--dim);font-weight:700}
   .find .hyp{color:var(--dim)}
   .conf{font-size:11px;letter-spacing:.12em;color:var(--dim);margin-top:6px}
+  .bigcode{font-family:ui-monospace,Menlo,monospace;font-size:26px;letter-spacing:.12em;text-align:center;padding:14px;margin:6px 0 10px;border:1px solid var(--line);border-radius:12px;color:var(--cyan);user-select:all;-webkit-user-select:all}
   textarea.export{width:100%;min-height:220px;background:#050a22;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:10px;
        font:12px/1.45 ui-monospace,Menlo,monospace;white-space:pre-wrap;user-select:text;-webkit-user-select:text;margin:8px 0}
   .logrow{color:var(--dim);font-size:12px;line-height:1.5;padding:6px 0;border-top:1px solid var(--line);white-space:pre-line}
@@ -206,14 +207,25 @@
 
   <h2>DAY-1 BY PILOT</h2>
   <p class="note">New pilots one by one: how they opened FLUX, their phone, their first run and whether they came back the
-  next day. Read-only. Pilots counts only those whose day 1 is over. Days are UTC days (in the Philippines a day starts at 8 AM). Run length is real play time.
-  Your own and test devices are left out: mark them from <b>FIND A PLAYER</b> → <b>MARK AS MY DEVICE</b>.</p>
+  next day. Read-only. Days are each player's <b>own calendar days</b> (their phone's time zone). Rates count only pilots whose
+  own day 1 is over. Run length is real play time. Your own phones (below) are counted nowhere and never listed.</p>
   <div class="row">
     <select id="d1Range" aria-label="Start dates"><option value="30" selected>Started: last 30 days</option><option value="14">Started: last 14 days</option><option value="60">Started: last 60 days</option><option value="88">Started: last 88 days</option></select>
     <button id="d1Load" class="go">SHOW</button>
   </div>
-  <div id="d1Marked"></div>
   <div id="day1"></div>
+  <p class="note"><b>Your own phones</b> are left out of every statistic (totals, retention, the owner summary and this report)
+  from the moment they are marked. Marking is done on the phone itself: make a one-time code here, then on that phone open
+  FLUX → <b>EDIT</b> → <b>HAVE A RESTORE CODE?</b> (→ <b>RESTORE A DIFFERENT PILOT</b>) and type the code. Do it once in each
+  browser and each Home Screen app you play in. The code works once, for 15 minutes.</p>
+  <div class="row">
+    <input id="d1Label" type="text" autocomplete="off" spellcheck="false" maxlength="40" placeholder="Label, e.g. my BLU Chrome" aria-label="Phone label">
+    <input id="d1Confirm" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Type MY PHONE" aria-label="Confirmation">
+  </div>
+  <div class="row"><button id="d1Code" class="go" style="flex:1">MAKE A CODE FOR MY PHONE</button></div>
+  <div id="d1CodeOut"></div>
+  <div class="row"><button id="d1MarkedLoad" class="ghost" style="flex:1">SHOW MY MARKED PHONES</button></div>
+  <div id="d1Marked"></div>
 
   <h2>SEASON 0 SCORES (ARCHIVED)</h2>
   <p class="note">Read-only. Every best from before Season 1, kept when the boards were reset. Nothing here is public.</p>
@@ -514,17 +526,21 @@
 
     <h3>Day-1 by pilot</h3>
     <ul>
-      <li><b>What it shows:</b> every pilot who started in the period, one line each (an anonymous code, never a name),
+      <li><b>What it shows:</b> every pilot who started in the period, one line each (the start of an anonymous code, never a name or tag),
       and the share who came back on day 1, split by country, how FLUX was opened (Home Screen app, browser tab, an app's
       built-in browser), phone (iPhone/iPad or Android, recorded from this report's release on), first-run difficulty,
       how long the first run lasted, runs on the first day, and src. Read-only: nothing changes for players.</li>
       <li><b>Real play time:</b> the seconds the ball was in play. Pauses and time the app sat in the background do not count
       (the "avg run" in PLAYER STATS is clock time from start to game over, so it is longer).</li>
-      <li><b>Your devices:</b> FIND A PLAYER → your pilot → <b>MARK AS MY DEVICE</b>. Each browser and each Home Screen app is
-      its own pilot, so mark each one. A pilot with no score on the board cannot be found, so it cannot be marked.
-      The head line shows the rate with and without the marked devices; "without" matches the owner summary.</li>
+      <li><b>Your phones:</b> type a label and MY PHONE, press MAKE A CODE FOR MY PHONE, then type the code on that phone
+      (EDIT → HAVE A RESTORE CODE? → RESTORE A DIFFERENT PILOT). It works for phones that never posted a score. Each browser and
+      each Home Screen app is its own pilot, so mark each one. From then on that phone is counted nowhere; what it sent
+      before stays in the totals. Marked phones are never listed in the report, only counted. A pilot cannot be marked from
+      FLUX COMMAND: only a phone in your hands can mark itself. COUNT AGAIN puts a phone back in the statistics from then on.</li>
       <li><b>Small groups:</b> under 10 pilots a group says "too few": its rate can swing a lot by chance.</li>
-      <li><b>Days:</b> UTC days. Day 1 is the next UTC day after a pilot's first (in the Philippines, 8 AM to 8 AM).
+      <li><b>Days:</b> each player's own calendar day, from their phone's time zone (midnight to midnight where they are).
+      Day 1 is their next calendar day. PLAYER STATS and the owner summary still use UTC days, so their day-1 number can
+      differ a little. Pilots who started before this report counted local days are shown only as one count (by UTC day).
       Raw events are kept 90 days, so the report reaches back about 88 days.</li>
     </ul>
     <h3>Owner summary (status and findings)</h3>
@@ -695,9 +711,9 @@
     b.disabled = false;
   }
   function wipe() {
-    ['insights', 'stInsights', 'summary', 'usage', 'exceptions', 'results', 'stats', 'season0', 'purchases', 'bans', 'wgState', 'wgReport', 'rpReport', 'rpResult', 'fpState', 'fpReport', 'fpExcl', 'fgReport', 'fgResult'].forEach(function (id) { $(id).textContent = ''; });
+    ['insights', 'stInsights', 'summary', 'usage', 'exceptions', 'results', 'stats', 'season0', 'purchases', 'bans', 'wgState', 'wgReport', 'rpReport', 'rpResult', 'fpState', 'fpReport', 'fpExcl', 'fgReport', 'fgResult', 'day1', 'd1Marked', 'd1CodeOut'].forEach(function (id) { $(id).textContent = ''; });
     $('usageAlert').classList.add('hidden');
-    ['q', 'pq', 'banName', 'rpLines', 'rpConfirm', 'fpConfirm', 'fpTag', 'fgLine', 'fgConfirm'].forEach(function (id) { $(id).value = ''; });
+    ['q', 'pq', 'banName', 'rpLines', 'rpConfirm', 'fpConfirm', 'fpTag', 'fgLine', 'fgConfirm', 'd1Label', 'd1Confirm'].forEach(function (id) { $(id).value = ''; });
     rpDry = null; $('rpGo').hidden = true; fgReset();
     say('');
   }
@@ -927,10 +943,6 @@
     c.appendChild(el('div', 'meta', (m.country || '??') + ' · ' + bestsText(m.bests) + '\nlast played ' + when(m.updatedAt) +
       (m.restriction ? '\nrestricted ' + when(m.restriction.at) + (m.restriction.reason ? ' — ' + m.restriction.reason : '') : '')));
     var a = el('div', 'actions');
-    a.appendChild(btn('MARK AS MY DEVICE', 'ghost', function () { var b = this;   // DAY-1 REPORT: leave this pilot out of the day-1 report
-      var label = prompt('Leave ' + m.name + ' #' + m.tag + ' out of the DAY-1 BY PILOT report?\n\nOnly for your own or test devices. Give it a label (for example: my iPhone Safari).', m.name + ' #' + m.tag);
-      if (label === null) return;
-      act(b, 'MARKING…', async function () { var r = await call('day1-mark', { pid: m.pid, label: label }); renderDay1Marked(r.excluded || []); say('Marked: left out of the day-1 report.', 'ok'); }); }));
     a.appendChild(btn('REMOVE SCORE', 'ghost', function () { var b = this;
       if (!confirm('Remove ' + m.name + ' #' + m.tag + ' from the public leaderboards?\n\nTheir FLUX ID and purchases are kept, and they can post new scores. Use Restrict for repeated abuse.')) return;
       act(b, 'REMOVING…', async function () { await call('remove-score', { pid: m.pid }); c.remove(); say('Score removed.', 'ok'); }); }));
@@ -1177,17 +1189,27 @@
     return list;
   }
   function d1Row(g) { return [g.k, fmt(g.n), fmt(g.back), g.n ? rate(g.back / g.n) + (g.n < D1_SMALL ? ' (too few)' : '') : '—']; }
-  function renderDay1Marked(list) {
+  function renderDay1Marked(list) {   // labels and dates only: FLUX COMMAND never gets a marked phone's code
     var box = $('d1Marked'); box.textContent = '';
-    if (!list.length) { box.appendChild(el('p', 'note', 'No devices marked yet.')); return; }
-    box.appendChild(el('p', 'note', 'Left out (your own and test devices): ' + list.length));
+    if (!list.length) { box.appendChild(el('p', 'note', 'No phones marked yet.')); return; }
+    box.appendChild(el('p', 'note', 'Your marked phones (counted nowhere): ' + list.length));
     list.forEach(function (x) {
       var row = el('div', 'row');
-      row.appendChild(el('span', 'meta', x.label + ' · code ' + x.code.slice(0, 6) + ' · marked ' + when(x.at)));
-      row.appendChild(btn('UNMARK', 'ghost small', function () { var b = this;
-        act(b, 'UNMARKING…', async function () { var r = await call('day1-unmark', { code: x.code }); renderDay1Marked(r.excluded || []); say('Unmarked.', 'ok'); }); }));
+      row.appendChild(el('span', 'meta', x.label + ' · marked ' + when(x.at)));
+      row.appendChild(btn('COUNT AGAIN', 'ghost small', function () { var b = this;
+        if (!confirm('Count "' + x.label + '" in the statistics again, from now on?')) return;
+        act(b, 'UPDATING…', async function () { var r = await call('day1-unmark', { id: x.id }); renderDay1Marked(r.marked || []); say('Counted again from now on.', 'ok'); }); }));
       box.appendChild(row);
     });
+  }
+  async function loadDay1Marked() { var r = await call('day1-marked', {}); renderDay1Marked(r.marked || []); say(''); }
+  async function makeDay1Code() {
+    var out = $('d1CodeOut'); out.textContent = '';
+    var r = await call('day1-mark-code', { label: $('d1Label').value, confirm: $('d1Confirm').value });
+    $('d1Confirm').value = '';
+    out.appendChild(el('p', 'note', 'On your phone: FLUX → EDIT → HAVE A RESTORE CODE? (→ RESTORE A DIFFERENT PILOT), type this code, press CONTINUE. It works once, for ' + r.minutes + ' minutes.'));
+    out.appendChild(el('div', 'bigcode', r.code));
+    say('');
   }
   async function loadDay1() {
     var box = $('day1'); box.textContent = '';
@@ -1195,14 +1217,14 @@
     var to = new Date(now - 2 * DAY), from = new Date(now - span * DAY);
     say('Loading the day-1 report…');
     var rep = await call('day1', { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) });
-    renderDay1Marked(rep.excluded || []);
-    var all = rep.rows || [], kept = all.filter(function (r) { return !r.excluded; });
+    var kept = rep.rows || [], old = rep.older || { n: 0, back: 0 };   // the server never sends a marked phone's line
     var over = kept.filter(function (r) { return r.back1 !== null; }), back = over.filter(function (r) { return r.back1; }).length;
-    var allOver = all.filter(function (r) { return r.back1 !== null; }), allBack = allOver.filter(function (r) { return r.back1; }).length;
-    if (!all.length) { box.appendChild(el('div', 'empty', 'No new pilots started in ' + rep.from + ' to ' + rep.to + ' (UTC).')); say(''); return; }
+    var tail = (rep.markedLeftOut ? ' Your own phones left out: ' + rep.markedLeftOut + '.' : '') +
+      (old.n ? ' Started before local days were counted (UTC days, not listed): ' + fmt(old.back) + ' of ' + fmt(old.n) + ' came back.' : '');
+    if (!kept.length) { box.appendChild(el('div', 'empty', 'No new pilots started in ' + rep.from + ' to ' + rep.to + ' (their own days).' + tail)); say(''); return; }
     var lines = [];
-    var head = 'Started ' + rep.from + ' to ' + rep.to + ' (UTC). Came back on day 1: ' + fmt(back) + ' of ' + fmt(over.length) + ' (' + rate(over.length ? back / over.length : NaN) + ')' +
-      ' — without leaving anything out: ' + fmt(allBack) + ' of ' + fmt(allOver.length) + ' (' + rate(allOver.length ? allBack / allOver.length : NaN) + '). Left out: ' + (all.length - kept.length) + '.';
+    var head = 'Started ' + rep.from + ' to ' + rep.to + ' (each player\'s own calendar day). Came back the next day: ' + fmt(back) + ' of ' + fmt(over.length) +
+      ' (' + rate(over.length ? back / over.length : NaN) + ').' + tail;
     box.appendChild(el('p', 'note', head)); lines.push('DAY-1 BY PILOT', head, '');
     var groups = [
       ['COUNTRY (the flag they picked)', function (r) { return d1Country(r.country); }, ['Philippines', 'USA', 'Other countries']],
@@ -1221,8 +1243,8 @@
     });
     box.appendChild(el('h2', null, 'EVERY NEW PILOT'));
     box.appendChild(table(['Started', 'Code', 'Country', 'src', 'Opened in', 'Phone', 'First run', 'Runs day 0', 'Real play day 0', 'Avg run', 'Back day 1'],
-      all.map(function (r) {
-        return [r.start, r.code.slice(0, 6) + (r.excluded ? ' (yours)' : ''), r.country, r.src, d1Open(r.openedIn), d1Os(r.os),
+      kept.map(function (r) {
+        return [r.start, r.code, r.country, r.src, d1Open(r.openedIn), d1Os(r.os),
           (r.firstDiff ? r.firstDiff.toUpperCase() + ' · ' : '') + (r.firstSec != null ? mins(r.firstSec) : (r.started ? '—' : 'none')),
           fmt(r.runs), mins(r.playSec), r.avgRunSec == null ? '—' : mins(r.avgRunSec), r.back1 === null ? 'day 1 not over' : r.back1 ? 'YES' : 'no'];
       })));
@@ -1894,6 +1916,8 @@
   checkSession(false).catch(function (e) { showLogin(e.message); });
   $('stLoad').onclick = guard(loadStats);
   $('d1Load').onclick = guard(loadDay1);   // DAY-1 REPORT
+  $('d1Code').onclick = guard(makeDay1Code);
+  $('d1MarkedLoad').onclick = guard(loadDay1Marked);
   $('s0Load').onclick = guard(loadSeason0);
   $('usageLoad').onclick = guard(function () { return loadUsage(false); });
   $('bkLoad').onclick = guard(loadBackups);
