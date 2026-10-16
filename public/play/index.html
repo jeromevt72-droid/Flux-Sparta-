@@ -2887,8 +2887,8 @@ function fluxRandomId(){
   catch(e){ for(let i=0;i<16;i++) a.push(Math.floor(Math.random()*256)); }
   return a.map(function(b){ return (b<16?'0':'')+b.toString(16); }).join('');
 }
-function buildSubmission(){
-  const run=bestRun();
+function buildSubmission(cur){
+  const run=cur||bestRun();   // EVERY RUN COUNTS: the run just played (ON only); otherwise the best, as always
   if(!(run.score>0)) return null;
   return {
     id:playerId+':'+difficulty+':'+run.score+':'+run.level,
@@ -3016,6 +3016,7 @@ function flushSubmitQueue(){
           lastUploadResult=b;
           if(typeof rankSnapSave==='function'){ rankSnapSave(b,item); showGoRank(); }   // LEADERBOARD REFRESH: the server's rank reply, for the game-over line and the pinned rows
           if(typeof fluxFoundingRun==='function') fluxFoundingRun(b,item);   // FOUNDING PILOT: a number in the run's own reply (no extra request)
+          if(typeof fluxCgRun==='function') fluxCgRun(b,item);   // EVERY RUN COUNTS: the run's share, in its own reply (no extra request)
         } else if(r.kind==='stale'){
           dequeueSubmission(item.id);
         } else if(r.kind==='permanent'){
@@ -3067,8 +3068,10 @@ function fluxAlreadyUploaded(item){
 }
 function submitScore(opts){
   const run=!!(opts && opts.run);
-  const item=buildSubmission();
-  if(!item || (run && fluxAlreadyUploaded(item))){ if(run) fluxStatsFlush(); return Promise.resolve(); }
+  const every=run && fluxCgOn();   // EVERY RUN COUNTS (owner switch ON): this run's own score, even when it is not a best
+  const item=every ? buildSubmission({ score:score, level:levelForScore(score,difficulty), difficulty:difficulty }) : buildSubmission();
+  if(every && item) fluxCgRunId=item.runId;
+  if(!item || (run && !every && fluxAlreadyUploaded(item))){ if(run) fluxStatsFlush(); return Promise.resolve(); }
   if(run) fluxMergeStats(item, fluxStatsTake());
   enqueueSubmission(item);
   return flushSubmitQueue();
@@ -3085,10 +3088,11 @@ function updateUploadStatus(){
     const el=document.getElementById('uploadStatus');
     if(el){
       const waiting=loadQueue().length>0;
-      if(waiting) el.textContent='● BEST PENDING UPLOAD';
+      let t='';
+      if(waiting) t='● BEST PENDING UPLOAD';
       else if(lastUploadResult && lastUploadResult.public===true && Number.isFinite(lastUploadResult.rank) && lastUploadResult.rank>0)
-        el.textContent='GLOBAL RANK #'+lastUploadResult.rank+' ('+String(lastUploadResult.difficulty||difficulty).toUpperCase()+')';
-      else el.textContent='';
+        t='GLOBAL RANK #'+lastUploadResult.rank+' ('+String(lastUploadResult.difficulty||difficulty).toUpperCase()+')';
+      el.textContent=typeof fluxCgStatus==='function' ? fluxCgStatus(t) : t;   // EVERY RUN COUNTS: + given in all (ON only)
     }
     const tagEl=document.getElementById('profileTag');
     if(tagEl){
@@ -3155,6 +3159,7 @@ function fluxLbLoad(){
     }
     const o={ at:Date.now(), data:await r.json() };
     try{ localStorage.setItem(FLUX_LB_KEY,JSON.stringify(o)); }catch(e){}
+    fluxCgSet(!!(o.data && o.data.cg && o.data.cg.on));   // EVERY RUN COUNTS: the switch, from the board the game already loads
     return o;
   });
   fluxLbInflight=p;
@@ -3442,6 +3447,7 @@ async function syncEntitlements() {
     // these skins keep working offline.
     writeVerifiedEntitlements(d.skus);
     if (typeof fluxFoundingSave === 'function') fluxFoundingSave(Number.isFinite(d.founding) ? d.founding : 0, Number.isFinite(d.foundingLeft) ? d.foundingLeft : null);   // FOUNDING PILOT
+    fluxCgSet(d.cg === 1);   // EVERY RUN COUNTS: the switch
 
     // T-9: reconcile this device against the server. A paid SKU the server
     // does NOT list must stop counting as ownership here -- that is how an old
@@ -3954,18 +3960,66 @@ function gameOverLine(sc,prevBest,prevOverall){
   let second;
   if(!profileComplete) second='Add your name to count for '+c.flag;
   else if(runAdds(sc,prevOverall)>0) second=c.flag+' +'+runAdds(sc,prevOverall).toLocaleString()+' for '+c.name;   // weighted, as in the country total
+  else if(fluxCgOn()) second='';   // EVERY RUN COUNTS: every run gives; its share arrives with the upload's reply (fluxCgLine)
   else second='Beat '+Math.max(sc,Math.ceil(prevOverall/(DIFF_WEIGHT[difficulty]||1))).toLocaleString()+' to add to '+c.flag;   // in this difficulty's real points
   // Shown only when the run was close: a new best, or within 20% of the best on this
   // difficulty. A far-off run gets a clean game over (the rank line and "points behind" stay).
   const show=isNew || (prevBest>0 && sc>=prevBest*(1-GO_LINE_NEAR));
   return { isNew:isNew, first:first, second:second, show:show };
 }
+var fluxGoLast=null;   // EVERY RUN COUNTS: the run on the game-over screen (its share completes the line)
 function showGameOverLine(sc,prevBest,prevOverall){
   const el=document.getElementById('goLine'); if(!el) return;
+  fluxGoLast={ sc:sc, prevBest:prevBest, prevOverall:prevOverall };
   const l=gameOverLine(sc,prevBest,prevOverall);
   el.style.display=l.show?'':'none';
   if(!l.show){ el.textContent=''; return; }
-  el.innerHTML='<span class="'+(l.isNew?'goNew':'')+'">'+escapeHtml(l.first)+'</span> · '+escapeHtml(l.second);
+  el.innerHTML='<span class="'+(l.isNew?'goNew':'')+'">'+escapeHtml(l.first)+'</span>'+(l.second ? ' · '+escapeHtml(l.second) : '');
+}
+/* ==================================================================
+   EVERY RUN COUNTS (owner switch in FLUX COMMAND; OFF = the game exactly as before)
+   ------------------------------------------------------------------
+   While ON, every finished run is uploaded (its stats ride inside: still
+   ONE request per run) and the server gives a share of it to the pilot's
+   country. The reply says how much: the game-over line shows it
+   ("🇵🇭 +345 for Philippines", added to what a new best adds), and the
+   menu's status line shows what this pilot has given in all. The switch
+   is learned from answers the game already gets (the board, the
+   entitlements at launch, the run's reply) -- no extra request, nothing
+   per frame.
+   ================================================================== */
+var FLUX_CG_KEY='fluxCg', FLUX_CG_GIVEN_KEY='fluxCgGiven';   // var: read safely from code that runs before this line
+var fluxCgRunId=null;
+function fluxCgOn(){ try{ const o=JSON.parse(localStorage.getItem(FLUX_CG_KEY)||'null'); return !!(o && o.on===true); }catch(e){ return false; } }
+function fluxCgSet(on){ try{ if(on) localStorage.setItem(FLUX_CG_KEY,JSON.stringify({ on:true, at:Date.now() })); else localStorage.removeItem(FLUX_CG_KEY); }catch(e){} }
+function fluxCgGiven(){ try{ const o=JSON.parse(localStorage.getItem(FLUX_CG_GIVEN_KEY)||'null'); return (o && o.pid===playerId && Number.isFinite(o.t)) ? o.t : 0; }catch(e){ return 0; } }
+/* The game-over line once the run's share is known. Pure (testable): the line's second part. */
+function fluxCgLine(cg,sc,prevOverall){
+  if(!cg || !cg.on) return null;
+  const c=countryLabel(cg.cc||country), best=runAdds(sc,prevOverall), add=(Number.isFinite(cg.add)?cg.add:0)+best;
+  if(add>0) return c.flag+' +'+add.toLocaleString()+' for '+c.name;
+  if(cg.capped) return 'Today\'s max given to '+c.flag+' '+c.name;
+  return null;
+}
+function fluxCgRun(b,item){
+  try{
+    fluxCgSet(!!(b && b.cg && b.cg.on));
+    if(!b || !b.cg || !item || item.playerId!==playerId) return;
+    if(Number.isFinite(b.cg.total)) localStorage.setItem(FLUX_CG_GIVEN_KEY,JSON.stringify({ pid:playerId, t:b.cg.total }));
+    const go=document.getElementById('gameover');
+    if(b.cg.dup || item.runId!==fluxCgRunId || !fluxGoLast || !go || go.classList.contains('hidden')) return;   // only the run on screen
+    const second=fluxCgLine(b.cg,fluxGoLast.sc,fluxGoLast.prevOverall); if(!second) return;
+    const l=gameOverLine(fluxGoLast.sc,fluxGoLast.prevBest,fluxGoLast.prevOverall), el=document.getElementById('goLine'); if(!el) return;
+    el.style.display='';
+    el.innerHTML='<span class="'+(l.isNew?'goNew':'')+'">'+escapeHtml(l.first)+'</span> · '+escapeHtml(second);
+  }catch(e){}
+}
+/* The menu's status line: + what this pilot has given in all (ON only). Pure (testable). */
+function fluxCgStatus(base){
+  if(!fluxCgOn() || !profileComplete) return base;
+  const t=fluxCgGiven(); if(!(t>0)) return base;
+  const c=countryLabel(country), g=c.flag+' '+t.toLocaleString()+' GIVEN TO '+String(c.name||'').toUpperCase();
+  return base ? base+' · '+g : g;
 }
 /* D-60: an auto-named pilot (PILOT-XXXX) who sets a new best on their second
    run or later is offered -- once, dismissable -- to put a name on the board. */

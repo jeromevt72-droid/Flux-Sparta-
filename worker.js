@@ -263,6 +263,8 @@ export default {
             "/api/admin/world-grid-apply":   () => adminWorldGridApply(request, env),                 // COMBINED WORLD GRID: typed APPLY <id> + recent checked backup
             "/api/admin/world-grid-revert":  () => adminDO(request, env, "/world-grid-revert", { reason: "by the owner" }),   // COMBINED WORLD GRID: switch back
             "/api/admin/founding-status":    () => adminFounding(request, env, "status"),      // FOUNDING PILOT: counter, exclusions, log
+            "/api/admin/cg-status":          () => adminCg(request, env, "status"),            // EVERY RUN COUNTS: switch, totals per country (read-only)
+            "/api/admin/cg-switch":          () => adminCg(request, env, "switch"),            // EVERY RUN COUNTS: ON (typed + backup < 60 min) / OFF
             "/api/admin/founding-dry-run":   () => adminFounding(request, env, "dry-run"),     // FOUNDING PILOT: who WOULD be numbered; writes nothing
             "/api/admin/founding-switch":    () => adminFounding(request, env, "switch"),      // FOUNDING PILOT: ON (typed + backup < 60 min) / OFF
             "/api/admin/founding-continue":  () => adminFounding(request, env, "continue"),    // FOUNDING PILOT: resume numbering (ON only)
@@ -598,7 +600,9 @@ async function submitRun(request, env, ctx) {
   // REPLAY PROTECTION: the run id is also the stats batch id, so a retried
   // run is counted once; a reply marked duplicate needs no stats request at all.
   const runId = body && typeof body.runId === "string" && BATCH_ID_RE.test(body.runId) ? body.runId : "";
-  const dup = resp.ok ? !!(await resp.clone().json().catch(() => ({}))).duplicate : false;
+  const rj = resp.ok ? await resp.clone().json().catch(() => ({})) : {};
+  const dup = resp.ok ? !!rj.duplicate : false;
+  if (rj && rj.cg && rj.cg.add > 0) useCount("rw", CG_ROWS_EST);   // EVERY RUN COUNTS: the pilot's numbers + the country totals
   if (stats && !dup && resp.status !== 429 && resp.status < 500) {
     const p = ingestRunStats(request, env, playerId, body.country, stats, runId).catch(() => false);
     if (ctx && typeof ctx.waitUntil === "function") ctx.waitUntil(p); else await p;
@@ -2076,6 +2080,28 @@ async function adminFounding(request, env, action) {
   if (x.status === 200) { x.d.numbered = numbered; x.d.rowsWritten = rows; }
   return out(x);
 }
+/* EVERY RUN COUNTS: the owner's switch. OFF is immediate. ON needs the typed phrase, the new storage
+   layout and a verified backup from the last 60 minutes (as FOUNDING PILOT). */
+async function adminCg(request, env, action) {
+  const denied = requireAdmin(request, env); if (denied) return denied;
+  if (!env.LEADERBOARD_DO) return json({ error: "Leaderboard storage is not configured (missing LEADERBOARD_DO binding)" }, 500);
+  const b = await adminBody(request);
+  const call = async (path, body) => {
+    const r = await forwardToDO(request, env, path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+    return { status: r.status, d: await r.json().catch(() => ({ ok: false, error: "No answer from the leaderboard." })) };
+  };
+  const out = (x) => json(x.d, x.status);
+  if (action === "status") { const x = await call("/cg-status"); if (x.status === 200) x.d.backup = await sfLatestBackup(env); return out(x); }
+  if (!b.on) return out(await call("/cg-switch", { on: false }));
+  if (String(b.confirm || "").trim() !== CG_CONFIRM) return json({ error: "To switch Every Run Counts ON, type exactly: " + CG_CONFIRM }, 400);
+  const st = await call("/cg-status");
+  if (st.status !== 200) return out(st);
+  if (st.d.layout !== "new") return json({ error: CG_MOVE_FIRST }, 409);
+  const bk = await sfLatestBackup(env);
+  if (!bk.fresh) return json({ ok: false, needBackup: true, backup: bk,
+    error: "Switching ON needs a verified backup taken in the last 60 minutes" + (bk.createdAt ? " (the newest is " + bk.ageMin + " minutes old)" : "") + ". Press BACK UP NOW, then try again." }, 409);
+  return out(await call("/cg-switch", { on: true }));
+}
 /* FOUNDING PILOT by hand: ONE pilot the owner names exactly (NAME #TAG). CHECK writes nothing: it says
    why that pilot has no number and what GIVE would do. A removed pilot (no row any more) is looked up
    in the newest checked backups, and GIVE first brings it back from the newest one that holds it.
@@ -2630,6 +2656,8 @@ export class LeaderboardDO {
       "/world-grid-check": () => this.handleWorldGridCheck(),
       "/world-grid-revert": () => this.handleWorldGridRevert(request),
       "/founding-status": () => json({ ok: true, layout: "old", on: false, given: 0, cap: FOUNDING_CAP, left: FOUNDING_CAP, excluded: [], log: [] }),   // FOUNDING PILOT: new layout only
+      "/cg-status": () => json({ ok: true, layout: "old", on: false, rate: CG_RATE, cap: CG_DAY_CAP, given: 0, runs: 0, countries: [], log: [] }),   // EVERY RUN COUNTS: new layout only
+      "/cg-switch": () => json({ ok: false, error: CG_MOVE_FIRST }, 409),
       "/founding-dry-run": () => json({ error: FOUNDING_MOVE_FIRST }, 409),
       "/founding-switch": () => json({ error: FOUNDING_MOVE_FIRST }, 409),
       "/founding-continue": () => json({ error: FOUNDING_MOVE_FIRST }, 409),
@@ -4469,7 +4497,7 @@ async function bkErasePilot(entries, pid, removePurchases) {
   if (r.status !== 404) throw new Error("erase failed (" + r.status + ")");
   // Not a player in this snapshot: still erase the name and reason from its restore log, and its flags.
   let touched = false;
-  const kept = entries.filter(([k]) => k !== "runs:" + pid);   // REPLAY PROTECTION: its accepted run ids go too
+  const kept = entries.filter(([k]) => k !== "runs:" + pid && k !== CG_P + pid);   // REPLAY PROTECTION: its accepted run ids go too (EVERY RUN COUNTS: and its own numbers)
   if (kept.length !== entries.length) touched = true;
   const out = kept.map(([k, v]) => {
     if (k === "restoreLog" && Array.isArray(v) && v.some((e) => e && e.pid === pid && (e.name || e.reason !== "(erased on privacy request)"))) {
@@ -5553,7 +5581,7 @@ const MIG_CHECK_SAMPLE = 200;
 const MIG_CHANGED_MAX = 5000;
 const V2_ROW_BYTES_EST = 310;                // one pilot in a backup (measured in the tests)
 const FREE_PLAN = { rowsReadPerDay: 5_000_000, rowsWrittenPerDay: 100_000, storageBytes: 5 * 1024 * 1024 * 1024, note: "Workers Free plan, SQLite Durable Objects -- check the current limits in the Cloudflare dashboard" };
-const V2_WRITE_ROUTES = new Set(["/submit", "/grant", "/revoke", "/import", "/recompute", "/admin-remove-score", "/admin-remove-pilots", "/admin-restrict", "/admin-unrestrict",
+const V2_WRITE_ROUTES = new Set(["/cg-switch", "/submit", "/grant", "/revoke", "/import", "/recompute", "/admin-remove-score", "/admin-remove-pilots", "/admin-restrict", "/admin-unrestrict",
   "/admin-privacy-delete", "/admin-name-ban", "/admin-name-unban", "/admin-dismiss-flag", "/admin-issue-restore", "/world-grid-apply", "/world-grid-revert",
   "/founding-switch", "/founding-continue", "/founding-exclude", "/founding-take-back", "/founding-grant"]);
 const V2_TABLES = ["pilots", "ents", "seen", "cool", "fnd"];   // backed up; v2meta (derived totals) is rebuilt instead
@@ -5582,6 +5610,26 @@ const FOUNDING_LOG_MAX = 30;
 const FOUNDING_EXCL_MAX = 500;
 const FOUNDING_LIST_SHOWN = 50;
 const FOUNDING_CONFIRM = "FOUNDING ON";
+/* EVERY RUN COUNTS (owner): every accepted run gives a share of its points to the pilot's country.
+   ADDITIVE ONLY: no best score, pilot row, board, Season 0 value or World Grid computation changes.
+   The contributions are their own stored values:
+     - the switch and its log ride in the summary row the leaderboard already reads ("cg"), so with
+       the switch OFF nothing new is read or written anywhere;
+     - "cg:tot"     every country's contributed points (one value), read only while ON;
+     - "cg:p:<pid>" one pilot's day (UTC), points given today, given in all, runs counted -- under the
+                    one-way public pid, never the player ID; read and written only while ON.
+   A run gives floor(points x the difficulty weight x CG_RATE) -- the same weights the World Grid
+   uses (Hard x1, Medium x0.21, Easy x0.09), so the same rule on every planet -- at most CG_DAY_CAP a
+   day per pilot. The World Grid total of a country = today's total + its contributions, while ON. */
+const CG_RATE = 0.10;
+const CG_DAY_CAP = 1000;
+const CG_TOT_KEY = "cg:tot";
+const CG_P = "cg:p:";
+const CG_CONFIRM = "EVERY RUN ON";
+const CG_LOG_MAX = 20;
+const CG_ROWS_EST = 2;                  // a run that gives: "cg:p:<pid>" + "cg:tot", in the run's own write (0 while OFF or capped)
+const CG_MOVE_FIRST = "Every Run Counts works on the new storage layout only (STORAGE above).";
+function cgAmount(score, difficulty) { const w = DIFF_WEIGHT[difficulty] || 0; return Math.max(0, Math.floor(score * w * CG_RATE + 1e-9)); }
 const FOUNDING_CALLS_PER_REQUEST = 10;
 const FG_BACKUPS_SCANNED = 40;   // FOUNDING PILOT by hand: checked backups searched for a removed pilot (every kept copy; about 20 are kept)
 const FOUNDING_MOVE_FIRST = "Move the storage first: Founding Pilot works on the new storage layout only (STORAGE above).";
@@ -5800,6 +5848,7 @@ class PilotLayoutV2 {
     if (sum && sum.weights === JSON.stringify(DIFF_WEIGHT) && sum.bc && (sum.grid || "s") === this.gridTag()) { this.sum = sum; this.sumText = raw; return; }
     this.sum = this.buildSum();
     if (sum && sum.fo) this.sum.fo = sum.fo;   // FOUNDING PILOT: the counter survives a rebuild
+    if (sum && sum.cg) this.sum.cg = sum.cg;   // EVERY RUN COUNTS: the switch survives a rebuild
     this.foLost = !(sum && sum.fo);            // rebuilt without it: loadV2 reads it back from "founding"
     this.saveSum(this.sum);
   }
@@ -5846,6 +5895,7 @@ class PilotLayoutV2 {
   buildSum() {
     const sum = { v: 1, weights: JSON.stringify(DIFF_WEIGHT), grid: this.gridTag(), n: 0, list: {}, lead: {}, bc: {}, bcc: {} };
     if (this.sum && this.sum.fo) sum.fo = Object.assign({}, this.sum.fo);   // FOUNDING PILOT: not derived from the pilots; kept
+    if (this.sum && this.sum.cg) sum.cg = structuredClone(this.sum.cg);     // EVERY RUN COUNTS: the switch is not derived from the pilots; kept
     this.scanPilots((row) => { sum.n++; this.boardCount(sum, row, 1); const e = this.entryOf(row); if (e) this.ctryAdd(sum, e); });
     return sum;
   }
@@ -6565,6 +6615,8 @@ class PilotLayoutV2 {
       "/world-grid-check": () => o.handleWorldGridCheck(),
       "/world-grid-revert": () => o.handleWorldGridRevert(request),
       "/founding-status": () => this.fStatus(),                  // FOUNDING PILOT (admin)
+      "/cg-status": () => this.cgStatus(),                        // EVERY RUN COUNTS (admin, read-only)
+      "/cg-switch": () => this.cgSwitch(request),                 // EVERY RUN COUNTS (admin)
       "/founding-dry-run": () => this.fDryRun(),                 //   writes nothing
       "/founding-switch": () => this.fSwitch(request),
       "/founding-continue": () => this.fContinue(request),
@@ -6579,14 +6631,16 @@ class PilotLayoutV2 {
     return route ? route() : json({ error: "Not found" }, 404);
   }
 
-  leaderboard(url) {
+  async leaderboard(url) {
+    if (this.cgOn()) await this.cgTotals();   // EVERY RUN COUNTS: read only while ON
     const limit = clampInt(url.searchParams.get("limit"), 1, 100, 25);
     const difficulty = VALID_DIFFICULTIES.has(url.searchParams.get("difficulty")) ? url.searchParams.get("difficulty") : null;
     const top = this.board(difficulty || "all").slice(0, limit).map((x) => ({
       pid: x.pid, tag: x.tag, name: x.name, country: x.country, score: x.score, points: x.points, level: x.level, difficulty: x.difficulty, ...(x.fp ? { fp: 1 } : {}),
     }));
-    const countries = this.countryList();
+    const countries = this.cgCountries(this.countryList());   // EVERY RUN COUNTS: + contributions while ON (the same list when OFF)
     const out = { top, countries, leadingCountry: countries[0] || null, difficulty, weighted: !difficulty, weights: { ...DIFF_WEIGHT } };
+    if (this.cgOn()) out.cg = { on: 1, rate: CG_RATE, cap: CG_DAY_CAP };   // the game learns the switch from the board it already loads
     const left = this.foundingLeft();
     if (left != null) out.foundingLeft = left;   // FOUNDING PILOT: spots left while the offer is ON (absent = OFF)
     if (this.comb) { out.combined = true; out.gridCombined = true; }   // COMBINED WORLD GRID: the game and the gateway say so (absent = Season 1 only, as before)
@@ -6622,7 +6676,11 @@ class PilotLayoutV2 {
     const runId = String(new URL(request.url).searchParams.get("run") || "").slice(0, RUN_ID_KEEP_CHARS);
     const runs = runId ? await o.readRuns(pid, now) : null;
     const seenRun = runs ? runs.find((e) => e.split(".")[0] === runId) : null;
-    if (seenRun && row) return this.submitReply(row, pid, seenRun.slice(-1) === "e" ? "easy" : seenRun.slice(-1) === "h" ? "hard" : "medium", seenRun.slice(-2, -1) === "1", true);
+    // EVERY RUN COUNTS: read BEFORE the cooldown check, so nothing waits between that check and the write.
+    const cgOn = this.cgOn(), cgPrev = cgOn ? ((await o.state.storage.get(CG_P + pid)) || null) : null;
+    if (cgOn) await this.cgTotals();
+    if (seenRun && row) return this.submitReply(row, pid, seenRun.slice(-1) === "e" ? "easy" : seenRun.slice(-1) === "h" ? "hard" : "medium", seenRun.slice(-2, -1) === "1", true,
+      undefined, cgOn ? { cg: this.cgReply(cgPrev, country, now, 0, 0, true) } : undefined);   // a replay gives nothing again
     let last = row && row.ls != null ? v2dec(row.ls) : undefined, cooled = false;
     if (last === undefined) { const c = this.db.kvGet("cool", playerId); if (c != null) { last = v2dec(c); cooled = true; } }
     last = last || 0;
@@ -6655,12 +6713,65 @@ class PilotLayoutV2 {
     const kv = {};
     if (flag) kv.flags = nextFlags;
     if (runId) kv["runs:" + pid] = runs.concat([runId + "." + Math.floor(now / 1000).toString(36) + "." + (isNewBest ? "1" : "0") + difficulty[0]]).slice(-RUN_IDS_MAX).join(",");
+    // EVERY RUN COUNTS: this accepted run's share, in the SAME write as its run id (counted <=> remembered).
+    const cgRes = cgOn ? this.cgCount(pid, country, score, difficulty, now, cgPrev, !!runId && !ownGet(o.restricted, pid)) : null;
+    if (cgRes && cgRes.puts) Object.assign(kv, cgRes.puts);
     const saving = Object.keys(kv).length ? o.state.storage.put(kv) : null;   // same moment as the rows (no await in between)
     this.commit(sum, playerId, res);
     if (saving) await saving;
     o.flags = nextFlags;
     const fn = fnum || (fHave && !fHave.off ? fHave.n : 0);
-    return this.submitReply(res.cur, pid, difficulty, isNewBest, false, score, fn ? { founding: fn } : null);   // FOUNDING PILOT: the badge / the one-time message at the run's end
+    const extra = cgRes ? { ...(fn ? { founding: fn } : {}), cg: cgRes.reply } : (fn ? { founding: fn } : null);   // EVERY RUN COUNTS: the run's share (ON only)
+    return this.submitReply(res.cur, pid, difficulty, isNewBest, false, score, extra);   // FOUNDING PILOT: the badge / the one-time message at the run's end
+  }
+  /* ---- EVERY RUN COUNTS (see CG_RATE) ---- */
+  cgOn() { return !!(this.sum && this.sum.cg && this.sum.cg.on); }
+  async cgTotals() {
+    if (!this.cgTot) { const t = await this.o.state.storage.get(CG_TOT_KEY); this.cgTot = t && typeof t === "object" && t.t ? t : { t: {}, g: 0, n: 0 }; }
+    return this.cgTot;
+  }
+  /* The pilot's own numbers for the reply. */
+  cgReply(prev, cc, now, add, want, dup) {
+    const day = Math.floor(now / AN_DAY_MS), today = prev && prev.d === day ? prev.g || 0 : 0;
+    return { on: 1, add, cc: ISO2.test(String(cc || "")) && cc !== "XX" ? cc : "", total: (prev && prev.t) || 0, today, cap: CG_DAY_CAP,
+      ...(want > 0 && add < want ? { capped: 1 } : {}), ...(dup ? { dup: 1 } : {}) };
+  }
+  /* One accepted run: its share (0 when the pilot is restricted, has no country, sent no run id, or
+     reached today's cap), and the values to write with the run. Memory first, as commit() does. */
+  cgCount(pid, cc, score, difficulty, now, prev, ok) {
+    const day = Math.floor(now / AN_DAY_MS);
+    const p = prev && prev.d === day ? prev : { d: day, g: 0, t: (prev && prev.t) || 0, n: (prev && prev.n) || 0 };
+    const want = ok && ISO2.test(String(cc || "")) && cc !== "XX" ? cgAmount(score, difficulty) : 0;
+    const add = Math.min(want, Math.max(0, CG_DAY_CAP - (p.g || 0)));
+    if (!(add > 0)) return { puts: null, reply: this.cgReply(p, cc, now, 0, want, false) };
+    const np = { d: day, g: (p.g || 0) + add, t: (p.t || 0) + add, n: (p.n || 0) + 1 };
+    const tot = this.cgTot || { t: {}, g: 0, n: 0 };
+    const nt = { t: { ...tot.t, [cc]: (tot.t[cc] || 0) + add }, g: (tot.g || 0) + add, n: (tot.n || 0) + 1, at: now };
+    this.cgTot = nt;
+    return { puts: { [CG_P + pid]: np, [CG_TOT_KEY]: nt }, reply: this.cgReply(np, cc, now, add, want, false) };
+  }
+  /* The World Grid list while ON: each country's total + its contributions, sorted again (a stable
+     sort: equal totals keep today's order). OFF: the very same list. */
+  cgCountries(list) {
+    if (!this.cgOn() || !this.cgTot) return list;
+    const t = this.cgTot.t || {};
+    return list.map((c) => (t[c.country] > 0 ? { ...c, totalScore: c.totalScore + t[c.country] } : c)).sort((a, b) => b.totalScore - a.totalScore);
+  }
+  async cgStatus() {
+    const tot = await this.cgTotals(), cfg = (this.sum && this.sum.cg) || {};
+    const countries = Object.keys(tot.t || {}).map((cc) => ({ country: cc, given: tot.t[cc] })).sort((a, b) => b.given - a.given);
+    return json({ ok: true, layout: "new", on: this.cgOn(), onAt: cfg.onAt || null, offAt: cfg.offAt || null, rate: CG_RATE, cap: CG_DAY_CAP,
+      given: tot.g || 0, runs: tot.n || 0, countries, log: (cfg.log || []).slice(-CG_LOG_MAX).reverse() });
+  }
+  async cgSwitch(request) {
+    const b = (await readJsonObject(request)) || {}, on = b.on === true, now = Date.now();
+    const prev = (this.sum && this.sum.cg) || { on: false, log: [] };
+    if (!!prev.on === on) return this.cgStatus();
+    const sum = structuredClone(this.sum);
+    sum.cg = { ...prev, on, ...(on ? { onAt: now } : { offAt: now }), log: [...(prev.log || []), { at: now, event: on ? "on" : "off" }].slice(-CG_LOG_MAX) };
+    this.db.tx(() => this.saveSum(sum));
+    this.sum = sum;
+    return this.cgStatus();
   }
   /* The same reply shape as the old layout's submitReply (LEADERBOARD REFRESH standing included). */
   submitReply(row, pid, difficulty, isNewBest, duplicate, score, extra) {
@@ -6723,7 +6834,7 @@ class PilotLayoutV2 {
     if (!pub || url.searchParams.get("paid") === "1") return json({ playerId, skus });
     const fnd = this.fndActive(playerId), left = this.foundingLeft();
     return json({ playerId, skus: fnd && !skus.includes("solar") ? skus.concat(["solar"]) : skus,
-      ...(fnd ? { founding: fnd.n } : {}), ...(left != null ? { foundingLeft: left } : {}) });
+      ...(fnd ? { founding: fnd.n } : {}), ...(left != null ? { foundingLeft: left } : {}), ...(this.cgOn() ? { cg: 1 } : {}) });   // EVERY RUN COUNTS: the switch (ON only)
   }
   async grant(request) {
     const o = this.o, { playerId, sku, sessionId, force } = await request.json();
@@ -6995,6 +7106,7 @@ class PilotLayoutV2 {
     await this.fLoad();
     const fc = o.fcfg && o.fcfg.excl && ownGet(o.fcfg.excl, pid) ? { ...o.fcfg, excl: dropKey(o.fcfg.excl, pid) } : null;   // FOUNDING PILOT: off the exclusion list
     if ((await o.state.storage.get("runs:" + pid)) !== undefined) await o.state.storage.delete("runs:" + pid);   // REPLAY PROTECTION: accepted run ids go too
+    if ((await o.state.storage.get(CG_P + pid)) !== undefined) await o.state.storage.delete(CG_P + pid);         // EVERY RUN COUNTS: the pilot's own numbers (country totals stay: they are not about a person)
     const sum = structuredClone(this.sum);
     this.db.tx(() => {
       if (row) this.dropPilot(sum, row);

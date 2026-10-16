@@ -109,6 +109,7 @@ transmitted anywhere unless listed in section 5:</p>
   <tr><td>Stay at the old address (fluxMoveStay)</td><td>At FLUX's old address only: a marker that this browser already has a different pilot at fluxsparta.com, so the pilot here stays here and is not moved</td></tr>
   <tr><td>Owned skins</td><td>Local cache of purchases</td></tr>
   <tr><td>Pending score submissions</td><td>Runs finished while offline, queued for later</td></tr>
+  <tr><td>Points given to your country</td><td>When "every run counts" is on: the total your runs have given, shown in the menu, and whether it is on</td></tr>
   <tr><td>Chosen background and selected skin</td><td>Appearance settings</td></tr>
   <tr><td>Last submission error</td><td>A short diagnostic code, no personal content</td></tr>
   <tr><td>Where you first came from</td><td>The "src" tag of the first FLUX link you opened (for example <code>tiktok</code>), or <code>direct</code>; used for the statistics in section 9</td></tr>
@@ -138,6 +139,12 @@ one-way code made from your network address; the address itself is never
 stored, and these counters are discarded within a few minutes.</p>
 <p>If you play offline, completed runs are held on your device and submitted
 when you reconnect.</p>
+<p>When "every run counts" is switched on, every finished run is submitted (not
+only new bests), and a share of its points is added to your chosen country's
+total on the World Grid. For this the server keeps, under the one-way code
+described in section 6 (never your player identifier), how many points your
+runs have given today and in all. Each country's total of given points is
+public on the World Grid; your own number is shown only to you, in the game.</p>
 
 <h2>6. Information visible to other players</h2>
 <p>The global leaderboard and the World Grid are public. Anyone can see your
