@@ -1705,10 +1705,8 @@
     else if (f.layout === 'old') c.appendChild(el('div', 'meta', 'Needs the new storage layout (STORAGE above).'));
     else {
       c.appendChild(el('div', 'meta', Math.round((f.rate || 0) * 100) + '% of each run · at most ' + fmt(f.cap) + ' a day per pilot' +
-        '
-Given so far: ' + fmt(f.given) + ' points from ' + fmt(f.runs) + ' runs' + (f.on ? '' : ' (not on the World Grid while OFF)') +
-        (f.backup ? '
-Newest checked backup: ' + (f.backup.createdAt ? f.backup.ageMin + ' min ago' + (f.backup.fresh ? ' ✓' : ' (older than 60 min)') : 'none') : '')));
+        '\nGiven so far: ' + fmt(f.given) + ' points from ' + fmt(f.runs) + ' runs' + (f.on ? '' : ' (not on the World Grid while OFF)') +
+        (f.backup ? '\nNewest checked backup: ' + (f.backup.createdAt ? f.backup.ageMin + ' min ago' + (f.backup.fresh ? ' ✓' : ' (older than 60 min)') : 'none') : '')));
       if ((f.countries || []).length) c.appendChild(table(['Country', 'Given'], f.countries.slice(0, 30).map(function (x) { return [x.country, fmt(x.given)]; })));
     }
     (f && f.log || []).slice(0, 8).forEach(function (x) { c.appendChild(el('div', 'logrow', when(x.at) + ' · switched ' + String(x.event).toUpperCase())); });

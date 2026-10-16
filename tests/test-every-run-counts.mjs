@@ -409,6 +409,8 @@ async function suite({ mod, main, game = GAME_HTML, adminHtml = ADMIN_HTML, quie
 
     /* ================= E8 FLUX COMMAND ================= */
     if (on('H')) {
+      let parses = true; try { for (const sc of scriptsOf(adminHtml)) new Function(sc); } catch (e) { parses = false; }
+      ck('E8 FLUX COMMAND script parses', parses);
       ck('E8 FLUX COMMAND: EVERY RUN COUNTS section with SHOW, the typed TURN ON, TURN OFF and a guide entry',
         adminHtml.includes('<h2>EVERY RUN COUNTS</h2>') && adminHtml.includes('id="cgOn"') && adminHtml.includes('id="cgOff"') && adminHtml.includes("call('cg-status')") &&
         adminHtml.includes("post('cg-switch', { on: true, confirm: inp.value.trim() })") && adminHtml.includes("call('cg-switch', { on: false })") && adminHtml.includes('<h3>Every Run Counts</h3>'));
@@ -462,6 +464,7 @@ await control('a board changed by the contributions', 'E3', ['C'], { worker: rep
 await control('the game uploads every run even when OFF', 'E7', ['G'], { game: rep('const every=run && fluxCgOn();', 'const every=run;') });
 await control('the game shows no share at game over', 'E7', ['G'], { game: rep("if(add>0) return c.flag+' +'+add.toLocaleString()+' for '+c.name;", "if(add>0) return null;") });
 await control('the game keeps ON after a reply without the share', 'E7', ['G'], { game: rep('fluxCgSet(!!(b && b.cg && b.cg.on));', 'if(b && b.cg) fluxCgSet(true);') });
+await control('FLUX COMMAND script broken', 'E8', ['H'], { admin: rep("'\\nGiven so far: '", "'\nGiven so far: '") });
 await control('FLUX COMMAND has no TURN OFF', 'E8', ['H'], { admin: rep('id="cgOff"', 'id="cgOffX"') });
 const total = res.F + NC;
 console.log('\n' + (total ? 'EVERY RUN COUNTS FAILED: ' + res.F + ' check(s), ' + NC + ' uncaught control(s)' : 'EVERY RUN COUNTS PASSED: all checks and all negative controls'));
