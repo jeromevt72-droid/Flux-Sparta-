@@ -17,7 +17,8 @@
 //   E6 free plan: a giving run writes exactly 2 rows more than today's upload, a capped run none;
 //      rows written per run across every Durable Object instance (leaderboard + stats), OFF and ON;
 //   E7 the game: OFF uploads as today and the game-over screen is as today; ON uploads the run's own
-//      score with its stats (one request), shows "+N for 🇵🇭 PHILIPPINES" (CSS count-up + glow, none
+//      score with its stats (one request), shows the badge "+N GIVEN TO 🇵🇭 PHILIPPINES" right under the
+//      score (pop-in, glow, count-up in CSS, none
 //      with reduced motion) and a proud rallying line in fixed-height lines (nothing moves), and the
 //      total in the menu; a reply without the share puts it back to normal; no new button, fetch,
 //      timer, font or per-frame work;
@@ -383,7 +384,7 @@ async function suite({ mod, main, game = GAME_HTML, adminHtml = ADMIN_HTML, quie
 
     /* ================= E7 the game ================= */
     if (on('G')) {
-      say('== E7 the game: one line at game over, the total in the menu, no new button ==');
+      say('== E7 the game: the badge at game over, the total in the menu, no new button ==');
       const GAME = scriptsOf(game);
       const bootGame = (init, reply) => {
         const { store, mem } = makeStore(Object.assign({ fluxPlayerId: 'p-cg-1', fluxCallsign: 'TITAN', fluxCountry: 'PH', fluxProfileComplete: '1', fluxRunsPlayed: '3' }, init));
@@ -413,17 +414,31 @@ async function suite({ mod, main, game = GAME_HTML, adminHtml = ADMIN_HTML, quie
       const up = b.posts.filter((x) => x.u === '/api/submit-score');
       ck('E7 ON: the run\'s own score is uploaded (not the best), with its stats inside: still ONE request', up.length === 1 && up[0].body.score === 5000 && up[0].body.difficulty === 'medium' && !!up[0].body.stats && b.beacons.length === 0, up.length + ' ' + (up[0] && up[0].body.score) + ' beacons ' + b.beacons.length);
       const line = String(b.g.els.goCg.innerHTML || ''), rally = String(b.g.els.goCgRally.textContent || '');
-      ck('E7 ON: game over shows "+105 for 🇵🇭 PHILIPPINES" (counting up, glowing) and the rallying line "Laban, Pilipinas!"', line.replace(/<[^>]+>/g, '') === '+105 for 🇵🇭 PHILIPPINES' && /class="cgNum" style="--cgt:105"/.test(line) && b.g.els.goCg._cls.has('cgGo') && rally === 'Laban, Pilipinas!' && !b.g.els.goCg._cls.has('hidden') && !b.g.els.goCgRally._cls.has('hidden'), line + ' | ' + rally);
-      ck('E7 ON: fixed heights (kept from the moment the screen shows: nothing moves when the reply arrives); 1 s count-up + glow in CSS only; no animation with reduced motion',
-        /#gameover \.goCg\{margin:0;height:24px;line-height:24px;[^}]*white-space:nowrap;overflow:hidden;text-overflow:ellipsis/.test(game) && /#gameover \.goCgRally\{margin:0 0 4px;height:34px;/.test(game) && /fluxCgPrepare\(\);   \/\/ EVERY RUN COUNTS/.test(game) && /@property --cgn\{syntax:'<integer>'/.test(game) && /\.goCg\.cgGo\{animation:cgGlow 1s ease-out 1\}/.test(game) && /@media \(prefers-reduced-motion:reduce\)\{\.goCg\.cgGo,\.cgGo \.cgNum\{animation:none\}\.cgGo \.cgNum::before\{display:none\}\}/.test(game));
+      const plain = line.replace(/<[^>]+>/g, '');
+      ck('E7 ON: the badge "+105 GIVEN TO" / "🇵🇭 PHILIPPINES" (two rows, counting up, popping in) and the rallying line "Laban, Pilipinas!"',
+        plain === '+105 GIVEN TO🇵🇭 PHILIPPINES' && /<span class="cgPill"><span class="cgAmt">\+<span class="cgNum" style="--cgt:105">105<\/span> GIVEN TO<\/span><span class="cgWho">🇵🇭 PHILIPPINES<\/span><\/span>/.test(line) &&
+        b.g.els.goCg._cls.has('cgGo') && rally === 'Laban, Pilipinas!' && !b.g.els.goCg._cls.has('hidden') && !b.g.els.goCgRally._cls.has('hidden'), line + ' | ' + rally);
+      const css = (game.match(/@property --cgn[\s\S]*?@media \(prefers-reduced-motion:reduce\)\{[^\n]*\}\}/) || [''])[0];
+      const kf = (name) => (css.match(new RegExp('@keyframes ' + name + '\\{([\\s\\S]*?)\\}\\}')) || ['', ''])[1];
+      ck('E7 ON: the badge sits right under the score and the rallying line right under the badge (markup order); both have fixed heights kept from the moment the screen shows (nothing moves when the reply arrives)',
+        /<div class="goScore" id="finalScore">0<\/div>\s*<p class="goCg hidden" id="goCg"[^>]*><\/p>\s*<p class="goCgRally hidden" id="goCgRally"><\/p>\s*<p class="goLine" id="goLine"><\/p>/.test(game) &&
+        /#gameover \.goCg\{margin:4px 0 0;height:60px;[^}]*pointer-events:none/.test(css) && /#gameover \.goCgRally\{margin:0 0 2px;height:38px;line-height:19px;font-size:15px;/.test(css) && /fluxCgPrepare\(\);   \/\/ EVERY RUN COUNTS/.test(game));
+      const pillPx = +((css.match(/\.cgPill\{[^}]*font-size:(\d+)px/) || [])[1] || 0), linePx = +((game.match(/\.goLine\{[^}]*font-size:(\d+)px/) || [])[1] || 0);
+      ck('E7 ON: the badge text is clearly larger than the "NEW BEST!" line (20 px vs 15 px), in the country\'s colours',
+        pillPx >= linePx + 4 && /\.cgPill\{[^}]*background:linear-gradient\(90deg,var\(--c1\),var\(--c2\)\)/.test(css) && /PH:\['#0038a8','#ce1126','#fcd116'\]/.test(game), pillPx + ' vs ' + linePx);
+      ck('E7 ON: pop-in (scale with a bounce), glow pulse, then count-up, about 1.5 s, CSS only; pop and glow animate only transform/opacity (smooth on budget Android); none with reduced motion',
+        /\.cgGo \.cgPill\{animation:cgPop \.45s cubic-bezier\(\.34,1\.56,\.64,1\) 1 both\}/.test(css) && /\.cgGo \.cgPill::after\{animation:cgPulse \.6s ease-out \.4s 1 both\}/.test(css) &&
+        /animation:cgCount \.9s ease-out \.55s 1 both,cgHide 1\.5s steps\(1,end\) 1 both/.test(css) && /@property --cgn\{syntax:'<integer>'/.test(css) &&
+        !/[a-z-]+(?=:)/.test(kf('cgPop').replace(/transform|opacity/g, '')) && !/[a-z-]+(?=:)/.test(kf('cgPulse').replace(/opacity/g, '')) &&
+        /@media \(prefers-reduced-motion:reduce\)\{\.cgGo \.cgPill,\.cgGo \.cgPill::after,\.cgGo \.cgNum\{animation:none\}\.cgGo \.cgNum::before\{display:none\}\}/.test(css), kf('cgPop') + ' | ' + kf('cgPulse'));
       b.run('updateUploadStatus()');
       const stat = String(b.g.els.uploadStatus.textContent || '');
       ck('E7 ON: the menu\'s status line shows what the pilot gave in all', /4,321 GIVEN TO PHILIPPINES/.test(stat), stat);
       // the line rule (pure)
       const L = (cg, n) => b.run('JSON.stringify(fluxCgLine(' + JSON.stringify(cg) + ',' + (n || 0) + '))');
       const R = (cg, n) => JSON.parse(L(cg, n)).rally, M = (cg) => JSON.parse(L(cg)).main;
-      ck('E7 the lines: "+N for <flag> <COUNTRY>"; Philippines / Brazil / Mexico / Japan lines; other countries rotate the English lines; daily max; nothing given -> nothing said',
-        M({ on: 1, add: 1000, cc: 'US' }) === '+1,000 for 🇺🇸 UNITED STATES' && R({ on: 1, add: 5, cc: 'PH' }) === 'Laban, Pilipinas!' && R({ on: 1, add: 5, cc: 'BR' }) === 'Vai, Brasil!' &&
+      ck('E7 the lines: "+N GIVEN TO <flag> <COUNTRY>"; Philippines / Brazil / Mexico / Japan lines; other countries rotate the English lines; daily max; nothing given -> nothing said',
+        M({ on: 1, add: 1000, cc: 'US' }) === '+1,000 GIVEN TO 🇺🇸 UNITED STATES' && R({ on: 1, add: 5, cc: 'PH' }) === 'Laban, Pilipinas!' && R({ on: 1, add: 5, cc: 'BR' }) === 'Vai, Brasil!' &&
         R({ on: 1, add: 5, cc: 'MX' }) === '¡Vamos, México!' && R({ on: 1, add: 5, cc: 'JP' }) === 'がんばれ日本!' &&
         R({ on: 1, add: 5, cc: 'US' }, 0) === 'United States needs you, soldier.' && R({ on: 1, add: 5, cc: 'GB' }, 1) === 'Every run counts. Go again.' && R({ on: 1, add: 5, cc: 'CA' }, 2) === '🇨🇦 is climbing. Keep it going.' && R({ on: 1, add: 5, cc: 'AU' }, 3) === 'Australia needs you, soldier.' &&
         R({ on: 1, add: 0, cc: 'PH', capped: 1 }) === 'Daily max reached. 🇵🇭 thanks you, soldier!' && M({ on: 1, add: 0, cc: 'PH', capped: 1 }) === '' && R({ on: 1, add: 300, cc: 'PH', capped: 1 }) === 'Daily max reached. 🇵🇭 thanks you, soldier!' &&
@@ -546,13 +561,17 @@ await control('a failed share stays counted in memory', 'E10', ['J'], { worker: 
 await control('the switch read on every cold start (a row more than main)', 'E1', ['A'], { worker: rep('    await this.load();\n    const url = new URL(request.url);', '    await this.load(); await this.state.storage.get("cg:cfg");\n    const url = new URL(request.url);') });
 await control('a board changed by the contributions', 'E3', ['C'], { worker: rep('return list.map((c) => (ownGet(t, c.country) > 0 ? Object.assign({}, c, { totalScore: c.totalScore + ownGet(t, c.country) }) : c))', 'return list.map((c) => (t[c.country] > 0 ? { ...c, totalScore: c.totalScore + t[c.country], playerCount: c.playerCount + 1 } : c))') });
 await control('the game uploads every run even when OFF', 'E7', ['G'], { game: rep('const every=run && fluxCgOn();', 'const every=run;') });
-await control('the game shows no share at game over', 'E7', ['G'], { game: rep("if(add>0){ out.amount=add; out.main='+'+add.toLocaleString()+' for '+c.flag+' '+name; }", "if(add>0){ out.amount=0; out.main=''; }") });
+await control('the game shows no share at game over', 'E7', ['G'], { game: rep("if(add>0){ out.amount=add; out.main='+'+add.toLocaleString()+' GIVEN TO '+c.flag+' '+name; }", "if(add>0){ out.amount=0; out.main=''; }") });
+await control('the old wording ("for" instead of "GIVEN TO")', 'E7', ['G'], { game: rep("'</span> GIVEN TO</span>", "'</span> for</span>") });
+await control('the badge below the other lines (not right under the score)', 'E7', ['G'], { game: rep('  <p class="goCg hidden" id="goCg" aria-live="polite"></p>\n  <p class="goCgRally hidden" id="goCgRally"></p>\n  <p class="goLine" id="goLine"></p>', '  <p class="goLine" id="goLine"></p>\n  <p class="goCg hidden" id="goCg" aria-live="polite"></p>\n  <p class="goCgRally hidden" id="goCgRally"></p>') });
+await control('the badge text no larger than the next line', 'E7', ['G'], { game: rep('color:#fff;font-size:20px;font-weight:900', 'color:#fff;font-size:15px;font-weight:900') });
+await control('a pop-in that animates layout (width) instead of transform', 'E7', ['G'], { game: rep('@keyframes cgPop{from{transform:scale(.35);opacity:0}to{transform:scale(1);opacity:1}}', '@keyframes cgPop{from{width:10px;opacity:0}to{width:auto;opacity:1}}') });
 await control('the rank line updated by a run below the best (the screen moves)', 'E7', ['G'], { game: rep('item.runId===fluxCgRunId && b.isNewBest!==true', 'item.runId===fluxCgRunId && false') });
 await control('a guilt line instead of a proud one', 'E7', ['G'], { game: rep("'Every run counts. Go again.'", "'You let your country down. Go again.'") });
 await control('no rallying line for the Philippines', 'E7', ['G'], { game: rep("PH:'Laban, Pilipinas!', ", "") });
-await control('animation kept with reduced motion', 'E7', ['G'], { game: rep('@media (prefers-reduced-motion:reduce){.goCg.cgGo,.cgGo .cgNum{animation:none}.cgGo .cgNum::before{display:none}}', '') });
+await control('animation kept with reduced motion', 'E7', ['G'], { game: rep('@media (prefers-reduced-motion:reduce){.cgGo .cgPill,.cgGo .cgPill::after,.cgGo .cgNum{animation:none}.cgGo .cgNum::before{display:none}}', '@media (prefers-reduced-motion:reduce){}') });
 await control('the share lines shown while OFF', 'E7', ['G'], { game: rep("const on=fluxCgOn() && profileComplete;", "const on=true;") });
-await control('the share line not reserved (the screen jumps when the reply arrives)', 'E7', ['G'], { game: rep('#gameover .goCg{margin:0;height:24px;line-height:24px;', '#gameover .goCg{margin:0;') });
+await control('the badge space not reserved (the screen jumps when the reply arrives)', 'E7', ['G'], { game: rep('#gameover .goCg{margin:4px 0 0;height:60px;', '#gameover .goCg{margin:4px 0 0;') });
 await control('the game keeps ON after a reply without the share', 'E7', ['G'], { game: rep('fluxCgSet(!!(b && b.cg && b.cg.on));', 'if(b && b.cg) fluxCgSet(true);') });
 await control('FLUX COMMAND script broken', 'E8', ['H'], { admin: rep("'\\nGiven so far: '", "'\nGiven so far: '") });
 await control('FLUX COMMAND has no TURN OFF', 'E8', ['H'], { admin: rep('id="cgOff"', 'id="cgOffX"') });
