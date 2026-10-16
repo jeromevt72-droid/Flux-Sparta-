@@ -71,7 +71,8 @@ function suite(files, quiet = false) {
       && /<h2>15\. Contact<\/h2>\s*<p>FLUX Sparta<br>/.test(d) && !/Jerome|Tadaya|Union City/.test(d)) && /based in\s+California\. Contact:/.test(pv) && !/Union City/.test(pv));
   ck('P7 GOOGLE PLAY: the app is mentioned; uninstalling it does not clear Chrome\'s data, and how to clear it or ask by email',
     flat.includes('installed as an app from <strong>Google Play</strong>') && flat.includes('<strong>uninstalling the Google Play app does not clear it</strong>')
-    && (flat.match(/Settings → Site settings → All sites, choose fluxsparta\.com and tap Delete data/g) || []).length === 2 && flat.includes('You can also ask us by email (section 12)')
+    && (flat.match(/open Chrome, go to fluxsparta\.com, tap the icon to the left of the address, then tap "Cookies and site data" and delete it\. This also removes the FLUX data used by the Home Screen app and the Google Play app on that phone, and resets your pilot on that device\./g) || []).length === 2
+    && !/All sites|Site settings/.test(flat) && flat.includes('You can also ask us by email (section 12)')
     && !/deleting the app from your Home Screen removes all of it|clearing your browser data or deleting FLUX from your Home Screen/.test(flat));
   const evs = [...new Set([...g.matchAll(/fluxTrack\('([a-z_]+)'/g)].map((m) => m[1]))].sort().join(',');
   ck('P6 ...the events the game sends are exactly the ones the policy lists', evs === 'again,first_run,level_up,open,play,run_end,sess_back,sess_end,share' && /the app being opened[\s\S]{0,120}first run, each finished run[\s\S]{0,120}level-ups, and taps on the share button/.test(pv)
@@ -110,6 +111,7 @@ control('the personal name back in the contact section', 'P7', edit('public/priv
 control('the personal name back in the Terms', 'P7', edit('public/terms.html', '<p>FLUX Sparta<br>', '<p>Jerome Tadaya<br>'));
 control('the city back in the policy', 'P7', edit('public/privacy.html', 'based in\nCalifornia. Contact:', 'based in\nUnion City, California. Contact:'));
 control('the old workers.dev address shown again', 'P7', edit('public/privacy.html', "at FLUX's previous web address in", 'at its old address (flux-sparta-3.jeromevt72.workers.dev) in'));
+control('the Android steps point to Site settings again (not found on the BLU)', 'P7', edit('public/privacy.html', 'Chrome, go to fluxsparta.com, tap the icon to the left of the address, then tap', 'Chrome, go to Settings → Site settings → All sites, choose fluxsparta.com, then tap'));
 control('uninstalling the app said to clear the data', 'P7', edit('public/privacy.html', '<strong>uninstalling the Google Play app does not clear it</strong>', 'uninstalling the Google Play app clears it'));
 control('the game asks for GPS', 'P5', edit('public/play/index.html', '</body>', '<script>navigator.geolocation.getCurrentPosition(function(){})</script></body>'));
 control('the worker reads the Cloudflare city', 'P5', edit('worker.js', 'const cc = (request.cf && request.cf.country) || "";', 'const cc = (request.cf && request.cf.country) || ""; const city = request.cf.city;'));
