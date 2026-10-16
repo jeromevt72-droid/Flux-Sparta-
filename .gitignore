@@ -1,0 +1,10 @@
+# Signing material and app builds must never be committed (the repo is public).
+*.keystore
+*.jks
+*.p12
+*.pem
+*.aab
+*.apk
+*.idsig
+signing-key-info.txt
+keystore.properties
