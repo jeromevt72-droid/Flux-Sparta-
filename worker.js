@@ -6595,7 +6595,7 @@ class PilotLayoutV2 {
     const o = this.o;
     if (o.pidCache.size > V2_PID_CACHE_MAX) o.pidCache = new Map();   // memory stays bounded however many pilots play
     const route = {
-      "/leaderboard": () => this.leaderboard(url),
+      "/leaderboard": async () => { if (this.cgOn()) await this.cgTotals(); return this.leaderboard(url); },   // EVERY RUN COUNTS: the totals are read only while ON
       "/submit": () => this.submit(request),
       "/entitlements": () => this.entitlements(url, true),
       "/restore-check": () => this.restoreCheck(request, true),
@@ -6638,8 +6638,7 @@ class PilotLayoutV2 {
     return route ? route() : json({ error: "Not found" }, 404);
   }
 
-  async leaderboard(url) {
-    if (this.cgOn()) await this.cgTotals();   // EVERY RUN COUNTS: read only while ON
+  leaderboard(url) {
     const limit = clampInt(url.searchParams.get("limit"), 1, 100, 25);
     const difficulty = VALID_DIFFICULTIES.has(url.searchParams.get("difficulty")) ? url.searchParams.get("difficulty") : null;
     const top = this.board(difficulty || "all").slice(0, limit).map((x) => ({
