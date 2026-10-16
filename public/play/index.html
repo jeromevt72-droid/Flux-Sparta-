@@ -236,7 +236,26 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 @keyframes coachDown{0%,100%{transform:translateY(0)}50%{transform:translateY(14px)}}
 @keyframes coachUp{0%,100%{transform:rotate(180deg) translateY(0)}50%{transform:rotate(180deg) translateY(14px)}}
 .fluxWelcomeBtn{max-width:340px;width:100%;min-height:64px;font-size:18px;letter-spacing:.04em;line-height:1.35}
-/* RC2.8.7: D-57 game over = the score + one line; D-60 name offer; D-58 "Playing for". */.goScore{font-size:56px;font-weight:900;line-height:1.05;color:#5deaff;letter-spacing:.04em;text-shadow:0 0 24px #27d9ff66;margin:0}.goLine{margin:8px 0 4px!important;color:#eaf7ff!important;font-size:15px!important;font-weight:800;line-height:1.4!important}.goLine .goNew{color:#ffd23f}.goMeta{margin:0 0 4px!important;color:#8fa5d1!important;font-size:12px!important;letter-spacing:.08em}.goClaim{margin:8px 0 10px;padding:12px;border:1px solid #2c6bff;border-radius:16px;background:rgba(18,32,77,.55)}.goClaimT{font-size:14px;font-weight:800;color:#eaf7ff;margin-bottom:8px}.goClaimRow{display:flex;gap:8px}.goClaimRow button{flex:1;padding:10px 8px;font-size:12px;letter-spacing:.08em}.goClaimRow button.goClaimNo{background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none}.playingFor{display:block;width:100%;margin:8px 0 0;padding:8px 10px;background:transparent;color:#b9c6e5;border:0;box-shadow:none;font-size:13px;font-weight:700;letter-spacing:.02em;text-transform:none}.playingFor u{color:#62eaff;text-underline-offset:3px}
+/* RC2.8.7: D-57 game over = the score + one line; D-60 name offer; D-58 "Playing for". */.goScore{font-size:56px;font-weight:900;line-height:1.05;color:#5deaff;letter-spacing:.04em;text-shadow:0 0 24px #27d9ff66;margin:0}/* EVERY RUN COUNTS: the run's share + a rallying line, text only; hidden (no space) while the switch is OFF.
+   Fixed heights, so the lines take their place when the game-over screen appears and the reply only fills
+   them (nothing moves). Count-up (0 -> amount) and a glow in the country's colours, about 1 s, CSS only:
+   one small element, text-shadow and a registered integer -- no script per frame. Old browsers without
+   @property show the amount without counting; reduced motion shows it at once with no glow. */
+@property --cgn{syntax:'<integer>';inherits:false;initial-value:0}
+#gameover .goCg{margin:0;height:24px;line-height:24px;font-size:15px;font-weight:900;letter-spacing:.02em;color:#ffd23f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;--c1:#62eaff;--c2:#ffd23f}
+#gameover .goCg.cgLong{font-size:13px;letter-spacing:0}
+#gameover .goCgRally{margin:0 0 4px;height:34px;line-height:17px;font-size:13px;font-weight:700;color:#cfe0ff;display:-webkit-box;-webkit-box-orient:vertical;-webkit-box-pack:center;-webkit-line-clamp:2;overflow:hidden;text-align:center}/* two short lines kept: the longest line (the daily max) fits a 320 px phone */
+#gameover .goCgRally.hidden{display:none}
+.goCg.cgGo{animation:cgGlow 1s ease-out 1}
+@keyframes cgGlow{0%{text-shadow:none}35%{text-shadow:0 0 8px var(--c1),0 0 16px var(--c2)}100%{text-shadow:none}}
+.cgNum{position:relative;display:inline-block}
+.cgGo .cgNum{animation:cgShow 1s steps(1,end) 1 both}
+.cgGo .cgNum::before{content:counter(cgc);counter-reset:cgc var(--cgn);position:absolute;left:0;right:0;text-align:center;animation:cgCount .9s ease-out 1 both,cgHide 1s steps(1,end) 1 both}
+@keyframes cgShow{from{color:transparent}to{color:#ffd23f}}
+@keyframes cgCount{from{--cgn:0}to{--cgn:var(--cgt)}}
+@keyframes cgHide{from{opacity:1}to{opacity:0}}
+@media (prefers-reduced-motion:reduce){.goCg.cgGo,.cgGo .cgNum{animation:none}.cgGo .cgNum::before{display:none}}
+.goLine{margin:8px 0 4px!important;color:#eaf7ff!important;font-size:15px!important;font-weight:800;line-height:1.4!important}.goLine .goNew{color:#ffd23f}.goMeta{margin:0 0 4px!important;color:#8fa5d1!important;font-size:12px!important;letter-spacing:.08em}.goClaim{margin:8px 0 10px;padding:12px;border:1px solid #2c6bff;border-radius:16px;background:rgba(18,32,77,.55)}.goClaimT{font-size:14px;font-weight:800;color:#eaf7ff;margin-bottom:8px}.goClaimRow{display:flex;gap:8px}.goClaimRow button{flex:1;padding:10px 8px;font-size:12px;letter-spacing:.08em}.goClaimRow button.goClaimNo{background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none}.playingFor{display:block;width:100%;margin:8px 0 0;padding:8px 10px;background:transparent;color:#b9c6e5;border:0;box-shadow:none;font-size:13px;font-weight:700;letter-spacing:.02em;text-transform:none}.playingFor u{color:#62eaff;text-underline-offset:3px}
 /* D-46 lite graphics: the moving star fields, the live-blurred nebula and the FLUX Mode full-screen filter are redrawn every frame; on old devices they cost more than the game itself. */.fluxLite #starsFar,.fluxLite #starsNear{animation:none!important}.fluxLite #nebulaDrift{display:none!important}.fluxLite #app{filter:none!important}
 /* FREE PLAN: the small offline / server-limit note (menu and game over only). */
 #fluxNetNote{position:fixed;left:50%;bottom:calc(12px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:7;display:none;pointer-events:none;
@@ -466,6 +485,8 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
  <div class="panel">
   <div class="goScore" id="finalScore">0</div>
   <p class="goLine" id="goLine"></p>
+  <p class="goCg hidden" id="goCg" aria-live="polite"></p>
+  <p class="goCgRally hidden" id="goCgRally"></p>
   <p class="goMeta"><b id="finalMode" class="plTag" data-d="medium" data-sub="MEDIUM">MARS</b> · BEST <b id="best">0</b></p>
   <p class="goRank hidden" id="goRank" aria-live="polite"></p>
   <div id="goClaim" class="goClaim hidden"><div class="goClaimT">Put your name on the board?</div><div class="goClaimRow"><button id="goClaimYes" type="button">YES</button><button id="goClaimNo" type="button" class="goClaimNo">NOT NOW</button></div></div>
@@ -3014,7 +3035,7 @@ function flushSubmitQueue(){
           const b=r.body||{};
           if(b.tag && /^[0-9A-Z]{6,}$/.test(b.tag)){ try{ localStorage.fluxPublicTag=b.tag; }catch(e){} }
           lastUploadResult=b;
-          if(typeof rankSnapSave==='function'){ rankSnapSave(b,item); showGoRank(); }   // LEADERBOARD REFRESH: the server's rank reply, for the game-over line and the pinned rows
+          if(typeof rankSnapSave==='function'){ rankSnapSave(b,item); if(!(typeof fluxCgHoldRank==='function' && fluxCgHoldRank(b,item))) showGoRank(); }   // LEADERBOARD REFRESH: the server's rank reply, for the game-over line and the pinned rows
           if(typeof fluxFoundingRun==='function') fluxFoundingRun(b,item);   // FOUNDING PILOT: a number in the run's own reply (no extra request)
           if(typeof fluxCgRun==='function') fluxCgRun(b,item);   // EVERY RUN COUNTS: the run's share, in its own reply (no extra request)
         } else if(r.kind==='stale'){
@@ -3971,6 +3992,7 @@ var fluxGoLast=null;   // EVERY RUN COUNTS: the run on the game-over screen (its
 function showGameOverLine(sc,prevBest,prevOverall){
   const el=document.getElementById('goLine'); if(!el) return;
   fluxGoLast={ sc:sc, prevBest:prevBest, prevOverall:prevOverall };
+  fluxCgPrepare();   // EVERY RUN COUNTS: the share's line, reserved now (ON) or hidden (OFF)
   const l=gameOverLine(sc,prevBest,prevOverall);
   el.style.display=l.show?'':'none';
   if(!l.show){ el.textContent=''; return; }
@@ -3981,9 +4003,12 @@ function showGameOverLine(sc,prevBest,prevOverall){
    ------------------------------------------------------------------
    While ON, every finished run is uploaded (its stats ride inside: still
    ONE request per run) and the server gives a share of it to the pilot's
-   country. The reply says how much: the game-over line shows it
-   ("🇵🇭 +345 for Philippines", added to what a new best adds), and the
-   menu's status line shows what this pilot has given in all. The switch
+   country. The reply says how much: on the game-over screen one line
+   ("+105 for 🇵🇭 PHILIPPINES", counting up with a glow in the country's
+   colours) and one rallying line under it ("Laban, Pilipinas!"; at the
+   daily cap "Daily max reached. 🇵🇭 thanks you, soldier!"). Their height is
+   kept from the moment the screen appears, so nothing moves. The menu's
+   status line shows what this pilot has given in all. The switch
    is learned from answers the game already gets (the board, the
    entitlements at launch, the run's reply) -- no extra request, nothing
    per frame.
@@ -3993,13 +4018,47 @@ var fluxCgRunId=null;
 function fluxCgOn(){ try{ const o=JSON.parse(localStorage.getItem(FLUX_CG_KEY)||'null'); return !!(o && o.on===true); }catch(e){ return false; } }
 function fluxCgSet(on){ try{ if(on) localStorage.setItem(FLUX_CG_KEY,JSON.stringify({ on:true, at:Date.now() })); else localStorage.removeItem(FLUX_CG_KEY); }catch(e){} }
 function fluxCgGiven(){ try{ const o=JSON.parse(localStorage.getItem(FLUX_CG_GIVEN_KEY)||'null'); return (o && o.pid===playerId && Number.isFinite(o.t)) ? o.t : 0; }catch(e){ return 0; } }
-/* The game-over line once the run's share is known. Pure (testable): the line's second part. */
-function fluxCgLine(cg,sc,prevOverall){
-  if(!cg || !cg.on) return null;
-  const c=countryLabel(cg.cc||country), best=runAdds(sc,prevOverall), add=(Number.isFinite(cg.add)?cg.add:0)+best;
-  if(add>0) return c.flag+' +'+add.toLocaleString()+' for '+c.name;
-  if(cg.capped) return 'Today\'s max given to '+c.flag+' '+c.name;
-  return null;
+/* Proud, positive, never guilt. Countries with their own line; every other country (and OTHER) gets the
+   English lines in turn. */
+var FLUX_CG_RALLY={ PH:'Laban, Pilipinas!', BR:'Vai, Brasil!', MX:'\u00a1Vamos, M\u00e9xico!', JP:'\u304c\u3093\u3070\u308c\u65e5\u672c!' };
+var FLUX_CG_COLORS={ PH:['#0038a8','#fcd116'], BR:['#009c3b','#ffdf00'], MX:['#006847','#ce1126'], JP:['#bc002d','#ffffff'], US:['#3c3b6e','#b22234'],
+  GB:['#012169','#c8102e'], AU:['#012169','#ffcd00'], CA:['#ff0000','#ffffff'], CN:['#de2910','#ffde00'], DE:['#dd0000','#ffce00'] };
+/* The two lines once the run's reply is known. Pure (testable). n: a number that picks the English line. */
+function fluxCgLine(cg,n){
+  const out={ amount:0, main:'', rally:'' };
+  if(!cg || !cg.on || !cg.cc) return out;
+  const c=countryLabel(cg.cc), add=Number.isFinite(cg.add)&&cg.add>0?cg.add:0;
+  const name=String(c.name||'').toUpperCase();
+  if(add>0){ out.amount=add; out.main='+'+add.toLocaleString()+' for '+c.flag+' '+name; }
+  if(cg.capped) out.rally='Daily max reached. '+c.flag+' thanks you, soldier!';
+  else if(add>0){
+    const en=[c.name+' needs you, soldier.','Every run counts. Go again.',c.flag+' is climbing. Keep it going.'];
+    out.rally=FLUX_CG_RALLY[cg.cc] || en[Math.abs(Math.floor(n||0))%3];
+  }
+  return out;
+}
+/* At game over: ON (and the pilot is on the board) -> both lines are shown, empty, so their height is
+   there before the reply fills them (nothing below moves); OFF -> hidden, exactly as before. */
+function fluxCgPrepare(){
+  try{
+    const on=fluxCgOn() && profileComplete;
+    ['goCg','goCgRally'].forEach(function(id){ const el=document.getElementById(id); if(!el) return; el.textContent=''; el.classList.remove('cgGo'); el.classList.toggle('hidden',!on); });
+  }catch(e){}
+}
+function fluxCgShow(cg){
+  const el=document.getElementById('goCg'), ra=document.getElementById('goCgRally'); if(!el || !ra) return;
+  let n=0; try{ n=+localStorage.fluxRunsPlayed||0; }catch(e){}
+  const t=fluxCgLine(cg,n), col=FLUX_CG_COLORS[cg.cc]||['#62eaff','#ffd23f'];
+  el.style.setProperty('--c1',col[0]); el.style.setProperty('--c2',col[1]);
+  el.classList.remove('cgGo');
+  if(t.amount>0){
+    const c=countryLabel(cg.cc), shown=t.amount.toLocaleString();
+    el.innerHTML='+<span class="cgNum" style="--cgt:'+t.amount+'">'+escapeHtml(shown)+'</span> for '+escapeHtml(c.flag+' '+String(c.name||'').toUpperCase());
+    el.classList.toggle('cgLong',t.main.length>24);   // a long country name: one size smaller, still one line
+    void el.offsetWidth;   // restart the 1-second count-up and glow for this run
+    el.classList.add('cgGo');
+  } else el.textContent='';
+  ra.textContent=t.rally;
 }
 function fluxCgRun(b,item){
   try{
@@ -4007,13 +4066,14 @@ function fluxCgRun(b,item){
     if(!b || !b.cg || !item || item.playerId!==playerId) return;
     if(Number.isFinite(b.cg.total)) localStorage.setItem(FLUX_CG_GIVEN_KEY,JSON.stringify({ pid:playerId, t:b.cg.total }));
     const go=document.getElementById('gameover');
-    if(b.cg.dup || item.runId!==fluxCgRunId || !fluxGoLast || !go || go.classList.contains('hidden')) return;   // only the run on screen
-    const second=fluxCgLine(b.cg,fluxGoLast.sc,fluxGoLast.prevOverall); if(!second) return;
-    const l=gameOverLine(fluxGoLast.sc,fluxGoLast.prevBest,fluxGoLast.prevOverall), el=document.getElementById('goLine'); if(!el) return;
-    el.style.display='';
-    el.innerHTML='<span class="'+(l.isNew?'goNew':'')+'">'+escapeHtml(l.first)+'</span> · '+escapeHtml(second);
+    if(b.cg.dup || item.runId!==fluxCgRunId || !go || go.classList.contains('hidden')) return;   // only the run on screen
+    fluxCgShow(b.cg);   // text only, in the lines reserved at game over
   }catch(e){}
 }
+/* While ON a run below the best is uploaded too; its reply cannot change the pilot's rank (the best did
+   not change), so the rank line on the screen is left as it is -- nothing on the game-over screen moves.
+   (The reply is still kept for the next screens.) A new best updates it as before. */
+function fluxCgHoldRank(b,item){ return !!(b && item && fluxCgRunId && item.runId===fluxCgRunId && b.isNewBest!==true); }
 /* The menu's status line: + what this pilot has given in all (ON only). Pure (testable). */
 function fluxCgStatus(base){
   if(!fluxCgOn() || !profileComplete) return base;

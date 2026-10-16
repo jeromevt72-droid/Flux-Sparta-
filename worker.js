@@ -5620,14 +5620,21 @@ const FOUNDING_CONFIRM = "FOUNDING ON";
                     one-way public pid, never the player ID; read and written only while ON.
    A run gives floor(points x the difficulty weight x CG_RATE) -- the same weights the World Grid
    uses (Hard x1, Medium x0.21, Easy x0.09), so the same rule on every planet -- at most CG_DAY_CAP a
-   day per pilot. The World Grid total of a country = today's total + its contributions, while ON. */
+   day per pilot. Days are UTC days: the cap resets at 00:00 UTC (5 PM in California during daylight
+   time, 4 PM in winter; 8 AM in the Philippines). The World Grid total of a country = today's total + its contributions, while ON. */
 const CG_RATE = 0.10;
 const CG_DAY_CAP = 1000;
+/* FREE PLAN SAFETY: at most CG_DAY_RUNS runs a day (all pilots, UTC days) give a share; after that the
+   shares pause until the next UTC day while runs, scores and boards go on exactly as usual. A giving run
+   writes 2 more Durable Object rows, so the shares can never add more than 2 x CG_DAY_RUNS = 10,000 rows
+   a day (10% of the free plan's 100,000). A share whose write fails is dropped the same way: the run
+   itself is already saved. */
+const CG_DAY_RUNS = 5000;
 const CG_TOT_KEY = "cg:tot";
 const CG_P = "cg:p:";
 const CG_CONFIRM = "EVERY RUN ON";
 const CG_LOG_MAX = 20;
-const CG_ROWS_EST = 2;                  // a run that gives: "cg:p:<pid>" + "cg:tot", in the run's own write (0 while OFF or capped)
+const CG_ROWS_EST = 2;                  // a run that gives: "cg:p:<pid>" + "cg:tot", written right after the run (0 while OFF, capped or paused)
 const CG_MOVE_FIRST = "Every Run Counts works on the new storage layout only (STORAGE above).";
 function cgAmount(score, difficulty) { const w = DIFF_WEIGHT[difficulty] || 0; return Math.max(0, Math.floor(score * w * CG_RATE + 1e-9)); }
 const FOUNDING_CALLS_PER_REQUEST = 10;
@@ -6713,12 +6720,16 @@ class PilotLayoutV2 {
     const kv = {};
     if (flag) kv.flags = nextFlags;
     if (runId) kv["runs:" + pid] = runs.concat([runId + "." + Math.floor(now / 1000).toString(36) + "." + (isNewBest ? "1" : "0") + difficulty[0]]).slice(-RUN_IDS_MAX).join(",");
-    // EVERY RUN COUNTS: this accepted run's share, in the SAME write as its run id (counted <=> remembered).
+    // EVERY RUN COUNTS: this accepted run's share (memory now, so runs that follow see it). It is written
+    // right AFTER the run and its run id are saved, on its own: a retry of this run is then a replay
+    // (counted once), and a share that cannot be written never fails the run.
     const cgRes = cgOn ? this.cgCount(pid, country, score, difficulty, now, cgPrev, !!runId && !ownGet(o.restricted, pid)) : null;
-    if (cgRes && cgRes.puts) Object.assign(kv, cgRes.puts);
     const saving = Object.keys(kv).length ? o.state.storage.put(kv) : null;   // same moment as the rows (no await in between)
     this.commit(sum, playerId, res);
-    if (saving) await saving;
+    if (cgRes && cgRes.puts) {
+      try { if (saving) await saving; } catch (e) { this.cgUndo(cgRes, now); throw e; }   // the run itself failed: no share either
+      try { await o.state.storage.put(cgRes.puts); } catch (e) { this.cgUndo(cgRes, now); }   // FREE PLAN SAFETY: the run is saved; only the share pauses
+    } else if (saving) await saving;
     o.flags = nextFlags;
     const fn = fnum || (fHave && !fHave.off ? fHave.n : 0);
     const extra = cgRes ? { ...(fn ? { founding: fn } : {}), cg: cgRes.reply } : (fn ? { founding: fn } : null);   // EVERY RUN COUNTS: the run's share (ON only)
@@ -6742,13 +6753,21 @@ class PilotLayoutV2 {
     const day = Math.floor(now / AN_DAY_MS);
     const p = prev && prev.d === day ? prev : { d: day, g: 0, t: (prev && prev.t) || 0, n: (prev && prev.n) || 0 };
     const want = ok && ISO2.test(String(cc || "")) && cc !== "XX" ? cgAmount(score, difficulty) : 0;
+    const tot = this.cgTot || { t: {}, g: 0, n: 0 }, dn = tot.dd === day ? tot.dn || 0 : 0;
+    if (want > 0 && dn >= CG_DAY_RUNS) return { puts: null, reply: { ...this.cgReply(p, cc, now, 0, 0, false), paused: 1 } };   // FREE PLAN SAFETY: paused until tomorrow
     const add = Math.min(want, Math.max(0, CG_DAY_CAP - (p.g || 0)));
     if (!(add > 0)) return { puts: null, reply: this.cgReply(p, cc, now, 0, want, false) };
     const np = { d: day, g: (p.g || 0) + add, t: (p.t || 0) + add, n: (p.n || 0) + 1 };
-    const tot = this.cgTot || { t: {}, g: 0, n: 0 };
-    const nt = { t: { ...tot.t, [cc]: (tot.t[cc] || 0) + add }, g: (tot.g || 0) + add, n: (tot.n || 0) + 1, at: now };
+    const nt = { t: { ...tot.t, [cc]: (tot.t[cc] || 0) + add }, g: (tot.g || 0) + add, n: (tot.n || 0) + 1, dd: day, dn: dn + 1, at: now };
     this.cgTot = nt;
-    return { puts: { [CG_P + pid]: np, [CG_TOT_KEY]: nt }, reply: this.cgReply(np, cc, now, add, want, false) };
+    return { puts: { [CG_P + pid]: np, [CG_TOT_KEY]: nt }, cc, add, prev: p, reply: this.cgReply(np, cc, now, add, want, false) };
+  }
+  /* A share that could not be saved: taken back from memory (other runs' shares kept); the run stays saved. */
+  cgUndo(res, now) {
+    const t = this.cgTot; if (!t || !res || !res.add) return;
+    const left = (t.t[res.cc] || 0) - res.add, tt = { ...t.t }; if (left > 0) tt[res.cc] = left; else delete tt[res.cc];
+    this.cgTot = { ...t, t: tt, g: Math.max(0, (t.g || 0) - res.add), n: Math.max(0, (t.n || 0) - 1), dn: Math.max(0, (t.dn || 0) - 1) };
+    res.reply = { ...this.cgReply(res.prev, res.cc, now, 0, 0, false), paused: 1 };
   }
   /* The World Grid list while ON: each country's total + its contributions, sorted again (a stable
      sort: equal totals keep today's order). OFF: the very same list. */
@@ -6761,7 +6780,7 @@ class PilotLayoutV2 {
     const tot = await this.cgTotals(), cfg = (this.sum && this.sum.cg) || {};
     const countries = Object.keys(tot.t || {}).map((cc) => ({ country: cc, given: tot.t[cc] })).sort((a, b) => b.given - a.given);
     return json({ ok: true, layout: "new", on: this.cgOn(), onAt: cfg.onAt || null, offAt: cfg.offAt || null, rate: CG_RATE, cap: CG_DAY_CAP,
-      given: tot.g || 0, runs: tot.n || 0, countries, log: (cfg.log || []).slice(-CG_LOG_MAX).reverse() });
+      given: tot.g || 0, runs: tot.n || 0, dayRuns: tot.dd === Math.floor(Date.now() / AN_DAY_MS) ? tot.dn || 0 : 0, dayRunsMax: CG_DAY_RUNS, countries, log: (cfg.log || []).slice(-CG_LOG_MAX).reverse() });
   }
   async cgSwitch(request) {
     const b = (await readJsonObject(request)) || {}, on = b.on === true, now = Date.now();
