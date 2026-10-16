@@ -2908,8 +2908,8 @@ function fluxRandomId(){
   catch(e){ for(let i=0;i<16;i++) a.push(Math.floor(Math.random()*256)); }
   return a.map(function(b){ return (b<16?'0':'')+b.toString(16); }).join('');
 }
-function buildSubmission(cur){
-  const run=cur||bestRun();   // EVERY RUN COUNTS: the run just played (ON only); otherwise the best, as always
+function buildSubmission(){
+  const run=bestRun();
   if(!(run.score>0)) return null;
   return {
     id:playerId+':'+difficulty+':'+run.score+':'+run.level,
@@ -3089,9 +3089,9 @@ function fluxAlreadyUploaded(item){
 }
 function submitScore(opts){
   const run=!!(opts && opts.run);
-  const every=run && fluxCgOn();   // EVERY RUN COUNTS (owner switch ON): this run's own score, even when it is not a best
-  const item=every ? buildSubmission({ score:score, level:levelForScore(score,difficulty), difficulty:difficulty }) : buildSubmission();
-  if(every && item) fluxCgRunId=item.runId;
+  // EVERY RUN COUNTS (owner switch ON): this run's own score goes up, even when it is not a best.
+  const every=run && fluxCgOn();
+  const item=every ? fluxCgItem(buildSubmission()) : buildSubmission();
   if(!item || (run && !every && fluxAlreadyUploaded(item))){ if(run) fluxStatsFlush(); return Promise.resolve(); }
   if(run) fluxMergeStats(item, fluxStatsTake());
   enqueueSubmission(item);
@@ -4074,6 +4074,15 @@ function fluxCgRun(b,item){
    not change), so the rank line on the screen is left as it is -- nothing on the game-over screen moves.
    (The reply is still kept for the next screens.) A new best updates it as before. */
 function fluxCgHoldRank(b,item){ return !!(b && item && fluxCgRunId && item.runId===fluxCgRunId && b.isNewBest!==true); }
+/* EVERY RUN COUNTS (ON): the upload of the run just played -- the same record as the best's (one pilot,
+   name, country, season, a fresh run id), with this run's score, level and difficulty. */
+function fluxCgItem(item){
+  if(!item || !(score>0)) return null;
+  item.score=score; item.level=levelForScore(score,difficulty); item.difficulty=difficulty;
+  item.id=playerId+':'+difficulty+':'+item.score+':'+item.level;
+  fluxCgRunId=item.runId;
+  return item;
+}
 /* The menu's status line: + what this pilot has given in all (ON only). Pure (testable). */
 function fluxCgStatus(base){
   if(!fluxCgOn() || !profileComplete) return base;
