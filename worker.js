@@ -6754,31 +6754,31 @@ class PilotLayoutV2 {
     const p = prev && prev.d === day ? prev : { d: day, g: 0, t: (prev && prev.t) || 0, n: (prev && prev.n) || 0 };
     const want = ok && ISO2.test(String(cc || "")) && cc !== "XX" ? cgAmount(score, difficulty) : 0;
     const tot = this.cgTot || { t: {}, g: 0, n: 0 }, dn = tot.dd === day ? tot.dn || 0 : 0;
-    if (want > 0 && dn >= CG_DAY_RUNS) return { puts: null, reply: { ...this.cgReply(p, cc, now, 0, 0, false), paused: 1 } };   // FREE PLAN SAFETY: paused until tomorrow
+    if (want > 0 && dn >= CG_DAY_RUNS) return { puts: null, reply: Object.assign(this.cgReply(p, cc, now, 0, 0, false), { paused: 1 }) };   // FREE PLAN SAFETY: paused until tomorrow
     const add = Math.min(want, Math.max(0, CG_DAY_CAP - (p.g || 0)));
     if (!(add > 0)) return { puts: null, reply: this.cgReply(p, cc, now, 0, want, false) };
     const np = { d: day, g: (p.g || 0) + add, t: (p.t || 0) + add, n: (p.n || 0) + 1 };
-    const nt = { t: { ...tot.t, [cc]: (tot.t[cc] || 0) + add }, g: (tot.g || 0) + add, n: (tot.n || 0) + 1, dd: day, dn: dn + 1, at: now };
+    const nt = { t: setKey(tot.t, cc, (ownGet(tot.t, cc) || 0) + add), g: (tot.g || 0) + add, n: (tot.n || 0) + 1, dd: day, dn: dn + 1, at: now };
     this.cgTot = nt;
     return { puts: { [CG_P + pid]: np, [CG_TOT_KEY]: nt }, cc, add, prev: p, reply: this.cgReply(np, cc, now, add, want, false) };
   }
   /* A share that could not be saved: taken back from memory (other runs' shares kept); the run stays saved. */
   cgUndo(res, now) {
     const t = this.cgTot; if (!t || !res || !res.add) return;
-    const left = (t.t[res.cc] || 0) - res.add, tt = { ...t.t }; if (left > 0) tt[res.cc] = left; else delete tt[res.cc];
+    const left = (ownGet(t.t, res.cc) || 0) - res.add, tt = left > 0 ? setKey(t.t, res.cc, left) : dropKey(t.t, res.cc);
     this.cgTot = { ...t, t: tt, g: Math.max(0, (t.g || 0) - res.add), n: Math.max(0, (t.n || 0) - 1), dn: Math.max(0, (t.dn || 0) - 1) };
-    res.reply = { ...this.cgReply(res.prev, res.cc, now, 0, 0, false), paused: 1 };
+    res.reply = Object.assign(this.cgReply(res.prev, res.cc, now, 0, 0, false), { paused: 1 });
   }
   /* The World Grid list while ON: each country's total + its contributions, sorted again (a stable
      sort: equal totals keep today's order). OFF: the very same list. */
   cgCountries(list) {
     if (!this.cgOn() || !this.cgTot) return list;
     const t = this.cgTot.t || {};
-    return list.map((c) => (t[c.country] > 0 ? { ...c, totalScore: c.totalScore + t[c.country] } : c)).sort((a, b) => b.totalScore - a.totalScore);
+    return list.map((c) => (ownGet(t, c.country) > 0 ? Object.assign({}, c, { totalScore: c.totalScore + ownGet(t, c.country) }) : c)).sort((a, b) => b.totalScore - a.totalScore);
   }
   async cgStatus() {
     const tot = await this.cgTotals(), cfg = (this.sum && this.sum.cg) || {};
-    const countries = Object.keys(tot.t || {}).map((cc) => ({ country: cc, given: tot.t[cc] })).sort((a, b) => b.given - a.given);
+    const countries = Object.keys(tot.t || {}).map((cc) => ({ country: cc, given: ownGet(tot.t, cc) })).sort((a, b) => b.given - a.given);
     return json({ ok: true, layout: "new", on: this.cgOn(), onAt: cfg.onAt || null, offAt: cfg.offAt || null, rate: CG_RATE, cap: CG_DAY_CAP,
       given: tot.g || 0, runs: tot.n || 0, dayRuns: tot.dd === Math.floor(Date.now() / AN_DAY_MS) ? tot.dn || 0 : 0, dayRunsMax: CG_DAY_RUNS, countries, log: (cfg.log || []).slice(-CG_LOG_MAX).reverse() });
   }
