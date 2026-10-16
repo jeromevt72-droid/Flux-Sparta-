@@ -151,7 +151,7 @@ ck('D-03 no legal link left as #', 'href="#">Privacy' not in _gw and 'href="#">T
 _pv=open('FLUX-Sparta/public/privacy.html',encoding='utf-8').read(); _tm=open('FLUX-Sparta/public/terms.html',encoding='utf-8').read()
 ck('D-03 no owner placeholder left in privacy', 'OWNER INPUT' not in _pv)
 ck('D-03 no owner placeholder left in terms', 'OWNER INPUT' not in _tm)
-ck('D-03 operator named (policy: FLUX Sparta, before Google Play; terms unchanged)', 'FLUX is operated by <strong>FLUX Sparta</strong>' in _pv and 'Jerome Tadaya' not in _pv and 'Jerome Tadaya' in _tm)
+ck('D-03 operator named: FLUX Sparta, based in California, in the policy and the terms (no personal name, no city)', all('FLUX is operated by <strong>FLUX Sparta</strong>, a sole proprietorship based in\nCalifornia.' in d and 'Jerome' not in d and 'Tadaya' not in d and 'Union City' not in d for d in (_pv, _tm)))
 ck('D-03 contact email present', 'playfluxofficial@gmail.com' in _pv and 'playfluxofficial@gmail.com' in _tm)
 # Launch (Sep 26, 2026): the privacy policy was finished for publication (children section rewritten), so its date moved.
 # Sep 26, 2026: the Terms were updated too (children may play, preset names), so both dates may move.

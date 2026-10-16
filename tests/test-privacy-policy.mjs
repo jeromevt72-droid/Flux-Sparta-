@@ -66,6 +66,9 @@ function suite(files, quiet = false) {
   ck('P7 GOOGLE PLAY: operator "FLUX Sparta" in sections 1 and 17, contact kept; no personal name, no old workers.dev address',
     /<h2>1\. Who operates FLUX<\/h2>\s*<p>FLUX is operated by <strong>FLUX Sparta<\/strong>/.test(pv) && /<h2>17\. Contact<\/h2>\s*<p>FLUX Sparta<br>\s*<a href="mailto:playfluxofficial@gmail\.com">/.test(pv)
     && !/Jerome|Tadaya|jeromevt72|workers\.dev/.test(pv) && flat.includes("When you open FLUX at FLUX's previous web address in a browser tab"));
+  ck('P7 GOOGLE PLAY: operator "FLUX Sparta" based in California in the Terms too (sections 1, 9 and 15, both copies); no personal name, no city',
+    [tm, wt].every((d) => /FLUX is operated by <strong>FLUX Sparta<\/strong>, a sole proprietorship based in\s+California\.<\/p>/.test(d) && /belongs to\s+<strong>FLUX Sparta<\/strong>\. You may play it\./.test(d)
+      && /<h2>15\. Contact<\/h2>\s*<p>FLUX Sparta<br>/.test(d) && !/Jerome|Tadaya|Union City/.test(d)) && /based in\s+California\. Contact:/.test(pv) && !/Union City/.test(pv));
   ck('P7 GOOGLE PLAY: the app is mentioned; uninstalling it does not clear Chrome\'s data, and how to clear it or ask by email',
     flat.includes('installed as an app from <strong>Google Play</strong>') && flat.includes('<strong>uninstalling the Google Play app does not clear it</strong>')
     && (flat.match(/Settings → Site settings → All sites, choose fluxsparta\.com and tap Delete data/g) || []).length === 2 && flat.includes('You can also ask us by email (section 12)')
@@ -104,6 +107,8 @@ control('Terms go back to 14-character names', 'T1', edit('public/terms.html', '
 control('server shows free text again', 'P3', edit('worker.js', 'function presetOrOwn(name, playerId) { return isAllowedName(name)', 'function presetOrOwn(name, playerId) { return true'));
 control('a lawyer-review note shown publicly again', 'P3', edit('public/privacy.html', '<h2>14. Children</h2>\n', '<h2>14. Children</h2>\n<div class="review"><strong>For lawyer review before launch.</strong></div>\n'));
 control('the personal name back in the contact section', 'P7', edit('public/privacy.html', '<p>FLUX Sparta<br>', '<p>Jerome Tadaya<br>'));
+control('the personal name back in the Terms', 'P7', edit('public/terms.html', '<p>FLUX Sparta<br>', '<p>Jerome Tadaya<br>'));
+control('the city back in the policy', 'P7', edit('public/privacy.html', 'based in\nCalifornia. Contact:', 'based in\nUnion City, California. Contact:'));
 control('the old workers.dev address shown again', 'P7', edit('public/privacy.html', "at FLUX's previous web address in", 'at its old address (flux-sparta-3.jeromevt72.workers.dev) in'));
 control('uninstalling the app said to clear the data', 'P7', edit('public/privacy.html', '<strong>uninstalling the Google Play app does not clear it</strong>', 'uninstalling the Google Play app clears it'));
 control('the game asks for GPS', 'P5', edit('public/play/index.html', '</body>', '<script>navigator.geolocation.getCurrentPosition(function(){})</script></body>'));
