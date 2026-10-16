@@ -266,6 +266,22 @@
   </div>
   <div id="wgReport"></div>
 
+  <h2>EVERY RUN COUNTS</h2>
+  <p class="note">When ON, <b>every run</b> a pilot finishes gives <b>10%</b> of its points to their country, counted with the World Grid's
+  difficulty weights (Hard ×1, Medium ×0.21, Easy ×0.09), up to <b>1,000 a day</b> per pilot. A country's World Grid total = its total
+  today + what its pilots gave. Best scores, boards and Season 0 are never changed. It is <b>OFF</b> until you switch it on, and nothing
+  is counted backwards. <b>TURN OFF</b> takes the contributions off the World Grid at once (they are kept, and come back if you switch
+  ON again). Switching ON needs a checked backup from the last hour and the phrase <b>EVERY RUN ON</b>.
+  See <b>Every Run Counts</b> in the guide below.</p>
+  <div id="cgState"></div>
+  <div class="row"><button id="cgLoad" class="ghost" style="flex:1">SHOW</button></div>
+  <div id="cgReport"></div>
+  <div class="row">
+    <input id="cgConfirm" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Type EVERY RUN ON" aria-label="Confirmation phrase">
+    <button id="cgOn" class="danger" disabled>TURN ON</button>
+  </div>
+  <div class="row"><button id="cgOff" class="ghost" style="flex:1">TURN OFF</button></div>
+
   <h2>FOUNDING PILOT</h2>
   <p class="note">The first <b>1,000 pilots</b>, in the order they joined, get the whole <b>Solar Inferno</b> package free forever: its orb colours,
   its orange launcher and its backdrop, on every device and through their restore code. Stripe purchases are not touched. It is <b>OFF</b> until you
@@ -542,6 +558,26 @@
       Day 1 is their next calendar day. PLAYER STATS and the owner summary still use UTC days, so their day-1 number can
       differ a little. Pilots who started before this report counted local days are shown only as one count (by UTC day).
       Raw events are kept 90 days, so the report reaches back about 88 days.</li>
+    </ul>
+    <h3>Every Run Counts</h3>
+    <ul>
+      <li><b>What it does:</b> while ON, each run a named pilot finishes gives 10% of its points, times the World Grid weight of its difficulty
+      (Hard ×1, Medium ×0.21, Easy ×0.09), to the country the pilot plays for, at most 1,000 a day per pilot (days in UTC). A Medium run of
+      5,000 gives 105. The game-over screen shows it (for example <b>+105 for 🇵🇭 PHILIPPINES</b>, counting up with a glow in the country's colours)
+      with a rallying line under it (Philippines <b>Laban, Pilipinas!</b>; at the daily max <b>Daily max reached. 🇵🇭 thanks you, soldier!</b>),
+      and the menu shows what the pilot has given in all. The daily max resets at 00:00 UTC: 8 AM in the Philippines, 5 PM in California
+      (4 PM from November 1 to early March).</li>
+      <li><b>Free plan safety:</b> after 5,000 giving runs in a day (all pilots) the shares pause until the next day; runs, scores and boards go on as usual.
+      A share that cannot be saved is dropped the same way; the run is already saved.</li>
+      <li><b>What it never changes:</b> best scores, the boards, Season 0, and how today's country totals are made. The contributions are kept
+      on their own and added on top. A restricted pilot gives nothing; a replayed upload never counts twice; only runs the server already
+      accepts (score ceiling, level, cooldown and rate limits) count.</li>
+      <li><b>ON:</b> back up first (BACKUPS → BACK UP NOW), type <b>EVERY RUN ON</b>, press TURN ON. Nothing is counted backwards.
+      Players' phones learn the switch from the board they already load, within about a minute.</li>
+      <li><b>OFF:</b> press TURN OFF. The World Grid is back to best scores only at once and the game is exactly as before.
+      What was given is kept and comes back if you switch ON again.</li>
+      <li><b>Free plan:</b> while ON every finished run uploads (instead of only bests); still one request per run. A run that gives writes 2
+      more rows; a capped run or OFF writes none.</li>
     </ul>
     <h3>Owner summary (status and findings)</h3>
     <ul>
@@ -1663,6 +1699,49 @@
       r.appendChild(a); ex.appendChild(r);
     });
   }
+  /* ---------------- EVERY RUN COUNTS ---------------- */
+  function renderCg(f) {
+    var box = $('cgState'); box.textContent = '';
+    var c = el('div', 'card'), h = el('div');
+    h.appendChild(el('span', 'name', 'Every Run Counts'));
+    h.appendChild(el('span', 'pill ' + (f && f.on ? 'amber' : 'pink'), f && f.on ? 'ON' : 'OFF'));
+    c.appendChild(h);
+    if (!f) c.appendChild(el('div', 'meta', 'Unavailable right now.'));
+    else if (f.layout === 'old') c.appendChild(el('div', 'meta', 'Needs the new storage layout (STORAGE above).'));
+    else {
+      c.appendChild(el('div', 'meta', Math.round((f.rate || 0) * 100) + '% of each run · at most ' + fmt(f.cap) + ' a day per pilot' +
+        '\nGiven so far: ' + fmt(f.given) + ' points from ' + fmt(f.runs) + ' runs' + (f.on ? '' : ' (not on the World Grid while OFF)') +
+        (f.backup ? '\nNewest checked backup: ' + (f.backup.createdAt ? f.backup.ageMin + ' min ago' + (f.backup.fresh ? ' ✓' : ' (older than 60 min)') : 'none') : '')));
+      if ((f.countries || []).length) c.appendChild(table(['Country', 'Given'], f.countries.slice(0, 30).map(function (x) { return [x.country, fmt(x.given)]; })));
+    }
+    (f && f.log || []).slice(0, 8).forEach(function (x) { c.appendChild(el('div', 'logrow', when(x.at) + ' · switched ' + String(x.event).toUpperCase())); });
+    box.appendChild(c);
+  }
+  async function cgLoad() { say('Loading…'); renderCg(await call('cg-status')); say(''); }
+  async function cgOn() {
+    var inp = $('cgConfirm'), b = $('cgOn');
+    if (inp.value.trim() !== 'EVERY RUN ON') { say('Type EVERY RUN ON exactly.', 'err'); return; }
+    b.disabled = true; b.textContent = 'TURNING ON…';
+    try {
+      var o = await post('cg-switch', { on: true, confirm: inp.value.trim() });
+      if (o.status === 401) { sessionEnded(); throw new Error('Your session ended. Log in again — what you typed is kept.'); }
+      var res = $('cgReport'); res.textContent = '';
+      if (o.data && o.data.needBackup === true) {
+        res.appendChild(el('p', 'note err', o.data.error));
+        res.appendChild(btn('BACK UP NOW', 'go', function () { var bb = this; act(bb, 'BACKING UP…', async function () {
+          var k = await call('backup-now'); bb.remove(); say('Backup ' + k.snapshot.id + ' saved and checked ✓ Press TURN ON again.', 'ok'); }); }));
+        throw new Error(o.data.error);
+      }
+      if (!o.ok) throw new Error(o.data.error || ('Error ' + o.status));
+      inp.value = ''; renderCg(o.data);
+      say('Every Run Counts is ON. Runs count from now; players see it within about a minute.', 'ok');
+    } finally { b.textContent = 'TURN ON'; b.disabled = inp.value.trim() !== 'EVERY RUN ON'; }
+  }
+  async function cgOff() {
+    if (!confirm('Turn Every Run Counts OFF?\n\nThe World Grid goes back to best scores only at once. What was given is kept and comes back if you switch ON again.')) return;
+    renderCg(await call('cg-switch', { on: false }));
+    say('Every Run Counts is OFF. The World Grid is back to best scores only.', 'ok');
+  }
   function fpPilots(list) { return (list || []).map(function (p) { return '#' + p.n + ' ' + p.name + ' #' + p.tag; }).join('\n') || '—'; }
   async function fpLoad() { say('Loading…'); renderFp(await call('founding-status')); say(''); }
   async function fpDry() {
@@ -1931,6 +2010,10 @@
   $('wgRevert').onclick = guard(wgRevert);
   $('sgLoad').onclick = guard(loadStorage);
   $('fpLoad').onclick = guard(fpLoad);
+  $('cgLoad').onclick = guard(cgLoad);   // EVERY RUN COUNTS
+  $('cgOn').onclick = guard(cgOn);
+  $('cgOff').onclick = guard(cgOff);
+  $('cgConfirm').oninput = function () { $('cgOn').disabled = this.value.trim() !== 'EVERY RUN ON'; };
   $('fpDry').onclick = guard(fpDry);
   $('fpOn').onclick = guard(fpOn);
   $('fpOff').onclick = guard(fpOff);

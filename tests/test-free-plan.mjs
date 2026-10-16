@@ -287,7 +287,7 @@ async function control(label, expect, mutate) {
   if (!ok) NC++;
 }
 await control('the run\'s stats not put into the score upload', 'C1', rep('game', "  if(run) fluxMergeStats(item, fluxStatsTake());", ''));
-await control('the same best uploaded again at every game over', 'C1', rep('game', 'if(!item || (run && fluxAlreadyUploaded(item))){', 'if(!item){'));
+await control('the same best uploaded again at every game over', 'C1', rep('game', 'if(!item || (run && !every && fluxAlreadyUploaded(item))){', 'if(!item){'));
 await control('the 8-second stats timer back', 'C2', rep('game', '    let hideSent=false, hideFirstSent=false;', '    let hideSent=false, hideFirstSent=false; setTimeout(fluxStatsFlush,8000);'));
 await control('the 3-second entitlements repeat back', 'C2', rep('game', '  if (back) setTimeout(syncEntitlements, 3000);', '  setTimeout(syncEntitlements, 3000);'));
 await control('the leaderboard copy never reused', 'C3', rep('game', "FLUX_LB_TTL_MS=60000", "FLUX_LB_TTL_MS=0"));
@@ -295,7 +295,7 @@ await control('the Gateway ignores the shared copy', 'C3', rep('gw', "var LB_KEY
 await control('the limit page not recognised (normal backoff, no pause)', 'C4', rep('game', "if(await fluxEdgeKind(res)==='limit'){", "if(false){"));
 await control('a paused queue retried anyway', 'C4', rep('game', "      if(fluxNetPausedFor()>0){ if(loadQueue().length) scheduleFlush(fluxNetPausedFor()); return; }", ''));
 await control('stats counted on a 429 (counted twice after the retry)', 'S2', rep('worker', 'if (stats && !dup && resp.status !== 429 && resp.status < 500) {', 'if (stats) {'));
-await control('the run id not used as the stats batch id (a retried run counted twice)', 'S2', rep('worker', 'const dup = resp.ok ? !!(await resp.clone().json().catch(() => ({}))).duplicate : false;', 'const dup = false;'));
+await control('the run id not used as the stats batch id (a retried run counted twice)', 'S2', rep('worker', 'const dup = resp.ok ? !!rj.duplicate : false;', 'const dup = false;'));
 await control('limiter back to a separate DO round trip per upload', 'S2', rep('worker', '  const name = presetOrOwn(cleanName(body.name), playerId);', '  const limited = await rateLimit(env, "global", "submit", request, await pidHash(playerId));\n  if (limited) return limited;\n  const name = presetOrOwn(cleanName(body.name), playerId);'));
 await control('stats in the run request dropped by the server', 'S1', rep('worker', '  const stats = runStats(body, playerId);', '  const stats = null;'));
 await control('a new field forwarded to the leaderboard', 'S4', rep('worker', 'body: JSON.stringify({ playerId, name, score, level, difficulty, country, detected })', 'body: JSON.stringify({ playerId, name, score, level, difficulty, country, detected, ua: "x" })'));
