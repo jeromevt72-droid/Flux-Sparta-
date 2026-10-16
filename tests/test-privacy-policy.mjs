@@ -43,9 +43,9 @@ function suite(files, quiet = false) {
   ck('P3 the policy says the server only accepts names that follow the rules and erased old text; the worker does both',
     /const name = presetOrOwn\(cleanName\(body\.name\), playerId\);/.test(files['worker.js']) && /function presetOrOwn\(name, playerId\) \{ return isAllowedName\(name\)/.test(files['worker.js'])
     && /await this\.migrateNames\(\);/.test(files['worker.js']) && /only accepts names that follow these rules/.test(pv) && /old\s+text has been deleted from our server/.test(pv));
-  ck('P3 children: general audience, no personal information needed, marked for lawyer review, parents can have an entry removed',
+  ck('P3 children: general audience, no personal information needed, parents can have an entry removed (no public lawyer-review note)',
     /general audience, and children may play/.test(pv) && /nobody, of any age, has to give personal information to\s*play/.test(pv)
-    && /<h2>14\. Children<\/h2>\s*<div class="review"><strong>For lawyer review before launch\.<\/strong>/.test(pv)
+    && /<h2>14\. Children<\/h2>\s*<p>/.test(pv) && !/For lawyer review/.test(pv)
     && /Parents and guardians/.test(pv) && /mailto:playfluxofficial@gmail\.com/.test(pv) && !/intended for players aged 13 and older/.test(pv));
   const w = files['worker.js'];
   ck('P4 a score upload carries exactly what the policy lists (player identifier, FLUX ID, score, level, difficulty, country) plus the Cloudflare country',
@@ -58,10 +58,22 @@ function suite(files, quiet = false) {
   ck('P6 the player identifier is described as used only to run the game, never for ads or tracking',
     /<strong>The player identifier is used only to run the game:<\/strong>/.test(pv) && /<strong>never<\/strong> used for advertising/.test(pv));
   const g = files['public/play/index.html'], wk = files['worker.js'];
-  ck('P6 the in-house statistics are described the way they are built (own server, one-way code, country only, src tag, 90 days, lawyer review)',
+  ck('P6 the in-house statistics are described the way they are built (own server, one-way code, country only, src tag, 90 days)',
     /const FLUX_STATS_URL='\/api\/events';/.test(g) && /const AN_KEEP_DAYS = 90;/.test(wk) && /"flux-stats:" \+ String\(playerId\)/.test(wk)
-    && /<h3 id="stats">Anonymous gameplay statistics \(in-house\)<\/h3>\s*<div class="review"><strong>For lawyer review before launch\.<\/strong>/.test(pv)
+    && /<h3 id="stats">Anonymous gameplay statistics \(in-house\)<\/h3>\s*<p>/.test(pv)
     && /<strong>our own server<\/strong>/.test(pv) && /one-way code, different from the\s+leaderboard's tag/.test(pv) && /<strong>90 days<\/strong>/.test(pv) && /\?src=tiktok/.test(pv) && !/Future gameplay statistics/.test(pv));
+  const flat = pv.replace(/\s+/g, ' ');
+  ck('P7 GOOGLE PLAY: operator "FLUX Sparta" in sections 1 and 17, contact kept; no personal name, no old workers.dev address',
+    /<h2>1\. Who operates FLUX<\/h2>\s*<p>FLUX is operated by <strong>FLUX Sparta<\/strong>/.test(pv) && /<h2>17\. Contact<\/h2>\s*<p>FLUX Sparta<br>\s*<a href="mailto:playfluxofficial@gmail\.com">/.test(pv)
+    && !/Jerome|Tadaya|jeromevt72|workers\.dev/.test(pv) && flat.includes("When you open FLUX at FLUX's previous web address in a browser tab"));
+  ck('P7 GOOGLE PLAY: operator "FLUX Sparta" based in California in the Terms too (sections 1, 9 and 15, both copies); no personal name, no city',
+    [tm, wt].every((d) => /FLUX is operated by <strong>FLUX Sparta<\/strong>, a sole proprietorship based in\s+California\.<\/p>/.test(d) && /belongs to\s+<strong>FLUX Sparta<\/strong>\. You may play it\./.test(d)
+      && /<h2>15\. Contact<\/h2>\s*<p>FLUX Sparta<br>/.test(d) && !/Jerome|Tadaya|Union City/.test(d)) && /based in\s+California\. Contact:/.test(pv) && !/Union City/.test(pv));
+  ck('P7 GOOGLE PLAY: the app is mentioned; uninstalling it does not clear Chrome\'s data, and how to clear it or ask by email',
+    flat.includes('installed as an app from <strong>Google Play</strong>') && flat.includes('<strong>uninstalling the Google Play app does not clear it</strong>')
+    && (flat.match(/open Chrome, go to fluxsparta\.com, tap the icon to the left of the address, then tap "Cookies and site data" and delete it\. This also removes the FLUX data used by the Home Screen app and the Google Play app on that phone, and resets your pilot on that device\./g) || []).length === 2
+    && !/All sites|Site settings/.test(flat) && flat.includes('You can also ask us by email (section 12)')
+    && !/deleting the app from your Home Screen removes all of it|clearing your browser data or deleting FLUX from your Home Screen/.test(flat));
   const evs = [...new Set([...g.matchAll(/fluxTrack\('([a-z_]+)'/g)].map((m) => m[1]))].sort().join(',');
   ck('P6 ...the events the game sends are exactly the ones the policy lists', evs === 'again,first_run,level_up,open,play,run_end,sess_back,sess_end,share' && /the app being opened[\s\S]{0,120}first run, each finished run[\s\S]{0,120}level-ups, and taps on the share button/.test(pv)
     && /For each finished run we also count, for each speed of the ball reached in\s+that run: the seconds played at that speed, the orbs hit, the wrong-colour\s+orbs hit and the balls lost\./.test(pv)
@@ -94,7 +106,13 @@ control('game allows longer typed names than the policy says', 'P3', edit('publi
 control('server stops erasing old name text', 'P3', edit('worker.js', 'await this.migrateNames();', ';'));
 control('Terms go back to 14-character names', 'T1', edit('public/terms.html', 'up to 12 characters', 'up to 14 characters'));
 control('server shows free text again', 'P3', edit('worker.js', 'function presetOrOwn(name, playerId) { return isAllowedName(name)', 'function presetOrOwn(name, playerId) { return true'));
-control('lawyer-review mark dropped from the children section', 'P3', edit('public/privacy.html', '<h2>14. Children</h2>\n<div class="review">', '<h2>14. Children</h2>\n<div>'));
+control('a lawyer-review note shown publicly again', 'P3', edit('public/privacy.html', '<h2>14. Children</h2>\n', '<h2>14. Children</h2>\n<div class="review"><strong>For lawyer review before launch.</strong></div>\n'));
+control('the personal name back in the contact section', 'P7', edit('public/privacy.html', '<p>FLUX Sparta<br>', '<p>Jerome Tadaya<br>'));
+control('the personal name back in the Terms', 'P7', edit('public/terms.html', '<p>FLUX Sparta<br>', '<p>Jerome Tadaya<br>'));
+control('the city back in the policy', 'P7', edit('public/privacy.html', 'based in\nCalifornia. Contact:', 'based in\nUnion City, California. Contact:'));
+control('the old workers.dev address shown again', 'P7', edit('public/privacy.html', "at FLUX's previous web address in", 'at its old address (flux-sparta-3.jeromevt72.workers.dev) in'));
+control('the Android steps point to Site settings again (not found on the BLU)', 'P7', edit('public/privacy.html', 'Chrome, go to fluxsparta.com, tap the icon to the left of the address, then tap', 'Chrome, go to Settings → Site settings → All sites, choose fluxsparta.com, then tap'));
+control('uninstalling the app said to clear the data', 'P7', edit('public/privacy.html', '<strong>uninstalling the Google Play app does not clear it</strong>', 'uninstalling the Google Play app clears it'));
 control('the game asks for GPS', 'P5', edit('public/play/index.html', '</body>', '<script>navigator.geolocation.getCurrentPosition(function(){})</script></body>'));
 control('the worker reads the Cloudflare city', 'P5', edit('worker.js', 'const cc = (request.cf && request.cf.country) || "";', 'const cc = (request.cf && request.cf.country) || ""; const city = request.cf.city;'));
 control('policy stops limiting the player identifier', 'P6', edit('public/privacy.html', '<strong>The player identifier is used only to run the game:</strong>', '<strong>The player identifier is used to run the game:</strong>'));
