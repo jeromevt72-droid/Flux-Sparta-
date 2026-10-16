@@ -236,25 +236,37 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 @keyframes coachDown{0%,100%{transform:translateY(0)}50%{transform:translateY(14px)}}
 @keyframes coachUp{0%,100%{transform:rotate(180deg) translateY(0)}50%{transform:rotate(180deg) translateY(14px)}}
 .fluxWelcomeBtn{max-width:340px;width:100%;min-height:64px;font-size:18px;letter-spacing:.04em;line-height:1.35}
-/* RC2.8.7: D-57 game over = the score + one line; D-60 name offer; D-58 "Playing for". */.goScore{font-size:56px;font-weight:900;line-height:1.05;color:#5deaff;letter-spacing:.04em;text-shadow:0 0 24px #27d9ff66;margin:0}/* EVERY RUN COUNTS: the run's share + a rallying line, text only; hidden (no space) while the switch is OFF.
-   Fixed heights, so the lines take their place when the game-over screen appears and the reply only fills
-   them (nothing moves). Count-up (0 -> amount) and a glow in the country's colours, about 1 s, CSS only:
-   one small element, text-shadow and a registered integer -- no script per frame. Old browsers without
-   @property show the amount without counting; reduced motion shows it at once with no glow. */
+/* RC2.8.7: D-57 game over = the score + one line; D-60 name offer; D-58 "Playing for". */.goScore{font-size:56px;font-weight:900;line-height:1.05;color:#5deaff;letter-spacing:.04em;text-shadow:0 0 24px #27d9ff66;margin:0}/* EVERY RUN COUNTS: the run's share as a BADGE right under the score, and a rallying line under it. Hidden
+   (no space) while the switch is OFF. Fixed heights, kept from the moment the game-over screen appears, so the
+   reply only fills them (nothing moves; RUN IT BACK stays where it is and is never covered).
+   When the reply arrives (about 1.5 s, CSS only): the pill pops in (scale from small with a slight bounce),
+   a glow pulses in the country's colours, then the amount counts up 0 -> N. Pop and glow animate only
+   transform and opacity (cheap on budget Android); the count-up is a registered integer -- no script per
+   frame. Old browsers without @property show the amount without counting; reduced motion shows the badge at
+   once with no animation. */
 @property --cgn{syntax:'<integer>';inherits:false;initial-value:0}
-#gameover .goCg{margin:0;height:24px;line-height:24px;font-size:15px;font-weight:900;letter-spacing:.02em;color:#ffd23f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;--c1:#62eaff;--c2:#ffd23f}
-#gameover .goCg.cgLong{font-size:13px;letter-spacing:0}
-#gameover .goCgRally{margin:0 0 4px;height:34px;line-height:17px;font-size:13px;font-weight:700;color:#cfe0ff;display:-webkit-box;-webkit-box-orient:vertical;-webkit-box-pack:center;-webkit-line-clamp:2;overflow:hidden;text-align:center}/* two short lines kept: the longest line (the daily max) fits a 320 px phone */
+#gameover .goCg{margin:4px 0 0;height:60px;display:flex;align-items:center;justify-content:center;pointer-events:none;--c1:#2c6bff;--c2:#8a2be2;--c3:#62eaff}
+#gameover .goCg.hidden{display:none}
+.cgPill{position:relative;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;max-width:100%;box-sizing:border-box;height:58px;padding:3px 20px;
+  border-radius:29px;border:2px solid var(--c3);background:linear-gradient(90deg,var(--c1),var(--c2));color:#fff;font-size:20px;font-weight:900;letter-spacing:.03em;line-height:24px;
+  text-shadow:0 1px 2px rgba(0,0,0,.65);box-shadow:0 3px 12px rgba(0,0,0,.35)}
+.cgPill>span{display:block;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cgPill .cgWho.cgLong{font-size:17px;letter-spacing:.01em}
+.cgPill .cgWho.cgLonger{font-size:14px;letter-spacing:0}
+.cgPill::after{content:"";position:absolute;inset:-2px;border-radius:29px;box-shadow:0 0 18px 6px var(--c3),0 0 36px 12px var(--c1);opacity:0;pointer-events:none}
+#gameover .goCgRally{margin:0 0 2px;height:38px;line-height:19px;font-size:15px;font-weight:800;color:#e3edff;display:-webkit-box;-webkit-box-orient:vertical;-webkit-box-pack:center;-webkit-line-clamp:2;overflow:hidden;text-align:center}/* two lines kept: the longest line (the daily max) fits a 320 px phone */
 #gameover .goCgRally.hidden{display:none}
-.goCg.cgGo{animation:cgGlow 1s ease-out 1}
-@keyframes cgGlow{0%{text-shadow:none}35%{text-shadow:0 0 8px var(--c1),0 0 16px var(--c2)}100%{text-shadow:none}}
-.cgNum{position:relative;display:inline-block}
-.cgGo .cgNum{animation:cgShow 1s steps(1,end) 1 both}
-.cgGo .cgNum::before{content:counter(cgc);counter-reset:cgc var(--cgn);position:absolute;left:0;right:0;text-align:center;animation:cgCount .9s ease-out 1 both,cgHide 1s steps(1,end) 1 both}
-@keyframes cgShow{from{color:transparent}to{color:#ffd23f}}
+.cgGo .cgPill{animation:cgPop .45s cubic-bezier(.34,1.56,.64,1) 1 both}
+.cgGo .cgPill::after{animation:cgPulse .6s ease-out .4s 1 both}
+@keyframes cgPop{from{transform:scale(.35);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes cgPulse{0%{opacity:0}40%{opacity:1}100%{opacity:0}}
+.cgPill>span.cgAmt{overflow:visible}.cgNum{position:relative;display:inline-block}
+.cgGo .cgNum{animation:cgShow 1.5s steps(1,end) 1 both}
+.cgGo .cgNum::before{content:counter(cgc);counter-reset:cgc var(--cgn);position:absolute;left:0;right:0;text-align:center;animation:cgCount .9s ease-out .55s 1 both,cgHide 1.5s steps(1,end) 1 both}
+@keyframes cgShow{from{color:transparent}to{color:#fff}}
 @keyframes cgCount{from{--cgn:0}to{--cgn:var(--cgt)}}
 @keyframes cgHide{from{opacity:1}to{opacity:0}}
-@media (prefers-reduced-motion:reduce){.goCg.cgGo,.cgGo .cgNum{animation:none}.cgGo .cgNum::before{display:none}}
+@media (prefers-reduced-motion:reduce){.cgGo .cgPill,.cgGo .cgPill::after,.cgGo .cgNum{animation:none}.cgGo .cgNum::before{display:none}}
 .goLine{margin:8px 0 4px!important;color:#eaf7ff!important;font-size:15px!important;font-weight:800;line-height:1.4!important}.goLine .goNew{color:#ffd23f}.goMeta{margin:0 0 4px!important;color:#8fa5d1!important;font-size:12px!important;letter-spacing:.08em}.goClaim{margin:8px 0 10px;padding:12px;border:1px solid #2c6bff;border-radius:16px;background:rgba(18,32,77,.55)}.goClaimT{font-size:14px;font-weight:800;color:#eaf7ff;margin-bottom:8px}.goClaimRow{display:flex;gap:8px}.goClaimRow button{flex:1;padding:10px 8px;font-size:12px;letter-spacing:.08em}.goClaimRow button.goClaimNo{background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none}.playingFor{display:block;width:100%;margin:8px 0 0;padding:8px 10px;background:transparent;color:#b9c6e5;border:0;box-shadow:none;font-size:13px;font-weight:700;letter-spacing:.02em;text-transform:none}.playingFor u{color:#62eaff;text-underline-offset:3px}
 /* D-46 lite graphics: the moving star fields, the live-blurred nebula and the FLUX Mode full-screen filter are redrawn every frame; on old devices they cost more than the game itself. */.fluxLite #starsFar,.fluxLite #starsNear{animation:none!important}.fluxLite #nebulaDrift{display:none!important}.fluxLite #app{filter:none!important}
 /* FREE PLAN: the small offline / server-limit note (menu and game over only). */
@@ -484,9 +496,9 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 <div id="gameover" class="hidden">
  <div class="panel">
   <div class="goScore" id="finalScore">0</div>
-  <p class="goLine" id="goLine"></p>
   <p class="goCg hidden" id="goCg" aria-live="polite"></p>
   <p class="goCgRally hidden" id="goCgRally"></p>
+  <p class="goLine" id="goLine"></p>
   <p class="goMeta"><b id="finalMode" class="plTag" data-d="medium" data-sub="MEDIUM">MARS</b> · BEST <b id="best">0</b></p>
   <p class="goRank hidden" id="goRank" aria-live="polite"></p>
   <div id="goClaim" class="goClaim hidden"><div class="goClaimT">Put your name on the board?</div><div class="goClaimRow"><button id="goClaimYes" type="button">YES</button><button id="goClaimNo" type="button" class="goClaimNo">NOT NOW</button></div></div>
@@ -4003,9 +4015,9 @@ function showGameOverLine(sc,prevBest,prevOverall){
    ------------------------------------------------------------------
    While ON, every finished run is uploaded (its stats ride inside: still
    ONE request per run) and the server gives a share of it to the pilot's
-   country. The reply says how much: on the game-over screen one line
-   ("+105 for 🇵🇭 PHILIPPINES", counting up with a glow in the country's
-   colours) and one rallying line under it ("Laban, Pilipinas!"; at the
+   country. The reply says how much: on the game-over screen a badge right
+   under the score ("+105 GIVEN TO 🇵🇭 PHILIPPINES": pops in, glows in the
+   country's colours, counts up) and one rallying line under it ("Laban, Pilipinas!"; at the
    daily cap "Daily max reached. 🇵🇭 thanks you, soldier!"). Their height is
    kept from the moment the screen appears, so nothing moves. The menu's
    status line shows what this pilot has given in all. The switch
@@ -4021,15 +4033,17 @@ function fluxCgGiven(){ try{ const o=JSON.parse(localStorage.getItem(FLUX_CG_GIV
 /* Proud, positive, never guilt. Countries with their own line; every other country (and OTHER) gets the
    English lines in turn. */
 var FLUX_CG_RALLY={ PH:'Laban, Pilipinas!', BR:'Vai, Brasil!', MX:'\u00a1Vamos, M\u00e9xico!', JP:'\u304c\u3093\u3070\u308c\u65e5\u672c!' };
-var FLUX_CG_COLORS={ PH:['#0038a8','#fcd116'], BR:['#009c3b','#ffdf00'], MX:['#006847','#ce1126'], JP:['#bc002d','#ffffff'], US:['#3c3b6e','#b22234'],
-  GB:['#012169','#c8102e'], AU:['#012169','#ffcd00'], CA:['#ff0000','#ffffff'], CN:['#de2910','#ffde00'], DE:['#dd0000','#ffce00'] };
+/* The badge in the country's colours: [fill from, fill to, border + glow]. Fills are deep enough for white text. */
+var FLUX_CG_COLORS={ PH:['#0038a8','#ce1126','#fcd116'], BR:['#009c3b','#00692a','#ffdf00'], MX:['#006847','#ce1126','#ffffff'], JP:['#bc002d','#7a0020','#ffffff'],
+  US:['#3c3b6e','#b22234','#ffffff'], GB:['#012169','#c8102e','#ffffff'], AU:['#012169','#00843d','#ffcd00'], CA:['#d52b1e','#8f1d14','#ffffff'],
+  CN:['#de2910','#a71d0d','#ffde00'], DE:['#1a1a1a','#dd0000','#ffce00'] };
 /* The two lines once the run's reply is known. Pure (testable). n: a number that picks the English line. */
 function fluxCgLine(cg,n){
   const out={ amount:0, main:'', rally:'' };
   if(!cg || !cg.on || !cg.cc) return out;
   const c=countryLabel(cg.cc), add=Number.isFinite(cg.add)&&cg.add>0?cg.add:0;
   const name=String(c.name||'').toUpperCase();
-  if(add>0){ out.amount=add; out.main='+'+add.toLocaleString()+' for '+c.flag+' '+name; }
+  if(add>0){ out.amount=add; out.main='+'+add.toLocaleString()+' GIVEN TO '+c.flag+' '+name; }
   if(cg.capped) out.rally='Daily max reached. '+c.flag+' thanks you, soldier!';
   else if(add>0){
     const en=[c.name+' needs you, soldier.','Every run counts. Go again.',c.flag+' is climbing. Keep it going.'];
@@ -4048,16 +4062,17 @@ function fluxCgPrepare(){
 function fluxCgShow(cg){
   const el=document.getElementById('goCg'), ra=document.getElementById('goCgRally'); if(!el || !ra) return;
   let n=0; try{ n=+localStorage.fluxRunsPlayed||0; }catch(e){}
-  const t=fluxCgLine(cg,n), col=FLUX_CG_COLORS[cg.cc]||['#62eaff','#ffd23f'];
-  el.style.setProperty('--c1',col[0]); el.style.setProperty('--c2',col[1]);
+  const t=fluxCgLine(cg,n), col=FLUX_CG_COLORS[cg.cc]||['#2c6bff','#8a2be2','#62eaff'];
+  el.style.setProperty('--c1',col[0]); el.style.setProperty('--c2',col[1]); el.style.setProperty('--c3',col[2]);
   el.classList.remove('cgGo');
   if(t.amount>0){
-    const c=countryLabel(cg.cc), shown=t.amount.toLocaleString();
-    el.innerHTML='+<span class="cgNum" style="--cgt:'+t.amount+'">'+escapeHtml(shown)+'</span> for '+escapeHtml(c.flag+' '+String(c.name||'').toUpperCase());
-    el.classList.toggle('cgLong',t.main.length>24);   // a long country name: one size smaller, still one line
-    void el.offsetWidth;   // restart the 1-second count-up and glow for this run
+    const c=countryLabel(cg.cc), shown=t.amount.toLocaleString(), who=c.flag+' '+String(c.name||'').toUpperCase();
+    const size=who.length>22 ? ' cgLonger' : (who.length>16 ? ' cgLong' : '');   // a long country name: smaller, still one line
+    // Two rows, both 20 px (the game-over panel is narrow): "+168 GIVEN TO" / "🇵🇭 PHILIPPINES".
+    el.innerHTML='<span class="cgPill"><span class="cgAmt">+<span class="cgNum" style="--cgt:'+t.amount+'">'+escapeHtml(shown)+'</span> GIVEN TO</span><span class="cgWho'+size+'">'+escapeHtml(who)+'</span></span>';
+    void el.offsetWidth;   // restart the pop-in, glow and count-up for this run
     el.classList.add('cgGo');
-  } else el.textContent='';
+  } else el.textContent='';   // nothing given (offline, no reply, paused, capped at 0): no badge
   ra.textContent=t.rally;
 }
 function fluxCgRun(b,item){
