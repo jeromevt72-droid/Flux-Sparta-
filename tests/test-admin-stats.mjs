@@ -136,7 +136,7 @@ const rep = (a, b) => (s) => (s.includes(a) ? s.replace(a, b) : s);
 await control('extra spaces break the search', 'A1', { worker: rep('.toUpperCase().replace(/\\s+/g, " ").trim();', '.toUpperCase().trim();') });
 await control('search ignores what the board shows', 'A4', { worker: rep('v.name.includes(n) || String(v.shownAs || "").includes(n)', 'v.name.includes(n)') });
 await control('share rate per player instead of per run', 'D1', { admin: rep('shareRate: t.runs ? t.shares / t.runs : NaN', 'shareRate: t.active ? t.shares / t.active : NaN') });
-await control('retention counted before the day is reached', 'D1', { admin: rep("d30: c.age >= 30 ? pct(v.d30 || 0, v.n) : '—'", "d30: pct(v.d30 || 0, v.n)") });
+await control('retention counted before the day is reached', 'D1', { admin: rep("d30: c.age >= 30 ? retCell(v.d30 || 0, v.n) : '—'", "d30: retCell(v.d30 || 0, v.n)") });
 await control('hit rate counts lost balls as hits tried', 'D3', { admin: rep('c.hitRate = (c.hit + c.wrong) ? c.hit / (c.hit + c.wrong) : NaN;', 'c.hitRate = (c.hit + c.wrong + c.lost) ? c.hit / (c.hit + c.wrong + c.lost) : NaN;') });
 await control('time share over all difficulties', 'D3', { admin: rep('c.timeShare = perDiff[c.diff] ? c.sec / perDiff[c.diff] : NaN;', 'c.timeShare = c.sec / 210;') });
 await control('GAMEPLAY table not drawn', 'D3', { admin: rep("box.appendChild(el('h2', null, 'GAMEPLAY'));", '') });
