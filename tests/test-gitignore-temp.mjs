@@ -1,7 +1,7 @@
 // GITIGNORE: temporary files the tests write into tests/ (".nc-…mjs", ".fp-…mjs", ".twa-worker-…mjs"…)
 // can never be committed by mistake, and no real test file is ignored. In the release gate.
 //   G1 a sample of every temporary name the tests use is ignored by git;
-//   G2 every test file in tests/ (test-*.mjs, the harness, run-all-tests.mjs …) is NOT ignored;
+//   G2 every file committed in tests/ (test-*.mjs, the harness, run-all-tests.mjs …) is NOT ignored;
 //   G3 no ignored temporary file is tracked in the repo.
 import fs from 'fs'; import path from 'path'; import { execFileSync } from 'child_process'; import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -17,9 +17,10 @@ const ig = new Set(ignored(samples));
 const missed = samples.filter((s) => !ig.has(s));
 ck('G1 every temporary test file name is ignored (' + samples.length + ' patterns)', missed.length === 0 && samples.length >= 10, missed.join(','));
 // G2: real files stay tracked/trackable
-const real = fs.readdirSync(__dirname).filter((f) => !f.startsWith('.') && /\.(mjs|py|txt|md)$/.test(f));
+// the files committed in tests/ (temporary copies such as the gate's own worker.mjs are not committed)
+const real = (git(['ls-files', '.']) || '').split('\n').filter((f) => f && !f.includes('/') && !f.startsWith('.'));
 const wrongly = ignored(real);
-ck('G2 no real test file is ignored (' + real.length + ' files)', wrongly.length === 0 && real.length > 50, wrongly.join(','));
+ck('G2 no committed test file is ignored (' + real.length + ' files)', wrongly.length === 0 && real.length > 50, wrongly.join(','));
 // G3: nothing temporary is committed
 const tracked = (git(['ls-files', '.']) || '').split('\n').filter((f) => /(^|\/)\.[^/]*\.mjs$/.test(f));
 ck('G3 no temporary .*.mjs file is tracked', tracked.length === 0, tracked.join(','));
