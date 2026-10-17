@@ -11,8 +11,11 @@
 //      32 colon-separated pairs), never the placeholder;
 //   T7 https://fluxsparta.com/.well-known/assetlinks.json is answered by worker.js (that one exact
 //      path is in run_worker_first): 200, Content-Type application/json, no redirect, the file's
-//      contents (read from the static assets; the worker's copy, identical to the file, if the
-//      asset layer does not hold it); HEAD works; other methods are refused;
+//      contents read from the static assets, else the worker's own copy; HEAD works; other methods
+//      are refused. While both are empty they differ on purpose -- the file is "[ ]", the copy "[]" --
+//      so the live answer shows which one served it; both must be valid JSON empty lists. Once the
+//      file lists com.fluxsparta.app, the worker must serve exactly the file's contents (its copy
+//      equal to the file, so the fallback serves them too);
 //   T4 no signing material anywhere in the repo, and android/.gitignore blocks it;
 //   T5 the store stays closed for the Android app: STORE_OPEN false in the game and in
 //      wrangler.jsonc, and buySkin() run from /play/?src=playstore never calls
@@ -81,7 +84,10 @@ function staticSuite(I, quiet = false) {
       live.every((x) => { const f = (x && x.target && x.target.sha256_cert_fingerprints) || []; return f.length >= 1 && f.every((v) => FP.test(v)); }) && !I.live.includes(PLACEHOLDER), fps.join(','));
   }
   ck('T7 wrangler.jsonc: that one exact path runs the Worker first (nothing wider)', (() => { try { return JSON.stringify(JSON.parse(I.wrangler.replace(/^\s*\/\/.*$/gm, '')).assets.run_worker_first) === '["/api/*","/.well-known/assetlinks.json"]'; } catch (e) { return false; } })());
-  ck('T7 worker.js keeps its copy identical to the file', (() => { const m = /const ASSETLINKS_BODY = (".*?");/.exec(I.worker); try { return !!m && JSON.parse(m[1]) === I.live; } catch (e) { return false; } })());
+  const copy = (() => { const m = /const ASSETLINKS_BODY = (".*?");/.exec(I.worker); try { return m ? JSON.parse(m[1]) : null; } catch (e) { return null; } })();
+  const isEmptyList = (t) => { try { const v = JSON.parse(t); return Array.isArray(v) && v.length === 0; } catch (e) { return false; } };
+  if (isEmptyList(I.live)) ck('T7 while empty: the file and the worker\'s copy are both valid JSON empty lists', copy !== null && isEmptyList(copy), JSON.stringify(I.live) + ' / ' + JSON.stringify(copy));
+  else ck('T7 once the file lists com.fluxsparta.app: the worker\'s copy is exactly the file\'s contents', copy !== null && copy === I.live, JSON.stringify(copy).slice(0, 40));
   const bad = I.files.filter((f) => /\.(keystore|jks|p12|pem|aab|apk|idsig)$/i.test(f) || /signing-key-info\.txt$|keystore\.properties$/i.test(f));
   ck('T4 no signing key, keystore or app build is in the repo', bad.length === 0, bad.map((f) => path.relative(ROOT, f)).join(','));
   const GI = ['*.keystore', '*.jks', '*.p12', '*.pem', '*.aab', '*.apk', 'signing-key-info.txt'];
@@ -106,7 +112,8 @@ async function workerSuite(workerSrc, liveFile, quiet = false) {
     let r = await get({ ASSETS: assetsWith }); let b = await r.text();
     ck('T7 GET: 200, application/json, no redirect, the file\'s contents', r.status === 200 && /^application\/json/.test(r.headers.get('Content-Type') || '') && !r.headers.get('Location') && b === liveFile, r.status + ' ' + r.headers.get('Content-Type') + ' ' + b);
     r = await get({ ASSETS: assetsWithout }); b = await r.text();
-    ck('T7 the asset layer without the file: still 200 application/json with the same contents (the worker\'s copy)', r.status === 200 && /^application\/json/.test(r.headers.get('Content-Type') || '') && b === liveFile, r.status + ' ' + b.slice(0, 30));
+    const fallbackOk = (() => { try { const f = JSON.parse(liveFile), v = JSON.parse(b); return Array.isArray(f) && f.length === 0 ? Array.isArray(v) && v.length === 0 : b === liveFile; } catch (e) { return false; } })();
+    ck('T7 the asset layer without the file: still 200 application/json (the worker\'s copy: an empty list while the file is empty, the file\'s exact contents once it lists the app)', r.status === 200 && /^application\/json/.test(r.headers.get('Content-Type') || '') && fallbackOk, r.status + ' ' + b.slice(0, 30));
     r = await get({ ASSETS: assetsWith }, 'HEAD');
     ck('T7 HEAD: 200 application/json', r.status === 200 && /^application\/json/.test(r.headers.get('Content-Type') || ''), r.status);
     r = await get({ ASSETS: assetsWith }, 'POST');
@@ -181,8 +188,9 @@ const NEG = [
   ['assetlinks.json not a list', { live: '{}' }, /valid JSON list/],
   ['assetlinks path not run by the Worker', { wrangler: INPUT.wrangler.replace('"/api/*",\n      "/.well-known/assetlinks.json"', '"/api/*"') }, /that one exact path runs the Worker first/],
   ['every path runs the Worker', { wrangler: INPUT.wrangler.replace('"/.well-known/assetlinks.json"', '"/.well-known/assetlinks.json", "/*"') }, /that one exact path runs the Worker first/],
-  ['worker copy differs from the file', { worker: INPUT.worker.replace('const ASSETLINKS_BODY = "[]";', 'const ASSETLINKS_BODY = "[ ]";') }, /keeps its copy identical/],
-  ['the file changed but not the worker copy', { live: INPUT.template.replace(PLACEHOLDER, Array(32).fill('AB').join(':')) }, /keeps its copy identical/],
+  ['worker copy not an empty list while the file is empty', { worker: INPUT.worker.replace('const ASSETLINKS_BODY = "[]";', 'const ASSETLINKS_BODY = "[{}]";') }, /both valid JSON empty lists/],
+  ['worker copy not valid JSON', { worker: INPUT.worker.replace('const ASSETLINKS_BODY = "[]";', 'const ASSETLINKS_BODY = "[";') }, /both valid JSON empty lists/],
+  ['the file lists the app but the worker copy is still empty', { live: INPUT.template.replace(PLACEHOLDER, Array(32).fill('AB').join(':')) }, /worker\'s copy is exactly the file\'s contents/],
   ['keystore committed', { files: INPUT.files.concat([path.join(ROOT, 'android', 'flux-upload.keystore')]) }, /no signing key/],
   ['gitignore missing keystore rule', { gitignore: INPUT.gitignore.replace('*.keystore', '') }, /android\/\.gitignore blocks/],
   ['root gitignore missing', { rootGitignore: '' }, /repo-root \.gitignore/],
@@ -215,6 +223,7 @@ for (const [name, src, expect] of [
   ['worker answers with HTML', INPUT.worker.replace('headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=3600" }', 'headers: { "Content-Type": "text/html" }'), /T7 GET/],
   ['worker redirects', INPUT.worker.replace('if (path === ASSETLINKS_PATH) return await assetLinks(request, env);', 'if (path === ASSETLINKS_PATH) return Response.redirect("https://fluxsparta.com/", 301);'), /T7 GET/],
   ['no fallback when the asset layer lacks the file', INPUT.worker.replace('let body = ASSETLINKS_BODY;', 'let body = "";'), /the asset layer without the file/],
+  ['the worker never reads the file (always its copy)', INPUT.worker.replace('if (r.status === 200) {', 'if (false) {'), /T7 GET/],
 ]) {
   const r = await workerSuite(src, INPUT.live, true);
   const ok = src !== INPUT.worker && r.failed.some((l) => expect.test(l));

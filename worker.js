@@ -161,8 +161,10 @@ const validPlayerId = (v) => PLAYER_ID.test(String(v || "")) && !UNSAFE_KEYS.has
    layer serves a folder whose name starts with a dot could not be confirmed before deploying, so
    this one exact path runs the Worker first (wrangler.jsonc) and answers here with the contents
    of public/.well-known/assetlinks.json, read from the static assets. If that layer does not
-   hold the file, ASSETLINKS_BODY -- kept identical to the file by tests/test-android-twa.mjs --
-   is served instead. Until Play App Signing gives the real fingerprint, the file is an empty list. */
+   hold the file, ASSETLINKS_BODY is served instead. Until Play App Signing gives the real
+   fingerprint both are empty lists that look different on purpose -- the file "[ ]", this copy
+   "[]" -- so the live answer shows which one served it. Once the file lists com.fluxsparta.app,
+   this copy must be exactly the file (tests/test-android-twa.mjs, T7). */
 const ASSETLINKS_PATH = "/.well-known/assetlinks.json";
 const ASSETLINKS_BODY = "[]";
 async function assetLinks(request, env) {

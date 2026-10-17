@@ -130,7 +130,11 @@ After you merge and it deploys, check in Safari:
 in `run_worker_first` in `wrangler.jsonc`): always `200`, `Content-Type:
 application/json`, **no redirect**, whether or not Cloudflare's static file layer
 serves a folder whose name starts with a dot. Until the fingerprint is added it
-is an empty list, `[]`.
+is an empty list. The file holds `[ ]` (with a space) and the Worker's own copy
+holds `[]`, so the live answer tells you which one served it: `[ ]` means the
+Worker read the file from Cloudflare's static layer; `[]` means that layer does
+not hold the dot-folder and the Worker's copy was used. Once the fingerprint is
+added, both must be identical.
 
 ## 6. Closed testing: the 14-day rule (for production)
 
