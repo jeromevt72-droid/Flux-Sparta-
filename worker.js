@@ -5620,10 +5620,11 @@ const FOUNDING_CONFIRM = "FOUNDING ON";
                     one-way public pid, never the player ID; read and written only while ON.
    A run gives floor(points x the difficulty weight x CG_RATE) -- the same weights the World Grid
    uses (Hard x1, Medium x0.21, Easy x0.09), so the same rule on every planet -- at most CG_DAY_CAP a
-   day per pilot. Days are UTC days: the cap resets at 00:00 UTC (5 PM in California during daylight
+   day per pilot (5%, up to 5,000: set so that players enjoying the game almost never reach it; amounts
+   already given today are kept as they are). Days are UTC days: the cap resets at 00:00 UTC (5 PM in California during daylight
    time, 4 PM in winter; 8 AM in the Philippines). The World Grid total of a country = today's total + its contributions, while ON. */
-const CG_RATE = 0.10;
-const CG_DAY_CAP = 1000;
+const CG_RATE = 0.05;
+const CG_DAY_CAP = 5000;
 /* FREE PLAN SAFETY: at most CG_DAY_RUNS runs a day (all pilots, UTC days) give a share; after that the
    shares pause until the next UTC day while runs, scores and boards go on exactly as usual. A giving run
    writes 2 more Durable Object rows, so the shares can never add more than 2 x CG_DAY_RUNS = 10,000 rows
