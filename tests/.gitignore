@@ -1,2 +1,6 @@
 worker.mjs
 node_modules/
+# Temporary copies the tests write here while they run (negative controls, main/branch
+# comparisons): every one starts with a dot and ends in .mjs, e.g. .nc-wg-640c5b2945143.mjs.
+# They are deleted when a test finishes, but a stopped run can leave one behind.
+.*.mjs
