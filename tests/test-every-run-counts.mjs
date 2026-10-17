@@ -30,6 +30,12 @@
 //      runs, scores and boards go on exactly as usual;
 //   E10 a share whose write fails is dropped; the run is saved, its reply and the boards are normal,
 //      and the next run gives again.
+//   E11 the game learns the switch before the first run: at start, back on the menu, or back to the
+//      front on the menu, a board copy missing or older than 6 hours is loaded once in the background
+//      (fluxLbLoad, its one-minute throttle; never offline, never during a run); a fresh pilot's
+//      first run shows the badge; a pilot who never opened the board gets it on a run below the best.
+//   E12 free plan: one background board load = 1 Worker request, at most 1 Durable Object request, no row
+//      written, none read while the object has the pilots in memory (measured at 500 / 2,000 / 5,000 pilots).
 // Ends with negative controls: each defect re-inserted MUST be caught.
 import fs from 'fs'; import path from 'path'; import util from 'util'; import v8 from 'v8'; import vm from 'vm'; import nodeCrypto from 'crypto';
 import { execFileSync } from 'child_process';
@@ -529,6 +535,102 @@ async function suite({ mod, main, game = GAME_HTML, adminHtml = ADMIN_HTML, quie
         /fluxCgSet\(!!\(o\.data && o\.data\.cg && o\.data\.cg\.on\)\)/.test(game) && /fluxCgSet\(d\.cg === 1\)/.test(game) && /fluxCgSet\(!!\(b && b\.cg && b\.cg\.on\)\)/.test(game));
     }
 
+    /* ================= E12 free plan: the background board load ================= */
+    if (on('L')) {
+      say('== E12 free plan: what one background board load costs (real worker.js, fake row counter) ==');
+      const cost = {};
+      for (const n of [500, 2000, 5000]) {
+        now = T0; RUN = 0;
+        const S = mk(mod, newStorage()); await S.seed(1, n);
+        const game = (q) => S.req('/api/leaderboard?limit=100&boards=1' + (q || ''), null, {}, 'GET');
+        await game();   // warm: the Durable Object has the pilots in memory (as when the game is played)
+        let dos = 0; const st = S.env.LEADERBOARD_DO, get0 = st.get.bind(st); st.get = (id) => { const x = get0(id); return { fetch: (u, i) => { dos++; return x.fetch(u, i); } }; };
+        const memoHit = await S.meter(() => game());          // the same isolate within a minute: answered from its memory
+        await S.run(P(1), 1200);                              // a run clears the memo
+        dos = 0; const miss = await S.meter(() => game()); const missDos = dos;
+        S.env.restart(); dos = 0; const cold = await S.meter(() => game('&cold=1'));   // not in the memo: the restarted object loads its pilots
+        cost[n] = { memoHit: { doRequests: 0, read: memoHit.read, written: memoHit.written }, afterARun: { doRequests: missDos, read: miss.read, written: miss.written }, afterRestart: { doRequests: dos, read: cold.read, written: cold.written } };
+      }
+      report.boardLoad = cost;
+      ck('E12 a background board load writes no row, and reads none from the isolate\'s memory', Object.values(cost).every((c) => c.memoHit.written === 0 && c.afterARun.written === 0 && c.memoHit.read === 0), JSON.stringify(cost));
+    }
+
+    /* ================= E11 learn the switch before the first run ================= */
+    if (on('K')) {
+      say('== E11 the game learns the switch before the first run (board older than 6 h: loaded once in the background) ==');
+      const GAME = scriptsOf(game), H6 = 6 * 60 * 60 * 1000;
+      const fakeEl = (hidden = true) => { const cls = new Set(hidden ? ['hidden'] : []); return { textContent: '', innerHTML: '', style: { setProperty() {} }, classList: { contains: (c) => cls.has(c), add: (c) => cls.add(c), remove: (c) => cls.delete(c), toggle: (c, v) => { if (v === undefined ? !cls.has(c) : v) cls.add(c); else cls.delete(c); } }, _cls: cls }; };
+      const board = (cgOn) => ({ top: [], boards: { easy: [], medium: [], hard: [] }, countries: [], ...(cgOn ? { cg: { on: 1, rate: 0.05, cap: 20000 } } : {}) });
+      const W = (init, { cgOn = true, entOk = false, reply } = {}) => {
+        const { store, mem } = makeStore(Object.assign({ fluxSeason: '1' }, init));
+        const req = [], posts = [], timers = [];
+        const g = boot(GAME, { origin: ORIGIN, path: '/play/', store, standalone: false, fetchImpl: (u, o) => { u = String(u); req.push(u.split('?')[0]); if (o && o.body) posts.push({ u, body: JSON.parse(o.body) });
+          const ans = (b, st = 200) => Promise.resolve(new Response(JSON.stringify(b), { status: st, headers: { 'Content-Type': 'application/json' } }));
+          if (u.startsWith('/api/leaderboard')) return ans(board(cgOn));
+          if (u.startsWith('/api/entitlements')) return entOk ? ans({ playerId: 'x', skus: [], ...(cgOn ? { cg: 1 } : {}) }) : ans({ error: 'busy' }, 503);   // the entitlements check gives no answer: only the board can teach the switch
+          if (u.startsWith('/api/submit-score')) return ans(reply || { ok: true, isNewBest: true, best: 5000, public: true, rank: 9, difficulty: 'medium', tag: 'ABCDEFG', ...(cgOn ? { cg: { on: 1, add: 52, cc: 'PH', total: 52, today: 52, cap: 20000 } } : {}) });
+          return ans({ ok: true }); } });
+        g.ctx.Blob = Blob; g.win.navigator.sendBeacon = () => true;
+        g.ctx.setTimeout = (f, ms) => { timers.push({ f, ms }); return timers.length; };
+        const settle = async () => { for (let i = 0; i < 10; i++) await new Promise((r) => setImmediate(r)); };
+        const gameOver = async () => { g.ctx.endGame(); timers.splice(0).filter((t) => t.ms === 420).forEach((t) => t.f()); await settle(); };
+        const screen = () => { g.els.gameover = fakeEl(false); g.els.goCg = fakeEl(); g.els.goCgRally = fakeEl(); };
+        const boards = () => req.filter((x) => x === '/api/leaderboard').length;
+        return { g, mem, req, posts, settle, gameOver, screen, boards, run: (c) => vm.runInContext(c, g.ctx) };
+      };
+      const now = Date.now(), lbCopy = (age, cgOn = false) => JSON.stringify({ at: Date.now() - age, data: board(cgOn) });
+      const verified = JSON.stringify({ v: 1, source: 'server', playerId: 'p-old-1', skus: [], verifiedAt: now - 5 * 60 * 1000 });   // checked 5 min ago: no entitlements request at this start
+      // A brand-new pilot: no board copy, the entitlements check fails -> the board is loaded once at start
+      const a = W({});
+      await a.settle();
+      ck('E11 a fresh pilot: the board is loaded once in the background at start, and the switch is known (ON) before the first run', a.boards() === 1 && a.run('fluxCgOn()') === true, a.req.join(','));
+      a.screen(); a.g.ctx.newGame(); a.run('difficulty="medium"; score=5000; level=2;'); await a.gameOver();
+      const aUp = a.posts.filter((x) => x.u === '/api/submit-score'), aLine = String(a.g.els.goCg.innerHTML || '');
+      ck('E11 ...the fresh pilot\'s first run uploads as the run on screen and shows the badge ("+52 GIVEN TO 🇵🇭 PHILIPPINES")',
+        aUp.length === 1 && aUp[0].body.score === 5000 && aLine.replace(/<[^>]+>/g, '') === '+52 GIVEN TO🇵🇭 PHILIPPINES' && a.g.els.goCg._cls.has('cgGo') && !a.g.els.goCg._cls.has('hidden'), aLine);
+      // An existing pilot who never opens the board: copy 7 h old (switch OFF then), entitlements checked 5 min ago
+      const best = { fluxPlayerId: 'p-old-1', fluxCallsign: 'TITAN', fluxCountry: 'PH', fluxProfileComplete: '1', fluxRunsPlayed: '40', fluxEntitlementsV1: verified,
+        fluxBestRun_medium: JSON.stringify({ score: 9000, level: 3, difficulty: 'medium' }), fluxBest_medium: '9000', fluxUploadedBest: JSON.stringify({ season: 1, pid: 'p-old-1', medium: 9000, name: 'TITAN', country: 'PH' }) };
+      const belowReply = { ok: true, isNewBest: false, best: 9000, public: true, rank: 4, difficulty: 'medium', tag: 'ABCDEFG', cg: { on: 1, add: 52, cc: 'PH', total: 4321, today: 52, cap: 20000 } };
+      const b = W(Object.assign({}, best, { fluxLbCache: lbCopy(7 * 60 * 60 * 1000) }), { reply: belowReply });
+      await b.settle();
+      ck('E11 an existing pilot (board copy 7 h old, entitlements checked 5 min ago): the board is loaded once, the switch is known (ON)', b.boards() === 1 && !b.req.includes('/api/entitlements') && b.run('fluxCgOn()') === true, b.req.join(','));
+      b.screen(); b.g.ctx.newGame(); b.run('difficulty="medium"; score=5000; level=2;'); await b.gameOver();
+      const bUp = b.posts.filter((x) => x.u === '/api/submit-score'), bLine = String(b.g.els.goCg.innerHTML || '');
+      ck('E11 ...a run BELOW the best (9,000) is uploaded and shows the badge, though the pilot never opened the board',
+        bUp.length === 1 && bUp[0].body.score === 5000 && bLine.replace(/<[^>]+>/g, '') === '+52 GIVEN TO🇵🇭 PHILIPPINES', bUp.length + ' ' + bLine);
+      // A copy younger than 6 hours: nothing at start, nothing on the menu
+      const c = W(Object.assign({}, best, { fluxLbCache: lbCopy(2 * 60 * 60 * 1000, true), fluxCg: JSON.stringify({ on: true, at: now }) }));
+      await c.settle(); c.g.els.start = fakeEl(true);
+      c.run("document.getElementById('gameoverMenuBtn').onclick()"); await c.settle();
+      ck('E11 a board copy younger than 6 hours: no request at start or back on the menu', c.boards() === 0, c.req.join(','));
+      // Back on the menu with a copy now 7 h old: one request; again at once: none (fresh copy); another tab fetched seconds ago: none (throttle)
+      c.mem.fluxLbCache = lbCopy(7 * 60 * 60 * 1000);
+      c.run("document.getElementById('gameoverMenuBtn').onclick()"); await c.settle();
+      const one = c.boards();
+      c.run("document.getElementById('gameoverMenuBtn').onclick()"); await c.settle();
+      c.mem.fluxLbCache = lbCopy(7 * 60 * 60 * 1000); c.mem.fluxLbTry = String(Date.now() - 5000);
+      c.run("document.getElementById('gameoverMenuBtn').onclick()"); await c.settle();
+      ck('E11 back on the menu with a copy older than 6 h: ONE background load; again at once: none (copy fresh); fetched by another view or tab a moment ago: none (the shared one-minute throttle)', one === 1 && c.boards() === 1, String(c.boards()));
+      // Back to the front on the menu: one request; during a run: none; offline: none
+      const d = W(Object.assign({}, best, { fluxLbCache: lbCopy(2 * 60 * 60 * 1000) }));
+      await d.settle(); d.g.els.start = fakeEl(false);
+      d.mem.fluxLbCache = lbCopy(7 * 60 * 60 * 1000); d.mem.fluxLbTry = '0';
+      d.run('playing=true;'); d.g.win.document.hidden = false; d.g.win.document.onvisibilitychange(); await d.settle();
+      const duringRun = d.boards();
+      d.run('playing=false;'); d.g.win.document.onvisibilitychange(); await d.settle();
+      const onMenu = d.boards();
+      d.mem.fluxLbCache = lbCopy(7 * 60 * 60 * 1000); d.mem.fluxLbTry = '0'; d.g.win.navigator.onLine = false; d.g.win.document.onvisibilitychange(); await d.settle();
+      ck('E11 back to the front on the menu: one background load; during a run: none; offline: none', duringRun === 0 && onMenu === 1 && d.boards() === 1, [duringRun, onMenu, d.boards()].join(','));
+      // Switch OFF: the board says nothing -> the game stays as today (a run below the best is not uploaded)
+      const e = W(Object.assign({}, best, { fluxLbCache: lbCopy(7 * 60 * 60 * 1000) }), { cgOn: false });
+      await e.settle(); e.screen(); e.g.ctx.newGame(); e.run('difficulty="medium"; score=5000; level=2;'); await e.gameOver();
+      ck('E11 switch OFF: after the background check the game is as today (no switch, a run below the best is not uploaded, no badge)',
+        e.boards() === 1 && e.run('fluxCgOn()') === false && e.posts.filter((x) => x.u === '/api/submit-score').length === 0 && e.g.els.goCg._cls.has('hidden'));
+      ck('E11 nothing visible: the background load draws nothing (no render call; the stored copy is what the board and the menu card already read)',
+        /function fluxCgWarm\(\)\{[\s\S]*?fluxLbLoad\(\)\.catch\(function\(\)\{\}\);/.test(game) && !/function fluxCgWarm\(\)\{[\s\S]*?(refreshMenu|refreshGridCard|render|innerHTML)[\s\S]*?\n\}/.test((game.match(/function fluxCgWarm\(\)\{[\s\S]*?\n\}/) || [''])[0]));
+    }
+
     /* ================= E9 free plan safety: the daily budget ================= */
     if (on('I') && main) {
       say('== E9 free plan safety: shares pause after 5,000 giving runs a day; the game goes on ==');
@@ -654,6 +756,13 @@ await control('the cap line clipped to two lines', 'E7', ['G'], { game: rep('hei
 await control('the share lines shown while OFF', 'E7', ['G'], { game: rep("const on=fluxCgOn() && profileComplete && ", "const on=true && ") });
 await control('the badge space not reserved (the screen jumps when the reply arrives)', 'E7', ['G'], { game: rep('#gameover .goCg{margin:4px 0 0;height:60px;', '#gameover .goCg{margin:4px 0 0;') });
 await control('the game keeps ON after a reply without the share', 'E7', ['G'], { game: rep('fluxCgSet(!!(b && b.cg && b.cg.on));', 'if(b && b.cg) fluxCgSet(true);') });
+await control('no background check at start', 'E11', ['K'], { game: rep("fluxCgWarm();   // the game starts", "//fluxCgWarm();   // the game starts") });
+await control('no background check back on the menu', 'E11', ['K'], { game: rep("  if(typeof fluxCgWarm==='function') fluxCgWarm();   // EVERY RUN COUNTS: learn the switch", "  // EVERY RUN COUNTS: learn the switch") });
+await control('no background check back to the front on the menu', 'E11', ['K'], { game: rep("      if(!document.hidden && typeof fluxCgWarmOnMenu==='function') fluxCgWarmOnMenu();", "") });
+await control('a copy of any age counts as fresh (never refreshed)', 'E11', ['K'], { game: rep("if(c && c.at<=now && now-c.at<FLUX_CG_WARM_MS) return false;", "if(c) return false;") });
+await control('loaded on every menu return (no 6-hour rule)', 'E11', ['K'], { game: rep("if(c && c.at<=now && now-c.at<FLUX_CG_WARM_MS) return false;", "") });
+await control('the throttle bypassed (a direct fetch)', 'E11', ['K'], { game: rep("fluxLbLoad().catch(function(){});   // a failure", "fetch(FLUX_LB_URL).then(function(r){ return r.json(); }).then(function(d){ fluxCgSet(!!(d && d.cg && d.cg.on)); }).catch(function(){});   // a failure") });
+await control('loaded during a run', 'E11', ['K'], { game: rep("!st.classList.contains('hidden') && !playing && !runActive) fluxCgWarm();", "true) fluxCgWarm();") });
 await control('FLUX COMMAND script broken', 'E8', ['H'], { admin: rep("'\\nGiven so far: '", "'\nGiven so far: '") });
 await control('FLUX COMMAND has no TURN OFF', 'E8', ['H'], { admin: rep('id="cgOff"', 'id="cgOffX"') });
 const total = res.F + NC;

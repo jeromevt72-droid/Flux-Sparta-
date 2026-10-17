@@ -3807,6 +3807,33 @@ if (!localStorage.fluxCountry && !localStorage.fluxGeoAsked && !fluxNetHeld()) {
   if (back) setTimeout(syncEntitlements, 3000);
 })();
 
+/* --- 9. EVERY RUN COUNTS: learn the switch before the first run ---
+   The game learns the owner switch from answers it already gets: the board,
+   the entitlements check (at most once per page load, skipped within 30
+   minutes of the last one) and a run's reply. A phone that keeps FLUX open
+   in the background, or a pilot who never opens the board, could go on not
+   knowing it is ON -- then a run below the best is not uploaded and gives
+   nothing, and a first run shows no badge. So: when the game starts, comes
+   back to the front on the menu, or returns to the menu, and the board copy
+   is missing or older than 6 hours, the board is loaded ONCE in the
+   background through fluxLbLoad (its one-minute throttle shared by every view
+   and tab; never offline or past the daily limit). Nothing is drawn: the copy
+   is only stored, as when the pilot opens the board. FREE PLAN: at most one
+   board request per pilot per 6 hours, and none for pilots who open the
+   board anyway. */
+const FLUX_CG_WARM_MS=6*60*60*1000;
+function fluxCgWarm(){
+  try{
+    if(fluxNetHeld()) return false;
+    const c=fluxLbCached(), now=Date.now();
+    if(c && c.at<=now && now-c.at<FLUX_CG_WARM_MS) return false;
+    fluxLbLoad().catch(function(){});   // a failure changes nothing (the next start or menu tries again)
+    return true;
+  }catch(e){ return false; }
+}
+function fluxCgWarmOnMenu(){ try{ const st=document.getElementById('start'); if(st && !st.classList.contains('hidden') && !playing && !runActive) fluxCgWarm(); }catch(e){} }
+fluxCgWarm();   // the game starts (with the entitlements check above; no new listener or timer)
+
 /* ================= END FLUX v4 CLIENT PATCH ================= */
 
 document.getElementById('leaderBtn').onclick=openLeaderboard;
@@ -3840,6 +3867,7 @@ document.getElementById('gameoverMenuBtn').onclick=()=>{
   document.getElementById('gameover').classList.add('hidden');
   refreshMenu();
   document.getElementById('start').classList.remove('hidden');
+  if(typeof fluxCgWarm==='function') fluxCgWarm();   // EVERY RUN COUNTS: learn the switch (board older than 6 h only)
   try{ window.parent.postMessage({type:'flux-menu'}, '*'); }catch(e){}
 };
 refreshMenu();
@@ -5372,6 +5400,7 @@ function fluxStatsFlush(){
     // is waiting (hidden once, back, first run started, then closed mid-run).
     let hideSent=false, hideFirstSent=false;
     document.onvisibilitychange=function(){ fluxSessVisible(!document.hidden);   // RETENTION: the session's hide / return (queued; sent by the rules below)
+      if(!document.hidden && typeof fluxCgWarmOnMenu==='function') fluxCgWarmOnMenu();   // EVERY RUN COUNTS: back to the front on the menu -> learn the switch (board older than 6 h only)
       if(!document.hidden || !fluxStatsQueue.length || (typeof fluxNetHeld==='function' && fluxNetHeld())) return;
       if(!hideSent){ hideSent=true; fluxStatsFlush(); }
       else if(!hideFirstSent && fluxStatsQueue.some(function(e){ return e.e==='first_run'; })){ hideFirstSent=true; fluxStatsFlush(); } };
