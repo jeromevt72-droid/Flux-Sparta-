@@ -11,7 +11,7 @@
 //      pilot count, top score and leader is main's; the run reply is main's + a "cg" part; restricted
 //      pilots give nothing; stored on its own ("cg:tot", "cg:p:<public pid>"); OFF again = main's at
 //      once (kept, not shown); ON again brings it back;
-//   E4 the daily cap: at most 5,000 a day per pilot (UTC days), a capped run writes nothing new;
+//   E4 the daily cap: at most 20,000 a day per pilot (UTC days), a capped run writes nothing new;
 //   E5 replays never count twice; refused runs (cooldown, ceiling, level) give nothing; no run id or
 //      no country gives nothing; a privacy deletion removes the pilot's own numbers;
 //   E6 free plan: a giving run writes exactly 2 rows more than today's upload, a capped run none;
@@ -20,7 +20,7 @@
 //      score with its stats (one request), shows the badge "+N GIVEN TO 🇵🇭 PHILIPPINES" right under the
 //      score (pop-in, glow, count-up in CSS, none
 //      with reduced motion) and a proud rallying line in fixed-height lines (nothing moves); when the
-//      day's share was already full, a calm "✓ 5,000 GIVEN TODAY" pill (fade-in only) and "Today's skill
+//      day's share was already full, a calm "✓ 20,000 GIVEN TODAY" pill (fade-in only) and "Today's skill
 //      is complete." with the country's cheer and "More at <next 00:00 UTC, local>"; paused or offline:
 //      no badge and no kept space; and the
 //      total in the menu; a reply without the share puts it back to normal; no new button, fetch,
@@ -223,7 +223,7 @@ async function suite({ mod, main, game = GAME_HTML, adminHtml = ADMIN_HTML, quie
       const noAuth = [await S.req('/api/admin/cg-status', {}), await S.req('/api/admin/cg-switch', { on: true, confirm: 'EVERY RUN ON' })];
       ck('E2 both routes need the FLUX COMMAND login (401 without it)', noAuth.every((r) => r.status === 401), noAuth.map((r) => r.status).join(','));
       const st0 = await S.admin('cg-status');
-      ck('E2 OFF by default; status shows the settings (5%, 5,000 a day; 5,000 giving runs a day)', st0.status === 200 && st0.data.on === false && st0.data.rate === 0.05 && st0.data.cap === 5000 && st0.data.layout === 'new', st0.text.slice(0, 160));
+      ck('E2 OFF by default; status shows the settings (5%, 20,000 a day; 5,000 giving runs a day unchanged)', st0.status === 200 && st0.data.on === false && st0.data.rate === 0.05 && st0.data.cap === 20000 && st0.data.layout === 'new', st0.text.slice(0, 160));
       const noTyped = await S.admin('cg-switch', { on: true, confirm: 'every run on' });
       ck('E2 ON is refused without the typed "EVERY RUN ON"', noTyped.status === 400 && /EVERY RUN ON/.test(noTyped.data.error) && (await S.admin('cg-status')).data.on === false, noTyped.text.slice(0, 120));
       const noBk = await S.admin('cg-switch', { on: true, confirm: 'EVERY RUN ON' });
@@ -257,10 +257,10 @@ async function suite({ mod, main, game = GAME_HTML, adminHtml = ADMIN_HTML, quie
       const S = mk(mod, newStorage()); let swOn = null;
       const r = await steps(S, async (X) => { swOn = await turnOn(X); });
       const lbOn = (await S.lb()).data;
-      const exp = { PH: give(900, 'medium') + give(60000, 'medium') + give(4000, 'medium'), US: Math.min(5000, give(9000, 'hard')), JP: give(20000, 'easy') };
+      const exp = { PH: give(900, 'medium') + give(60000, 'medium') + give(4000, 'medium'), US: Math.min(20000, give(9000, 'hard')), JP: give(20000, 'easy') };
       const adds = r.map((x) => x.data && x.data.cg ? x.data.cg.add : null);
       ck('E3 each run gives floor(points x difficulty weight x 5%): Medium 900 -> 9, Medium 60,000 -> 630, Hard 9,000 -> 450, Easy 20,000 -> 90',
-        swOn.status === 200 && adds[0] === 9 && adds[1] === 630 && !r[1].data.cg.capped && adds[2] === 450 && adds[3] === 90 && r[1].data.cg.cap === 5000, JSON.stringify(adds));
+        swOn.status === 200 && adds[0] === 9 && adds[1] === 630 && !r[1].data.cg.capped && adds[2] === 450 && adds[3] === 90 && r[1].data.cg.cap === 20000, JSON.stringify(adds));
       exp.PH = 9 + 630 + give(4000, 'medium');
       ck('E3 a restricted pilot gives nothing (its run is accepted as today)', r[4].status === 200 && adds[4] === 0, r[4].text.slice(0, 120));
       ck('E3 a brand-new pilot gives from its first run', adds[5] === give(4000, 'medium') && adds[5] === 42, String(adds[5]));
@@ -299,31 +299,31 @@ async function suite({ mod, main, game = GAME_HTML, adminHtml = ADMIN_HTML, quie
 
     /* ================= E4 the daily cap ================= */
     if (on('D')) {
-      say('== E4 the daily cap (5,000 a day per pilot, UTC days) ==');
+      say('== E4 the daily cap (20,000 a day per pilot, UTC days) ==');
       now = T0; RUN = 0;
       const S = mk(mod, newStorage());
       await S.seed(1, 10); await turnOn(S);
-      const a = await S.run(P(1), 70000, { d: 'hard' });   // 3,500
-      const b = await S.run(P(1), 50000, { d: 'hard' });   // 2,500 -> 1,500
+      const a = await S.run(P(1), 300000, { d: 'hard' });   // 15,000
+      const b = await S.run(P(1), 200000, { d: 'hard' });   // 10,000 -> 5,000
       const k0 = JSON.stringify([...S.g.map.entries()].filter(([k]) => k.startsWith('cg:')));
-      const m = await S.meter(() => S.run(P(1), 90000, { d: 'hard' }));   // 0
+      const m = await S.meter(() => S.run(P(1), 400000, { d: 'hard' }));   // 0
       const k1 = JSON.stringify([...S.g.map.entries()].filter(([k]) => k.startsWith('cg:')));
-      ck('E4 3,500, then 1,500 (capped), then 0 (capped): never more than 5,000 a day', a.data.cg.add === 3500 && b.data.cg.add === 1500 && b.data.cg.capped === 1 && m.out.data.cg.add === 0 && m.out.data.cg.capped === 1 && m.out.data.cg.today === 5000 && m.out.data.cg.cap === 5000,
+      ck('E4 15,000, then 5,000 (capped), then 0 (capped): never more than 20,000 a day', a.data.cg.add === 15000 && b.data.cg.add === 5000 && b.data.cg.capped === 1 && m.out.data.cg.add === 0 && m.out.data.cg.capped === 1 && m.out.data.cg.today === 20000 && m.out.data.cg.cap === 20000,
         [a.data.cg.add, b.data.cg.add, m.out.data.cg.add].join(','));
       ck('E4 a capped run writes nothing new (no contribution row)', k0 === k1);
-      const other = await S.run(P(2), 70000, { d: 'hard' });
-      ck('E4 the cap is per pilot (another pilot still gives)', other.data.cg.add === 3500);
+      const other = await S.run(P(2), 300000, { d: 'hard' });
+      ck('E4 the cap is per pilot (another pilot still gives)', other.data.cg.add === 15000);
       now = Date.UTC(2026, 9, 6, 0, 0, 30);
-      const next = await S.run(P(1), 40000, { d: 'hard' });
-      ck('E4 the next UTC day counts again; the running total keeps growing', next.data.cg.add === 2000 && next.data.cg.today === 2000 && next.data.cg.total === 7000, JSON.stringify(next.data.cg));
+      const next = await S.run(P(1), 100000, { d: 'hard' });
+      ck('E4 the next UTC day counts again; the running total keeps growing', next.data.cg.add === 5000 && next.data.cg.today === 5000 && next.data.cg.total === 25000, JSON.stringify(next.data.cg));
       const tot = (await S.admin('cg-status')).data;
-      ck('E4 the country total adds up (3,500 + 1,500 + 3,500 + 2,000)', tot.given === 10500 && tot.countries[0].given === 10500);
-      // what a pilot already gave today is kept (the cap was 1,000 before this change): it counts toward today's 5,000
+      ck('E4 the country total adds up (15,000 + 5,000 + 15,000 + 5,000)', tot.given === 40000 && tot.countries[0].given === 40000);
+      // what a pilot already gave today is kept (the cap was 1,000 before this change): it counts toward today's 20,000
       now = Date.UTC(2026, 9, 6, 3, 0, 0);
       const kday = Math.floor(now / 86400000);
       S.g.map.set('cg:p:' + pidOf(7), { d: kday, g: 1000, t: 1000 });
-      const kept = await S.run(P(7), 100000, { d: 'hard' });
-      ck('E4 amounts already given today stay (1,000 given before: this run adds up to 4,000 more, total 5,000)', kept.data.cg.add === 4000 && kept.data.cg.today === 5000 && kept.data.cg.capped === 1, JSON.stringify(kept.data.cg));
+      const kept = await S.run(P(7), 400000, { d: 'hard' });
+      ck('E4 amounts already given today stay (1,000 given before: this run of 20,000 adds 19,000, total 20,000)', kept.data.cg.add === 19000 && kept.data.cg.today === 20000 && kept.data.cg.capped === 1, JSON.stringify(kept.data.cg));
     }
 
     /* ================= E5 replays and anti-cheat ================= */
@@ -366,7 +366,8 @@ async function suite({ mod, main, game = GAME_HTML, adminHtml = ADMIN_HTML, quie
       await S.run(P(9), 100);   // warms the totals read
       const onGive = await S.meter(() => S.run(P(2), 1200));
       const onGive2 = await S.meter(() => S.run(P(2), 1300));
-      for (let i = 0; i < 4; i++) await S.run(P(3), 30000, { d: 'hard' });   // 1,500 x 3 + 500: today's 5,000 reached
+      S.g.map.set('cg:p:' + pidOf(3), { d: Math.floor(now / 86400000), g: 19000, t: 19000 });   // 19,000 already given today
+      for (let i = 0; i < 2; i++) await S.run(P(3), 30000, { d: 'hard' });   // 1,500 -> 1,000 (today's 20,000 reached), then 0
       const onCapped = await S.meter(() => S.run(P(3), 30000, { d: 'hard' }));
       const extra = onGive2.written - off.written, capped = onCapped.written - off.written;
       ck('E6 a run that gives writes exactly 2 more rows than today\'s upload; a capped run writes none more', extra === 2 && capped === 0, 'OFF ' + off.written + ' · ON ' + onGive2.written + ' · capped ' + onCapped.written);
@@ -411,7 +412,7 @@ async function suite({ mod, main, game = GAME_HTML, adminHtml = ADMIN_HTML, quie
       const a = bootGame(best); a.g.ctx.newGame(); a.run('difficulty="medium"; score=5000; level=2;'); await a.gameOver();
       ck('E7 OFF: a run below the best is not uploaded; its stats go alone (one request), as today', a.posts.filter((x) => x.u === '/api/submit-score').length === 0 && a.beacons.length === 1);
       // ON: the run's own score goes up, its stats inside, one request
-      const cgReply = { ok: true, isNewBest: false, best: 9000, public: true, rank: 4, difficulty: 'medium', tag: 'ABCDEFG', cg: { on: 1, add: 105, cc: 'PH', total: 4321, today: 105, cap: 5000 } };
+      const cgReply = { ok: true, isNewBest: false, best: 9000, public: true, rank: 4, difficulty: 'medium', tag: 'ABCDEFG', cg: { on: 1, add: 105, cc: 'PH', total: 4321, today: 105, cap: 20000 } };
       const fakeEl = () => { const cls = new Set(['hidden']); return { textContent: '', style: {}, classList: { contains: (c) => cls.has(c), add: (c) => cls.add(c), remove: (c) => cls.delete(c), toggle: (c, on) => { if (on === undefined ? !cls.has(c) : on) cls.add(c); else cls.delete(c); } }, _cls: cls }; };
       const off2 = bootGame(best); off2.g.els.goCg = fakeEl(); off2.g.els.goCgRally = fakeEl(); off2.g.els.gameover = fakeEl(); off2.g.els.gameover.classList.remove('hidden');
       off2.g.ctx.newGame(); off2.run('difficulty="medium"; score=5000; level=2;'); await off2.gameOver();
@@ -457,17 +458,17 @@ async function suite({ mod, main, game = GAME_HTML, adminHtml = ADMIN_HTML, quie
         L({ on: 1, add: 0, cc: 'PH', paused: 1 }) === EMPTY && L({ on: 1, add: 0, cc: '' }) === EMPTY && L({ on: 1, add: 0, cc: 'PH' }) === EMPTY,
         [M({ on: 1, add: 1000, cc: 'US' }), R({ on: 1, add: 5, cc: 'CA' }, 2)].join(' | '));
       ck('E7 the cap line: "Today\'s skill is complete." + the native cheer (PH, BR, MX, JP) or "<flag> thanks you, soldier!", then "More at <local reset time>"',
-        !!AT && R3({ on: 1, add: 0, cc: 'PH', capped: 1, cap: 5000 }) === "Today's skill is complete. Laban, Pilipinas!\nMore at " + AT &&
-        R3({ on: 1, add: 0, cc: 'BR', capped: 1, cap: 5000 }) === "Today's skill is complete. Vai, Brasil!\nMore at " + AT &&
-        R3({ on: 1, add: 0, cc: 'MX', capped: 1, cap: 5000 }) === "Today's skill is complete. ¡Vamos, México!\nMore at " + AT &&
-        R3({ on: 1, add: 0, cc: 'JP', capped: 1, cap: 5000 }) === "Today's skill is complete. がんばれ日本!\nMore at " + AT &&
-        R3({ on: 1, add: 0, cc: 'US', capped: 1, cap: 5000 }) === "Today's skill is complete. 🇺🇸 thanks you, soldier!\nMore at " + AT &&
-        R3({ on: 1, add: 300, cc: 'DE', capped: 1, cap: 5000 }) === "Today's skill is complete. 🇩🇪 thanks you, soldier!\nMore at " + AT,
-        JSON.stringify(R3({ on: 1, add: 0, cc: 'PH', capped: 1, cap: 5000 })));
-      ck('E7 the cap already full (nothing added): the calm pill "✓ 5,000 GIVEN TODAY" / "🇵🇭 PHILIPPINES"; the last share of the day (something added) keeps the "+N" badge',
-        JSON.parse(L3({ on: 1, add: 0, cc: 'PH', capped: 1, cap: 5000 })).done === true && JSON.parse(L3({ on: 1, add: 0, cc: 'PH', capped: 1, cap: 5000 })).doneMain === '✓ 5,000 GIVEN TODAY' &&
-        JSON.parse(L3({ on: 1, add: 0, cc: 'PH', capped: 1, cap: 5000 })).amount === 0 && JSON.parse(L3({ on: 1, add: 300, cc: 'PH', capped: 1, cap: 5000 })).done === false &&
-        JSON.parse(L3({ on: 1, add: 300, cc: 'PH', capped: 1, cap: 5000 })).main === '+300 GIVEN TO 🇵🇭 PHILIPPINES');
+        !!AT && R3({ on: 1, add: 0, cc: 'PH', capped: 1, cap: 20000 }) === "Today's skill is complete. Laban, Pilipinas!\nMore at " + AT &&
+        R3({ on: 1, add: 0, cc: 'BR', capped: 1, cap: 20000 }) === "Today's skill is complete. Vai, Brasil!\nMore at " + AT &&
+        R3({ on: 1, add: 0, cc: 'MX', capped: 1, cap: 20000 }) === "Today's skill is complete. ¡Vamos, México!\nMore at " + AT &&
+        R3({ on: 1, add: 0, cc: 'JP', capped: 1, cap: 20000 }) === "Today's skill is complete. がんばれ日本!\nMore at " + AT &&
+        R3({ on: 1, add: 0, cc: 'US', capped: 1, cap: 20000 }) === "Today's skill is complete. 🇺🇸 thanks you, soldier!\nMore at " + AT &&
+        R3({ on: 1, add: 300, cc: 'DE', capped: 1, cap: 20000 }) === "Today's skill is complete. 🇩🇪 thanks you, soldier!\nMore at " + AT,
+        JSON.stringify(R3({ on: 1, add: 0, cc: 'PH', capped: 1, cap: 20000 })));
+      ck('E7 the cap already full (nothing added): the calm pill "✓ 20,000 GIVEN TODAY" / "🇵🇭 PHILIPPINES"; the last share of the day (something added) keeps the "+N" badge',
+        JSON.parse(L3({ on: 1, add: 0, cc: 'PH', capped: 1, cap: 20000 })).done === true && JSON.parse(L3({ on: 1, add: 0, cc: 'PH', capped: 1, cap: 20000 })).doneMain === '✓ 20,000 GIVEN TODAY' &&
+        JSON.parse(L3({ on: 1, add: 0, cc: 'PH', capped: 1, cap: 20000 })).amount === 0 && JSON.parse(L3({ on: 1, add: 300, cc: 'PH', capped: 1, cap: 20000 })).done === false &&
+        JSON.parse(L3({ on: 1, add: 300, cc: 'PH', capped: 1, cap: 20000 })).main === '+300 GIVEN TO 🇵🇭 PHILIPPINES');
       ck('E7 "Daily max reached." is gone from the game; the new wording is used', !/Daily max/i.test(game) && game.includes("Today's skill is complete. "));
       // "More at": the next 00:00 UTC in the phone's own time format
       const resetSrc = (game.match(/function fluxCgResetAt\(now\)\{[\s\S]*?\n\}/) || [''])[0];
@@ -480,19 +481,19 @@ async function suite({ mod, main, game = GAME_HTML, adminHtml = ADMIN_HTML, quie
       ck('E7 positive, never guilt: no line says "lost", "failed", "shame", "let down" or "didn\'t"', !/lost|failed|shame|let down|didn't|disappoint/i.test(game.slice(game.indexOf('var FLUX_CG_RALLY'), game.indexOf('function fluxCgPrepare'))));
       ck('E7 the Japanese line needs no font download: system fonts only (no @font-face, no font link)', !/@font-face|fonts\.googleapis|\.woff2?\b/.test(game));
       // the cap already full: the calm pill, rendered
-      const doneReply = Object.assign({}, cgReply, { cg: { on: 1, add: 0, cc: 'PH', total: 4321, today: 5000, cap: 5000, capped: 1 } });
+      const doneReply = Object.assign({}, cgReply, { cg: { on: 1, add: 0, cc: 'PH', total: 4321, today: 20000, cap: 20000, capped: 1 } });
       const dn = bootGame(Object.assign({}, best, { fluxCg: JSON.stringify({ on: true, at: 1 }) }), doneReply);
       dn.g.els.gameover = fakeEl(); dn.g.els.gameover.classList.remove('hidden');
       dn.g.els.goCg = fakeEl(); dn.g.els.goCg.style.setProperty = () => {}; dn.g.els.goCgRally = fakeEl();
       dn.g.ctx.newGame(); dn.run('difficulty="medium"; score=5000; level=2;'); await dn.gameOver();
       const dline = String(dn.g.els.goCg.innerHTML || ''), drally = String(dn.g.els.goCgRally.textContent || '');
-      ck('E7 the cap already full: the same pill, calm (class cgDone, no pop, no count-up): "✓ 5,000 GIVEN TODAY" / "🇵🇭 PHILIPPINES", and the cheer + "More at"',
-        dline === '<span class="cgPill"><span class="cgAmt">✓ 5,000 GIVEN TODAY</span><span class="cgWho">🇵🇭 PHILIPPINES</span></span>' && dn.g.els.goCg._cls.has('cgDone') && !dn.g.els.goCg._cls.has('cgGo') &&
+      ck('E7 the cap already full: the same pill, calm (class cgDone, no pop, no count-up): "✓ 20,000 GIVEN TODAY" / "🇵🇭 PHILIPPINES", and the cheer + "More at"',
+        dline === '<span class="cgPill"><span class="cgAmt">✓ 20,000 GIVEN TODAY</span><span class="cgWho">🇵🇭 PHILIPPINES</span></span>' && dn.g.els.goCg._cls.has('cgDone') && !dn.g.els.goCg._cls.has('cgGo') &&
         !dn.g.els.goCg._cls.has('hidden') && /^Today's skill is complete\. Laban, Pilipinas!\nMore at .+/.test(drally), dline + ' | ' + JSON.stringify(drally));
       ck('E7 the calm pill only fades in (opacity, 0.6 s), no pop, glow or count-up; none with reduced motion',
         /\.cgDone \.cgPill\{animation:cgFade \.6s ease-out 1 both\}/.test(css) && !/[a-z-]+(?=:)/.test(kf('cgFade').replace(/opacity/g, '')) && !/\.cgDone [^{]*\{[^}]*cg(Pop|Pulse|Count)/.test(css), kf('cgFade'));
       // paused: no badge, and the kept space closes (the reply came within the first second)
-      const pz = bootGame(Object.assign({}, best, { fluxCg: JSON.stringify({ on: true, at: 1 }) }), Object.assign({}, cgReply, { cg: { on: 1, add: 0, cc: 'PH', total: 4321, today: 0, cap: 5000, paused: 1 } }));
+      const pz = bootGame(Object.assign({}, best, { fluxCg: JSON.stringify({ on: true, at: 1 }) }), Object.assign({}, cgReply, { cg: { on: 1, add: 0, cc: 'PH', total: 4321, today: 0, cap: 20000, paused: 1 } }));
       pz.g.els.gameover = fakeEl(); pz.g.els.gameover.classList.remove('hidden');
       pz.g.els.goCg = fakeEl(); pz.g.els.goCg.style.setProperty = () => {}; pz.g.els.goCgRally = fakeEl();
       pz.g.ctx.newGame(); pz.run('difficulty="medium"; score=5000; level=2;'); await pz.gameOver();
@@ -614,7 +615,7 @@ await control('contributions shown while OFF', 'E3', ['C'], { worker: rep('if (!
 await control('ON without the typed phrase', 'E2', ['B'], { worker: rep('if (String(b.confirm || "").trim() !== CG_CONFIRM) return', 'if (false) return') });
 await control('ON without a backup', 'E2', ['B'], { worker: rep('  if (!bk.fresh) return json({ ok: false, needBackup: true, backup: bk,\n    error: "Switching ON needs', '  if (false) return json({ ok: false, needBackup: true, backup: bk,\n    error: "Switching ON needs') });
 await control('the old share (10%)', 'E3', ['C'], { worker: rep('const CG_RATE = 0.05;', 'const CG_RATE = 0.10;') });
-await control('the old daily cap (1,000)', 'E4', ['D'], { worker: rep('const CG_DAY_CAP = 5000;', 'const CG_DAY_CAP = 1000;') });
+await control('the old daily cap (1,000)', 'E4', ['D'], { worker: rep('const CG_DAY_CAP = 20000;', 'const CG_DAY_CAP = 1000;') });
 await control('difficulty weights ignored', 'E3', ['C'], { worker: rep('const w = DIFF_WEIGHT[difficulty] || 0;', 'const w = 1;') });
 await control('no daily cap', 'E4', ['D'], { worker: rep('const add = Math.min(want, Math.max(0, CG_DAY_CAP - (p.g || 0)));', 'const add = want;') });
 await control('the cap never resets', 'E4', ['D'], { worker: rep('const p = prev && prev.d === day ? prev : { d: day, g: 0,', 'const p = prev ? prev : { d: day, g: 0,') });

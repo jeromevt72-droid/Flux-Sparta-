@@ -258,9 +258,17 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 .cgDone .cgPill{background:linear-gradient(90deg,rgba(9,14,38,.92),rgba(16,24,58,.92));color:#e6eeff;text-shadow:none;box-shadow:0 2px 8px rgba(0,0,0,.3)}
 .cgDone .cgPill{animation:cgFade .6s ease-out 1 both}
 @keyframes cgFade{from{opacity:0}to{opacity:1}}
+.cgDone .cgPill .cgAmt{font-size:16px;letter-spacing:.01em}
+@media (max-width:340px){.cgDone .cgPill .cgAmt{font-size:14px;letter-spacing:0}}
+.cgDone .cgPill .cgAmt{font-size:17px;letter-spacing:.02em}
+@media (max-width:340px){.cgDone .cgPill .cgAmt{font-size:15px;letter-spacing:0}}
 .cgPill::after{content:"";position:absolute;inset:-2px;border-radius:29px;box-shadow:0 0 18px 6px var(--c3),0 0 36px 12px var(--c1);opacity:0;pointer-events:none}
 #gameover .goCgRally{margin:0 0 2px;height:54px;line-height:18px;font-size:15px;font-weight:800;color:#e3edff;display:-webkit-box;-webkit-box-orient:vertical;-webkit-box-pack:center;-webkit-line-clamp:3;overflow:hidden;text-align:center;white-space:pre-line}/* three lines kept: the longest (the daily cap: the cheer, then "More at ...") fits a 320 px phone */
 #gameover .goCgRally.hidden{display:none}
+/* a short screen (the first iPhone SE, 568 px): the three kept lines a little tighter, so MENU stays on screen */
+@media (max-height:600px){#gameover .goCgRally{height:48px;line-height:16px;font-size:14px}#gameover .goCg{margin-top:2px}}
+/* a short screen (the first iPhone SE, 568 px): the three kept lines a little tighter, so MENU stays on screen */
+@media (max-height:600px){#gameover .goCgRally{height:48px;line-height:16px;font-size:14px}#gameover .goCg{margin-top:2px}}
 .cgGo .cgPill{animation:cgPop .45s cubic-bezier(.34,1.56,.64,1) 1 both}
 .cgGo .cgPill::after{animation:cgPulse .6s ease-out .4s 1 both}
 @keyframes cgPop{from{transform:scale(.35);opacity:0}to{transform:scale(1);opacity:1}}
@@ -4027,7 +4035,7 @@ function showGameOverLine(sc,prevBest,prevOverall){
    under the score ("+105 GIVEN TO 🇵🇭 PHILIPPINES": pops in, glows in the
    country's colours, counts up) and one rallying line under it ("Laban, Pilipinas!"; at the
    daily cap "Today's skill is complete. Laban, Pilipinas!" + "More at 8 AM",
-   and a calm "✓ 5,000 GIVEN TODAY" pill when it was already full). Their height is
+   and a calm "✓ 20,000 GIVEN TODAY" pill when it was already full). Their height is
    kept from the moment the screen appears, so nothing moves. The menu's
    status line shows what this pilot has given in all. The switch
    is learned from answers the game already gets (the board, the
