@@ -14,7 +14,9 @@
 //       ever ran `wrangler deploy` from a terminal.
 //
 // run_worker_first keeps every /api/* request on worker.js; everything else
-// falls through to the static assets in ./public.
+// falls through to the static assets in ./public. One exact extra path,
+// /.well-known/assetlinks.json (ANDROID, Google Play), is answered by worker.js
+// too, so it is always 200 application/json with no redirect (see worker.js).
 //
 // FREE PLAN (owner: FLUX stays on the free Workers plan, 100,000 Worker
 // requests a day). Static asset requests are free and do NOT invoke the
@@ -48,7 +50,8 @@
     "directory": "./public",
     "binding": "ASSETS",
     "run_worker_first": [
-      "/api/*"
+      "/api/*",
+      "/.well-known/assetlinks.json"
     ],
     "not_found_handling": "404-page",
     "html_handling": "auto-trailing-slash"

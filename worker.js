@@ -155,6 +155,30 @@ const validPlayerId = (v) => PLAYER_ID.test(String(v || "")) && !UNSAFE_KEYS.has
 /* Worker                                                              */
 /* ------------------------------------------------------------------ */
 
+/* ANDROID (Google Play, Trusted Web Activity): Digital Asset Links. Android and Google check
+   https://fluxsparta.com/.well-known/assetlinks.json to confirm the Play app belongs to this site; it
+   must answer 200, Content-Type application/json, with no redirect. Whether Cloudflare's static
+   layer serves a folder whose name starts with a dot could not be confirmed before deploying, so
+   this one exact path runs the Worker first (wrangler.jsonc) and answers here with the contents
+   of public/.well-known/assetlinks.json, read from the static assets. If that layer does not
+   hold the file, ASSETLINKS_BODY is served instead. Until Play App Signing gives the real
+   fingerprint both are empty lists that look different on purpose -- the file "[ ]", this copy
+   "[]" -- so the live answer shows which one served it. Once the file lists com.fluxsparta.app,
+   this copy must be exactly the file (tests/test-android-twa.mjs, T7). */
+const ASSETLINKS_PATH = "/.well-known/assetlinks.json";
+const ASSETLINKS_BODY = "[]";
+async function assetLinks(request, env) {
+  if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method not allowed", { status: 405, headers: { Allow: "GET, HEAD" } });
+  let body = ASSETLINKS_BODY;
+  try {
+    if (env.ASSETS) {
+      const r = await env.ASSETS.fetch(new Request(new URL(ASSETLINKS_PATH, request.url).href, { method: "GET", redirect: "manual" }));
+      if (r.status === 200) { const t = await r.text(); try { JSON.parse(t); body = t; } catch (e) { /* not the file (e.g. an HTML page): keep the copy */ } }
+    }
+  } catch (e) { /* keep the copy */ }
+  return new Response(request.method === "HEAD" ? null : body, { status: 200, headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=3600" } });
+}
+
 export default {
   async scheduled(event, env, ctx) {
     useCount("w");                        // FREE PLAN: a cron run is a Worker request too (48 a day)
@@ -172,6 +196,7 @@ export default {
     useCount("w");                        // FREE PLAN: every invocation of this script
 
     try {
+      if (path === ASSETLINKS_PATH) return await assetLinks(request, env);   // ANDROID (Google Play): website-ownership file
       if (path.startsWith("/api/")) {
         if (request.method === "OPTIONS") return preflight();
         if (request.method !== "GET") lbMemo.delete(env);   // LEADERBOARD MEMO: a write through this isolate shows at once
