@@ -24,7 +24,7 @@
 // Game (REAL page, harness vm; Gateway REAL page):
 //   C1 a run is ONE request: the score upload carries the stats; a run with no new
 //      best sends only its stats; a new best sends one upload again;
-//   C2 no idle polling: a returning player's page makes no request at load and none
+//   C2 no idle polling: a returning player's page (board copy < 6 h old) makes no request at load and none
 //      from any timer (no 3 s entitlements repeat, no 8 s stats timer);
 //   C3 the leaderboard is fetched at most once a minute across views and tabs
 //      (game leaderboard + Gateway World Grid share one copy); after a minute, once;
@@ -212,17 +212,25 @@ async function suite(src, quiet = false) {
     void net0;
 
     // C2
-    const b = bootGame({ fluxEntitlementsV1: fresh() });
+    const lbCopy = (age) => JSON.stringify({ at: Date.now() - age, data: { top: [], countries: [], boards: { easy: [], medium: [], hard: [] } } });
+    const b = bootGame({ fluxEntitlementsV1: fresh(), fluxLbCache: lbCopy(60 * 60 * 1000) });   // board copy 1 h old
     const atLoad = b.calls.length + b.beacons.length;
     for (let round = 0; round < 3; round++) { const ts = b.timers().splice(0); for (const t of ts) { try { t.f(); } catch (e) {} } await tick(); }
     for (const t of b.run('globalThis.__I || []')) { for (let i = 0; i < 3; i++) { try { t.f(); } catch (e) {} } }
     await tick();
     const idle = b.calls.length + b.beacons.length - atLoad;
-    ck('C2 a returning player\'s page makes no request at load (entitlements checked < 30 min ago, country known, nothing queued)', atLoad === 0, b.calls.map((x) => x.u).join(','));
+    ck('C2 a returning player\'s page makes no request at load (entitlements checked < 30 min ago, board copy < 6 h old, country known, nothing queued)', atLoad === 0, b.calls.map((x) => x.u).join(','));
     ck('C2 no idle polling: running every timer and interval the page set makes no request', idle === 0, b.calls.map((x) => x.u).join(',') + ' beacons=' + b.beacons.length);
     const b2 = bootGame({ fluxEntitlementsV1: JSON.stringify({ v: 1, source: 'server', playerId: 'p-free-1', skus: [], verifiedAt: Date.now() - 3600000 }) });
     for (const t of b2.timers().splice(0)) { try { t.f(); } catch (e) {} }
     await tick();
+    // EVERY RUN COUNTS: a board copy missing or older than 6 hours is loaded ONCE at load (the switch is known before the first run)
+    for (const [label, init] of [['no board copy', {}], ['a board copy 7 h old', { fluxLbCache: lbCopy(7 * 60 * 60 * 1000) }]]) {
+      const b3 = bootGame(Object.assign({ fluxEntitlementsV1: fresh() }, init));
+      const load3 = b3.calls.map((x) => x.u);
+      for (let round = 0; round < 3; round++) { const ts = b3.timers().splice(0); for (const t of ts) { try { t.f(); } catch (e) {} } await tick(); }
+      ck('C2 ...' + label + ': exactly ONE request at load, the board (and none while idle)', load3.length === 1 && /^\/api\/leaderboard\?limit=100&boards=1$/.test(load3[0]) && b3.calls.length === 1 && b3.beacons.length === 0, b3.calls.map((x) => x.u).join(','));
+    }
     ck('C2 ...an older entitlements answer is checked once per page load, never twice', b2.calls.filter((x) => x.u.includes('/api/entitlements')).length === 1, b2.calls.map((x) => x.u).join(','));
 
     // C3
