@@ -25,12 +25,12 @@ function suite(w, quiet = false) {
     ck('D1 fluxsparta.com is declared in wrangler.jsonc as a Custom Domain of this Worker', r.some((x) => x && x.pattern === 'fluxsparta.com' && x.custom_domain === true), JSON.stringify(c.routes));
     ck('D1 ...and it is the only route: no www, no wildcard, no zone route (www is a dashboard redirect)', r.length === 1 && !c.route && !/\*/.test(JSON.stringify(r)) && !/www\./.test(JSON.stringify(r)), JSON.stringify(c.routes));
     ck('D2 the workers.dev address stays on ("workers_dev": true, written out)', c.workers_dev === true, String(c.workers_dev));
-    ck('D3 free plan: only /api/* runs the Worker; every file is still served by the asset layer', JSON.stringify(c.assets && c.assets.run_worker_first) === '["/api/*"]' && c.assets.directory === './public' && c.assets.not_found_handling === '404-page');
+    ck('D3 free plan: only /api/* (and the one Android asset-links file) runs the Worker; every other file is served by the asset layer', JSON.stringify(c.assets && c.assets.run_worker_first) === '["/api/*","/.well-known/assetlinks.json"]' && c.assets.directory === './public' && c.assets.not_found_handling === '404-page');
     ck('D3 same Worker, Durable Object, migration, KV and cron', c.name === 'flux-sparta-3' && c.main === 'worker.js' && JSON.stringify(c.durable_objects.bindings) === JSON.stringify([{ name: 'LEADERBOARD_DO', class_name: 'LeaderboardDO' }])
       && JSON.stringify(c.migrations) === JSON.stringify([{ tag: 'v1', new_sqlite_classes: ['LeaderboardDO'] }]) && c.kv_namespaces.length === 1 && JSON.stringify(c.triggers) === JSON.stringify({ crons: ['*/30 * * * *'] }));
     ck('D3 SITE_URL is fluxsparta.com (NEW ADDRESS), store still closed', c.vars.SITE_URL === NEW && c.vars.STORE_OPEN === 'false', c.vars.SITE_URL);
-    if (MAIN) { const strip = (x) => { const o = parse(x); delete o.routes; delete o.workers_dev; if (o.vars) delete o.vars.SITE_URL; return JSON.stringify(o); };
-      ck('D3 apart from the two domain lines and SITE_URL, wrangler.jsonc is identical to main', strip(MAIN) === strip(w)); }
+    if (MAIN) { const strip = (x) => { const o = parse(x); delete o.routes; delete o.workers_dev; if (o.vars) delete o.vars.SITE_URL; if (o.assets) delete o.assets.run_worker_first; return JSON.stringify(o); };   // run_worker_first: pinned exactly above
+      ck('D3 apart from the two domain lines, SITE_URL and run_worker_first (pinned above), wrangler.jsonc is identical to main', strip(MAIN) === strip(w)); }
     else ck('D3 (git not available: compared with the fixed values above only)', true);
   } catch (e) { ck('wrangler.jsonc parsed', false, String(e).slice(0, 200)); }
   return { F, failed };
@@ -54,7 +54,7 @@ control('www attached as a second copy of the site', 'D1 ...and it is the only r
 control('a zone wildcard route', 'D1 ...and it is the only route', rep(DOM, DOM + ',\n    { "pattern": "fluxsparta.com/*", "zone_name": "fluxsparta.com" }'));
 control('workers.dev switched off', 'D2', rep('  "workers_dev": true,\n', '  "workers_dev": false,\n'));
 control('workers.dev left to the default', 'D2', rep('  "workers_dev": true,\n', ''));
-control('every file runs the Worker', 'D3 free plan', rep('"/api/*"\n    ],', '"/api/*", "/*"\n    ],'));
+control('every file runs the Worker', 'D3 free plan', rep('"/.well-known/assetlinks.json"\n    ],', '"/.well-known/assetlinks.json", "/*"\n    ],'));
 control('SITE_URL left on the old address', 'D3 SITE_URL', rep('"SITE_URL": "' + NEW + '"', '"SITE_URL": "' + OLD + '"'));
 control('a new Durable Object migration', 'D3 same Worker', rep('"tag": "v1",', '"tag": "v2",'));
 const total = res.F + NC;
