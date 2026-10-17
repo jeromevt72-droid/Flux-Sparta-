@@ -517,7 +517,8 @@
       <b>Avg level</b>: average level reached at the end of a run.</li>
       <li><b>Share rate</b>: share-button taps ÷ finished runs. <b>Home Screen</b>: opens from the installed app.</li>
       <li><b>Day 1 / Day 7 / Day 30</b>: of the players who started on a date, the share who came back 1, 7 or 30 days later.
-      "—" means that day has not come yet.</li>
+      Each cell reads <b>came back / started — %</b>, e.g. <b>1 / 5 — 20%</b>. "—" means that day has not come yet;
+      <b>0 / 5 — 0%</b> means the day came and nobody returned.</li>
       <li><b>Which platform brings players who come back:</b> choose <b>By source (src)</b>. Each row is where players first came
       from (the ?src= tag in your link: tiktok, facebook, instagram, youtube, share for links players shared, direct for none).
       Compare their <b>Day 7</b> and <b>Day 30</b> columns — higher means that platform brings players who stay. Always post
@@ -1079,7 +1080,10 @@
 
   /* ---------------- player stats ---------------- */
   var ST_FIELDS = ['active', 'new', 'runs', 'sec', 'lvl', 'shares', 'opens', 'home', 'first', 'levelups'];
-  function pct(a, b) { return b ? Math.round(100 * a / b) + '%' : '—'; }
+  // "a of b" as a whole percent (2 of 2 = 100%); "—" when there is nothing to divide by.
+  function ratioPct(a, b) { return b ? Math.round(100 * a / b) + '%' : '—'; }
+  // A retention cell: "1 / 5 — 20%" ("0 / 5 — 0%" is a real zero; days not reached yet show "—" instead).
+  function retCell(back, n) { return fmt(back) + ' / ' + fmt(n) + ' — ' + ratioPct(back, n); }
   function ratio(a, b, dp) { return b ? (a / b).toFixed(dp == null ? 1 : dp) : '—'; }
   function num(x, dp) { return isFinite(x) ? Number(x).toFixed(dp == null ? 1 : dp) : '—'; }
   function mins(sec) { if (!isFinite(sec)) return '—'; sec = Math.round(sec); return (sec >= 60 ? Math.floor(sec / 60) + 'm ' : '') + (sec % 60) + 's'; }
@@ -1104,7 +1108,7 @@
       var ret = { n1: 0, d1: 0, n7: 0, d7: 0, n30: 0, d30: 0 }, cohorts = [];
       (rep.cohorts || []).forEach(function (c) {
         var v = (c.groups || {})[g]; if (!v || !v.n) return;
-        cohorts.push({ date: c.date, n: v.n, d1: c.age >= 1 ? pct(v.d1 || 0, v.n) : '—', d7: c.age >= 7 ? pct(v.d7 || 0, v.n) : '—', d30: c.age >= 30 ? pct(v.d30 || 0, v.n) : '—' });
+        cohorts.push({ date: c.date, n: v.n, d1: c.age >= 1 ? retCell(v.d1 || 0, v.n) : '—', d7: c.age >= 7 ? retCell(v.d7 || 0, v.n) : '—', d30: c.age >= 30 ? retCell(v.d30 || 0, v.n) : '—' });
         if (c.age >= 1) { ret.n1 += v.n; ret.d1 += v.d1 || 0; }
         if (c.age >= 7) { ret.n7 += v.n; ret.d7 += v.d7 || 0; }
         if (c.age >= 30) { ret.n30 += v.n; ret.d30 += v.d30 || 0; }
@@ -1195,7 +1199,7 @@
     return { rows: rows };
   }
   function secs(q) { return isFinite(q.v) ? (q.v < 10 ? q.v.toFixed(1) : String(Math.round(q.v))) + ' s' + (q.open ? '+' : '') : '—'; }
-  window.FLUX_ADMIN_STATS = { summarize: summarize, summarizePlay: summarizePlay, summarizeRetention: summarizeRetention, summarizeBad: summarizeBad, secs: secs, renderInsights: renderInsights, exportReport: exportReport };
+  window.FLUX_ADMIN_STATS = { summarize: summarize, summarizePlay: summarizePlay, summarizeRetention: summarizeRetention, summarizeBad: summarizeBad, secs: secs, renderInsights: renderInsights, exportReport: exportReport, ratioPct: ratioPct, retCell: retCell, storagePct: storagePct };
   function table(head, rows) {
     var w = el('div', 'stwrap'), t = el('table', 'st'), tr = el('tr');
     head.forEach(function (h) { tr.appendChild(el('th', null, h)); }); t.appendChild(tr);
@@ -1311,7 +1315,7 @@
       box.appendChild(tiles);
       box.appendChild(el('h2', null, 'BY DAY'));
       box.appendChild(table(['Date', 'Active', 'New', 'Runs/player', 'Avg run', 'Avg level', 'Share rate', 'Home Screen'],
-        g.daily.slice().reverse().map(function (d) { return [d.date, fmt(d.active), fmt(d['new']), ratio(d.runs, d.active), mins(d.runs ? d.sec / d.runs : NaN), ratio(d.lvl, d.runs), pct(d.shares, d.runs), fmt(d.home)]; })));
+        g.daily.slice().reverse().map(function (d) { return [d.date, fmt(d.active), fmt(d['new']), ratio(d.runs, d.active), mins(d.runs ? d.sec / d.runs : NaN), ratio(d.lvl, d.runs), ratioPct(d.shares, d.runs), fmt(d.home)]; })));
       box.appendChild(el('h2', null, 'BY MONTH'));
       box.appendChild(table(['Month', 'Active players'], g.months.slice().reverse().map(function (m) { return [m.month, fmt(m.active)]; })));
       box.appendChild(el('h2', null, 'RETENTION BY START DATE'));
@@ -1866,7 +1870,8 @@
 
   /* ---------------- storage (the 2 MB move) ---------------- */
   var SG = null;
-  function pct(x) { return (Math.round(x * 10) / 10) + '%'; }
+  // A percentage the server already worked out, to one decimal (47.25 -> "47.3%").
+  function storagePct(x) { return (Math.round(x * 10) / 10) + '%'; }
   function sgCard(title, pillText, pillKind) {
     var c = el('div', 'card'), h = el('div');
     h.appendChild(el('span', 'name', title));
@@ -1897,7 +1902,7 @@
     var near = oldL && ov && ov.pct >= 75;
     var c = sgCard(oldL ? 'Layout: OLD (one 2 MB value)' : 'Layout: NEW (one row per pilot)', oldL ? (near ? 'NEAR THE 2 MB LIMIT' : 'NOT MOVED YET') : 'MOVED ✓', near ? 'pink' : 'amber');
     var lines = [fmt(d.pilots) + ' pilots'];
-    if (ov) lines.push((oldL ? 'Old value: ' : 'Old layout copy (kept until CLEAN UP): ') + kb(ov.bytes) + ' of 2 MB (' + pct(ov.pct) + ')' + (ov.kept === false ? ' — cleaned up' : ''));
+    if (ov) lines.push((oldL ? 'Old value: ' : 'Old layout copy (kept until CLEAN UP): ') + kb(ov.bytes) + ' of 2 MB (' + storagePct(ov.pct) + ')' + (ov.kept === false ? ' — cleaned up' : ''));
     lines.push('Newest checked backup: ' + (bk.createdAt ? when(bk.createdAt) + ' (' + bk.ageMin + ' min ago' + (bk.fresh ? ', recent enough ✓' : ', older than 60 min') + ')' : 'none'));
     lines.push('Move: ' + ({ none: 'not started', copying: 'copying (' + fmt(mig.cursor) + ' of ' + fmt(mig.total) + ')', paused: 'paused for today', switched: 'done ✓ ' + when(mig.switchedAt), failed: 'refused — the copy did not match; nothing changed', cancelled: 'cancelled', rolledback: 'rolled back to the old layout', cleaned: 'done ✓, old layout cleaned up' }[d.phase] || d.phase));
     if (d.restoring) lines.push('A RESTORE IS UNFINISHED: score uploads are paused. Run that restore again, or restore its safety backup.');
