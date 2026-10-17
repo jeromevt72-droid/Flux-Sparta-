@@ -253,9 +253,18 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 .cgPill>span{display:block;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cgPill .cgWho.cgLong{font-size:17px;letter-spacing:.01em}
 .cgPill .cgWho.cgLonger{font-size:14px;letter-spacing:0}
+/* TODAY'S SKILL IS COMPLETE: the pilot's daily share was already full before this run -- the same pill in a
+   calm "done" style (deep fill, the country's colour as the border), a gentle fade-in, no pop, no count-up. */
+.cgDone .cgPill{background:linear-gradient(90deg,rgba(9,14,38,.92),rgba(16,24,58,.92));color:#e6eeff;text-shadow:none;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.cgDone .cgPill{animation:cgFade .6s ease-out 1 both}
+@keyframes cgFade{from{opacity:0}to{opacity:1}}
+.cgDone .cgPill .cgAmt{font-size:17px;letter-spacing:.02em}
+@media (max-width:340px){.cgDone .cgPill .cgAmt{font-size:15px;letter-spacing:0}}
 .cgPill::after{content:"";position:absolute;inset:-2px;border-radius:29px;box-shadow:0 0 18px 6px var(--c3),0 0 36px 12px var(--c1);opacity:0;pointer-events:none}
-#gameover .goCgRally{margin:0 0 2px;height:38px;line-height:19px;font-size:15px;font-weight:800;color:#e3edff;display:-webkit-box;-webkit-box-orient:vertical;-webkit-box-pack:center;-webkit-line-clamp:2;overflow:hidden;text-align:center}/* two lines kept: the longest line (the daily max) fits a 320 px phone */
+#gameover .goCgRally{margin:0 0 2px;height:54px;line-height:18px;font-size:15px;font-weight:800;color:#e3edff;display:-webkit-box;-webkit-box-orient:vertical;-webkit-box-pack:center;-webkit-line-clamp:3;overflow:hidden;text-align:center;white-space:pre-line}/* three lines kept: the longest (the daily cap: the cheer, then "More at ...") fits a 320 px phone */
 #gameover .goCgRally.hidden{display:none}
+/* a short screen (the first iPhone SE, 568 px): the three kept lines a little tighter, so MENU stays on screen */
+@media (max-height:600px){#gameover .goCgRally{height:48px;line-height:16px;font-size:14px;margin-bottom:0}#gameover .goCg{margin-top:0}}
 .cgGo .cgPill{animation:cgPop .45s cubic-bezier(.34,1.56,.64,1) 1 both}
 .cgGo .cgPill::after{animation:cgPulse .6s ease-out .4s 1 both}
 @keyframes cgPop{from{transform:scale(.35);opacity:0}to{transform:scale(1);opacity:1}}
@@ -266,7 +275,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 @keyframes cgShow{from{color:transparent}to{color:#fff}}
 @keyframes cgCount{from{--cgn:0}to{--cgn:var(--cgt)}}
 @keyframes cgHide{from{opacity:1}to{opacity:0}}
-@media (prefers-reduced-motion:reduce){.cgGo .cgPill,.cgGo .cgPill::after,.cgGo .cgNum{animation:none}.cgGo .cgNum::before{display:none}}
+@media (prefers-reduced-motion:reduce){.cgGo .cgPill,.cgGo .cgPill::after,.cgGo .cgNum,.cgDone .cgPill{animation:none}.cgGo .cgNum::before{display:none}}
 .goLine{margin:8px 0 4px!important;color:#eaf7ff!important;font-size:15px!important;font-weight:800;line-height:1.4!important}.goLine .goNew{color:#ffd23f}.goMeta{margin:0 0 4px!important;color:#8fa5d1!important;font-size:12px!important;letter-spacing:.08em}.goClaim{margin:8px 0 10px;padding:12px;border:1px solid #2c6bff;border-radius:16px;background:rgba(18,32,77,.55)}.goClaimT{font-size:14px;font-weight:800;color:#eaf7ff;margin-bottom:8px}.goClaimRow{display:flex;gap:8px}.goClaimRow button{flex:1;padding:10px 8px;font-size:12px;letter-spacing:.08em}.goClaimRow button.goClaimNo{background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none}.playingFor{display:block;width:100%;margin:8px 0 0;padding:8px 10px;background:transparent;color:#b9c6e5;border:0;box-shadow:none;font-size:13px;font-weight:700;letter-spacing:.02em;text-transform:none}.playingFor u{color:#62eaff;text-underline-offset:3px}
 /* D-46 lite graphics: the moving star fields, the live-blurred nebula and the FLUX Mode full-screen filter are redrawn every frame; on old devices they cost more than the game itself. */.fluxLite #starsFar,.fluxLite #starsNear{animation:none!important}.fluxLite #nebulaDrift{display:none!important}.fluxLite #app{filter:none!important}
 /* FREE PLAN: the small offline / server-limit note (menu and game over only). */
@@ -3051,8 +3060,10 @@ function flushSubmitQueue(){
           if(typeof fluxFoundingRun==='function') fluxFoundingRun(b,item);   // FOUNDING PILOT: a number in the run's own reply (no extra request)
           if(typeof fluxCgRun==='function') fluxCgRun(b,item);   // EVERY RUN COUNTS: the run's share, in its own reply (no extra request)
         } else if(r.kind==='stale'){
+          if(typeof fluxCgMiss==='function') fluxCgMiss(item);   // EVERY RUN COUNTS: no reply for the run on screen
           dequeueSubmission(item.id);
         } else if(r.kind==='permanent'){
+          if(typeof fluxCgMiss==='function') fluxCgMiss(item);
           dequeueSubmission(item.id); recordSubmitFailure('rejected');
         } else {
           item.attempts=(item.attempts||0)+1;
@@ -3060,6 +3071,7 @@ function flushSubmitQueue(){
           const k=cur.findIndex(function(x){return x.id===item.id;});
           if(k>=0){ cur[k]=item; saveQueue(cur); }
           recordSubmitFailure('queued');
+          if(typeof fluxCgMiss==='function') fluxCgMiss(item);
           const backoff=SUBMIT_BACKOFF_MS[Math.min(item.attempts-1, SUBMIT_BACKOFF_MS.length-1)];
           scheduleFlush(Math.max(backoff, r.waitMs||0));
           retryScheduled=true;
@@ -4018,7 +4030,8 @@ function showGameOverLine(sc,prevBest,prevOverall){
    country. The reply says how much: on the game-over screen a badge right
    under the score ("+105 GIVEN TO 🇵🇭 PHILIPPINES": pops in, glows in the
    country's colours, counts up) and one rallying line under it ("Laban, Pilipinas!"; at the
-   daily cap "Daily max reached. 🇵🇭 thanks you, soldier!"). Their height is
+   daily cap "Today's skill is complete. Laban, Pilipinas!" + "More at 8 AM",
+   and a calm "✓ 20,000 GIVEN TODAY" pill when it was already full). Their height is
    kept from the moment the screen appears, so nothing moves. The menu's
    status line shows what this pilot has given in all. The switch
    is learned from answers the game already gets (the board, the
@@ -4037,14 +4050,31 @@ var FLUX_CG_RALLY={ PH:'Laban, Pilipinas!', BR:'Vai, Brasil!', MX:'\u00a1Vamos, 
 var FLUX_CG_COLORS={ PH:['#0038a8','#ce1126','#fcd116'], BR:['#009c3b','#00692a','#ffdf00'], MX:['#006847','#ce1126','#ffffff'], JP:['#bc002d','#7a0020','#ffffff'],
   US:['#3c3b6e','#b22234','#ffffff'], GB:['#012169','#c8102e','#ffffff'], AU:['#012169','#00843d','#ffcd00'], CA:['#d52b1e','#8f1d14','#ffffff'],
   CN:['#de2910','#a71d0d','#ffde00'], DE:['#1a1a1a','#dd0000','#ffce00'] };
-/* The two lines once the run's reply is known. Pure (testable). n: a number that picks the English line. */
-function fluxCgLine(cg,n){
-  const out={ amount:0, main:'', rally:'' };
-  if(!cg || !cg.on || !cg.cc) return out;
+/* The next 00:00 UTC (when the daily share starts again) in the phone's own time format: "5 PM" in
+   California, "8 AM" in the Philippines, "01:00" on a 24-hour phone in London; minutes only where the time
+   zone is not on the hour (for example "5:30 AM" in India). */
+function fluxCgResetAt(now){
+  try{
+    const d=new Date(now||Date.now()), next=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()+1));
+    const h12=new Intl.DateTimeFormat(undefined,{ hour:'numeric' }).resolvedOptions().hour12!==false;
+    const o=h12 ? { hour:'numeric' } : { hour:'2-digit', minute:'2-digit' };   // a 24-hour phone: "01:00", not "01"
+    if(next.getMinutes()!==0) o.minute='2-digit';
+    return next.toLocaleTimeString(undefined,o);
+  }catch(e){ return ''; }
+}
+/* The lines once the run's reply is known. Pure (testable). n: a number that picks the English line.
+   done: the daily share was already full before this run (the calm "done" pill). */
+function fluxCgLine(cg,n,now){
+  const out={ amount:0, main:'', rally:'', done:false, doneMain:'' };
+  if(!cg || !cg.on || !cg.cc || cg.paused) return out;
   const c=countryLabel(cg.cc), add=Number.isFinite(cg.add)&&cg.add>0?cg.add:0;
-  const name=String(c.name||'').toUpperCase();
+  const name=String(c.name||'').toUpperCase(), cap=Number.isFinite(cg.cap)&&cg.cap>0?cg.cap:0;
   if(add>0){ out.amount=add; out.main='+'+add.toLocaleString()+' GIVEN TO '+c.flag+' '+name; }
-  if(cg.capped) out.rally='Daily max reached. '+c.flag+' thanks you, soldier!';
+  else if(cg.capped && cap){ out.done=true; out.doneMain='\u2713 '+cap.toLocaleString()+' GIVEN TODAY'; }
+  if(cg.capped){
+    const at=fluxCgResetAt(now);
+    out.rally="Today's skill is complete. "+(FLUX_CG_RALLY[cg.cc] || (c.flag+' thanks you, soldier!'))+(at ? '\nMore at '+at : '');
+  }
   else if(add>0){
     const en=[c.name+' needs you, soldier.','Every run counts. Go again.',c.flag+' is climbing. Keep it going.'];
     out.rally=FLUX_CG_RALLY[cg.cc] || en[Math.abs(Math.floor(n||0))%3];
@@ -4053,10 +4083,14 @@ function fluxCgLine(cg,n){
 }
 /* At game over: ON (and the pilot is on the board) -> both lines are shown, empty, so their height is
    there before the reply fills them (nothing below moves); OFF -> hidden, exactly as before. */
+var FLUX_CG_LAST_KEY='fluxCgLast', fluxCgShownAt=0;
+function fluxCgPausedToday(){ try{ const o=JSON.parse(localStorage.getItem(FLUX_CG_LAST_KEY)||'null'); return !!(o && o.paused && o.day===Math.floor(Date.now()/86400000)); }catch(e){ return false; } }
 function fluxCgPrepare(){
   try{
-    const on=fluxCgOn() && profileComplete;
-    ['goCg','goCgRally'].forEach(function(id){ const el=document.getElementById(id); if(!el) return; el.textContent=''; el.classList.remove('cgGo'); el.classList.toggle('hidden',!on); });
+    // Offline, or the shares already paused today (free-plan safety): no badge can come, so no space is kept.
+    const on=fluxCgOn() && profileComplete && !(typeof fluxNetHeld==='function' && fluxNetHeld()) && !fluxCgPausedToday();
+    fluxCgShownAt=Date.now();
+    ['goCg','goCgRally'].forEach(function(id){ const el=document.getElementById(id); if(!el) return; el.textContent=''; el.classList.remove('cgGo'); el.classList.remove('cgDone'); el.classList.toggle('hidden',!on); });
   }catch(e){}
 }
 function fluxCgShow(cg){
@@ -4064,22 +4098,47 @@ function fluxCgShow(cg){
   let n=0; try{ n=+localStorage.fluxRunsPlayed||0; }catch(e){}
   const t=fluxCgLine(cg,n), col=FLUX_CG_COLORS[cg.cc]||['#2c6bff','#8a2be2','#62eaff'];
   el.style.setProperty('--c1',col[0]); el.style.setProperty('--c2',col[1]); el.style.setProperty('--c3',col[2]);
-  el.classList.remove('cgGo');
-  if(t.amount>0){
+  el.classList.remove('cgGo'); el.classList.remove('cgDone');
+  if(!t.amount && !t.done){ fluxCgNothing(); return; }   // paused, restricted, no country: no badge
+  if(t.done){
+    const c=countryLabel(cg.cc), who=c.flag+' '+String(c.name||'').toUpperCase();
+    const size=who.length>22 ? ' cgLonger' : (who.length>16 ? ' cgLong' : '');
+    el.innerHTML='<span class="cgPill"><span class="cgAmt">'+escapeHtml(t.doneMain)+'</span><span class="cgWho'+size+'">'+escapeHtml(who)+'</span></span>';
+    void el.offsetWidth;   // restart the fade-in for this run
+    el.classList.add('cgDone');
+  }
+  else if(t.amount>0){
     const c=countryLabel(cg.cc), shown=t.amount.toLocaleString(), who=c.flag+' '+String(c.name||'').toUpperCase();
     const size=who.length>22 ? ' cgLonger' : (who.length>16 ? ' cgLong' : '');   // a long country name: smaller, still one line
     // Two rows, both 20 px (the game-over panel is narrow): "+168 GIVEN TO" / "🇵🇭 PHILIPPINES".
     el.innerHTML='<span class="cgPill"><span class="cgAmt">+<span class="cgNum" style="--cgt:'+t.amount+'">'+escapeHtml(shown)+'</span> GIVEN TO</span><span class="cgWho'+size+'">'+escapeHtml(who)+'</span></span>';
     void el.offsetWidth;   // restart the pop-in, glow and count-up for this run
     el.classList.add('cgGo');
-  } else el.textContent='';   // nothing given (offline, no reply, paused, capped at 0): no badge
+  }
   ra.textContent=t.rally;
+}
+/* No badge for this run (the shares paused, or the upload did not get through). The kept space closes
+   only within the first second of the game-over screen -- before anyone reaches for RUN IT BACK; later
+   it stays (empty) so a button never moves under a finger. */
+function fluxCgNothing(){
+  try{
+    const el=document.getElementById('goCg'), ra=document.getElementById('goCgRally'); if(!el || !ra) return;
+    el.textContent=''; ra.textContent='';
+    if(Date.now()-fluxCgShownAt<1000){ el.classList.add('hidden'); ra.classList.add('hidden'); }
+  }catch(e){}
+}
+function fluxCgMiss(item){
+  try{
+    const go=document.getElementById('gameover');
+    if(item && item.runId===fluxCgRunId && go && !go.classList.contains('hidden')) fluxCgNothing();
+  }catch(e){}
 }
 function fluxCgRun(b,item){
   try{
     fluxCgSet(!!(b && b.cg && b.cg.on));
     if(!b || !b.cg || !item || item.playerId!==playerId) return;
     if(Number.isFinite(b.cg.total)) localStorage.setItem(FLUX_CG_GIVEN_KEY,JSON.stringify({ pid:playerId, t:b.cg.total }));
+    localStorage.setItem(FLUX_CG_LAST_KEY,JSON.stringify({ day:Math.floor(Date.now()/86400000), paused:b.cg.paused===1 }));   // a pause today: no space kept next time
     const go=document.getElementById('gameover');
     if(b.cg.dup || item.runId!==fluxCgRunId || !go || go.classList.contains('hidden')) return;   // only the run on screen
     fluxCgShow(b.cg);   // text only, in the lines reserved at game over
