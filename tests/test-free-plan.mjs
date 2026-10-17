@@ -168,8 +168,8 @@ async function suite(src, quiet = false) {
 
     // S7
     const cfg = JSON.parse(src.wrangler.replace(/^\s*\/\/.*$/gm, ''));
-    ck('S7 only /api/* runs the Worker; missing paths are answered by the asset layer (404-page), never the Worker',
-      JSON.stringify(cfg.assets.run_worker_first) === '["/api/*"]' && cfg.assets.not_found_handling === '404-page' && fs.existsSync(path.join(ROOT, 'public', '404.html')) && cfg.assets.directory === './public', JSON.stringify(cfg.assets));
+    ck('S7 only /api/* (and the one Android asset-links file) runs the Worker; missing paths are answered by the asset layer (404-page), never the Worker',
+      JSON.stringify(cfg.assets.run_worker_first) === '["/api/*","/.well-known/assetlinks.json"]' && cfg.assets.not_found_handling === '404-page' && fs.existsSync(path.join(ROOT, 'public', '404.html')) && cfg.assets.directory === './public', JSON.stringify(cfg.assets));
     const fetchBody = src.worker.slice(src.worker.indexOf('async fetch(request, env'), src.worker.indexOf('/* Durable Object plumbing'));
     const outside = fetchBody.split('if (path.startsWith("/api/")) {')[1] || '';
     ck('S7 the worker fetch handler routes /api/ first and serves no page itself (only the unreachable asset fallback)',
@@ -303,7 +303,7 @@ await control('leaderboard memo off', 'S5', rep('worker', 'if (hit && now - hit.
 await control('Worker requests not counted', 'S6', rep('worker', '    useCount("w");                        // FREE PLAN: every invocation of this script', ''));
 await control('alert threshold moved to 95%', 'S6', rep('worker', 'const USAGE_ALERT_PCT = 80;', 'const USAGE_ALERT_PCT = 95;'));
 await control('missing paths invoke the Worker again', 'S7', rep('wrangler', '"not_found_handling": "404-page",', ''));
-await control('every path runs the Worker first', 'S7', rep('wrangler', '"/api/*"\n    ],', '"/api/*", "/*"\n    ],'));
+await control('every path runs the Worker first', 'S7', rep('wrangler', '"/.well-known/assetlinks.json"\n    ],', '"/.well-known/assetlinks.json", "/*"\n    ],'));
 await control('the service worker shows Cloudflare\'s limit page instead of the cached game', 'S7', rep('sw', 'if (res && (res.status === 429 || res.status >= 500)) {', 'if (false) {'));
 const total = main.F + NC;
 console.log('\n' + (total ? 'FREE PLAN FAILED: ' + main.F + ' check(s), ' + NC + ' uncaught control(s)' : 'FREE PLAN PASSED: all checks and all negative controls'));

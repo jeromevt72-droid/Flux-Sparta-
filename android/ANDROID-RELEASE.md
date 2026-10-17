@@ -108,10 +108,12 @@ Give Claude Code this, with the real SHA-256 pasted in:
 ```
 Finalize Digital Asset Links for the Play app (package com.fluxsparta.app).
 Play App Signing SHA-256 (App signing key certificate): <PASTE HERE>
-Copy android/assetlinks.template.json to public/.well-known/assetlinks.json and
-replace the placeholder with this fingerprint (uppercase, colon-separated).
-Do not use the upload-key fingerprint in place of it. tests/test-android-twa.mjs
-must pass (T3). Run the full gate, open a PR, don't merge or deploy.
+Replace the [] in public/.well-known/assetlinks.json with the contents of
+android/assetlinks.template.json, with the placeholder replaced by this
+fingerprint (uppercase, colon-separated), and put the same text in
+ASSETLINKS_BODY in worker.js. Do not use the upload-key fingerprint in place of
+it. tests/test-android-twa.mjs must pass (T3, T7). Run the full gate, open a PR,
+don't merge or deploy.
 ```
 
 After you merge and it deploys, check in Safari:
@@ -124,11 +126,11 @@ After you merge and it deploys, check in Safari:
 3. On the BLU, **uninstall and reinstall** the Play test app: **no address bar**
    at the top means verification passed.
 
-**Not yet confirmed:** whether Cloudflare's static file layer serves a
-`/.well-known/` folder. If check 1 shows the 404 page, ask Claude Code to serve
-`/.well-known/assetlinks.json` from `worker.js` (add that exact path to
-`run_worker_first` in `wrangler.jsonc`, answering `200` with
-`Content-Type: application/json` and **no redirect**).
+`/.well-known/assetlinks.json` is answered by `worker.js` (that one exact path is
+in `run_worker_first` in `wrangler.jsonc`): always `200`, `Content-Type:
+application/json`, **no redirect**, whether or not Cloudflare's static file layer
+serves a folder whose name starts with a dot. Until the fingerprint is added it
+is an empty list, `[]`.
 
 ## 6. Closed testing: the 14-day rule (for production)
 

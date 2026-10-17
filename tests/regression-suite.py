@@ -110,7 +110,7 @@ ck('D-09 matched pair sent', 'score:run.score' in p and 'level:run.level' in p)
 ck('D-09 no swallowed failures', p.count('.catch(()=>{})')==0 and 'recordSubmitFailure' in p)
 cfg=json.loads(re.sub(r'^\s*//.*$','',open('FLUX-Sparta/wrangler.jsonc').read(),flags=re.M))
 ck('D-10 assets ./public', cfg['assets']['directory']=='./public')
-ck('D-10 api routed', cfg['assets']['run_worker_first']==['/api/*'])
+ck('D-10 api routed (plus the one exact Android asset-links path)', cfg['assets']['run_worker_first']==['/api/*', '/.well-known/assetlinks.json'])
 ck('D-10 config not published', not os.path.exists('FLUX-Sparta/public/wrangler.jsonc') and not os.path.exists('FLUX-Sparta/public/worker.js'))
 for n in ['index.html','manifest.webmanifest','icon-192.png','icon-512.png','solar-inferno.webp','neon-tokyo.webp']:
     ck('D-10 asset kept: '+n, os.path.exists('FLUX-Sparta/public/'+n))
