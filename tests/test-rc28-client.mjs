@@ -104,7 +104,7 @@ try {
   const second = g.ctx.flushSubmitQueue();                 // arrives mid-run
   release(); await first; await second;
   ck('work arriving mid-run is sent in the same run, not left for a timer',
-     calls.some(b=>b.difficulty==='hard') && queueOf(mem).length===0 && timers.length===0,
+     calls.some(b=>b.difficulty==='hard') && queueOf(mem).length===0 && timers.filter(t=>t.ms!==15000).length===0,   // (15 s = each upload's own timeout, cleared on reply; not a retry)
      'sent: '+calls.map(b=>b.difficulty).join(',')+' | queued: '+queueOf(mem).length+' | timers: '+timers.length);
 } catch(e){ ck('mid-run test ran', false, String(e).slice(0,80)); }
 try {

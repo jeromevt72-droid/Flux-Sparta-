@@ -24,7 +24,7 @@ ck('element id still "callsign"', src.includes('<input id="callsign"'));
 // clear on typing) adds two, 12 -> 14. The id itself is unchanged.
 ck('getElementById(\'callsign\') intact', (src.match(/getElementById\('callsign'\)/g)||[]).length===14,
    String((src.match(/getElementById\('callsign'\)/g)||[]).length));
-ck('JS variable still `callsign`', /let difficulty=localStorage\.fluxDifficulty\|\|'medium', callsign=/.test(src));
+ck('JS variable still `callsign`', /let difficulty=fluxStartRead\('fluxDifficulty','medium'\), callsign=fluxStartRead\('fluxCallsign',''\)/.test(src));   // AUDIT: read through the storage guard; the variable is unchanged
 ck('localStorage key still fluxCallsign', src.includes('localStorage.fluxCallsign'));
 ck('no key named fluxFluxId or similar', !/fluxFluxI|fluxId\s*=/.test(src));
 ck('playerId untouched', src.includes('playerId') && !src.includes('fluxIdPlayer'));
