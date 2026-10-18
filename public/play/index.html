@@ -247,6 +247,8 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 @property --cgn{syntax:'<integer>';inherits:false;initial-value:0}
 #gameover .goCg{margin:4px 0 0;height:60px;display:flex;align-items:center;justify-content:center;pointer-events:none;--c1:#2c6bff;--c2:#8a2be2;--c3:#62eaff}
 #gameover .goCg.hidden{display:none}
+/* FREEZE RECORDER (owner only, OFF for players): the list of long frames, at game over. */
+#gameover .goFreeze{margin:10px 0 0;padding:8px;max-height:28vh;overflow:auto;text-align:left;font:10px/1.35 ui-monospace,Menlo,monospace;color:#8fa5d1;white-space:pre-wrap;word-break:break-word;border:1px dashed #294578;border-radius:10px;-webkit-user-select:text;user-select:text}
 .cgPill{position:relative;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;max-width:100%;box-sizing:border-box;height:58px;padding:3px 20px;
   border-radius:29px;border:2px solid var(--c3);background:linear-gradient(90deg,var(--c1),var(--c2));color:#fff;font-size:20px;font-weight:900;letter-spacing:.03em;line-height:24px;
   text-shadow:0 1px 2px rgba(0,0,0,.65);box-shadow:0 3px 12px rgba(0,0,0,.35)}
@@ -517,6 +519,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
   <button id="shareBtn" type="button" class="hidden" style="margin-top:8px;background:transparent;color:#ffd23f;border:1px solid #6b5a1a;box-shadow:none">📤 SHARE MY SCORE</button>
   <button id="gameoverLeaderBtn" style="margin-top:8px;background:transparent;color:#7fdfff;border:1px solid #234174;box-shadow:none">🌎 GLOBAL LEADERBOARD</button>
   <button id="gameoverMenuBtn" style="margin-top:8px;background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none">⌂ MENU</button>
+  <pre id="goFreeze" class="goFreeze hidden"></pre>
   <button id="gameoverInstallBtn" type="button" class="installBtn hidden" style="margin-top:8px;background:transparent;color:#5ff3ff;border:1px solid #2c6bff;box-shadow:none">📲 Put FLUX on your Home Screen</button>
   <button id="gameoverInstallNo" type="button" class="installNo hidden">Not now</button>
   <p id="gameoverChromeTip" class="chromeTip hidden">Tip: open FLUX in <b>Chrome</b> to install it.</p>
@@ -2543,6 +2546,7 @@ function setPaused(next){
      the field is drawn live as before. The copy is redrawn as soon as anything drawn in it changes.
    The loop itself keeps its D-45 shape: the next frame is always scheduled first. */
 let fluxLoopIdle=false;   // the last frame drew nothing (hidden or paused): re-anchor the clock on the next one
+var fluxFrzOn=false;   // FREEZE RECORDER (owner only): set from ?freezelog=1 below; OFF for every player
 function loop(ts){
  requestAnimationFrame(loop);   // D-45: next frame first, so one bad frame can never freeze the game
  if(document.hidden || paused){ fluxLoopIdle=true; last=ts; return; }   // BATTERY: hidden or paused -- nothing simulated, nothing redrawn
@@ -2550,6 +2554,7 @@ function loop(ts){
  const dt=Math.min(.032,(ts-last)/1000||.016);
  if(playing && !paused) fluxPerfSample(ts-last);   // D-46
  if(fluxMenuCheckOn && !paused) fluxMenuCheckSample(ts-last);   // FIRST RUN SMOOTH: the same check, on the menu (or the first second of a run)
+ if(fluxFrzOn && runActive) fluxFrzFrame(ts-last,ts);   // FREEZE RECORDER (owner only; OFF: this one check)
  last=ts;
  if(playing && !paused) update(dt);
  else if(!paused && levelHold>0){
@@ -5431,12 +5436,91 @@ function fluxStatsFlush(){
     // is waiting (hidden once, back, first run started, then closed mid-run).
     let hideSent=false, hideFirstSent=false;
     document.onvisibilitychange=function(){ fluxSessVisible(!document.hidden);   // RETENTION: the session's hide / return (queued; sent by the rules below)
+      if(fluxFrzOn) fluxFrzVisAt=performance.now();   // FREEZE RECORDER: a gap across a hide / return is not a freeze
       if(!document.hidden && typeof fluxCgWarmOnMenu==='function') fluxCgWarmOnMenu();   // EVERY RUN COUNTS: back to the front on the menu -> learn the switch (board older than 6 h only)
       if(!document.hidden || !fluxStatsQueue.length || (typeof fluxNetHeld==='function' && fluxNetHeld())) return;
       if(!hideSent){ hideSent=true; fluxStatsFlush(); }
       else if(!hideFirstSent && fluxStatsQueue.some(function(e){ return e.e==='first_run'; })){ hideFirstSent=true; fluxStatsFlush(); } };
   }catch(x){}
 })();
+/* ==================================================================
+   FREEZE RECORDER (owner only; OFF for every player)
+   ------------------------------------------------------------------
+   Turned on only by opening /play/?freezelog=1 once (kept on that device);
+   /play/?freezelog=0 turns it off and forgets the list. While ON, every
+   frame gap over 300 ms during a run is written down with what the game was
+   doing: time in run, level, score, orbs, particles, FLUX MODE, backdrop,
+   Lite graphics, combo, JS heap (where the browser tells it) and the last game
+   event before it. The last 20 stay on the device and are listed at game over.
+   Nothing is sent anywhere; no button; OFF costs one check per frame (the
+   event hooks are only put in place when it is ON). A gap across a hide /
+   return of the app, or while paused, is not counted.
+   ================================================================== */
+const FLUX_FRZ_KEY='fluxFreezeOn', FLUX_FRZ_LOG='fluxFreezeLog', FLUX_FRZ_MS=300, FLUX_FRZ_MAX=20;
+var fluxFrzVisAt=-1e9, fluxFrzEv='', fluxFrzEvAt=0;
+(function(){
+  try{
+    const m=/[?&]freezelog=([01])\b/.exec(location.search||'');
+    if(m && m[1]==='1') localStorage.setItem(FLUX_FRZ_KEY,'1');
+    if(m && m[1]==='0'){ localStorage.removeItem(FLUX_FRZ_KEY); localStorage.removeItem(FLUX_FRZ_LOG); }
+    fluxFrzOn=localStorage.getItem(FLUX_FRZ_KEY)==='1';
+  }catch(e){ fluxFrzOn=false; }
+})();
+function fluxFrzList(){ try{ const a=JSON.parse(localStorage.getItem(FLUX_FRZ_LOG)||'[]'); return Array.isArray(a) ? a : []; }catch(e){ return []; } }
+function fluxFrzNote(name){ fluxFrzEv=name; fluxFrzEvAt=performance.now(); }
+function fluxFrzFrame(gap,ts){
+  if(!(gap>FLUX_FRZ_MS) || paused || document.hidden) return;
+  if(fluxFrzVisAt>=ts-gap) return;   // the app was hidden / shown during this gap
+  try{
+    let heap=null; try{ if(performance.memory && performance.memory.usedJSHeapSize) heap=Math.round(performance.memory.usedJSHeapSize/104857.6)/10; }catch(e){}
+    const e={ at:Date.now(), gap:Math.round(gap), t:Math.round(runClock), level:level, pending:pendingLevel||0, score:Math.round(score),
+      orbs:targets.length, parts:particles.length, texts:texts.length, flux:fluxMode>0?1:0, bg:skinBackdropOn()?activeBackground:'none', lite:window.__fluxLite?1:0,
+      combo:combo, heap:heap, ev:fluxFrzEv, evAgo:fluxFrzEv ? Math.round((ts-gap-fluxFrzEvAt)/100)/10 : null, diff:difficulty };
+    const a=fluxFrzList(); a.push(e); while(a.length>FLUX_FRZ_MAX) a.shift();
+    localStorage.setItem(FLUX_FRZ_LOG,JSON.stringify(a));
+  }catch(x){}
+}
+/* One line per freeze, newest first. Pure (testable). */
+function fluxFrzLines(list){
+  const two=(n)=>(n<10?'0':'')+n;
+  if(!list.length) return 'FREEZE RECORDER ON · no frame over 300 ms recorded yet.\n(Turn off: open /play/?freezelog=0)';
+  return 'FREEZE RECORDER ON · last '+list.length+' (newest first)\n'+list.slice().reverse().map(function(e,i){
+    const d=new Date(e.at), mm=Math.floor((e.t||0)/60), ss=(e.t||0)%60;
+    return (i+1)+'. '+two(d.getMonth()+1)+'/'+two(d.getDate())+' '+two(d.getHours())+':'+two(d.getMinutes())+'  '+Number(e.gap).toLocaleString()+' ms at '+mm+':'+two(ss)+' in run'
+      +' · L'+e.level+(e.pending ? '→'+e.pending : '')+' · '+Number(e.score).toLocaleString()+' pts · '+String(e.diff||'')
+      +'\n   orbs '+e.orbs+' · particles '+e.parts+' · texts '+e.texts+' · FLUX MODE '+(e.flux?'on':'off')+' · backdrop '+e.bg+(e.lite?' · Lite':'')+' · combo '+e.combo
+      +(e.heap!=null ? ' · heap '+e.heap+' MB' : '')+'\n   last event: '+(e.ev ? e.ev+' ('+e.evAgo+' s before)' : 'none');
+  }).join('\n');
+}
+function fluxFrzShow(){
+  try{
+    const el=document.getElementById('goFreeze'); if(!el) return;
+    if(!fluxFrzOn){ el.textContent=''; el.classList.add('hidden'); return; }
+    el.textContent=fluxFrzLines(fluxFrzList()); el.classList.remove('hidden');
+  }catch(e){}
+}
+/* The game events, noted only while the recorder is ON (the functions are wrapped then, never otherwise). */
+(function(){
+  if(!fluxFrzOn) return;
+  const hook=function(fn,label){
+    try{ const f=window[fn]; if(typeof f!=='function') return;
+      window[fn]=function(){ const n=typeof label==='function' ? label.apply(null,arguments) : label; if(n) fluxFrzNote(n); return f.apply(this,arguments); }; }catch(e){}
+  };
+  hook('startLevelUp',function(n){ return 'LEVEL UP countdown to '+n; });
+  hook('finishLevelUp',function(){ return 'LEVEL UP to '+(level+1)+' (backdrop + speed ramp)'; });
+  hook('startFluxMode','FLUX MODE start');
+  hook('fluxModeLook',function(on){ return on===fluxModeLookOn ? '' : (on ? 'FLUX MODE glow on (full-screen filter)' : 'FLUX MODE glow off'); });   // called every frame: noted only when it changes
+  hook('spawnGrowingOrb','growing orb spawned');
+  hook('burstGrowing','LIGHTNING burst');
+  hook('spawnBonusOrb','bonus orb spawned');
+  hook('popBonus','bonus orb caught');
+  hook('applySpeedStep','SPEED UP step');
+  hook('registerMiss','ball lost');
+  hook('offerRevive','revive offered');
+  const end=window.endGame;
+  if(typeof end==='function') window.endGame=function(){ const r=end.apply(this,arguments); fluxFrzShow(); return r; };
+})();
+
 </script>
 <!-- D-38 (RC2.8.4): IN-APP BROWSER BANNER. A link tapped inside TikTok,
      Instagram, Facebook, Messenger, Snapchat or LINE opens in that app's own
