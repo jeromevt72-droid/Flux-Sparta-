@@ -68,12 +68,13 @@ async function suite(gameHtml, quiet) {
     a.setNow(1400); a.run('startFluxMode()');
     a.frame(1416); a.frame(2836);   // 1,420 ms gap
     const e = a.log()[0] || {};
-    ck('R3 a 1,420 ms gap during a run is written down: gap, time in run, level, score, difficulty',
-      a.log().length === 1 && e.gap === 1420 && typeof e.t === 'number' && e.level === 8 && e.score >= 248000 && e.diff === 'hard', JSON.stringify(e));
+    ck('R3 a 1,420 ms gap during a run is written down: gap, time in run (real time since the run started), level, score, difficulty',
+      a.log().length === 1 && e.gap === 1420 && e.t === 0 && e.level === 8 && e.score >= 248000 && e.diff === 'hard', JSON.stringify(e));
     ck('R3 ...with orbs, particles, texts, FLUX MODE, backdrop, Lite, combo and heap (null when the browser does not tell it)',
       Number.isInteger(e.orbs) && Number.isInteger(e.parts) && Number.isInteger(e.texts) && e.flux === 1 && e.bg === 'none' && (e.lite === 0 || e.lite === 1) && e.combo >= 1 && 'heap' in e, JSON.stringify(e));
     ck('R3 ...and the last game event before it ("FLUX MODE start", 0 s before)', /FLUX MODE/.test(e.ev) && typeof e.evAgo === 'number', e.ev + ' ' + e.evAgo);
     a.setNow(3000); a.run('startLevelUp(9)'); a.frame(3016); a.frame(4800);
+    ck('R3 ...time in run counts from the start of the run (run began at 0.98 s, the gap at 3.02 s: 2 s)', (a.log()[1] || {}).t === 2, String((a.log()[1] || {}).t));
     ck('R3 a level-up countdown is named as the last event ("LEVEL UP countdown to 9")', (a.log()[1] || {}).ev === 'LEVEL UP countdown to 9', (a.log()[1] || {}).ev);
     /* R4 */
     if (!quiet) console.log('== R4 not counted: menu, paused, hide / return ==');

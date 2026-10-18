@@ -5457,7 +5457,7 @@ function fluxStatsFlush(){
    return of the app, or while paused, is not counted.
    ================================================================== */
 const FLUX_FRZ_KEY='fluxFreezeOn', FLUX_FRZ_LOG='fluxFreezeLog', FLUX_FRZ_MS=300, FLUX_FRZ_MAX=20;
-var fluxFrzVisAt=-1e9, fluxFrzEv='', fluxFrzEvAt=0;
+var fluxFrzVisAt=-1e9, fluxFrzEv='', fluxFrzEvAt=0, fluxFrzRunAt=0;   // fluxFrzRunAt: when this run started (real time, pauses included)
 (function(){
   try{
     const m=/[?&]freezelog=([01])\b/.exec(location.search||'');
@@ -5473,7 +5473,7 @@ function fluxFrzFrame(gap,ts){
   if(fluxFrzVisAt>=ts-gap) return;   // the app was hidden / shown during this gap
   try{
     let heap=null; try{ if(performance.memory && performance.memory.usedJSHeapSize) heap=Math.round(performance.memory.usedJSHeapSize/104857.6)/10; }catch(e){}
-    const e={ at:Date.now(), gap:Math.round(gap), t:Math.round(runClock), level:level, pending:pendingLevel||0, score:Math.round(score),
+    const e={ at:Date.now(), gap:Math.round(gap), t:Math.max(0,Math.round((ts-gap-fluxFrzRunAt)/1000)), level:level, pending:pendingLevel||0, score:Math.round(score),
       orbs:targets.length, parts:particles.length, texts:texts.length, flux:fluxMode>0?1:0, bg:skinBackdropOn()?activeBackground:'none', lite:window.__fluxLite?1:0,
       combo:combo, heap:heap, ev:fluxFrzEv, evAgo:fluxFrzEv ? Math.round((ts-gap-fluxFrzEvAt)/100)/10 : null, diff:difficulty };
     const a=fluxFrzList(); a.push(e); while(a.length>FLUX_FRZ_MAX) a.shift();
@@ -5517,6 +5517,8 @@ function fluxFrzShow(){
   hook('applySpeedStep','SPEED UP step');
   hook('registerMiss','ball lost');
   hook('offerRevive','revive offered');
+  const ng=window.newGame;
+  if(typeof ng==='function') window.newGame=function(){ fluxFrzRunAt=performance.now(); fluxFrzEv=''; return ng.apply(this,arguments); };   // the run's own clock (the game's run clock skips countdowns)
   const end=window.endGame;
   if(typeof end==='function') window.endGame=function(){ const r=end.apply(this,arguments); fluxFrzShow(); return r; };
 })();
