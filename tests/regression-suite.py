@@ -127,7 +127,7 @@ ck('D-16 prompt is FLUX ID', "input.placeholder = 'ENTER FLUX ID'" in p)
 ck('D-16 Gateway demo renamed', 'placeholder="FLUX ID"' in _demo)
 ck('D-16 no visible CALLSIGN left', 'placeholder="CALLSIGN"' not in p+_demo and 'ENTER A CALLSIGN' not in p)
 ck('D-16 element id UNCHANGED', '<input id="callsign"' in p)
-ck('D-16 JS variable UNCHANGED', "callsign=localStorage.fluxCallsign" in p)
+ck('D-16 JS variable UNCHANGED', "callsign=fluxStartRead('fluxCallsign'" in p)   # AUDIT: read through the storage guard; the variable is unchanged
 ck('D-16 storage key UNCHANGED', 'localStorage.fluxCallsign' in p)
 ck('D-16 API field UNCHANGED (name:)', 'name:item.name' in p)
 ck('D-16 no fluxId field invented', 'fluxId' not in p)

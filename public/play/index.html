@@ -594,8 +594,27 @@ let reduceMotion=false;
 (function(){ try{ if(!window.matchMedia) return; const mq=window.matchMedia('(prefers-reduced-motion: reduce)'); if(!mq) return;
   const read=function(){ reduceMotion=!!mq.matches; }; read();
   if(typeof mq.addListener==='function') mq.addListener(read); else mq.onchange=read; }catch(e){} })();
-let difficulty=localStorage.fluxDifficulty||'medium', callsign=localStorage.fluxCallsign||'', country=localStorage.fluxCountry||'US';
-let profileComplete=localStorage.fluxProfileComplete==='1';
+/* AUDIT: STORAGE BLOCKED. Some browsers (cookies/site data blocked, some in-app browsers) throw on
+   every use of localStorage. The game then starts with the defaults, keeps this visit's progress in
+   memory only (nothing is saved), and the small note at the bottom of the menu says so. A storage
+   that reads but cannot write keeps what it has: it is copied into memory first. */
+var fluxStorageBlocked=(function(){
+  try{ const st=window.localStorage, k='fluxStorageProbe'; st.getItem(k); st.setItem(k,'1'); st.removeItem(k); return false; }catch(e){}
+  try{
+    const m=Object.create(null);
+    try{ const st=window.localStorage; for(let i=0;i<st.length;i++){ const k=st.key(i); if(k!=null) m[k]=st.getItem(k); } }catch(e){}
+    const api={ getItem:function(k){ return (k in m) ? m[k] : null; }, setItem:function(k,v){ m[k]=String(v); }, removeItem:function(k){ delete m[k]; },
+      clear:function(){ for(const k in m) delete m[k]; }, key:function(i){ return Object.keys(m)[i]||null; } };
+    const mem=new Proxy(api,{ get:function(t,k){ return k==='length' ? Object.keys(m).length : ((k in t) ? t[k] : m[k]); },
+      set:function(t,k,v){ m[k]=String(v); return true; }, deleteProperty:function(t,k){ delete m[k]; return true; },
+      has:function(t,k){ return (k in m) || (k in t); } });
+    Object.defineProperty(window,'localStorage',{ value:mem, configurable:true });
+  }catch(e){}
+  return true;
+})();
+function fluxStartRead(k,d){ try{ const v=localStorage.getItem(k); return v==null || v==='' ? d : v; }catch(e){ return d; } }
+let difficulty=fluxStartRead('fluxDifficulty','medium'), callsign=fluxStartRead('fluxCallsign',''), country=fluxStartRead('fluxCountry','US');
+let profileComplete=fluxStartRead('fluxProfileComplete','')==='1';
 /* PILOT NAMES (child privacy). A new pilot starts with a preset name built from
    these friendly word lists, e.g. "SWIFT COMET 42", so a child can play without
    giving any personal information. In EDIT a pilot may type a name, but only one
@@ -2904,7 +2923,10 @@ function fluxNetOk(){
 function fluxNetNote(){
   try{
     const el=document.getElementById('fluxNetNote'); if(!el) return;
-    const show=(fluxNetHeld() || fluxNetDown) && !(typeof playing!=='undefined' && (playing || runActive));
+    const blocked=typeof fluxStorageBlocked!=='undefined' && fluxStorageBlocked;   // AUDIT: storage blocked -> say so (same small note, never during a run)
+    const text=blocked ? 'STORAGE IS BLOCKED — PROGRESS WON\u2019T BE SAVED' : 'OFFLINE — SCORES WILL UPLOAD LATER';
+    if(el.textContent!==text) el.textContent=text;
+    const show=(blocked || fluxNetHeld() || fluxNetDown) && !(typeof playing!=='undefined' && (playing || runActive));
     el.className=show ? 'show' : '';
   }catch(e){}
 }
@@ -2986,26 +3008,35 @@ function enqueueSubmission(item){
 function dequeueSubmission(id){
   saveQueue(loadQueue().filter(function(x){return x.id!==id;}));
 }
+/* AUDIT: an upload that hangs (a stalled mobile network) is cut after 15 s and retried later; a
+   200 reply only counts when it is OUR answer -- JSON with ok === true. Anything else (a captive
+   Wi-Fi page, a proxy's HTML, a cut-off body) keeps the run queued and is not marked uploaded. */
 async function postSubmission(item){
-  let res;
+  const ctl=(typeof AbortController!=='undefined') ? new AbortController() : null;
+  let res, timer=0;
   try{
-    res=await fetch('/api/submit-score',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        playerId:item.playerId, name:item.name, score:item.score,
-        level:item.level, difficulty:item.difficulty, country:item.country,
-        stats:item.stats,
-        runId:item.runId,
-        season:item.season
-      })
-    });
-  }catch(e){ fluxNetDown=true; return { kind:'temporary', waitMs:0 }; }
-  if(res.ok){
-    let body=null; try{ body=await res.json(); }catch(e){}
-    fluxNetOk();
-    return { kind:'ok', body:body };
-  }
+    if(ctl) timer=setTimeout(function(){ try{ ctl.abort(); }catch(e){} }, 15000);   // AUDIT: SUBMIT TIMEOUT (15 s)
+    try{
+      res=await fetch('/api/submit-score',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({
+          playerId:item.playerId, name:item.name, score:item.score,
+          level:item.level, difficulty:item.difficulty, country:item.country,
+          stats:item.stats,
+          runId:item.runId,
+          season:item.season
+        }),
+        signal:ctl ? ctl.signal : undefined
+      });
+    }catch(e){ fluxNetDown=true; return { kind:'temporary', waitMs:0 }; }   // offline, or cut after 15 s: kept, retried
+    if(res.ok){
+      let body=null; try{ body=await res.json(); }catch(e){}   // a body cut by the timeout lands here too
+      if(!body || body.ok!==true){ fluxNetDown=true; return { kind:'temporary', waitMs:0 }; }   // not our answer: kept queued, never marked uploaded
+      fluxNetOk();
+      return { kind:'ok', body:body };
+    }
+  }finally{ if(timer){ try{ clearTimeout(timer); }catch(e){} } }
   if(res.status===409) return { kind:'stale' };   // SEASON 1: refused as from an older season -- dropped quietly
   if(await fluxEdgeKind(res)==='limit'){ fluxNetDown=true; return { kind:'temporary', waitMs:fluxNetPause() }; }   // FREE PLAN: Cloudflare's daily limit -- wait for the reset
   if(res.status===403 && String((res.headers && res.headers.get && res.headers.get('Content-Type')) || '').indexOf('json')<0){ fluxNetDown=true; return { kind:'temporary', waitMs:0 }; }   // Cloudflare's own block page is never our refusal: keep the run
