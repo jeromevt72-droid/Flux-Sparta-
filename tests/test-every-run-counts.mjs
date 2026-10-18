@@ -529,7 +529,7 @@ async function suite({ mod, main, game = GAME_HTML, adminHtml = ADMIN_HTML, quie
       const mainGame = execFileSync('git', ['show', 'origin/main:public/play/index.html'], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
       const cnt = (h, re) => (h.match(re) || []).length;
       ck('E7 no new button, fetch, timer or per-frame work in the game (counts equal main\'s)',
-        cnt(game, /<button\b/g) === cnt(mainGame, /<button\b/g) && cnt(game, /\bfetch\(/g) === cnt(mainGame, /\bfetch\(/g) && cnt(game, /setInterval\(|setTimeout\(|requestAnimationFrame\(/g) === cnt(mainGame, /setInterval\(|setTimeout\(|requestAnimationFrame\(/g),
+        cnt(game, /<button\b/g) === cnt(mainGame, /<button\b/g) && cnt(game, /\bfetch\(/g) === cnt(mainGame, /\bfetch\(/g) && cnt(game.replace(/^.*AUDIT: SUBMIT TIMEOUT.*$/m, ''), /setInterval\(|setTimeout\(|requestAnimationFrame\(/g) === cnt(mainGame.replace(/^.*AUDIT: SUBMIT TIMEOUT.*$/m, ''), /setInterval\(|setTimeout\(|requestAnimationFrame\(/g),   // (the upload's own 15 s timeout is not Every Run Counts work)
         [cnt(game, /<button\b/g), cnt(mainGame, /<button\b/g)].join('/'));
       ck('E7 the game learns the switch only from answers it already gets (board, entitlements, run reply)',
         /fluxCgSet\(!!\(o\.data && o\.data\.cg && o\.data\.cg\.on\)\)/.test(game) && /fluxCgSet\(d\.cg === 1\)/.test(game) && /fluxCgSet\(!!\(b && b\.cg && b\.cg\.on\)\)/.test(game));

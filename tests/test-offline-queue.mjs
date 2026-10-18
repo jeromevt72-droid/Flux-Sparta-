@@ -21,7 +21,7 @@ globalThis.fetch=async()=>{ calls++;
   if(netMode==='500') return {ok:false,status:500};
   if(netMode==='429') return {ok:false,status:429};
   if(netMode==='422') return {ok:false,status:422};
-  return {ok:true,status:200}; };
+  return {ok:true,status:200,json:()=>Promise.resolve({ok:true})}; };   // the server's real success reply (AUDIT: a 200 without it is not a success)
 globalThis.bestRun=()=>({score:120000,level:3,difficulty:'medium'});
 const SUBMIT_QUEUE_KEY='fluxPendingSubmits', SUBMIT_MAX_ATTEMPTS=8, SUBMIT_QUEUE_MAX=20;
 globalThis.SUBMIT_QUEUE_KEY=SUBMIT_QUEUE_KEY; globalThis.SUBMIT_MAX_ATTEMPTS=SUBMIT_MAX_ATTEMPTS; globalThis.SUBMIT_QUEUE_MAX=SUBMIT_QUEUE_MAX;
@@ -81,7 +81,7 @@ ck('recorded as rejected', JSON.parse(store.fluxLastSubmitError).reason==='rejec
 console.log('\n-- no hammering: retries are spaced out, the best is kept --');
 store.fluxPendingSubmits=JSON.stringify([{id:'x',playerId:'p1',name:'N',score:1,level:1,difficulty:'medium',season:1,attempts:20}]);   // SEASON 1: a Season 1 item
 const _realST=globalThis.setTimeout; const waits=[];
-globalThis.setTimeout=(fn,ms)=>{ if(ms>=1000){ waits.push(ms); return 0; } return _realST(fn,ms); };
+globalThis.setTimeout=(fn,ms)=>{ if(ms>=1000 && ms!==15000){ waits.push(ms); return 0; } return _realST(fn,ms); };   // (15 s = the upload's own timeout, cleared when it answers)
 netMode='500'; await flushSubmitQueue();
 globalThis.setTimeout=_realST;
 ck('best kept after many temporary failures', loadQueue().length===1, 'len='+loadQueue().length);

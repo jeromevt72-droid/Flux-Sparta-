@@ -39,7 +39,7 @@ globalThis.fetch=async(u,o)=>{calls++; bodies.push(JSON.parse(o.body));
   if(mode==='500') return {ok:false,status:500};
   if(mode==='429') return {ok:false,status:429};
   if(mode==='422') return {ok:false,status:422};
-  return {ok:true,status:200};};
+  return {ok:true,status:200,json:()=>Promise.resolve({ok:true})};};   // the server's real success reply (AUDIT: a 200 without it is not a success)
 
 console.log('-- 1..5 run completes offline, queued, app usable --');
 recordBestRun(184000,4);

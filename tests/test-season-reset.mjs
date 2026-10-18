@@ -226,6 +226,8 @@ async function suite({ gameHtml, workerMod, adminHtml, quiet = false }) {
     const b9 = await O.board();
     ck('S6 a score without season (an old page or queued upload) is refused with 409, and says why', none.status === 409 && none.data && none.data.staleSeason === true && /season/i.test(none.data.error || ''), none.status + ' ' + JSON.stringify(none.data));
     ck('S6 season 0 or a non-number is refused too; nothing reaches the boards', zero.status === 409 && str.status === 409 && b9.top.length === 0);
+    const future = await O.submit(P(9), 2600, 'medium', { season: 2 });   // AUDIT: a "future" season (a forged or broken page)
+    ck('S6 a future season (2) gets the same 409 as an old one; nothing reaches the boards', future.status === 409 && JSON.stringify(future.data) === JSON.stringify(zero.data) && (await O.board()).top.length === 0, future.status + ' ' + JSON.stringify(future.data));
     const ok = await O.submit(P(9), 2600, 'medium', { season: 1 });
     ck('S6 a score with season 1 is accepted', ok.status === 200 && ok.data && ok.data.ok === true && (await O.board()).top.length === 1);
     const cheat = await O.submit(P(10), 45000, 'medium', { season: 1, level: 1 });
@@ -319,7 +321,7 @@ async function suite({ gameHtml, workerMod, adminHtml, quiet = false }) {
     const timers = []; b4.g.win.setTimeout = (fn, ms) => { timers.push(ms); return timers.length; };
     b4.run("difficulty='medium'; recordBestRun(2600, 2);"); await b4.run('submitScore()'); await b4.run('flushSubmitQueue()'); await drain();
     const posts = b4.calls.filter((c) => c.u.includes('submit-score')).length;
-    ck('C2 a 409 refusal drops the item quietly: no error record, no retry loop', posts === 1 && JSON.parse(b4.mem.fluxPendingSubmits || '[]').length === 0 && !('fluxLastSubmitError' in b4.mem) && timers.filter((ms) => ms >= 5000).length === 0, posts + ' posts, ' + (b4.mem.fluxLastSubmitError || 'no error'));
+    ck('C2 a 409 refusal drops the item quietly: no error record, no retry loop', posts === 1 && JSON.parse(b4.mem.fluxPendingSubmits || '[]').length === 0 && !('fluxLastSubmitError' in b4.mem) && timers.filter((ms) => ms >= 5000 && ms !== 15000).length === 0, posts + ' posts, ' + (b4.mem.fluxLastSubmitError || 'no error'));
 
     if (!quiet) console.log('== client: the Season 1 message ==');
     ck('C3 a returning player sees the message once, exactly as written', b.toast() === MSG, b.toast());
@@ -385,7 +387,8 @@ await control('reset deletes pilots who have a best (restore code dead)', 'S8 th
 await control('page clears the Solar Inferno purchase', 'C4 a Solar Inferno owner', { game: rep("if(had) localStorage.setItem('fluxSeasonNotice','1');", "if(had) localStorage.setItem('fluxSeasonNotice','1'); localStorage.removeItem('fluxOwned_solar');") });
 await control('country figures not recomputed', 'S4 country figures', { worker: (s) => rep('await this.state.storage.put({ players: cleared, countries: {}, [SEASON_ARCHIVE_KEY]: meta, season: SEASON });\n    this.players = cleared;\n    this.invalidateTags();\n    await this.recomputeCountries();', 'await this.state.storage.put({ players: cleared, [SEASON_ARCHIVE_KEY]: meta, season: SEASON });\n    this.players = cleared;\n    this.invalidateTags();')(s) });
 await control('marker written before the archive (a failure loses scores)', 'S5 a failed reset', { worker: rep('  async startSeason() {\n', '  async startSeason() {\n    await this.state.storage.put({ season: SEASON });\n') });
-await control('old pages not refused', 'S6 a score without season', { worker: rep('if (!(Number.isFinite(body.season) && body.season >= SEASON)) {', 'if (false) {') });
+await control('a future season accepted (>= instead of ===)', 'S6 a future season', { worker: rep('body.season === SEASON)) {', 'body.season >= SEASON)) {') });
+await control('old pages not refused', 'S6 a score without season', { worker: rep('if (!(Number.isFinite(body.season) && body.season === SEASON)) {', 'if (false) {') });
 await control('archive route without the password', 'S7 the archive route needs', { worker: rep('() => adminDO(request, env, "/admin-season-archive", {}),', '() => forwardToDO(request, env, "/admin-season-archive", { method: "POST" }),') });
 await control('archive rows unsorted', 'S7 it lists every', { worker: rep('rows.sort((a, b) => b.score - a.score || a.updatedAt - b.updatedAt);\n    return json({ ok: true, season: 0', 'return json({ ok: true, season: 0') });
 await control('archive leaks the playerId', 'S7 never a playerId', { worker: rep('rows.push({ difficulty: d, pid, tag,', 'rows.push({ playerId: p.playerId, difficulty: d, pid, tag,') });

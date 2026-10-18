@@ -748,7 +748,9 @@ async function submitScore(body, request, env) {
   // SEASON 1: a page (or a queued upload) from before Season 1 carries no
   // season. Its score is at the old point rates, so it is refused -- 409, which
   // older pages already treat as a permanent refusal and drop from their queue.
-  if (!(Number.isFinite(body.season) && body.season >= SEASON)) {
+  // AUDIT: only THIS season is accepted; a "future" season (a forged or broken
+  // page) gets the same 409 as an old one.
+  if (!(Number.isFinite(body.season) && body.season === SEASON)) {
     return json({ error: "A new season has started. Reload FLUX to play Season " + SEASON + ".", season: SEASON, staleSeason: true }, 409);
   }
   // REPLAY PROTECTION: the run id travels to the leaderboard beside the score
