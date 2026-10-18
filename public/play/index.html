@@ -584,7 +584,7 @@ function fluxLockGlow(x){   // LITE: this canvas draws no glow (also the menu fi
   }catch(e){}
 }
 fluxApplyLite();
-let W,H,dpr,playing=false,paused=false,last=0,score=0,combo=1,level=1,streak=0,best=0,misses=0,revivesUsedThisRun=0,flux=0,fluxMode=0,missFragments=[],comboTimer=0,levelBanner=0,perfectFlash=0,levelHold=0,orbValue=20,bonusTimer=0,growTimer=0;
+let W,H,dpr,playing=false,paused=false,last=0,score=0,combo=1,level=1,streak=0,best=0,misses=0,revivesUsedThisRun=0,flux=0,fluxMode=0,missFragments=[],comboTimer=0,levelBanner=0,perfectFlash=0,orbValue=20,bonusTimer=0,growTimer=0;
 let missNotice=0,missNoticeText=['',''];   // miss notice, shown in the HUD strip (see drawSlotNotice)
 let pendingLevel=0,levelCountdown=0,levelTickAt=0,speedLevel=1;   // D-50: level-up countdown + smooth ramp (launcher width, orb motion)
 let runClock=0,speedStep=0,speedShown=0,speedCountdown=0,speedTickAt=0;   // TIME SPEED: run time, speed step, its ~1 s ramp, SPEED UP countdown
@@ -2556,12 +2556,7 @@ function loop(ts){
  if(fluxMenuCheckOn && !paused) fluxMenuCheckSample(ts-last);   // FIRST RUN SMOOTH: the same check, on the menu (or the first second of a run)
  if(fluxFrzOn && runActive) fluxFrzFrame(ts-last,ts);   // FREEZE RECORDER (owner only; OFF: this one check)
  last=ts;
- if(playing && !paused) update(dt);
- else if(!paused && levelHold>0){
-   levelHold-=dt;
-   levelBanner=Math.max(0,levelBanner-dt);
-   if(levelHold<=0){levelHold=0;playing=true;updateHud();}
- }
+ if(playing && !paused) update(dt);   // D-50: no level-up hold -- the old 0.85 s level-up freeze is gone for good; a level-up never stops the game
  draw();
 }
 requestAnimationFrame(loop);
@@ -2571,7 +2566,7 @@ requestAnimationFrame(loop);
 const FIELD_PAD=24;
 let fieldCopy=null, fieldCopyKey=null;
 function fieldIsStill(){
- if(playing || levelHold>0) return false;   // a run (or the level-up banner) is on screen: drawn live
+ if(playing) return false;   // a run is on screen: drawn live
  if(fluxMenuCheckOn) return false;   // FIRST RUN SMOOTH: drawn live for the menu check (a run's drawing)
  for(const t of targets) if(t.bonus || (t.growing && t.matured)) return false;   // these pulse with the clock
  return true;

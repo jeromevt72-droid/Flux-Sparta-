@@ -7,7 +7,9 @@
 //   R4 not counted: on the menu (no run), while paused, across a hide / return of the app;
 //   R5 the last 20 are kept;
 //   R6 game over lists them (newest first) only while ON;
-//   R7 nothing sent (no fetch / beacon in the recorder), no new button, no new listener or timer.
+//   R7 nothing sent (no fetch / beacon in the recorder), no new button, no new listener or timer;
+//   R8 the old 0.85 s level-up freeze (D-50) cannot come back: no level-up hold left in the game, and
+//      through a real 8 -> 9 level-up the game never stops (playing on every frame, the ball moving).
 // Ends with negative controls: each defect re-inserted MUST be caught.
 import fs from 'fs'; import path from 'path'; import vm from 'vm';
 import { execFileSync } from 'child_process';
@@ -98,6 +100,15 @@ async function suite(gameHtml, quiet) {
     ck('R7 nothing is sent: no fetch, beacon or request in the recorder; no network call during a recorded freeze', block.length > 500 && !/fetch\(|sendBeacon|XMLHttpRequest|WebSocket/.test(block) && !a.calls.some((u) => /freeze/i.test(u)));
     ck('R7 no new button, listener or timer in the game (counts equal main\'s)', !MAIN_HTML || (cnt(gameHtml, /<button\b/g) === cnt(MAIN_HTML, /<button\b/g) && cnt(gameHtml, /addEventListener\(/g) === cnt(MAIN_HTML, /addEventListener\(/g) && cnt(gameHtml, /setInterval\(|setTimeout\(|requestAnimationFrame\(/g) === cnt(MAIN_HTML, /setInterval\(|setTimeout\(|requestAnimationFrame\(/g)));
     ck('R7 OFF costs one check per frame in the loop', /\n if\(fluxFrzOn && runActive\) fluxFrzFrame\(ts-last,ts\);/.test(gameHtml));
+    /* R8 */
+    if (!quiet) console.log('== R8 the old level-up freeze cannot come back ==');
+    ck('R8 no level-up hold left in the game (levelHold gone: declaration, loop branch, still-field check)', !/levelHold/.test(gameHtml));
+    const lv = B({}); startRun(lv);
+    lv.run('level=8; pendingLevel=0; fluxCountdown=0; speedCountdown=0; missNotice=0; startLevelUp(9);');
+    let stopped = 0, still = 0, t2 = 1016, px = lv.run('ball.x'), py = lv.run('ball.y');
+    for (let i = 0; i < 400; i++) { if (lv.run('level') === 9 && i > 0 && lv.run('!pendingLevel')) { if (i > 330) break; } t2 += 16; lv.run('misses=0;'); lv.frame(t2); if (!lv.run('playing')) stopped++; const x = lv.run('ball.x'), y = lv.run('ball.y'); if (x === px && y === py) still++; px = x; py = y; }
+    ck('R8 through a real 8 -> 9 level-up (countdown, LEVEL 9, backdrop, speed ramp) the game never stops: playing on every frame, the ball moves on every frame',
+      lv.run('level') === 9 && stopped === 0 && still === 0, 'level ' + lv.run('level') + ' · frames stopped ' + stopped + ' · ball still ' + still);
   } catch (e) { ck('suite ran without an exception', false, String(e && e.stack || e).split('\n').slice(0, 3).join(' | ')); }
   return { F, failed };
 }
@@ -123,6 +134,8 @@ await control('recorded on the menu too', 'R4', rep(' if(fluxFrzOn && runActive)
 await control('the list never trimmed', 'R5', rep('while(a.length>FLUX_FRZ_MAX) a.shift();', ''));
 await control('nothing shown at game over', 'R6', rep("  if(typeof end==='function') window.endGame=function(){ const r=end.apply(this,arguments); fluxFrzShow(); return r; };", ''));
 await control('the list sent to the server', 'R7', rep("    localStorage.setItem(FLUX_FRZ_LOG,JSON.stringify(a));\n", "    localStorage.setItem(FLUX_FRZ_LOG,JSON.stringify(a)); try{ fetch('/api/events',{ method:'POST', body:JSON.stringify({ freeze:e }) }); }catch(z){}\n"));
+await control('the old level-up hold back (0.85 s, D-50)', 'R8', (h) => rep('perfectFlash=0,orbValue=20', 'perfectFlash=0,levelHold=0,orbValue=20')(rep(' if(playing && !paused) update(dt);', ' if(playing && !paused) update(dt);\n else if(!paused && levelHold>0){ levelHold-=dt; if(levelHold<=0){ levelHold=0; playing=true; } }')(rep(' applyCelestialBackground(level);\n popup(W/2,155,', ' applyCelestialBackground(level); levelHold=.85; playing=false;\n popup(W/2,155,')(h))));
+await control('a level-up that stops the game another way', 'R8', rep(' applyCelestialBackground(level);\n popup(W/2,155,', " applyCelestialBackground(level); playing=false; setTimeout(function(){ playing=true; },850);\n popup(W/2,155,"));
 const total = res.F + NC;
 console.log('\n' + (total ? 'FREEZE RECORDER FAILED: ' + res.F + ' check(s), ' + NC + ' uncaught control(s)' : 'FREEZE RECORDER PASSED: all checks and all negative controls'));
 process.exit(total ? 1 : 0);

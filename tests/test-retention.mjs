@@ -218,7 +218,7 @@ async function suite({ gameHtml, adminHtml, workerMod, quiet = false }) {
     doc.getElementById('startBtn').onclick(); x.run('speedStep=3; level=4; score=9000; pendingLevel=0; fluxCountdown=0;'); gameOver(x);
     let ts = 1000; x.run('last=' + ts + ';');
     doc.getElementById('againBtn').onclick();
-    const s0 = JSON.parse(x.run('JSON.stringify({x:ball.x,y:ball.y,level,speedStep,score,playing,paused,pendingLevel,levelHold,levelBanner,speedCountdown,fluxCountdown,missNotice})'));
+    const s0 = JSON.parse(x.run('JSON.stringify({x:ball.x,y:ball.y,level,speedStep,score,playing,paused,pendingLevel,levelHold:typeof levelHold!=="undefined"?levelHold:0,levelBanner,speedCountdown,fluxCountdown,missNotice})'));
     let frames = 0; const bx = s0.x, by = s0.y;
     for (; frames < 120; frames++) { ts += 1000 / 60; x.g.ctx.loop(ts); if (x.run('ball.x') !== bx || x.run('ball.y') !== by) { frames++; break; } }
     ck('R1 RUN IT BACK: the ball moves on the first frame after the tap (' + frames + ' frame = ' + Math.round(frames * 1000 / 60) + ' ms < 1 s), at level 1, speed step 0, no countdown, banner or hold',
