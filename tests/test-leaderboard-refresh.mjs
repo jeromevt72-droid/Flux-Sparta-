@@ -41,7 +41,7 @@ const GAMEPLAY_TRACE = 'a10f5daa3edb0f02a0c4e0a5';
 const GAMEPLAY_NAMES = ['DIFFICULTY', 'LEVEL_SCORE_THRESHOLDS', 'LEVEL_SCORE_MULT', 'DIFF_WEIGHT', 'SPEED_CURVE', 'SKINS', 'ORB_GAP', 'ORB_OUTLINE', 'RUN_SCORE_CAP',
   'levelScoreAt', 'levelForScore', 'fieldCapAt', 'setPaddle', 'playGameOver', 'haptic', 'newGame', 'addTarget', 'easyPickColour', 'capScore', 'registerMiss',
   'launchSpeed', 'speedAfterLostBall', 'update', 'currentPalette', 'weighted'];
-const GAMEPLAY_SRC = '3d59cb43f989626e893564d1';   // BATTERY PR B (owner-requested): update() drops spent particles/texts in place and reuses the oldest trail point; the seeded frame trace below is unchanged
+const GAMEPLAY_SRC = '5a9d4878b5e28ac812309754';   // SMOOTH CHAINS (owner-requested): newGame() also clears particles/popups still waiting from the last run (fxReset); before that, BATTERY PR B: update() drops spent particles/texts in place and reuses the oldest trail point; the seeded frame trace below is unchanged
 
 /* ---------------- fake Durable Object runtime (test-season-reset pattern) ---------------- */
 class FakeStorage {

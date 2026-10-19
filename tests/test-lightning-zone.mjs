@@ -126,7 +126,7 @@ function suite(html, quiet = false) {
       const M = scriptsOf(MAIN_HTML).join('\n');
       const pick = (src, re) => (re.exec(src) || [''])[0];
       const same = (re) => pick(A, re) !== '' && pick(A, re) === pick(M, re);
-      ck('Z6 the launcher position, orb colours and the flash effect are exactly as on main', same(/paddle\.y=Math\.min\([^;]*\);/) && same(/const SKINS=\{[\s\S]*?\n\};/) && same(/function flash\([^]*?\n\}/) && same(/function burst\([^]*?\n\}/), '');
+      ck('Z6 the launcher position, orb colours and the flash effect are exactly as on main', same(/paddle\.y=Math\.min\([^;]*\);/) && same(/const SKINS=\{[\s\S]*?\n\};/) && same(/function flash\([^]*?\n\}/) && pick(A, /function burst\([^]*?\n\}/).replace(/fxParticle\(/g, 'particles.push(') === pick(M, /function burst\([^]*?\n\}/), '');   // SMOOTH CHAINS: burst() hands each particle to the per-frame budget (fxParticle) -- otherwise the same
       const pos = DEVICES.map((dev) => { const a = bootGame(html, 'hard', dev), m = bootGame(MAIN_HTML, 'hard', dev); return a.run('paddle.y') === m.run('paddle.y'); });
       ck('Z6 ...and the launcher sits at the same height as on main on iPhone, iPad and iPad mini', pos.every(Boolean), pos.join(','));
       const regular = DEVICES.map((dev) => { const a = bootGame(html, 'medium', dev, 9), m = bootGame(MAIN_HTML, 'medium', dev, 9); const f = 'JSON.stringify(Array.from({length:40},function(){ return safeSpawnPoint(20).map(Math.round); }))'; return a.run(f) === m.run(f); });
