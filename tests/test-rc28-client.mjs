@@ -28,7 +28,7 @@ async function offerUpdate(setup){
 console.log('== D-23: waiting updates never interrupt a run ==');
 for (const [label, setup] of [
   ['paused run',            g=>{ g.ctx.newGame(); g.ctx.setPaused(true); }],
-  ['level transition hold', g=>{ g.ctx.newGame(); run(g,'playing=false; paused=false; levelHold=.85;'); }],
+  ['moment with playing off mid-run', g=>{ g.ctx.newGame(); run(g,'playing=false; paused=false;'); }],   // (was the level transition hold; D-50 removed levelHold)
   ['revive screen',         g=>{ g.ctx.newGame(); run(g,'paused=true;'); }],
   ['active play',           g=>{ g.ctx.newGame(); }],
 ]) {
