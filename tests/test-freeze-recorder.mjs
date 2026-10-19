@@ -2,7 +2,7 @@
 //   R1 OFF by default: no game function is wrapped, a long frame writes nothing, nothing shows at game over;
 //   R2 /play/?freezelog=1 turns it on (kept on the device); ?freezelog=0 turns it off and forgets the list;
 //   R3 ON: a frame gap over 300 ms during a run is written down with time in run, level, score, orbs,
-//      particles, texts, FLUX MODE, backdrop, Lite, combo, heap (when the browser tells it) and the last
+//      particles, popups, sounds started in that frame, FLUX MODE, backdrop, Lite, combo, heap (when the browser tells it) and the last
 //      game event before it (e.g. "FLUX MODE start", "LEVEL UP to 9"); 300 ms or less is not;
 //   R4 not counted: on the menu (no run), while paused, across a hide / return of the app;
 //   R5 the last 20 are kept;
@@ -72,12 +72,13 @@ async function suite(gameHtml, quiet) {
     const e = a.log()[0] || {};
     ck('R3 a 1,420 ms gap during a run is written down: gap, time in run (real time since the run started), level, score, difficulty',
       a.log().length === 1 && e.gap === 1420 && e.t === 0 && e.level === 8 && e.score >= 248000 && e.diff === 'hard', JSON.stringify(e));
-    ck('R3 ...with orbs, particles, texts, FLUX MODE, backdrop, Lite, combo and heap (null when the browser does not tell it)',
-      Number.isInteger(e.orbs) && Number.isInteger(e.parts) && Number.isInteger(e.texts) && e.flux === 1 && e.bg === 'none' && (e.lite === 0 || e.lite === 1) && e.combo >= 1 && 'heap' in e, JSON.stringify(e));
+    ck('R3 ...with orbs, particles, popups, sounds started in that frame, FLUX MODE, backdrop, Lite, combo and heap (null when the browser does not tell it)',
+      Number.isInteger(e.orbs) && Number.isInteger(e.parts) && Number.isInteger(e.texts) && Number.isInteger(e.snd) && e.flux === 1 && e.bg === 'none' && (e.lite === 0 || e.lite === 1) && e.combo >= 1 && 'heap' in e, JSON.stringify(e));
     ck('R3 ...and the last game event before it ("FLUX MODE start", 0 s before)', /FLUX MODE/.test(e.ev) && typeof e.evAgo === 'number', e.ev + ' ' + e.evAgo);
-    a.setNow(3000); a.run('startLevelUp(9)'); a.frame(3016); a.frame(4800);
+    a.setNow(3000); a.run('startLevelUp(9)'); a.frame(3016); a.run('tone(400,.1); tone(500,.1); noise(.05,.02,900);'); a.frame(4800);
     ck('R3 ...time in run counts from the start of the run (run began at 0.98 s, the gap at 3.02 s: 2 s)', (a.log()[1] || {}).t === 2, String((a.log()[1] || {}).t));
     ck('R3 a level-up countdown is named as the last event ("LEVEL UP countdown to 9")', (a.log()[1] || {}).ev === 'LEVEL UP countdown to 9', (a.log()[1] || {}).ev);
+    ck('R3 ...the sounds started during the long frame are counted (3), and the count starts again each frame', (a.log()[1] || {}).snd === 3 && (a.log()[0] || {}).snd === 0, [(a.log()[0] || {}).snd, (a.log()[1] || {}).snd].join(','));
     /* R4 */
     if (!quiet) console.log('== R4 not counted: menu, paused, hide / return ==');
     const n0 = a.log().length;
@@ -91,7 +92,7 @@ async function suite(gameHtml, quiet) {
     /* R6 */
     a.g.ctx.endGame();
     const txt = String(a.g.els.goFreeze.textContent);
-    ck('R6 ON: game over lists them, newest first, with what the game was doing', !a.g.els.goFreeze._cls.has('hidden') && /^FREEZE RECORDER ON · last 20 \(newest first\)/.test(txt) && /\n1\. \d\d\/\d\d \d\d:\d\d  500 ms at /.test(txt) && /orbs \d+ · particles \d+ · texts \d+ · FLUX MODE (on|off) · backdrop none/.test(txt) && /last event: /.test(txt), txt.slice(0, 220));
+    ck('R6 ON: game over lists them, newest first, with what the game was doing', !a.g.els.goFreeze._cls.has('hidden') && /^FREEZE RECORDER ON · last 20 \(newest first\)/.test(txt) && /\n1\. \d\d\/\d\d \d\d:\d\d  500 ms at \d+\.\d min into the run/.test(txt) && /orbs \d+ · particles \d+ · popups \d+ · sounds that frame \d+ · FLUX MODE (on|off) · backdrop none/.test(txt) && /last event: /.test(txt), txt.slice(0, 220));
     const empty = B({ fluxFreezeOn: '1' }); startRun(empty); empty.g.ctx.endGame();
     ck('R6 ON with nothing recorded: says so, and how to turn it off', /no frame over 300 ms recorded yet/.test(String(empty.g.els.goFreeze.textContent)) && /freezelog=0/.test(String(empty.g.els.goFreeze.textContent)));
     /* R7 */
@@ -131,6 +132,7 @@ await control('the threshold at 150 ms', 'R3', rep("FLUX_FRZ_MS=300", 'FLUX_FRZ_
 await control('no last event', 'R3', rep("function fluxFrzNote(name){ fluxFrzEv=name; fluxFrzEvAt=performance.now(); }", 'function fluxFrzNote(name){}'));
 await control('a gap across a hide / return counted', 'R4', rep("  if(fluxFrzVisAt>=ts-gap) return;   // the app was hidden / shown during this gap\n", ''));
 await control('recorded on the menu too', 'R4', rep(' if(fluxFrzOn && runActive) fluxFrzFrame(ts-last,ts);', ' if(fluxFrzOn) fluxFrzFrame(ts-last,ts);'));
+await control('sounds per frame never counted', 'R3', rep("for(const fn of ['tone','noise']){ const f=window[fn]; if(typeof f==='function') window[fn]=function(){ fluxFrzSnd++; return f.apply(this,arguments); }; }", ''));
 await control('the list never trimmed', 'R5', rep('while(a.length>FLUX_FRZ_MAX) a.shift();', ''));
 await control('nothing shown at game over', 'R6', rep("  if(typeof end==='function') window.endGame=function(){ const r=end.apply(this,arguments); fluxFrzShow(); return r; };", ''));
 await control('the list sent to the server', 'R7', rep("    localStorage.setItem(FLUX_FRZ_LOG,JSON.stringify(a));\n", "    localStorage.setItem(FLUX_FRZ_LOG,JSON.stringify(a)); try{ fetch('/api/events',{ method:'POST', body:JSON.stringify({ freeze:e }) }); }catch(z){}\n"));

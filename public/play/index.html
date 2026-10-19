@@ -5452,7 +5452,7 @@ function fluxStatsFlush(){
    return of the app, or while paused, is not counted.
    ================================================================== */
 const FLUX_FRZ_KEY='fluxFreezeOn', FLUX_FRZ_LOG='fluxFreezeLog', FLUX_FRZ_MS=300, FLUX_FRZ_MAX=20;
-var fluxFrzVisAt=-1e9, fluxFrzEv='', fluxFrzEvAt=0, fluxFrzRunAt=0;   // fluxFrzRunAt: when this run started (real time, pauses included)
+var fluxFrzVisAt=-1e9, fluxFrzEv='', fluxFrzEvAt=0, fluxFrzRunAt=0, fluxFrzSnd=0;   // fluxFrzSnd: sounds started since the last frame (counted only while ON)   // fluxFrzRunAt: when this run started (real time, pauses included)
 (function(){
   try{
     const m=/[?&]freezelog=([01])\b/.exec(location.search||'');
@@ -5464,12 +5464,13 @@ var fluxFrzVisAt=-1e9, fluxFrzEv='', fluxFrzEvAt=0, fluxFrzRunAt=0;   // fluxFrz
 function fluxFrzList(){ try{ const a=JSON.parse(localStorage.getItem(FLUX_FRZ_LOG)||'[]'); return Array.isArray(a) ? a : []; }catch(e){ return []; } }
 function fluxFrzNote(name){ fluxFrzEv=name; fluxFrzEvAt=performance.now(); }
 function fluxFrzFrame(gap,ts){
+  const snd=fluxFrzSnd; fluxFrzSnd=0;   // the sounds started during the frame that just ended (the long one, when there is a gap)
   if(!(gap>FLUX_FRZ_MS) || paused || document.hidden) return;
   if(fluxFrzVisAt>=ts-gap) return;   // the app was hidden / shown during this gap
   try{
     let heap=null; try{ if(performance.memory && performance.memory.usedJSHeapSize) heap=Math.round(performance.memory.usedJSHeapSize/104857.6)/10; }catch(e){}
     const e={ at:Date.now(), gap:Math.round(gap), t:Math.max(0,Math.round((ts-gap-fluxFrzRunAt)/1000)), level:level, pending:pendingLevel||0, score:Math.round(score),
-      orbs:targets.length, parts:particles.length, texts:texts.length, flux:fluxMode>0?1:0, bg:skinBackdropOn()?activeBackground:'none', lite:window.__fluxLite?1:0,
+      orbs:targets.length, parts:particles.length, texts:texts.length, snd:snd, flux:fluxMode>0?1:0, bg:skinBackdropOn()?activeBackground:'none', lite:window.__fluxLite?1:0,
       combo:combo, heap:heap, ev:fluxFrzEv, evAgo:fluxFrzEv ? Math.round((ts-gap-fluxFrzEvAt)/100)/10 : null, diff:difficulty };
     const a=fluxFrzList(); a.push(e); while(a.length>FLUX_FRZ_MAX) a.shift();
     localStorage.setItem(FLUX_FRZ_LOG,JSON.stringify(a));
@@ -5480,10 +5481,10 @@ function fluxFrzLines(list){
   const two=(n)=>(n<10?'0':'')+n;
   if(!list.length) return 'FREEZE RECORDER ON · no frame over 300 ms recorded yet.\n(Turn off: open /play/?freezelog=0)';
   return 'FREEZE RECORDER ON · last '+list.length+' (newest first)\n'+list.slice().reverse().map(function(e,i){
-    const d=new Date(e.at), mm=Math.floor((e.t||0)/60), ss=(e.t||0)%60;
-    return (i+1)+'. '+two(d.getMonth()+1)+'/'+two(d.getDate())+' '+two(d.getHours())+':'+two(d.getMinutes())+'  '+Number(e.gap).toLocaleString()+' ms at '+mm+':'+two(ss)+' in run'
+    const d=new Date(e.at);
+    return (i+1)+'. '+two(d.getMonth()+1)+'/'+two(d.getDate())+' '+two(d.getHours())+':'+two(d.getMinutes())+'  '+Number(e.gap).toLocaleString()+' ms at '+(Math.round((e.t||0)/6)/10).toFixed(1)+' min into the run'
       +' · L'+e.level+(e.pending ? '→'+e.pending : '')+' · '+Number(e.score).toLocaleString()+' pts · '+String(e.diff||'')
-      +'\n   orbs '+e.orbs+' · particles '+e.parts+' · texts '+e.texts+' · FLUX MODE '+(e.flux?'on':'off')+' · backdrop '+e.bg+(e.lite?' · Lite':'')+' · combo '+e.combo
+      +'\n   orbs '+e.orbs+' · particles '+e.parts+' · popups '+e.texts+' · sounds that frame '+(e.snd==null?'?':e.snd)+' · FLUX MODE '+(e.flux?'on':'off')+' · backdrop '+e.bg+(e.lite?' · Lite':'')+' · combo '+e.combo
       +(e.heap!=null ? ' · heap '+e.heap+' MB' : '')+'\n   last event: '+(e.ev ? e.ev+' ('+e.evAgo+' s before)' : 'none');
   }).join('\n');
 }
@@ -5512,6 +5513,8 @@ function fluxFrzShow(){
   hook('applySpeedStep','SPEED UP step');
   hook('registerMiss','ball lost');
   hook('offerRevive','revive offered');
+  hook('fuse',function(){ return 'orb fused (chain x'+combo+')'; });
+  for(const fn of ['tone','noise']){ const f=window[fn]; if(typeof f==='function') window[fn]=function(){ fluxFrzSnd++; return f.apply(this,arguments); }; }   // sounds started per frame
   const ng=window.newGame;
   if(typeof ng==='function') window.newGame=function(){ fluxFrzRunAt=performance.now(); fluxFrzEv=''; return ng.apply(this,arguments); };   // the run's own clock (the game's run clock skips countdowns)
   const end=window.endGame;
