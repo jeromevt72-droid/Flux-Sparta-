@@ -31,6 +31,9 @@ const rd = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 const scriptsOf = (h) => [...h.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
 const PLACEHOLDER = 'PLAY_APP_SIGNING_SHA256_FROM_PLAY_CONSOLE';
 const FP = /^([0-9A-F]{2}:){31}[0-9A-F]{2}$/;
+// Play Console > App signing (Play App Signing): the app signing key in use, then the previous app signing key.
+const PLAY_APP_SIGNING_SHA256 = ['49:DA:0B:4D:7A:82:C7:BE:1F:76:1E:3E:61:F8:30:AC:1A:DA:19:51:13:8A:FC:7D:87:93:2C:42:46:97:0C:AB',
+  '5F:7E:B7:01:7F:69:1E:8B:19:E0:2C:75:E1:7C:77:99:B1:A5:5A:27:D5:FC:C2:24:DF:9B:B2:1A:E1:BE:19:F0'];
 
 function pngSize(file) {
   try { const b = fs.readFileSync(file); if (b.toString('latin1', 1, 4) !== 'PNG') return null; return [b.readUInt32BE(16), b.readUInt32BE(20)]; }
@@ -80,6 +83,8 @@ function staticSuite(I, quiet = false) {
       && JSON.stringify(x.relation) === '["delegate_permission/common.handle_all_urls"]');
     const fps = live.flatMap((x) => (x && x.target && x.target.sha256_cert_fingerprints) || []);
     ck('T3 assetlinks.json lists only the TWA relation for the same package', ok, live.map((x) => x && x.target && x.target.package_name).join(','));
+    ck('T3 the deployed fingerprints are exactly the two Play App Signing keys from Play Console, in order (the app signing key in use, then the previous one), never the upload key',
+      JSON.stringify(fps) === JSON.stringify(PLAY_APP_SIGNING_SHA256), fps.join(','));
     ck('T3 every listed entry has real SHA-256 fingerprints (64 hex digits), no placeholder',
       live.every((x) => { const f = (x && x.target && x.target.sha256_cert_fingerprints) || []; return f.length >= 1 && f.every((v) => FP.test(v)); }) && !I.live.includes(PLACEHOLDER), fps.join(','));
   }
@@ -188,8 +193,10 @@ const NEG = [
   ['assetlinks.json not a list', { live: '{}' }, /valid JSON list/],
   ['assetlinks path not run by the Worker', { wrangler: INPUT.wrangler.replace('"/api/*",\n      "/.well-known/assetlinks.json"', '"/api/*"') }, /that one exact path runs the Worker first/],
   ['every path runs the Worker', { wrangler: INPUT.wrangler.replace('"/.well-known/assetlinks.json"', '"/.well-known/assetlinks.json", "/*"') }, /that one exact path runs the Worker first/],
-  ['worker copy not an empty list while the file is empty', { worker: INPUT.worker.replace('const ASSETLINKS_BODY = "[]";', 'const ASSETLINKS_BODY = "[{}]";') }, /both valid JSON empty lists/],
-  ['worker copy not valid JSON', { worker: INPUT.worker.replace('const ASSETLINKS_BODY = "[]";', 'const ASSETLINKS_BODY = "[";') }, /both valid JSON empty lists/],
+  ['worker copy not an empty list while the file is empty', { live: '[ ]', worker: INPUT.worker.replace(/const ASSETLINKS_BODY = ".*?";/, () => 'const ASSETLINKS_BODY = "[{}]";') }, /both valid JSON empty lists/],   // the empty-file branch, kept guarded
+  ['worker copy not valid JSON', { live: '[ ]', worker: INPUT.worker.replace(/const ASSETLINKS_BODY = ".*?";/, () => 'const ASSETLINKS_BODY = "[";') }, /both valid JSON empty lists/],
+  ['an upload-key fingerprint added to the deployed list', { live: INPUT.live.replace('"\n      ]', '",\n        "' + Array(32).fill('C3').join(':') + '"\n      ]') }, /exactly the two Play App Signing keys/],
+  ['the two Play App Signing fingerprints in the wrong order', { live: INPUT.live.replace(PLAY_APP_SIGNING_SHA256[0], 'TMPFP').replace(PLAY_APP_SIGNING_SHA256[1], PLAY_APP_SIGNING_SHA256[0]).replace('TMPFP', PLAY_APP_SIGNING_SHA256[1]) }, /exactly the two Play App Signing keys/],
   ['the file lists the app but the worker copy is still empty', { live: INPUT.template.replace(PLACEHOLDER, Array(32).fill('AB').join(':')) }, /worker\'s copy is exactly the file\'s contents/],
   ['keystore committed', { files: INPUT.files.concat([path.join(ROOT, 'android', 'flux-upload.keystore')]) }, /no signing key/],
   ['gitignore missing keystore rule', { gitignore: INPUT.gitignore.replace('*.keystore', '') }, /android\/\.gitignore blocks/],
@@ -212,20 +219,21 @@ for (const [name, patch, expect] of NEG) {
 }
 {
   // positive: the finished file (real fingerprint, same package) with the worker's copy updated to match passes T3 and T7
-  const done = INPUT.template.replace(PLACEHOLDER, Array(32).fill('AB').join(':'));
-  const wk = INPUT.worker.replace('const ASSETLINKS_BODY = "[]";', 'const ASSETLINKS_BODY = ' + JSON.stringify(done) + ';');
+  const done = INPUT.template.replace('"' + PLACEHOLDER + '"', PLAY_APP_SIGNING_SHA256.map((f) => '"' + f + '"').join(',\n        '));   // the template filled with the two Play App Signing fingerprints
+  const wk = INPUT.worker.replace(/const ASSETLINKS_BODY = ".*?";/, () => 'const ASSETLINKS_BODY = ' + JSON.stringify(done) + ';');   // whatever the copy holds now (empty, or the real fingerprints)
+  if (!/const ASSETLINKS_BODY = ".*?";/.test(INPUT.worker)) { console.log('  FAIL  positive control could not find ASSETLINKS_BODY in worker.js'); F++; }
   const r = staticSuite(Object.assign({}, INPUT, { live: done, worker: wk }), true), r2 = await workerSuite(wk, done, true);
   const ok = !r.failed.some((l) => /^T3|^T7/.test(l)) && r2.F === 0;
   console.log((ok ? '  PASS  ' : '  FAIL  ') + 'a finished file (real 64-hex fingerprint for com.fluxsparta.app) passes' + (ok ? '' : '  [' + r.failed.concat(r2.failed).join(' | ') + ']'));
   if (!ok) F++;
 }
-for (const [name, src, expect] of [
+for (const [name, src, expect, liveAlt] of [
   ['worker answers with HTML', INPUT.worker.replace('headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=3600" }', 'headers: { "Content-Type": "text/html" }'), /T7 GET/],
   ['worker redirects', INPUT.worker.replace('if (path === ASSETLINKS_PATH) return await assetLinks(request, env);', 'if (path === ASSETLINKS_PATH) return Response.redirect("https://fluxsparta.com/", 301);'), /T7 GET/],
   ['no fallback when the asset layer lacks the file', INPUT.worker.replace('let body = ASSETLINKS_BODY;', 'let body = "";'), /the asset layer without the file/],
-  ['the worker never reads the file (always its copy)', INPUT.worker.replace('if (r.status === 200) {', 'if (false) {'), /T7 GET/],
+  ['the worker never reads the file (always its copy)', INPUT.worker.replace('if (r.status === 200) {', 'if (false) {'), /T7 GET/, INPUT.live.replace('[\n', '[ \n')],   // the asset layer holds a differently formatted (still valid) file: only a worker that reads it answers with it
 ]) {
-  const r = await workerSuite(src, INPUT.live, true);
+  const r = await workerSuite(src, liveAlt || INPUT.live, true);
   const ok = src !== INPUT.worker && r.failed.some((l) => expect.test(l));
   console.log((ok ? '  PASS  ' : '  FAIL  ') + 'negative control caught: ' + name);
   if (!ok) F++;

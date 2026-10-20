@@ -161,12 +161,12 @@ const validPlayerId = (v) => PLAYER_ID.test(String(v || "")) && !UNSAFE_KEYS.has
    layer serves a folder whose name starts with a dot could not be confirmed before deploying, so
    this one exact path runs the Worker first (wrangler.jsonc) and answers here with the contents
    of public/.well-known/assetlinks.json, read from the static assets. If that layer does not
-   hold the file, ASSETLINKS_BODY is served instead. Until Play App Signing gives the real
-   fingerprint both are empty lists that look different on purpose -- the file "[ ]", this copy
-   "[]" -- so the live answer shows which one served it. Once the file lists com.fluxsparta.app,
-   this copy must be exactly the file (tests/test-android-twa.mjs, T7). */
+   hold the file, ASSETLINKS_BODY is served instead. Both list com.fluxsparta.app with the two Play
+   App Signing SHA-256 fingerprints from Play Console (the app signing key in use, then the previous
+   app signing key) -- never the upload key -- and this copy must be exactly the file
+   (tests/test-android-twa.mjs, T7). */
 const ASSETLINKS_PATH = "/.well-known/assetlinks.json";
-const ASSETLINKS_BODY = "[]";
+const ASSETLINKS_BODY = "[\n  {\n    \"relation\": [\"delegate_permission/common.handle_all_urls\"],\n    \"target\": {\n      \"namespace\": \"android_app\",\n      \"package_name\": \"com.fluxsparta.app\",\n      \"sha256_cert_fingerprints\": [\n        \"49:DA:0B:4D:7A:82:C7:BE:1F:76:1E:3E:61:F8:30:AC:1A:DA:19:51:13:8A:FC:7D:87:93:2C:42:46:97:0C:AB\",\n        \"5F:7E:B7:01:7F:69:1E:8B:19:E0:2C:75:E1:7C:77:99:B1:A5:5A:27:D5:FC:C2:24:DF:9B:B2:1A:E1:BE:19:F0\"\n      ]\n    }\n  }\n]\n";
 async function assetLinks(request, env) {
   if (request.method !== "GET" && request.method !== "HEAD") return new Response("Method not allowed", { status: 405, headers: { Allow: "GET, HEAD" } });
   let body = ASSETLINKS_BODY;

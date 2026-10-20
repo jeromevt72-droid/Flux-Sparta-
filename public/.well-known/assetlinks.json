@@ -1,1 +1,13 @@
-[ ]
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.fluxsparta.app",
+      "sha256_cert_fingerprints": [
+        "49:DA:0B:4D:7A:82:C7:BE:1F:76:1E:3E:61:F8:30:AC:1A:DA:19:51:13:8A:FC:7D:87:93:2C:42:46:97:0C:AB",
+        "5F:7E:B7:01:7F:69:1E:8B:19:E0:2C:75:E1:7C:77:99:B1:A5:5A:27:D5:FC:C2:24:DF:9B:B2:1A:E1:BE:19:F0"
+      ]
+    }
+  }
+]
