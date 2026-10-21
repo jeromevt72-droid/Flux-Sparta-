@@ -955,7 +955,7 @@ function skinBackdropOn(){
 // innerHeight shorter). iOS keeps screen.width/height in portrait, so the
 // orientation picks the side. Capped so a small desktop window is not zoomed.
 (function(){   // SOLAR BAND: Home Screen app only (see html.fluxStandalone)
-  let sa=false; try{ sa=navigator.standalone===true || matchMedia('(display-mode: standalone)').matches; }catch(e){}
+  let sa=false; try{ sa=navigator.standalone===true || matchMedia('(display-mode: standalone)').matches || (/Android/i.test(navigator.userAgent) && matchMedia('(display-mode: fullscreen)').matches); }catch(e){}   // PLAY APP FULL SCREEN: the immersive Play app too, as when it was standalone
   if(sa) document.documentElement.classList.add('fluxStandalone');
 })();
 // SOLAR BAND: the colour at the bottom of the visible backdrop (level tint at
@@ -1071,10 +1071,39 @@ const FS_WAIT_MS=900;
 const LAUNCHER_GAP_ANDROID_FS=.06;
 let fluxPlainH=null;     // {w,h}: the game area outside full screen (Android app), measured whenever not in full screen
 let fluxFieldShift=0;    // px the field is drawn lower than today (Android full screen only; 0 elsewhere)
-function fluxFsLow(){ return !!document.fullscreenElement && fluxFsWanted(); }   // installed Android app, in full screen
+function fluxFsLow(){ return (!!document.fullscreenElement && fluxFsWanted()) || fluxFsImmersive(); }   // installed Android app, in full screen
 function fluxFieldMeasure(){
-  const fs=fluxFsLow(), keep=fs && fluxPlainH && fluxPlainH.w===innerWidth;
-  return { w:innerWidth, h:keep?fluxPlainH.h:innerHeight, s:innerHeight, safe:readSafeBottom(), fs:fs };
+  const fs=fluxFsLow(), plain=fluxFsImmersive() ? fluxImmersivePlain() : fluxPlainH, keep=fs && plain && plain.w===innerWidth;
+  return { w:innerWidth, h:keep?plain.h:innerHeight, s:innerHeight, safe:readSafeBottom(), fs:fs };
+}
+/* PLAY APP FULL SCREEN (owner): the Play app (TWA) is built with display "fullscreen", so Android itself keeps
+   the bars hidden (immersive) and the page is full screen from the start. There FLUX never calls
+   requestFullscreen (that is what made Chrome show "To exit full screen" over the launcher at every run start)
+   and plays exactly today's full-screen game (#78): the field is the game area the phone had with the bars
+   showing, drawn lower so the launcher's grip ends 6% above the bottom edge.
+   That game area cannot be measured while the bars are hidden, so the installed app remembers it whenever it
+   is measured in full screen the old way (fluxPlainFs: width, game area, full height). In the immersive app it
+   is used when the width is the same and it fits; otherwise Android's standard bars are taken off: a 24 px
+   status bar and a 48 px button bar (72 px: exactly the BLU G45's 800 -> 728). The Home Screen web app
+   (display-mode standalone) and Chrome tabs are untouched. */
+const ANDROID_BARS_PX=72;
+function fluxFsImmersive(){
+  try{
+    if(!/Android/i.test(navigator.userAgent) || fluxIsIOSDevice() || window.top!==window.self || document.fullscreenElement) return false;
+    return !!(window.matchMedia && window.matchMedia('(display-mode: fullscreen)').matches);
+  }catch(e){ return false; }
+}
+function fluxImmersivePlain(){
+  let m=null; try{ m=JSON.parse(localStorage.getItem('fluxPlainFs')||'null'); }catch(e){ m=null; }
+  if(m && m.w===innerWidth && m.plain>0 && m.plain<=innerHeight) return { w:innerWidth, h:m.plain };
+  return { w:innerWidth, h:Math.max(Math.round(innerHeight*.8), innerHeight-ANDROID_BARS_PX) };
+}
+function fluxPlainRemember(){   // the installed app in full screen the old way: its game area with the bars, for the immersive app
+  try{
+    if(!document.fullscreenElement || !fluxFsWanted() || !fluxPlainH || fluxPlainH.w!==innerWidth || !(fluxPlainH.h<innerHeight)) return;
+    const v=JSON.stringify({ w:innerWidth, plain:fluxPlainH.h, full:innerHeight });
+    if(localStorage.getItem('fluxPlainFs')!==v) localStorage.setItem('fluxPlainFs',v);
+  }catch(e){}
 }
 function fluxLowLauncherY(S,safe){ return S-Math.max(safe+.01*S, LAUNCHER_GAP_ANDROID_FS*S)-(paddle.h/2+GRIP_STEM+GRIP_D); }
 function fluxFsWanted(){
@@ -1089,7 +1118,7 @@ function fluxIsIOSDevice(){ try{ return /iP(hone|od|ad)/.test(navigator.platform
 function fluxFsGo(){ const go=fluxFsStartNext; fluxFsStartNext=null; if(go) go(); }   // the waiting run starts (once)
 function fluxFsEnter(){
   if(fluxFsAsking) return;   // one request at a time (a waiting run starts when Chrome answers)
-  if(!fluxFsWanted() || document.fullscreenElement){ fluxFsGo(); return; }
+  if(fluxFsImmersive() || !fluxFsWanted() || document.fullscreenElement){ fluxFsGo(); return; }   // PLAY APP FULL SCREEN: already full screen, never asked
   fluxPlainH={w:innerWidth,h:innerHeight};   // today's game area, just before the bars go
   fluxFsAsking=true;
   try{ const p=document.documentElement.requestFullscreen({navigationUI:'hide'}); if(p && p.then) p.then(function(){ fluxFsAsking=false; },function(){ fluxFsAsking=false; fluxFsGo(); }); else fluxFsAsking=false; }catch(e){ fluxFsAsking=false; fluxFsGo(); }
@@ -1136,14 +1165,14 @@ function fluxFieldFit(){
       // re-lay out only if the field changed: an unchanged screen draws no new random numbers (same run as today)
       if(prev ? (prev.w!==m.w||prev.h!==m.h||prev.s!==m.s||prev.safe!==m.safe||prev.fs!==m.fs) : (m.w!==W||m.h!==H||m.safe!==fluxSafeBottom||m.fs!==(fluxFieldShift>0))) resize();
       return newGame0.apply(self,args); };
-    if(fluxFsWanted() && !document.fullscreenElement){ fluxFsStartNext=start; fluxFsEnter(); setTimeout(fluxFsGo,FS_WAIT_MS); return; }
+    if(fluxFsWanted() && !document.fullscreenElement && !fluxFsImmersive()){ fluxFsStartNext=start; fluxFsEnter(); setTimeout(fluxFsGo,FS_WAIT_MS); return; }
     return start(); }; }
 { const endGame0=endGame; endGame=function(){ const r=endGame0.apply(this,arguments); fluxRunEnd(); return r; }; }
 function fluxRunEnd(){ if(!fluxRunField) return; fluxRunField=null; resize(); }   // the run is over: the next run measures the screen again
 { const cel0=applyCelestialBackground, skin0=applySkinBackground;   // a new level / skin while the field is kept: the same shape, edge to edge
   applyCelestialBackground=function(){ const r=cel0.apply(this,arguments); if(fluxFsFit) fluxFsPaintApp(); return r; };
   applySkinBackground=function(){ const r=skin0.apply(this,arguments); if(fluxFsFit) fluxFsPaintApp(); return r; }; }
-function resize(){const pW=W,pH=H,pD=dpr;dpr=window.__fluxLite?1:Math.min(devicePixelRatio||1,2);if(!document.fullscreenElement&&!fluxFsAsking)fluxPlainH={w:innerWidth,h:innerHeight};/* the game area outside full screen (not mid-request: the screen may already be growing) */if(fluxRunField&&innerWidth!==fluxRunField.w)fluxRunField=fluxFieldMeasure();/* turned sideways mid-run: the one re-fit */const f=fluxRunField||fluxFieldMeasure();W=f.w;H=f.h;HS=Math.max(H,innerHeight);const same=(W===pW&&H===pH&&dpr===pD);if(!same||c.width!==Math.floor(W*dpr)||c.height!==Math.floor(HS*dpr)){c.width=W*dpr;c.height=HS*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);}if(c.style)c.style.height=(fluxRunField||HS!==innerHeight)?HS+'px':'';fluxSafeBottom=f.safe;paddle.y=Math.min(H-Math.max(42,Math.min(90,H*.095)),H-fluxSafeBottom-GRIP_GAP-GRIP_D-GRIP_STEM-paddle.h/2);fluxFieldShift=f.fs?Math.max(0,fluxLowLauncherY(f.s,fluxSafeBottom)-paddle.y):0;if(same){const s0=stars,n0=nebulae;makeStars();stars=s0;nebulae=n0;}else makeStars();refreshHudRects();fluxFieldFit();if(skinBackdropOn())applySkinBackground();/* backdrop re-fits on rotation / window changes */}
+function resize(){const pW=W,pH=H,pD=dpr;dpr=window.__fluxLite?1:Math.min(devicePixelRatio||1,2);if(!document.fullscreenElement&&!fluxFsAsking&&!fluxFsImmersive())fluxPlainH={w:innerWidth,h:innerHeight};/* the game area outside full screen (not mid-request: the screen may already be growing; never in the immersive Play app) */fluxPlainRemember();if(fluxRunField&&innerWidth!==fluxRunField.w)fluxRunField=fluxFieldMeasure();/* turned sideways mid-run: the one re-fit */const f=fluxRunField||fluxFieldMeasure();W=f.w;H=f.h;HS=Math.max(H,innerHeight);const same=(W===pW&&H===pH&&dpr===pD);if(!same||c.width!==Math.floor(W*dpr)||c.height!==Math.floor(HS*dpr)){c.width=W*dpr;c.height=HS*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);}if(c.style)c.style.height=(fluxRunField||HS!==innerHeight)?HS+'px':'';fluxSafeBottom=f.safe;paddle.y=Math.min(H-Math.max(42,Math.min(90,H*.095)),H-fluxSafeBottom-GRIP_GAP-GRIP_D-GRIP_STEM-paddle.h/2);fluxFieldShift=f.fs?Math.max(0,fluxLowLauncherY(f.s,fluxSafeBottom)-paddle.y):0;if(same){const s0=stars,n0=nebulae;makeStars();stars=s0;nebulae=n0;}else makeStars();refreshHudRects();fluxFieldFit();if(skinBackdropOn())applySkinBackground();/* backdrop re-fits on rotation / window changes */}
 addEventListener('resize',resize);resize();
 function rand(a,b){return a+Math.random()*(b-a)}
 function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
@@ -4930,7 +4959,7 @@ fluxFoundingRefresh();
        Safari to install" with an arrow at their ⋯ menu
      first launch of the Home Screen app -> "Welcome back! Tap to continue" (reads the copied pilot) */
 let fluxDeferredInstall = null, fluxInstallOfferNow = false;
-function fluxIsStandalone(){ try{ return window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches; }catch(e){ return false; } }
+function fluxIsStandalone(){ try{ return window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches || fluxFsImmersive(); }catch(e){ return false; } }   // PLAY APP FULL SCREEN: the immersive Play app is installed too
 function fluxIsIOS(){ try{ return /iP(hone|od|ad)/.test(navigator.platform) || (navigator.userAgent.indexOf('Mac') !== -1 && 'ontouchend' in document); }catch(e){ return false; } }
 function fluxIsIPad(){ try{ return /iPad/.test(navigator.platform) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); }catch(e){ return false; } }   // iPadOS reports itself as a Mac with touch
 function fluxInApp(){ return window.FLUX_IN_APP || null; }   // set by the D-38 in-app browser check at the end of this page

@@ -27,8 +27,12 @@ Nothing in this folder is deployed to players. Cloudflare only publishes
   who arrive through the Play app are counted as `playstore` in FLUX COMMAND.
   A pilot that already has a stored source keeps it. A pilot from before
   source tracking began, opening the Play app first, is counted as `playstore`.
-- **Display:** standalone, the same as today's installed app, so the #75/#78
-  full-screen behaviour during runs is exactly what you already tested.
+- **Display:** **fullscreen** from version **1.0.1** (version code **2**). Android
+  keeps the system bars hidden itself (immersive), so FLUX no longer asks Chrome for
+  full screen at the start of a run, and Chrome's "To exit full screen" notice no
+  longer covers the launcher. The game is the same as in full screen before
+  (#78 "lower launcher, same game": same field, launcher line, ball speed and
+  difficulty). Version 1.0.0 was built with *standalone*. To rebuild, see **3b**.
 - **Notifications, location, Play Billing:** all **off**.
 
 ## 2. Target API level
@@ -53,7 +57,7 @@ Play Console).
    | Package ID | `com.fluxsparta.app` |
    | App name | `FLUX Sparta` |
    | Launcher name | `FLUX` |
-   | App version / version code | `1.0.0` / `1` |
+   | App version / version code | `1.0.0` / `1` (first build only; a rebuild uses the next numbers, see **3b**) |
    | Host | `fluxsparta.com` |
    | Start URL | `/play/?src=playstore` |
    | Theme colour / Dark theme colour | `#07091D` |
@@ -62,7 +66,7 @@ Play Console).
    | Icon URL | `https://fluxsparta.com/icon-512.png` |
    | Maskable icon URL | `https://fluxsparta.com/icon-maskable-512.png` |
    | Splash fade-out | `300` ms |
-   | Display mode | **Standalone** |
+   | Display mode | **Standalone** for 1.0.0; **Fullscreen** from 1.0.1 (see **3b**) |
    | Notification delegation | **Off** |
    | Location delegation | **Off** |
    | Google Play billing | **Off** |
@@ -81,6 +85,65 @@ Play Console).
      Losing them means asking Google for an upload-key reset.
    - `assetlinks.json`: it holds the **upload key** fingerprint only. **Do not
      publish it as-is**; see step 5.
+
+## 3b. Rebuild with the EXISTING signing key (version 1.0.1, display Fullscreen)
+
+Every update to the Play app must be signed with the **same upload key** you
+created for the first build (`signing.keystore` + `signing-key-info.txt` from
+that first zip). **Never create a new key** for an update: Play refuses a bundle
+signed with a different key, and replacing a lost key means an upload-key reset
+request to Google. The website-ownership file (`assetlinks.json`) does **not**
+change: it holds the **Play App Signing** fingerprints, which stay the same.
+
+1. Have the two files from the first build ready in the Files app:
+   `signing.keystore`, and `signing-key-info.txt`, which holds the **key alias**, the
+   **key password** and the **store (keystore) password**.
+2. In Safari, go to **pwabuilder.com**, enter `https://fluxsparta.com` and tap **Start**.
+3. Tap **Package for stores → Android → Generate package**, then **All settings**
+   (on some versions the button is called **Options**). Fill in every field
+   exactly as in the table in step 3, with these differences:
+
+   | Field | Value |
+   |---|---|
+   | App version | `1.0.1` |
+   | App version code | `2` (always 1 more than the last bundle you uploaded) |
+   | Display mode | **Fullscreen** (not *Fullscreen sticky*, not *Standalone*) |
+   | Signing key | **Use mine** |
+   | Key file | choose `signing.keystore` from the first build |
+   | Key alias, key password, store password | copy them from `signing-key-info.txt` |
+
+   The **Package ID must stay `com.fluxsparta.app`**: any other package ID is a
+   different app. Leave everything else as in the table (start URL, colours,
+   icons, notifications, location and billing off, Custom Tabs fallback).
+4. Tap **Download**. In the Files app, open the zip and take the `*.aab`. The zip
+   has no new key (you used yours). If it does contain a new `signing.keystore`,
+   **Use mine** was not selected: do not upload that bundle, build it again.
+5. Keep using the same **private** place for the key files. **Never** upload
+   them to GitHub, email or chat.
+
+### Upload 1.0.1 to internal testing
+
+1. Play Console → **FLUX Sparta** → **Test and release → Testing → Internal
+   testing** → **Create new release**.
+2. Upload the new `.aab`. Play checks the signature: it must say the bundle is
+   accepted. A *wrong key* error means the bundle was not signed with your
+   existing upload key; go back to **3b** and pick **Use mine** with
+   `signing.keystore`.
+3. Release name: Play fills in `2 (1.0.1)`; keep it. Release notes, for example:
+   *Full screen without the "exit full screen" notice.*
+4. **Next** → check for errors (warnings about a missing deobfuscation file are
+   normal for a TWA) → **Save and publish** (older consoles: **Review release →
+   Start rollout to Internal testing**).
+5. **App bundle explorer** → version code **2** → **Target SDK** must still be
+   **36**.
+6. On the BLU (signed in as a tester): Play Store → **FLUX Sparta** →
+   **Update** (an internal update can take a few minutes to appear; reopen the
+   store page if it doesn't show yet). Then run checklist items **2, 5, 6, 7**
+   and **14** in step 9. In particular, **no "To exit full screen" message at the
+   start of a run**, and the launcher sits where it did in full screen before.
+
+When the internal build is good, promote the same release to **closed testing**
+(step 6) from the release's page: **Promote release → Closed testing**.
 
 ## 4. Play Console: internal testing
 
@@ -219,7 +282,7 @@ Install from the **internal testing** opt-in link, signed in with a tester Gmail
 | 3 | Same pilot | If this phone already played FLUX in Chrome, the same pilot and best scores appear. (Only when Chrome is the browser that runs the Play app; another default browser keeps separate storage.) |
 | 4 | First run | A new pilot's first run is smooth from the start (needs the first-run fix PR). |
 | 5 | Touch | Launcher drag, aiming and release work; nothing scrolls or zooms. |
-| 6 | Full screen | During a run the system buttons hide. A slide along the bottom never pauses or ends the run. |
+| 6 | Full screen | From 1.0.1 the system bars stay hidden the whole time (the app is built *Fullscreen*), and **no "To exit full screen" message appears** at the start of a run. The launcher sits where it did in full screen before (#78). A slide along the bottom never pauses or ends the run. |
 | 7 | Back button | During a run: the run continues. On pause/game over/menu: goes back as in the installed app. It never closes the app mid-run. |
 | 8 | Restart | Game over → RUN IT BACK starts a new run with the same pilot. |
 | 9 | Background / resume | Home button mid-run → reopen: paused, nothing lost, sound returns. |
