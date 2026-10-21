@@ -187,7 +187,8 @@ async function suite({ mod, main, game = GAME_HTML, adminHtml = ADMIN_HTML, gate
       /* SCORE ALERTS: the 50,000 run is a new Medium #1, so it is flagged for the owner: its alert is ONE row more,
          written after the score. Every other cost is main's exactly (when main has no alerts at all). */
       const alertRow = !a.alerts && Array.isArray(b.alerts) && b.alerts.some((x) => x.score === 50000);
-      const costNoAlert = { ...b.cost, runBest: [b.cost.runBest[0], b.cost.runBest[1] - (alertRow ? 1 : 0)] };
+      const firstAlert = alertRow && b.alerts.length === 1;   // the first alert also reads the (empty) list once
+      const costNoAlert = { ...b.cost, runBest: [b.cost.runBest[0] - (firstAlert ? 1 : 0), b.cost.runBest[1] - (alertRow ? 1 : 0)] };
       ck('FP1 OFF: rows read and written equal main\'s (a run with / without a best, a new pilot, the leaderboard, a cold start); a flagged run writes its score alert as one row more',
         util.isDeepStrictEqual(a.cost, costNoAlert) && (!a.alerts ? alertRow : true), JSON.stringify(b.cost) + ' vs ' + JSON.stringify(a.cost));
       report.costOff = b.cost;
