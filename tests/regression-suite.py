@@ -420,7 +420,7 @@ ck('D-38 suite is in the release gate', "'test-d38.mjs'" in open('run-all-tests.
 ck('D-39 an empty name no longer blocks the first run', "if (!profileComplete && document.getElementById('callsign').value.trim())" in _g9 and 'function uploadOrAskName()' in _g9)
 ck('D-39 unnamed pilots never upload (D-16 kept)', "uploadOrAskName();   // D-39" in _g9 and "if(profileComplete) submitScore();" in _g9 and "input.placeholder = 'ENTER FLUX ID'" in _g9)
 ck('D-40 first-run color hint, never blocks input', 'function showColorHint()' in _g9 and 'pointer-events:none' in _g9)
-ck('D-41 level cap matches the game (9)', 'const MAX_LEVEL = 9;' in _w9)
+ck('D-41 level cap matches the game (99: MILESTONE LEVELS, game play stops changing at 9)', 'const MAX_LEVEL = 99;' in _w9 and 'LEVEL_PLAY_MAX=9, LEVEL_MAX=99' in _g9)
 ck('D-42 no "every run counts" claims on the Gateway', all(x not in _gw38 for x in ['Every run counts','Every legitimate run','Real totals from every FLUX run','Every game you play adds']))
 _hd45=open('FLUX-Sparta/public/hero-demo.html',encoding='utf-8').read()
 ck('D-43 new pilots get a visible preset name (PRESET NAMES), never silent PLAYER', "callsign = randomPresetName();" in _g9 and "localStorage.fluxAutoName = '1';" in _g9)

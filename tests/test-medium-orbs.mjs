@@ -124,7 +124,7 @@ function suite(gameHtml, quiet = false) {
     const pp = ['easy', 'medium', 'hard'].map(perfectPts);
     ck('M4 a perfect paddle hit pays 5 x combo on every difficulty (' + pp.join(' / ') + ')', pp.every((x) => x === 20));
     const tbl = (src) => (src.match(/LEVEL_SCORE_MULT\s*=\s*\{[^}]*\}/) || [''])[0].replace(/\s|0(?=\.)/g, '');
-    ck('M4 Medium and Hard level thresholds are the table x1 (as before) and x0.55, page = server (' + tbl(gameHtml) + ')', /medium:1,hard:\.55\}$/.test(tbl(gameHtml)) && tbl(WORKER) === tbl(gameHtml) && /const SCORE_CEILING = 455_000;/.test(WORKER));
+    ck('M4 Medium and Hard level thresholds are the table x1 (as before) and x0.55, page = server (' + tbl(gameHtml) + ')', /medium:1,hard:\.55\}$/.test(tbl(gameHtml)) && tbl(WORKER) === tbl(gameHtml) && /const SCORE_CEILINGS = \{ easy: 6_892_500, medium: 4_595_000, hard: 2_527_250 \};/.test(WORKER));
     /* M5 Hard unchanged (and Easy untouched by the Medium code) */
     const capBad = [];
     for (const d of ['hard']) for (const [w, h] of SIZES) for (let lv = 1; lv <= 9; lv++) {

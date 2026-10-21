@@ -116,7 +116,7 @@ await (async () => { try {
 console.log("\n== D-25: country leaders stay correct when a leader moves ==");
 await (async () => { try {
   const env = env2();
-  await submit(env, P(1), N.BIGSHOT, 455000, "medium", "US", 9);
+  await submit(env, P(1), N.BIGSHOT, 455000, "medium", "US");   // MILESTONE LEVELS: sent at the level it reaches, was 9
   await submit(env, P(2), N.ALPHA, 2000, "medium", "US");
   await submit(env, P(3), N.BRAVO, 1500, "medium", "US");
   inst(env).lastSubmit = {};
@@ -131,7 +131,7 @@ await (async () => { try {
 console.log("\n== D-28 / moderation: restriction excludes a player everywhere ==");
 await (async () => { try {
   const env = env2();
-  await submit(env, P(1), N.CHEATER, 455000, "medium", "US", 9);
+  await submit(env, P(1), N.CHEATER, 455000, "medium", "US");   // MILESTONE LEVELS: sent at the level it reaches (17), was 9
   await submit(env, P(2), N.HONEST, 2000, "medium", "US");
   const f = await call(env, "/api/admin/find-player", { method:"POST", body:{ query:N.CHEATER }, headers:ADMIN });
   const pid = f.data && f.data.matches && f.data.matches[0] && f.data.matches[0].pid;
@@ -142,7 +142,7 @@ await (async () => { try {
   const us = lb.data.countries.find(c=>c.country==="US");
   ck("restricted player excluded from country totals and leader", us?.totalScore===weighted(2000) && us?.topName===N.HONEST, JSON.stringify(us));
   inst(env).lastSubmit = {};
-  const again = await submit(env, P(1), N.CHEATER, 455000, "medium", "US", 9);
+  const again = await submit(env, P(1), N.CHEATER, 455000, "medium", "US");   // MILESTONE LEVELS: sent at the level it reaches (17), was 9
   ck("a restricted player can still submit (plays locally, no error)", again.status===200);
   ck("...but is given NO public rank (none fabricated)", again.data && again.data.rank===null && again.data.public===false, again.raw);
   const lb2 = await call(env, "/api/leaderboard");
@@ -155,7 +155,7 @@ await (async () => { try {
 console.log("\n== Remove score: keeps identity and purchases; restriction stops returns ==");
 await (async () => { try {
   const env = env2();
-  await submit(env, P(1), N.FAKER, 400000, "medium", "US", 9);
+  await submit(env, P(1), N.FAKER, 400000, "medium", "US");   // MILESTONE LEVELS: sent at the level it reaches, was 9
   inst(env).entitlements[P(1)] = ["solar"];
   const f = await call(env, "/api/admin/find-player", { method:"POST", body:{ query:N.FAKER }, headers:ADMIN });
   const pid = f.data?.matches?.[0]?.pid;
@@ -199,7 +199,7 @@ console.log("\n== Unusual submissions are flagged -- never auto-punished ==");
 await (async () => { try {
   const env = env2();
   await submit(env, P(1), N.STEADY, 3000);
-  await submit(env, P(2), N.ROCKET, 450000, "medium", "US", 9);
+  await submit(env, P(2), N.ROCKET, 450000, "medium", "US");   // MILESTONE LEVELS: sent at the level it reaches (17), was 9
   const ex = await call(env, "/api/admin/exceptions", { method:"POST", body:{}, headers:ADMIN });
   ck("the outlier is flagged for optional review", ex.status===200 && (ex.data.flags||[]).some(f=>f.name===N.ROCKET), ex.raw.slice(0,160));
   const lb = await call(env, "/api/leaderboard");

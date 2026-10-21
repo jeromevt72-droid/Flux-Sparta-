@@ -90,7 +90,7 @@ async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = fals
     ck('L1 Medium thresholds for levels 2-9 are 2500 6000 10000 15000 21000 28000 36000 45000', T === '[2500,6000,10000,15000,21000,28000,36000,45000]', T);
     ck('L1 Easy x1.5 (FULL POINTS: Easy runs are longer), Medium x1, Hard x0.55 (level 3 in most casual Hard runs)', M === '{"easy":1.5,"medium":1,"hard":0.55}', M);
     const lf = (s, d) => b.g.ctx.levelForScore(s, d);
-    ck('L1 edges: Medium 2499->1, 2500->2, 44999->8, 45000->9, 10M->9', lf(2499, 'medium') === 1 && lf(2500, 'medium') === 2 && lf(44999, 'medium') === 8 && lf(45000, 'medium') === 9 && lf(1e7, 'medium') === 9);
+    ck('L1 edges: Medium 2499->1, 2500->2, 44999->8, 45000->9, 94999->9, 95000->10 (MILESTONE LEVELS), 4544999->98, 4545000->99, 10M->99', lf(2499, 'medium') === 1 && lf(2500, 'medium') === 2 && lf(44999, 'medium') === 8 && lf(45000, 'medium') === 9 && lf(94999, 'medium') === 9 && lf(95000, 'medium') === 10 && lf(4544999, 'medium') === 98 && lf(4545000, 'medium') === 99 && lf(1e7, 'medium') === 99);
     ck('L1 edges: Easy 3749->1, 3750->2, 67499->8, 67500->9; Hard 1374->1, 1375->2, 24750->9',
       lf(3749, 'easy') === 1 && lf(3750, 'easy') === 2 && lf(67499, 'easy') === 8 && lf(67500, 'easy') === 9 && lf(1374, 'hard') === 1 && lf(1375, 'hard') === 2 && lf(24750, 'hard') === 9);
     ck('L1 the game uses the same table as the server fixtures (level-rule.mjs)', [0, 749, 750, 1374, 1375, 1874, 1875, 2500, 3750, 13500, 24750, 67500, 9999, 26423, 44999, 45000, 60750, 85500, 99999].every((s) => ['easy', 'medium', 'hard'].every((d) => lf(s, d) === levelFor(s, d))));
@@ -156,11 +156,15 @@ async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = fals
     ck('S3 the difficulty scales it: 33,750 is level 6 on Easy (x1.5), level 9 on Hard (x0.55)',
       (await submit(w, env, { score: 33750, level: 6, difficulty: 'easy' })) === 200 && (await submit(w, env, { score: 33750, level: 9, difficulty: 'easy' })) === 422 && (await submit(w, env, { score: 33750, level: 9, difficulty: 'hard' })) === 200 && (await submit(w, env, { score: 33750, level: 7, difficulty: 'hard' })) === 422);
     ck('S4 the old attack shape (huge score at a low level) is refused', (await submit(w, env, { score: 4999999, level: 1, difficulty: 'hard' })) === 422);
-    ck('S5 other checks kept: level 10 -> 400, score above MAX -> 400, bad id -> 400',
-      (await submit(w, env, { score: 60000, level: 10, difficulty: 'medium' })) === 400 && (await submit(w, env, { score: 5000001, level: 9, difficulty: 'medium' })) === 400 &&
+    ck('S5 other checks kept (MILESTONE LEVELS: cap 99, MAX 6,892,500): level 100 -> 400, score above MAX -> 400, bad id -> 400',
+      (await submit(w, env, { score: 60000, level: 100, difficulty: 'medium' })) === 400 && (await submit(w, env, { score: 6892501, level: 99, difficulty: 'easy' })) === 400 &&
       (await submit(w, env, { playerId: '__proto__', score: 100, level: 1 })) === 400);
-    ck('S7 hard ceiling kept: 455,000 accepted, 455,001 refused even at level 9 (all difficulties)',
-      (await submit(w, env, { score: 455000, level: 9, difficulty: 'hard' })) === 200 &&
+    ck('S7 hard ceiling per difficulty (MILESTONE LEVELS: the level-100 score): Hard 2,527,250 / Medium 4,595,000 / Easy 6,892,500 accepted at 99, one more refused; big scores at level 9 refused',
+      (await submit(w, env, { score: 2527250, level: 99, difficulty: 'hard' })) === 200 &&
+      (await submit(w, env, { score: 2527251, level: 99, difficulty: 'hard' })) === 422 &&
+      (await submit(w, env, { score: 4595000, level: 99, difficulty: 'medium' })) === 200 &&
+      (await submit(w, env, { score: 4595001, level: 99, difficulty: 'medium' })) === 422 &&
+      (await submit(w, env, { score: 6892500, level: 99, difficulty: 'easy' })) === 200 &&
       (await submit(w, env, { score: 455001, level: 9, difficulty: 'hard' })) === 422 &&
       (await submit(w, env, { score: 455001, level: 9, difficulty: 'easy' })) === 422 &&
       (await submit(w, env, { score: 4999999, level: 9, difficulty: 'medium' })) === 422);
@@ -392,7 +396,7 @@ await control('D-50 LEVEL box not amber / no SPEED UP', { expect: 'L4', game: re
 await control('D-50 countdown silent', { expect: 'L4', game: rep('if(shown>=1 && shown<levelTickAt){ levelTickAt=shown; playTick(); updateHud(); }', 'if(shown>=1 && shown<levelTickAt){ levelTickAt=shown; updateHud(); }') });
 await control('D-50 speed jumps instead of rising', { expect: 'L5', game: rep(' speedLevel=from;   // ramps up to the new level over LEVEL_RAMP_S', ' speedLevel=level;') });
 await control('D-50 ball speed follows the level again', { expect: 'L5', game: rep('crossingTimeAt(speedShown)*fieldSlow()', 'crossingTimeAt(level-1)*fieldSlow()') });
-await control('D-50 LEVEL bar shows the old perfect-catch progress', { expect: 'L6', game: rep('const pct=cur>=9?100:Math.max(0,Math.min(100,(score-levelScoreAt(cur,difficulty))/(levelScoreAt(cur+1,difficulty)-levelScoreAt(cur,difficulty))*100));', 'const pct=0;') });
+await control('D-50 LEVEL bar shows the old perfect-catch progress', { expect: 'L6', game: rep('const pct=cur>=LEVEL_MAX?100:Math.max(0,Math.min(100,(score-levelScoreAt(cur,difficulty))/(levelScoreAt(cur+1,difficulty)-levelScoreAt(cur,difficulty))*100));', 'const pct=0;') });
 await control('D-50 two levels at once', { expect: 'L7', game: rep('if(levelForScore(score,difficulty)>level) startLevelUp(level+1);', 'if(levelForScore(score,difficulty)>level) startLevelUp(levelForScore(score,difficulty));') });
 await control('D-50 run recorded with the gameplay level', { expect: 'L8', game: rep('recordBestRun(score,levelForScore(score,difficulty));   // D-50: the level is the one this score reaches', 'recordBestRun(score,level);') });
 await control('D-50 old saved levels left as they were', { expect: 'L9', game: rep('(function normalizeStoredLevels(){\n  try{', '(function normalizeStoredLevels(){\n  return;\n  try{') });
@@ -400,7 +404,8 @@ await control('D-50 old saved levels left as they were', { expect: 'L9', game: r
 await control('D-51 old per-level ceiling back on the server', { expect: 'S', workerSrc: rep('if (Math.abs(level - levelForScore(score, difficulty)) > LEVEL_TOLERANCE) {', 'if (score > level * 50000 + 5000) {') });
 await control('D-51 no +/-1 tolerance', { expect: 'S1', workerSrc: rep('const LEVEL_TOLERANCE = 1;', 'const LEVEL_TOLERANCE = 0;') });
 await control('D-51 difficulty ignored by the server', { expect: 'S3', workerSrc: rep('const m = LEVEL_SCORE_MULT[difficulty] || 1;', 'const m = 1;') });
-await control('RC2.8.7 score ceiling dropped', { expect: 'S7', workerSrc: rep('  if (score > SCORE_CEILING) {', '  if (false) {') });
+await control('RC2.8.7 score ceiling dropped', { expect: 'S7', workerSrc: rep('  if (score > (SCORE_CEILINGS[difficulty] || SCORE_CEILINGS.medium)) {', '  if (false) {') });
+await control('MILESTONE LEVELS: one ceiling for every difficulty (Easy\'s)', { expect: 'S7', workerSrc: rep('  if (score > (SCORE_CEILINGS[difficulty] || SCORE_CEILINGS.medium)) {', '  if (score > SCORE_CEILING) {') });
 await control('D-51 cooldown dropped along the way', { expect: 'S5', workerSrc: rep('if (now - last < SUBMIT_COOLDOWN_MS) {', 'if (false) {') });
 await control('D-51 server table drifts from the game', { expect: 'S6', workerSrc: rep('const LEVEL_SCORE_THRESHOLDS = [2500, 6000, 10000, 15000, 21000, 28000, 36000, 45000];', 'const LEVEL_SCORE_THRESHOLDS = [2500, 6000, 10000, 15000, 21000, 28000, 36000, 46000];') });
 // D-52

@@ -38,17 +38,20 @@ async function suite({ gameHtml, gwHtml, workerMod, quiet = false }) {
     const w = workerMod.default, env = makeEnv(workerMod.LeaderboardDO);
     let r = await submit(w, env, { playerId: 'cheat-0000-4000-8000-000000000001', name: 'HAX', score: 5000000, level: 999, difficulty: 'hard', country: 'US' });
     ck('A1 the old attack (5,000,000 at level 999) is refused', r.status === 400, r.status);
-    r = await submit(w, env, { playerId: 'cheat-0000-4000-8000-000000000002', name: 'HAX', score: 400000, level: 10, difficulty: 'hard', country: 'US' });
-    ck('A2 any level above 9 is refused', r.status === 400, r.status);
+    // MILESTONE LEVELS (owner): the level cap is now 99 (levels 10-99 are display-only milestones).
+    r = await submit(w, env, { playerId: 'cheat-0000-4000-8000-000000000002', name: 'HAX', score: 400000, level: 100, difficulty: 'hard', country: 'US' });
+    ck('A2 any level above 99 is refused', r.status === 400, r.status);
+    r = await submit(w, env, { playerId: 'cheat-0000-4000-8000-000000000012', name: 'HAX', score: 400000, level: 10, difficulty: 'hard', country: 'US' });
+    ck('A2 ...and level 10 with a score that reaches 22 is refused (D-51)', r.status === 422, r.status);
     // RC2.8.7 D-51 replaced the per-level ceiling (level*50,000+5,000) with
     // "the level must be the one the score reaches" -- A3..A6 follow that rule.
     r = await submit(w, env, { playerId: 'cheat-0000-4000-8000-000000000003', name: 'HAX', score: 455001, level: 2, difficulty: 'hard', country: 'US' });
     ck('A3 a level the score does not reach is refused (D-51)', r.status === 422, r.status);
-    r = await submit(w, env, { playerId: 'legit-0000-4000-8000-000000000004', name: 'PRO', score: 455000, level: 9, difficulty: 'hard', country: 'US' });
-    ck('A4 a score sent with its own level is accepted', r.status === 200, r.status);
+    r = await submit(w, env, { playerId: 'legit-0000-4000-8000-000000000004', name: 'PRO', score: 455000, level: 24, difficulty: 'hard', country: 'US' });
+    ck('A4 a score sent with its own level is accepted (455,000 on Hard = level 24)', r.status === 200, r.status);
     r = await submit(w, env, { playerId: 'legit-0000-4000-8000-000000000005', name: 'TITAN', score: 26423, level: 6, difficulty: 'medium', country: 'US' });
     ck('A5 a real record run (26,423 = level 6 on Medium) is accepted', r.status === 200 && r.data.ok === true, r.status);
-    ck('A6 the game really stops at level 9 (the cap matches the game)', /if\(pendingLevel (?:\|\| fluxCountdown>0 )?(?:\|\| speedCountdown>0 )?\|\| level>=9\) return;/.test(gameHtml) && /while\(lv<9 && /.test(gameHtml));
+    ck('A6 game play stops changing at level 9 and milestones go to 99 (the cap matches the game)', /if\(pendingLevel (?:\|\| fluxCountdown>0 )?(?:\|\| speedCountdown>0 )?\|\| level>=9\) return;/.test(gameHtml) && /while\(lv<LEVEL_MAX && /.test(gameHtml) && /const LEVEL_PLAY_MAX=9, LEVEL_MAX=99,/.test(gameHtml));
   } catch (e) { ck('D-41 section ran', false, String(e.stack || e).slice(0, 200)); }
 
   /* ---------------- D-39 / D-43 / D-44 / D-40 in the real page ---------------- */
@@ -178,7 +181,8 @@ async function control(label, { expect, game = (s) => s, gw = (s) => s, workerSr
     if (!ok) NC++; } finally { try { fs.unlinkSync(tmp); } catch (e) {} }
 }
 const rep = (a, b) => (s) => (s.includes(a) ? s.replace(a, b) : s);
-await control('level 999 accepted again', { expect: 'A1', workerSrc: rep('const MAX_LEVEL = 9;', 'const MAX_LEVEL = 999;') });
+await control('level 999 accepted again', { expect: 'A1', workerSrc: rep('const MAX_LEVEL = 99;', 'const MAX_LEVEL = 999;') });
+await control('level 100 accepted (cap one above 99)', { expect: 'A2', workerSrc: rep('const MAX_LEVEL = 99;', 'const MAX_LEVEL = 100;') });
 await control('no auto name for new pilots', { expect: 'C1', game: rep("if (localStorage.fluxProfileComplete === '1' || localStorage.fluxCallsign) return;", "return;") });
 await control('new pilots not started on Easy', { expect: 'D44', game: rep("if (!localStorage.fluxDifficulty) { difficulty = 'easy'; localStorage.fluxDifficulty = 'easy'; }", "") });
 await control('Easy forced on existing pilots too', { expect: 'D44', game: rep("if (localStorage.fluxProfileComplete === '1' || localStorage.fluxCallsign) return;", "if (localStorage.fluxProfileComplete === '1' || localStorage.fluxCallsign) { difficulty = 'easy'; return; }") });
