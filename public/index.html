@@ -142,7 +142,7 @@ window.addEventListener('load', function () {
   // this same worker itself. The Home Screen app and returning players register here as before (so an
   // installed app is ready offline from its first launch).
   var standalone = false;
-  try { standalone = window.navigator.standalone === true || !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches); } catch (e) {}
+  try { standalone = window.navigator.standalone === true || !!(window.matchMedia && (window.matchMedia('(display-mode: standalone)').matches || (/Android/i.test(navigator.userAgent) && window.matchMedia('(display-mode: fullscreen)').matches))); } catch (e) {}   // PLAY APP FULL SCREEN: the immersive Play app is installed too
   // FIRST RUN SMOOTH: the same on any connection -- a first visit in a browser tab leaves the offline copy to
   // the game, which stores it after the first run, never during it.
   if (!window.FLUX_PLAYED && !standalone) return;
@@ -153,10 +153,12 @@ window.addEventListener('load', function () {
 /* D-17: mark the installed standalone context before first paint, so the
    greeting is positioned correctly on the very first frame rather than
    jumping after load. navigator.standalone covers iOS, which has not
-   reliably reported the display-mode media query. Affects nothing else. */
+   reliably reported the display-mode media query. Affects nothing else.
+   PLAY APP FULL SCREEN: the Play app built "fullscreen" (Android) is the installed app too. */
 try{
   if(window.navigator.standalone === true ||
-     (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)){
+     (window.matchMedia && (window.matchMedia('(display-mode: standalone)').matches ||
+       (/Android/i.test(navigator.userAgent) && window.matchMedia('(display-mode: fullscreen)').matches)))){
     document.documentElement.classList.add('is-standalone');
   }
 }catch(e){}
@@ -1497,7 +1499,8 @@ try{
   });
 
   function isRunningStandalone(){
-    return window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+    return window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches ||
+      (/Android/i.test(navigator.userAgent) && window.matchMedia('(display-mode: fullscreen)').matches);   // PLAY APP FULL SCREEN: the immersive Play app is installed too
   }
   function isIOSDevice(){
     return /iP(hone|od|ad)/.test(navigator.platform) ||

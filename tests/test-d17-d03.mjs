@@ -38,8 +38,8 @@ console.log('\n-- D-17: unrelated hero elements untouched --');
 const rc23 = fs.existsSync(path.join(__dirname,'..','rc23')) ? null : null;
 for(const sel of ['.hero{height:100svh','.heroCTA{position:absolute','.logo{font-size:clamp(78px','.eyebrow{font-size:12px'])
   ck('unchanged: '+sel, g.includes(sel));
-ck('install-prompt detector unchanged',
-   g.includes("return window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;"));
+ck('install-prompt detector unchanged (PLAY APP FULL SCREEN: it also knows the Play app built "fullscreen" on Android)',
+   g.includes("return window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches ||\n      (/Android/i.test(navigator.userAgent) && window.matchMedia('(display-mode: fullscreen)').matches);"));
 
 console.log('\n-- D-03: legal pages exist and are wired --');
 ck('privacy.html exists', fs.existsSync(path.join(GW,'privacy.html')));

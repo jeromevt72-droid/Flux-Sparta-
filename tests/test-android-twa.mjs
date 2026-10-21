@@ -1,8 +1,9 @@
 // ANDROID (Google Play, Trusted Web Activity) -- packaging prep, in the release gate.
 // Static checks of the files in android/ plus the REAL game page (harness vm):
 //   T1 android/twa-manifest.json opens https://fluxsparta.com at /play/?src=playstore,
-//      inside the web manifest's scope, standalone (so #75 full screen behaves as in the
-//      installed app), dark colours that match the page, notifications off;
+//      inside the web manifest's scope, display fullscreen from 1.0.1 (PLAY APP FULL SCREEN, owner: Android keeps
+//      the bars hidden, the page never asks Chrome for full screen; version code 2 / 1.0.1), dark colours that
+//      match the page, notifications off;
 //   T2 the icons it names exist in public/ as 512x512 PNGs;
 //   T3 the Digital Asset Links file: android/assetlinks.template.json is valid JSON for the
 //      SAME package name, with the Play App Signing placeholder still in it; and
@@ -61,10 +62,10 @@ function staticSuite(I, quiet = false) {
   const scope = wm && wm.scope ? new URL(wm.scope, 'https://fluxsparta.com/').href : '';
   ck('T1 launch URL is inside the web manifest scope', !!t && !!scope && new URL(t.startUrl, 'https://' + t.host + '/').href.startsWith(scope), scope);
   ck('T1 full scope is the whole site (Gateway and game stay inside the app)', !!t && t.fullScopeUrl === 'https://fluxsparta.com/', t && t.fullScopeUrl);
-  ck('T1 standalone display, same as the installed app (#75 full screen runs unchanged)', !!t && t.display === 'standalone', t && t.display);
+  ck('T1 fullscreen display (PLAY APP FULL SCREEN, owner: Android immersive; the page never calls requestFullscreen there)', !!t && t.display === 'fullscreen', t && t.display);
   ck('T1 package name is reverse-domain style, no personal name', !!t && /^com\.fluxsparta\.[a-z][a-z0-9_]*$/.test(t.packageId || ''), t && t.packageId);
   ck('T1 colours match the page (theme #07091D, background #050719)', !!t && String(t.themeColor).toUpperCase() === '#07091D' && String(t.backgroundColor).toUpperCase() === '#050719' && String(t.navigationColor).toUpperCase() === '#050719');
-  ck('T1 notifications off, Custom Tabs fallback, version 1 / 1.0.0', !!t && t.enableNotifications === false && t.fallbackType === 'customtabs' && t.appVersionCode === 1 && t.appVersionName === '1.0.0');
+  ck('T1 notifications off, Custom Tabs fallback, version code 2 / 1.0.1 (the rebuild after 1 / 1.0.0)', !!t && t.enableNotifications === false && t.fallbackType === 'customtabs' && t.appVersionCode === 2 && t.appVersionName === '1.0.1');
   const icon = (u) => { try { const p = new URL(u).pathname; return path.join(ROOT, 'public', p); } catch (e) { return ''; } };
   const s1 = t ? I.png(icon(t.iconUrl)) : null, s2 = t ? I.png(icon(t.maskableIconUrl)) : null;
   ck('T2 icon exists in public/ and is 512x512 PNG', !!s1 && s1[0] === 512 && s1[1] === 512, s1 && s1.join('x'));
@@ -179,7 +180,10 @@ const NEG = [
   ['launch URL without ?src=playstore', { twa: mut({ startUrl: '/play/' }) }, /launch URL is \/play\/\?src=playstore/],
   ['launch URL outside scope', { twa: mut({ startUrl: 'https://evil.example/play/?src=playstore' }) }, /launch URL is inside the web manifest scope/],
   ['wrong host', { twa: mut({ host: 'evil.example' }) }, /host is fluxsparta\.com/],
-  ['fullscreen display', { twa: mut({ display: 'fullscreen' }) }, /standalone display/],
+  ['standalone display again (the page would ask Chrome for full screen)', { twa: mut({ display: 'standalone' }) }, /T1 fullscreen display/],
+  ['fullscreen-sticky display', { twa: mut({ display: 'fullscreen-sticky' }) }, /T1 fullscreen display/],
+  ['version code not raised', { twa: mut({ appVersionCode: 1 }) }, /version code 2 \/ 1\.0\.1/],
+  ['version name not raised', { twa: mut({ appVersionName: '1.0.0' }) }, /version code 2 \/ 1\.0\.1/],
   ['personal package name', { twa: mut({ packageId: 'com.jerome.flux' }) }, /package name is reverse-domain/],
   ['missing icon', { twa: mut({ iconUrl: 'https://fluxsparta.com/nope-512.png' }) }, /T2 icon exists/],
   ['template package differs', { template: INPUT.template.replace('com.fluxsparta.app', 'com.fluxsparta.other') }, /template package name/],
