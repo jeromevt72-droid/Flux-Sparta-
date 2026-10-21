@@ -40,7 +40,7 @@ function suite(gameHtml, quiet = false) {
     // J3: same seed, intensity on vs forced off -> identical game.
     const trace = (off) => { Math.random = seeded(9); const { g, run } = bootGame(); if (off) run('juiceTarget=function(){return 0;};'); g.ctx.newGame(); const out = []; let maxJ = 0, maxP = 0;
       for (let f = 0; f < 12000; f++) { if (f % 2500 === 2499) run('ball.y=H+200;misses=0;'); else run('paddle.x=Math.max(paddle.w/2+8,Math.min(W-paddle.w/2-8,ball.x));'); run('if(!playing){playing=true;paused=false;}');
-        g.ctx.update(1 / 60); maxJ = Math.max(maxJ, run('juice')); maxP = Math.max(maxP, run('particles.length'));
+        if (g.ctx.fxFrame) g.ctx.fxFrame(); g.ctx.update(1 / 60); maxJ = Math.max(maxJ, run('juice')); maxP = Math.max(maxP, run('particles.length'));   // fxFrame: what the frame loop does before each update (SMOOTH CHAINS budgets)
         if (f % 20 === 0) out.push(run('JSON.stringify([ball.x,ball.y,score,level,combo,misses,targets.map(t=>[t.x,t.y,t.r,t.color])])')); }
       Math.random = realRandom; return { out, maxJ, maxP }; };
     const on = trace(false), off = trace(true);
@@ -100,7 +100,7 @@ function control(label, expect, mutate) {
 const rep = (a, b) => (s) => (s.includes(a) ? s.replace(a, b) : s);
 control('intensity unbounded', 'J1', rep('  juice=Math.max(0,Math.min(1,juice));', '  juice=Math.max(0,juice*1.02+.01);'));
 control('no settling after a miss', 'J2', rep('juice*=JUICE_MISS_KEEP;', ''));
-control('extra particles use the game\'s random numbers', 'J3', rep('particles.push({x,y,vx:juiceRand(-5,5),vy:juiceRand(-5,5),life:1,col});', 'particles.push({x,y,vx:rand(-5,5),vy:rand(-5,5),life:1,col});'));
+control('extra particles use the game\'s random numbers', 'J3', rep('fxParticle({x,y,vx:juiceRand(-5,5),vy:juiceRand(-5,5),life:1,col});', 'fxParticle({x,y,vx:rand(-5,5),vy:rand(-5,5),life:1,col});'));
 control('edge light over the whole screen', 'J4', rep('  ctx.rect(0,0,W,top); ctx.rect(0,bot,W,H-bot);', '  ctx.rect(0,0,W,H); ctx.rect(0,bot,W,H-bot);'));
 control('trail glow behind orbs', 'J5', rep('    if(targets.some(function(t){ return Math.hypot(t.x-p.x,t.y-p.y)<t.r+r+JUICE_EDGE_GAP; })) return;\n', ''));
 control('trail glow behind the ball', 'J5', rep('    if(Math.hypot(ball.x-p.x,ball.y-p.y)<ball.r+r+JUICE_EDGE_GAP) return;   // nor behind the ball itself\n', ''));
