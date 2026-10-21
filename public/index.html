@@ -153,11 +153,12 @@ window.addEventListener('load', function () {
 /* D-17: mark the installed standalone context before first paint, so the
    greeting is positioned correctly on the very first frame rather than
    jumping after load. navigator.standalone covers iOS, which has not
-   reliably reported the display-mode media query. Affects nothing else. */
+   reliably reported the display-mode media query. Affects nothing else.
+   PLAY APP FULL SCREEN: the Play app built "fullscreen" (Android) is the installed app too. */
 try{
   if(window.navigator.standalone === true ||
      (window.matchMedia && (window.matchMedia('(display-mode: standalone)').matches ||
-       (/Android/i.test(navigator.userAgent) && window.matchMedia('(display-mode: fullscreen)').matches)))){   // PLAY APP FULL SCREEN: the immersive Play app too
+       (/Android/i.test(navigator.userAgent) && window.matchMedia('(display-mode: fullscreen)').matches)))){
     document.documentElement.classList.add('is-standalone');
   }
 }catch(e){}

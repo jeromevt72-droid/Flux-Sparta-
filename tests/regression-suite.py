@@ -140,7 +140,7 @@ ck('D-17 all 9 languages kept', all(x in _gw for x in ['Welcome','Kumusta','Will
 ck('D-17 Safari base rule untouched', '.welcomeRotator{position:absolute;top:max(78px,calc(env(safe-area-inset-top) + 68px))' in _gw)
 ck('D-17 correction scoped to standalone', _gw.count('html.is-standalone .welcomeRotator{')==2)
 ck('D-17 flag set before first paint', _gw.index("classList.add('is-standalone')") < _gw.index('</head>'))
-ck('D-17 install detector unchanged', "return window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;" in _gw)
+ck('D-17 install detector unchanged (PLAY APP FULL SCREEN: plus the Play app built "fullscreen" on Android)', "return window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches ||\n      (/Android/i.test(navigator.userAgent) && window.matchMedia('(display-mode: fullscreen)').matches);" in _gw)
 ck('D-03 privacy page exists', os.path.exists('FLUX-Sparta/public/privacy.html'))
 ck('D-03 terms page exists', os.path.exists('FLUX-Sparta/public/terms.html'))
 ck('D-03 privacy link live', 'href="./privacy.html">Privacy Policy</a>' in _gw)
