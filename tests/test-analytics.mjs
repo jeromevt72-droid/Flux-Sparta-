@@ -78,7 +78,7 @@ async function suite({ gameHtml, workerMod, quiet = false }) {
     inst().nowMs = () => now;
     const first = await send(PID, [{ e: 'open', home: true }, { e: 'first_run' }], { country: 'PH', src: 'TikTok' });
     ck('S1 a batch is accepted', first.status === 200 && first.data.ok === true);
-    await send(PID, [{ e: 'run_end', sec: 95, lvl: 3, diff: 'hard' }, { e: 'level_up', lvl: 2, diff: 'hard' }, { e: 'level_up', lvl: 3, diff: 'hard' }, { e: 'share' }, { e: 'hack' }, { e: 'run_end', sec: 99999, lvl: 77, diff: 'x' }], { country: 'PH', src: 'facebook' });
+    await send(PID, [{ e: 'run_end', sec: 95, lvl: 3, diff: 'hard' }, { e: 'level_up', lvl: 2, diff: 'hard' }, { e: 'level_up', lvl: 3, diff: 'hard' }, { e: 'share' }, { e: 'hack' }, { e: 'run_end', sec: 99999, lvl: 100, diff: 'x' }], { country: 'PH', src: 'facebook' });   // MILESTONE LEVELS: levels go to 99, so 100 is the first out-of-range level (was 77)
     await send(PID2, [{ e: 'open', home: false }, { e: 'run_end', sec: 30, lvl: 1, diff: 'easy' }], { country: 'nope', src: 'bad src!!' });
     const bad = await send('<b>x</b>', [{ e: 'open' }]);
     ck('S1 a bad pilot ID is refused', bad.status === 400);
