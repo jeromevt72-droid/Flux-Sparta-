@@ -177,13 +177,19 @@ async function suite({ mod, main, game = GAME_HTML, adminHtml = ADMIN_HTML, gate
         x = await S.meter(() => S.ent(P(7))); out.coldEnt = x.out.text; cost.cold = [x.read, x.written];
         const sum = (await S.admin('summary')).data || {}; delete sum.at; delete sum.founding; delete sum.usage; delete sum.insights; out.summary = JSON.stringify(sum);   // OWNER SUMMARY: insights is the new part; the rest must equal main
         out.find = (await S.admin('find-player', { query: 'PILOT1' })).text;
-        out.state = JSON.stringify([...S.g.map.keys()].sort()) + JSON.stringify(S.g.sql.tables().filter((t) => t !== 'fnd').map((t) => S.g.sql.dump(t)));
-        return { out, cost };
+        // SCORE ALERTS (owner, later): the owner's alert list is a stored value of its own ("alerts"); compared apart below.
+        out.state = JSON.stringify([...S.g.map.keys()].filter((k) => k !== 'alerts').sort()) + JSON.stringify(S.g.sql.tables().filter((t) => t !== 'fnd').map((t) => S.g.sql.dump(t)));
+        return { out, cost, alerts: S.g.map.get('alerts') };
       };
       const a = await run(main), b = await run(mod);
       const diff = Object.keys(a.out).filter((k) => a.out[k] !== b.out[k]);
       ck('FP1 OFF: every public and admin answer equals main\'s (entitlements, restore-check, boards, runs, a new pilot, summary, find)', diff.length === 0, diff.join(', ') || Object.keys(a.out).length + ' answers');
-      ck('FP1 OFF: rows read and written equal main\'s (a run with / without a best, a new pilot, the leaderboard, a cold start)', util.isDeepStrictEqual(a.cost, b.cost), JSON.stringify(b.cost));
+      /* SCORE ALERTS: the 50,000 run is a new Medium #1, so it is flagged for the owner: its alert is ONE row more,
+         written after the score. Every other cost is main's exactly (when main has no alerts at all). */
+      const alertRow = !a.alerts && Array.isArray(b.alerts) && b.alerts.some((x) => x.score === 50000);
+      const costNoAlert = { ...b.cost, runBest: [b.cost.runBest[0], b.cost.runBest[1] - (alertRow ? 1 : 0)] };
+      ck('FP1 OFF: rows read and written equal main\'s (a run with / without a best, a new pilot, the leaderboard, a cold start); a flagged run writes its score alert as one row more',
+        util.isDeepStrictEqual(a.cost, costNoAlert) && (!a.alerts ? alertRow : true), JSON.stringify(b.cost) + ' vs ' + JSON.stringify(a.cost));
       report.costOff = b.cost;
     }
 
@@ -330,16 +336,19 @@ async function suite({ mod, main, game = GAME_HTML, adminHtml = ADMIN_HTML, gate
       const r0 = await S.submit('new-r', 500);
       const got = [];
       let firstNew = null;
+      const alertN = (g) => (g.map.get('alerts') || []).length;   // SCORE ALERTS: an alert is one row of its own, not counted below
+      let firstNewAlerts = 0;
       for (let k = 0; k < 14; k++) {
-        const id = 'new-pilot-' + k, x = await S.meter(() => S.submit(id, 500 + k));
-        if (k === 0) firstNew = x;
+        const id = 'new-pilot-' + k, n0 = alertN(S.g), x = await S.meter(() => S.submit(id, 500 + k));
+        if (k === 0) { firstNew = x; firstNewAlerts = alertN(S.g) - n0; }
         got.push(x.out.data.founding || 0);
       }
       ck('FP5 new pilots get the next numbers at creation (#990..#1,000), then none once full; a restricted new pilot none', r0.data.founding === undefined && got.slice(0, 11).join() === '990,991,992,993,994,995,996,997,998,999,1000' && got.slice(11).every((n) => n === 0), got.join(','));
       const off = await mk(mod, newStorage());
       now = T0 + 9e6; await off.seed(1, 3);
-      const offNew = await off.meter(() => off.submit('other-new', 700));
-      ck('FP8 a new founder\'s first run writes exactly ONE row more (its grant) than a new pilot with the offer OFF', firstNew.written === offNew.written + 1, offNew.written + ' -> ' + firstNew.written);
+      const offN0 = alertN(off.g), offNew = await off.meter(() => off.submit('other-new', 700)), offNewAlerts = alertN(off.g) - offN0;
+      ck('FP8 a new founder\'s first run writes exactly ONE row more (its grant) than a new pilot with the offer OFF (score alerts, one row each, aside)',
+        firstNew.written - firstNewAlerts === offNew.written - offNewAlerts + 1, offNew.written + ' (alerts ' + offNewAlerts + ') -> ' + firstNew.written + ' (alerts ' + firstNewAlerts + ')');
       report.newFounderRun = [firstNew.read, firstNew.written];
       const eN = await S.ent('new-pilot-0'), lb2 = await S.lb();
       ck('FP5 a new founder owns Solar Inferno; spots left 0 when full', eN.data.skus.includes('solar') && eN.data.founding === 990 && lb2.data.foundingLeft === 0, eN.text);

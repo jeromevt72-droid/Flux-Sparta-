@@ -2487,7 +2487,7 @@ export class LeaderboardDO {
     this.env = env || {};
     this.ready = false;
     this.pidCache = new Map();
-    this.alerts = [];
+    this.alerts = null;
   }
 
   async load() {
@@ -2510,7 +2510,7 @@ export class LeaderboardDO {
       this.nameBans = NP(await this.state.storage.get("nameBans"));
       this.tagCache = null;
       this.flags = (await this.state.storage.get("flags")) || [];
-      { const al = await this.state.storage.get(ALERT_KEY); this.alerts = Array.isArray(al) ? al : []; }   // SCORE ALERTS
+      this.alerts = null;   // SCORE ALERTS: read the first time they are needed (a start reads nothing more)
       const rl = await this.state.storage.get("restoreLog");
       this.restoreLog = Array.isArray(rl) ? rl : [];
       this.archiveCache = null;
@@ -3586,13 +3586,20 @@ export class LeaderboardDO {
   }
   /* SCORE ALERTS: the World Grid order (as the leaderboard sorts it), and saving one alert. */
   alertGrid() { return alertGridOrder(Object.values(this.countries || {}).sort((a, b) => b.totalScore - a.totalScore)); }
+  /* SCORE ALERTS: read once, the first time they are needed (an upload that makes no alert never reads them). */
+  async alertsLoad() {
+    if (!Array.isArray(this.alerts)) { const al = await this.state.storage.get(ALERT_KEY); if (!Array.isArray(this.alerts)) this.alerts = Array.isArray(al) ? al : []; }
+    return this.alerts;
+  }
   async saveAlert(a) {
+    await this.alertsLoad();
     const next = alertsAdd(this.alerts, a, a.at);
     this.alerts = next;   // memory first: a later write carries it even if this one fails
     try { await this.state.storage.put({ [ALERT_KEY]: next }); } catch (e) { /* the score is already saved; the alert is best-effort */ }
   }
   /* SCORE ALERTS (admin): newest first, with the count still to check. Checked ones older than 90 days are deleted here too. */
   async handleAdminAlerts() {
+    await this.alertsLoad();
     const now = Date.now(), kept = alertsPrune(this.alerts, now);
     if (kept.length !== this.alerts.length) { await this.state.storage.put({ [ALERT_KEY]: kept }); this.alerts = kept; }
     const list = kept.slice().sort((a, b) => b.at - a.at).map((a) => this.alertNow(a));
@@ -3608,6 +3615,7 @@ export class LeaderboardDO {
   /* SCORE ALERTS (admin): "Looks legit" -- marks one alert checked. */
   async handleAdminAlertCheck(request) {
     const b = (await readJsonObject(request)) || {}, id = typeof b.id === "string" ? b.id : "", now = Date.now();
+    await this.alertsLoad();
     const a = this.alerts.find((x) => x && x.id === id);
     if (!a) return json({ error: "That alert is gone (already deleted, or the pilot was deleted)." }, 404);
     if (a.checkedAt) return json({ ok: true, already: true, checkedAt: a.checkedAt });
@@ -3818,7 +3826,7 @@ export class LeaderboardDO {
     const nextPlayers = dropKey(this.players, id);
     const nextLast = dropKey(this.lastSubmit, id);
     const nextFlags = this.flags.filter((f) => f.pid !== pid);
-    const nextAlerts = this.alerts.filter((x) => x && x.pid !== pid);   // SCORE ALERTS: deleted with the pilot
+    const nextAlerts = (await this.alertsLoad()).filter((x) => x && x.pid !== pid);   // SCORE ALERTS: deleted with the pilot
     const nextEnt = NP(this.entitlements);
     let purchasesRemoved = 0;
     if (removePurchases && ownGet(nextEnt, id)) { purchasesRemoved = nextEnt[id].length; delete nextEnt[id]; }
@@ -3949,7 +3957,7 @@ export class LeaderboardDO {
     this.nameBans = NP(await st.get("nameBans"));
     this.tagCache = null;
     this.flags = (await st.get("flags")) || [];
-    { const al = await st.get(ALERT_KEY); this.alerts = Array.isArray(al) ? al : []; }   // SCORE ALERTS
+    this.alerts = null;   // SCORE ALERTS: read the first time they are needed
     const rl = await st.get("restoreLog");
     this.restoreLog = Array.isArray(rl) ? rl : [];
     this.worldGrid = (await st.get(WORLD_GRID_KEY)) || null;   // COMBINED WORLD GRID switch (off unless the owner applied it)
@@ -7209,6 +7217,7 @@ class PilotLayoutV2 {
   }
   async removePilots(request) {
     const o = this.o, b = await request.json().catch(() => ({}));
+    await o.alertsLoad();   // SCORE ALERTS: read before the plan, so nothing waits between the check and the removal
     const plan = await this.rpPlan(b.lines);
     if (plan.id !== b.id) return json({ ok: false, changed: true, error: "Nothing was removed: the pilots (or the list) changed since that dry run. Run a new DRY RUN." }, 409);
     if (!plan.canRemove) return json({ ok: false, error: "Nothing was removed: every line must match exactly one pilot. Fix the list and run a new DRY RUN." }, 409);
@@ -7282,7 +7291,7 @@ class PilotLayoutV2 {
     if (!id) return json({ error: "No records found for that entry" }, 404);
     const row = this.db.pilot(id), owned = this.ents(id);
     const purchasesRemoved = removePurchases && Array.isArray(owned) ? owned.length : 0;
-    const nextFlags = o.flags.filter((f) => f.pid !== pid), nextAlerts = o.alerts.filter((x) => x && x.pid !== pid);   // SCORE ALERTS: deleted with the pilot
+    const nextFlags = o.flags.filter((f) => f.pid !== pid), nextAlerts = (await o.alertsLoad()).filter((x) => x && x.pid !== pid);   // SCORE ALERTS: deleted with the pilot
     const nextLog = o.restoreLog.map((e) => (e.pid === pid ? { at: e.at, pid: e.pid, tag: e.tag, name: "", reason: "(erased on privacy request)" } : e));
     await o.eraseFromSeasonArchive(id);                        // SEASON 1: the archived Season 0 scores go too
     const old = await o.v1ValuesWithout(id, !!removePurchases);   // and the old layout's values, kept until CLEAN UP

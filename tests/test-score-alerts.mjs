@@ -432,7 +432,7 @@ await control('oldest first (the newest alert is no longer on top)', 'A1 rule 2:
 await control('REMOVE PILOTS leaves the alert open', 'A3 ...after REMOVE NOW', { worker: rep('const nextAlerts = alertsCheckPids(o.alerts, pids, Date.now(), "removed");', 'const nextAlerts = o.alerts;') });
 await control('checked alerts never deleted', 'A3 90+ days after checking', { worker: rep('const ALERT_CHECKED_KEEP_MS = 90 * 24 * 3600 * 1000;', 'const ALERT_CHECKED_KEEP_MS = 900 * 24 * 3600 * 1000;') });
 await control('unchecked alerts deleted after 90 days too', 'A3 90+ days after checking', { worker: rep('!(a.checkedAt && now - a.checkedAt >= ALERT_CHECKED_KEEP_MS)', '!(now - (a.checkedAt || a.at) >= ALERT_CHECKED_KEEP_MS)') });
-await control('a privacy deletion keeps the alerts', 'A3 a privacy deletion', { worker: rep('nextAlerts = o.alerts.filter((x) => x && x.pid !== pid);', 'nextAlerts = o.alerts;') });
+await control('a privacy deletion keeps the alerts', 'A3 a privacy deletion', { worker: rep('nextAlerts = (await o.alertsLoad()).filter((x) => x && x.pid !== pid);', 'nextAlerts = await o.alertsLoad();') });
 await control('the cap drops the oldest alert, checked or not', 'A3 at most 300', { worker: rep('const i = out.findIndex((a) => a.checkedAt);', 'const i = 0;') });
 await control('old layout: no alerts', 'A4 old layout: rules 1, 3 and 4', { worker: rep('      if (rules.length) await this.saveAlert(', '      if (false) await this.saveAlert(') });
 await control('page: badge never shown', 'A5 page: on opening', { admin: rep("badge.hidden = !d.unchecked;", 'badge.hidden = true;') });

@@ -100,7 +100,7 @@ async function suite({ gameHtml, gateHtml, workerMod, quiet = false }) {
     const old = await get('?limit=50');
     ck('A1 old cached pages still get their answer (top + countries, no boards)', old && Array.isArray(old.top) && old.top.length > 0 && Array.isArray(old.countries) && old.countries.length === 5 && !old.boards && old.weighted === true);
     // A new pilot from FR lands in the middle of Medium.
-    const me = P(900), putsBefore = storage.puts;
+    const me = P(900), putsBefore = storage.puts, alertsBefore = (storage.map.get('alerts') || []).length;
     const r = await submit(me, 3500, 'medium', 'FR');
     const board = want('medium'), rank = board.indexOf('NEWSTAR') + 1;
     const frBoard = Object.values(storage.map.get('players')).filter((x) => x.bests.medium && x.country === 'FR').sort((x, y) => y.bests.medium.score - x.bests.medium.score).map((x) => x.name);
@@ -108,7 +108,10 @@ async function suite({ gameHtml, gateHtml, workerMod, quiet = false }) {
     ck('S1 the upload reply gives this pilot\'s rank, country rank, totals and the pilot just above', r.status === 200 && r.data.rank === rank && r.data.total === 41 &&
       r.data.countryRank === frBoard.indexOf('NEWSTAR') + 1 && r.data.countryTotal === frBoard.length && r.data.above && r.data.above.name === aboveName &&
       r.data.above.score === aboveRec.bests.medium.score && r.data.above.rank === rank - 1 && !('playerId' in r.data.above) && typeof r.data.above.tag === 'string', JSON.stringify(r.data));
-    ck('S2 an accepted score writes exactly as before: one put for the score, one for the country totals (no rank writes)', storage.puts - putsBefore === 2, storage.puts - putsBefore);
+    // SCORE ALERTS (owner, later): this score moves FR up the World Grid, so the owner gets an alert -- one put of its own, after the score.
+    const newAlerts = (storage.map.get('alerts') || []).slice(alertsBefore), alerted = newAlerts.length === 1 && newAlerts[0].country === 'FR' && newAlerts[0].rules.some((x) => x.r === 4);
+    ck('S2 an accepted score writes exactly as before: one put for the score, one for the country totals (no rank writes); plus its score alert when flagged',
+      storage.puts - putsBefore === 2 + (alerted ? 1 : 0) && newAlerts.length === (alerted ? 1 : 0), (storage.puts - putsBefore) + ' puts, ' + newAlerts.length + ' alert(s) ' + JSON.stringify(newAlerts.map((x) => x.rules)));
     // Another pilot passes: the next read shows it (the cached board is refreshed on change).
     const r2 = await submit(P(901), 3600, 'medium', 'US', 'PASSER');
     const b2 = await get('?limit=50&boards=1&x=2');
