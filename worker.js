@@ -273,6 +273,8 @@ export default {
             "/api/admin/exceptions":        () => adminExceptions(request, env),
             "/api/admin/help-done":         () => adminHelpDone(request, env),           // HELP: the owner marks a help request done
             "/api/admin/dismiss-flag":      () => adminDismissFlag(request, env),
+            "/api/admin/alerts":            () => adminDO(request, env, "/admin-alerts", {}),   // SCORE ALERTS: newest first + unchecked count
+            "/api/admin/alert-check":       () => adminAlertCheck(request, env),               // SCORE ALERTS: "Looks legit"
             "/api/admin/resolve-delivery":  () => adminResolveDelivery(request, env),
             "/api/admin/purchases":         () => adminPurchases(request, env),
             "/api/admin/purchase-revoke":   () => adminPurchaseChange(request, env, false),
@@ -2273,6 +2275,11 @@ async function adminDismissFlag(request, env) {
   const b = await adminBody(request);
   return adminDO(request, env, "/admin-dismiss-flag", { id: String(b.id || "") });
 }
+async function adminAlertCheck(request, env) {   // SCORE ALERTS
+  const denied = requireAdmin(request, env); if (denied) return denied;
+  const b = await adminBody(request);
+  return adminDO(request, env, "/admin-alert-check", { id: String(b.id || "").slice(0, 40) });
+}
 async function adminResolveDelivery(request, env) {
   const denied = requireAdmin(request, env); if (denied) return denied;
   const b = await adminBody(request);
@@ -2473,12 +2480,14 @@ export class LeaderboardDO {
      keeps its own best. Legacy single-score records convert as they load.
      restricted[pidHash] = {at, reason}      moderation, keyed by the public hash
      nameBans[normalisedName] = {at}         exact-name bans, display only
-     flags[]                                  unusual submissions, informational */
+     flags[]                                  unusual submissions, informational
+     alerts[]                                 SCORE ALERTS for the owner (see ALERT_KEY) */
   constructor(state, env) {
     this.state = state;
     this.env = env || {};
     this.ready = false;
     this.pidCache = new Map();
+    this.alerts = null;
   }
 
   async load() {
@@ -2501,6 +2510,7 @@ export class LeaderboardDO {
       this.nameBans = NP(await this.state.storage.get("nameBans"));
       this.tagCache = null;
       this.flags = (await this.state.storage.get("flags")) || [];
+      this.alerts = null;   // SCORE ALERTS: read the first time they are needed (a start reads nothing more)
       const rl = await this.state.storage.get("restoreLog");
       this.restoreLog = Array.isArray(rl) ? rl : [];
       this.archiveCache = null;
@@ -2685,6 +2695,8 @@ export class LeaderboardDO {
       "/admin-name-unban": () => this.handleAdminNameBan(request, false),
       "/admin-overview": () => this.handleAdminOverview(),
       "/admin-dismiss-flag": () => this.handleAdminDismissFlag(request),
+      "/admin-alerts": () => this.handleAdminAlerts(),                    // SCORE ALERTS (admin)
+      "/admin-alert-check": () => this.handleAdminAlertCheck(request),
       "/admin-issue-restore": () => this.handleAdminIssueRestore(request),
       "/admin-season-archive": () => this.handleAdminSeasonArchive(),
       "/admin-summary": () => this.handleAdminSummary(),
@@ -3542,6 +3554,10 @@ export class LeaderboardDO {
     // Informational only: flag the unusual for optional review. Never hides or
     // punishes anyone automatically.
     const flag = await this.maybeFlag(playerId, name, difficulty, score, prevBest, now);
+    // SCORE ALERTS: the #1 of this board and the World Grid order before this upload (public pilots only).
+    const alertOn = !ownGet(this.restricted, pid);
+    const topBefore = alertOn ? (await this.publicRows(difficulty))[0] : null;
+    const gridBefore = alertOn ? this.alertGrid() : null;
 
     // Durable first: memory changes only after the write succeeds.
     const nextPlayers = setKey(this.players, playerId, record);
@@ -3559,7 +3575,54 @@ export class LeaderboardDO {
 
     await this.recomputeCountries();
 
+    if (alertOn) {   // SCORE ALERTS: after the score is saved and counted; never fails or slows the upload
+      const topNow = isNewBest ? (await this.publicRows(difficulty))[0] : null;   // only a new best can make a new #1
+      const rules = alertRules({ isNewBest, score, prevBest, wasTop: !!topBefore && topBefore.r.playerId === playerId, isTop: !!topNow && topNow.r.playerId === playerId,
+        grid: alertGridMove(gridBefore, this.alertGrid(), country) });
+      if (rules.length) await this.saveAlert(alertMake({ pid, tag: await this.tagFor(playerId), name: record.name, country, difficulty, score, level, prevBest, rules, now }));
+    }
+
     return this.submitReply(playerId, difficulty, isNewBest, false, score);
+  }
+  /* SCORE ALERTS: the World Grid order (as the leaderboard sorts it), and saving one alert. */
+  alertGrid() { return alertGridOrder(Object.values(this.countries || {}).sort((a, b) => b.totalScore - a.totalScore)); }
+  /* SCORE ALERTS: read once, the first time they are needed (an upload that makes no alert never reads them). */
+  async alertsLoad() {
+    if (!Array.isArray(this.alerts)) { const al = await this.state.storage.get(ALERT_KEY); if (!Array.isArray(this.alerts)) this.alerts = Array.isArray(al) ? al : []; }
+    return this.alerts;
+  }
+  async saveAlert(a) {
+    await this.alertsLoad();
+    const next = alertsAdd(this.alerts, a, a.at);
+    this.alerts = next;   // memory first: a later write carries it even if this one fails
+    try { await this.state.storage.put({ [ALERT_KEY]: next }); } catch (e) { /* the score is already saved; the alert is best-effort */ }
+  }
+  /* SCORE ALERTS (admin): newest first, with the count still to check. Checked ones older than 90 days are deleted here too. */
+  async handleAdminAlerts() {
+    await this.alertsLoad();
+    const now = Date.now(), kept = alertsPrune(this.alerts, now);
+    if (kept.length !== this.alerts.length) { await this.state.storage.put({ [ALERT_KEY]: kept }); this.alerts = kept; }
+    const list = kept.slice().sort((a, b) => b.at - a.at).map((a) => this.alertNow(a));
+    return json({ ok: true, unchecked: list.filter((a) => !a.checkedAt).length, alerts: list, keepDays: Math.round(ALERT_CHECKED_KEEP_MS / 86400000) });
+  }
+  /* The pilot's name and #TAG today, for REMOVE PILOTS (new layout; REMOVE PILOTS needs it). The old layout
+     shows what the alert saved. onBoard false = the pilot has no score row any more. */
+  alertNow(a) {
+    if (!(this.layout === "v2" && this.v2)) return { ...a };
+    const r = this.v2.pilotByPid(a.pid);
+    return r ? { ...a, nameNow: v2dec(r.rec).name, tagNow: r.tag, onBoard: true } : { ...a, onBoard: false };
+  }
+  /* SCORE ALERTS (admin): "Looks legit" -- marks one alert checked. */
+  async handleAdminAlertCheck(request) {
+    const b = (await readJsonObject(request)) || {}, id = typeof b.id === "string" ? b.id : "", now = Date.now();
+    await this.alertsLoad();
+    const a = this.alerts.find((x) => x && x.id === id);
+    if (!a) return json({ error: "That alert is gone (already deleted, or the pilot was deleted)." }, 404);
+    if (a.checkedAt) return json({ ok: true, already: true, checkedAt: a.checkedAt });
+    const next = this.alerts.map((x) => (x === a ? { ...x, checkedAt: now, outcome: "legit" } : x));
+    await this.state.storage.put({ [ALERT_KEY]: next });
+    this.alerts = next;
+    return json({ ok: true, checkedAt: now });
   }
 
   /* The success reply to an upload -- the same shape for a first upload and a
@@ -3763,6 +3826,7 @@ export class LeaderboardDO {
     const nextPlayers = dropKey(this.players, id);
     const nextLast = dropKey(this.lastSubmit, id);
     const nextFlags = this.flags.filter((f) => f.pid !== pid);
+    const nextAlerts = (await this.alertsLoad()).filter((x) => x && x.pid !== pid);   // SCORE ALERTS: deleted with the pilot
     const nextEnt = NP(this.entitlements);
     let purchasesRemoved = 0;
     if (removePurchases && ownGet(nextEnt, id)) { purchasesRemoved = nextEnt[id].length; delete nextEnt[id]; }
@@ -3771,9 +3835,9 @@ export class LeaderboardDO {
     const nextLog = this.restoreLog.map((e) => (e.pid === pid ? { at: e.at, pid: e.pid, tag: e.tag, name: "", reason: "(erased on privacy request)" } : e));
     await this.eraseFromSeasonArchive(id);   // SEASON 1: the archived Season 0 scores go too
     if ((await this.state.storage.get("runs:" + pid)) !== undefined) await this.state.storage.delete("runs:" + pid);   // REPLAY PROTECTION: the pilot's accepted run ids go too
-    await this.state.storage.put({ players: nextPlayers, lastSubmit: nextLast, flags: nextFlags, entitlements: nextEnt, restoreLog: nextLog });
+    await this.state.storage.put({ players: nextPlayers, lastSubmit: nextLast, flags: nextFlags, [ALERT_KEY]: nextAlerts, entitlements: nextEnt, restoreLog: nextLog });
     if ((this.migPhase === "copying" || this.migPhase === "paused") && this.state.storage.sql) new V2SqlDb(this.state.storage).forget(id, removePurchases);   // STORAGE FIX: nor in a half-made copy
-    this.players = nextPlayers; this.lastSubmit = nextLast; this.flags = nextFlags; this.entitlements = nextEnt; this.restoreLog = nextLog;
+    this.players = nextPlayers; this.lastSubmit = nextLast; this.flags = nextFlags; this.alerts = nextAlerts; this.entitlements = nextEnt; this.restoreLog = nextLog;
     this.invalidateTags();
     await this.recomputeCountries();
     return json({ ok: true, purchasesRemoved, restrictionKept: !!ownGet(this.restricted, pid) });
@@ -3893,6 +3957,7 @@ export class LeaderboardDO {
     this.nameBans = NP(await st.get("nameBans"));
     this.tagCache = null;
     this.flags = (await st.get("flags")) || [];
+    this.alerts = null;   // SCORE ALERTS: read the first time they are needed
     const rl = await st.get("restoreLog");
     this.restoreLog = Array.isArray(rl) ? rl : [];
     this.worldGrid = (await st.get(WORLD_GRID_KEY)) || null;   // COMBINED WORLD GRID switch (off unless the owner applied it)
@@ -4541,6 +4606,7 @@ async function bkErasePilot(entries, pid, removePurchases) {
       touched = true; return [k, v.map((e) => (e && e.pid === pid ? { at: e.at, pid: e.pid, tag: e.tag, name: "", reason: "(erased on privacy request)" } : e))];
     }
     if (k === "flags" && Array.isArray(v) && v.some((f) => f && f.pid === pid)) { touched = true; return [k, v.filter((f) => !(f && f.pid === pid))]; }
+    if (k === ALERT_KEY && Array.isArray(v) && v.some((a) => a && a.pid === pid)) { touched = true; return [k, v.filter((a) => !(a && a.pid === pid))]; }   // SCORE ALERTS
     return [k, v];
   });
   return touched ? out : null;
@@ -5526,6 +5592,62 @@ function pruneFlags(flags, now) {
   return flags.filter((f) => now - f.at < FLAG_RETENTION_MS).slice(-FLAG_MAX);
 }
 
+/* SCORE ALERTS (owner): a score is never blocked or delayed. After it is saved and counted, it is
+   noted for the owner in FLUX COMMAND (Alerts) when any of these is true:
+     1. a new best above 300,000 on any difficulty;
+     2. a new best above 50,000 that is more than 3x the pilot's previous best on that difficulty;
+     3. it makes the pilot the new #1 of that difficulty's leaderboard (they were not #1 before);
+     4. it moves the pilot's country up one or more places on the World Grid (as players see it).
+   One alert per upload, listing every rule it met. Restricted pilots are never alerted (nothing they
+   send is public). Stored in the leaderboard Durable Object under "alerts", written only when an
+   upload makes one (and after the score is saved, so it can never fail or slow the score). Nothing
+   new about a pilot is stored: the alert repeats what the leaderboard already holds (pilot code,
+   name, #TAG, country, score, level, previous best) plus the rule and the time. Unchecked alerts stay
+   until the owner checks them ("Looks legit", or the pilot is removed); checked ones are deleted
+   90 days after they were checked. A privacy deletion deletes the pilot's alerts at once. */
+const ALERT_KEY = "alerts";
+const ALERT_HIGH = 300_000;                         // rule 1: a new best above this
+const ALERT_JUMP = 3, ALERT_JUMP_MIN = 50_000;      // rule 2: a new best above 50,000 and more than 3x the previous best
+const ALERT_CHECKED_KEEP_MS = 90 * 24 * 3600 * 1000;
+const ALERT_MAX = 300;                              // ~250 bytes each: far below one stored value's limit
+/* The countries in World Grid order (codes only). */
+function alertGridOrder(list) { return (list || []).map((c) => c && c.country).filter(Boolean); }
+/* Rule 4: the country's place before and after, when it passed at least one country (else null). */
+function alertGridMove(before, after, cc) {
+  const ia = after.indexOf(cc);
+  if (!cc || ia < 0) return null;
+  const ib = before.indexOf(cc), above = ib < 0 ? before : before.slice(0, ib);
+  const passed = above.filter((c) => { const j = after.indexOf(c); return j < 0 || j > ia; }).length;
+  return passed > 0 ? { from: ib < 0 ? null : ib + 1, to: ia + 1, passed } : null;
+}
+/* Which rules an upload met (empty = no alert). */
+function alertRules({ isNewBest, score, prevBest, wasTop, isTop, grid }) {
+  const out = [];
+  if (isNewBest && score > ALERT_HIGH) out.push({ r: 1 });
+  if (isNewBest && score > ALERT_JUMP_MIN && prevBest > 0 && score > prevBest * ALERT_JUMP) out.push({ r: 2 });
+  if (isTop && !wasTop) out.push({ r: 3 });
+  if (grid) out.push({ r: 4, from: grid.from, to: grid.to });
+  return out;
+}
+function alertMake({ pid, tag, name, country, difficulty, score, level, prevBest, rules, now }) {
+  return { id: String(pid).slice(0, 10) + "-" + now.toString(36) + "-" + String(difficulty || "")[0], pid, tag: tag || "", name: cleanName(name), country: country || "",
+    difficulty, score, level, prevBest: prevBest || 0, rules, at: now, checkedAt: null };
+}
+/* Checked alerts go 90 days after they were checked; above ALERT_MAX the oldest checked go first. */
+function alertsPrune(list, now) {
+  let out = (Array.isArray(list) ? list : []).filter((a) => a && !(a.checkedAt && now - a.checkedAt >= ALERT_CHECKED_KEEP_MS));
+  while (out.length > ALERT_MAX) {
+    const i = out.findIndex((a) => a.checkedAt);
+    out = out.filter((_, j) => j !== (i >= 0 ? i : 0));
+  }
+  return out;
+}
+function alertsAdd(list, alert, now) { return alertsPrune([...(Array.isArray(list) ? list : []), alert], now); }
+/* Checks off every unchecked alert of these pilots (they were removed with REMOVE PILOTS). */
+function alertsCheckPids(list, pids, now, outcome) {
+  return (Array.isArray(list) ? list : []).map((a) => (a && !a.checkedAt && pids.includes(a.pid) ? { ...a, checkedAt: now, outcome } : a));
+}
+
 /* ------------------------------------------------------------------ */
 /* STORAGE FIX: one SQL row per pilot (layout "v2")                    */
 /* ------------------------------------------------------------------ */
@@ -5619,7 +5741,7 @@ const MIG_CHANGED_MAX = 5000;
 const V2_ROW_BYTES_EST = 310;                // one pilot in a backup (measured in the tests)
 const FREE_PLAN = { rowsReadPerDay: 5_000_000, rowsWrittenPerDay: 100_000, storageBytes: 5 * 1024 * 1024 * 1024, note: "Workers Free plan, SQLite Durable Objects -- check the current limits in the Cloudflare dashboard" };
 const V2_WRITE_ROUTES = new Set(["/cg-switch", "/submit", "/grant", "/revoke", "/import", "/recompute", "/admin-remove-score", "/admin-remove-pilots", "/admin-restrict", "/admin-unrestrict",
-  "/admin-privacy-delete", "/admin-name-ban", "/admin-name-unban", "/admin-dismiss-flag", "/admin-issue-restore", "/world-grid-apply", "/world-grid-revert",
+  "/admin-privacy-delete", "/admin-name-ban", "/admin-name-unban", "/admin-dismiss-flag", "/admin-alerts", "/admin-alert-check", "/admin-issue-restore", "/world-grid-apply", "/world-grid-revert",
   "/founding-switch", "/founding-continue", "/founding-exclude", "/founding-take-back", "/founding-grant"]);
 const V2_TABLES = ["pilots", "ents", "seen", "cool", "fnd"];   // backed up; v2meta (derived totals) is rebuilt instead
 const V2_ALL_TABLES = V2_TABLES.concat(["v2meta"]);
@@ -6652,6 +6774,8 @@ class PilotLayoutV2 {
       "/admin-name-unban": () => this.nameBan(request, false),
       "/admin-overview": () => o.handleAdminOverview(),
       "/admin-dismiss-flag": () => o.handleAdminDismissFlag(request),
+      "/admin-alerts": () => o.handleAdminAlerts(),                       // SCORE ALERTS (admin)
+      "/admin-alert-check": () => o.handleAdminAlertCheck(request),
       "/admin-issue-restore": () => this.issueRestore(request),
       "/admin-season-archive": () => this.seasonArchive(),
       "/admin-summary": () => this.summary(),
@@ -6739,6 +6863,10 @@ class PilotLayoutV2 {
     if (isNewBest) record.bests[difficulty] = { score, level, updatedAt: now };
     const flag = this.maybeFlag(pid, playerId, name, difficulty, score, prevBest, now);
     const nextFlags = flag ? pruneFlags([...o.flags.filter((f) => f.id !== flag.id), flag], now) : o.flags;
+    // SCORE ALERTS: the #1 of this board and the World Grid order (as players see it) before this upload.
+    const alertOn = !ownGet(o.restricted, pid);
+    const topBefore = alertOn && isNewBest ? this.board(difficulty)[0] : null;
+    const gridBefore = alertOn ? alertGridOrder(this.cgCountries(this.countryList())) : null;
     // FOUNDING PILOT: a NEW pilot gets the next number while the offer is ON, every earlier pilot was
     // looked at (done) and spots remain -- in the same transaction as the pilot row (no await from here).
     const fo = this.sum.fo, fHave = fo && fo.given ? this.db.fndMany([playerId]).get(playerId) : undefined;
@@ -6768,6 +6896,12 @@ class PilotLayoutV2 {
       try { await o.state.storage.put(cgRes.puts); } catch (e) { this.cgUndo(cgRes, now); }   // FREE PLAN SAFETY: the run is saved; only the share pauses
     } else if (saving) await saving;
     o.flags = nextFlags;
+    if (alertOn) {   // SCORE ALERTS: after the score (and its share) are saved and counted; never fails or slows the upload
+      const topNow = isNewBest ? this.board(difficulty)[0] : null;
+      const rules = alertRules({ isNewBest, score, prevBest, wasTop: !!topBefore && topBefore.id === playerId, isTop: !!topNow && topNow.id === playerId,
+        grid: alertGridMove(gridBefore, alertGridOrder(this.cgCountries(this.countryList())), country) });
+      if (rules.length) await o.saveAlert(alertMake({ pid, tag: res.cur.tag, name: v2dec(res.cur.rec).name, country, difficulty, score, level, prevBest, rules, now }));
+    }
     const fn = fnum || (fHave && !fHave.off ? fHave.n : 0);
     const extra = cgRes ? { ...(fn ? { founding: fn } : {}), cg: cgRes.reply } : (fn ? { founding: fn } : null);   // EVERY RUN COUNTS: the run's share (ON only)
     return this.submitReply(res.cur, pid, difficulty, isNewBest, false, score, extra);   // FOUNDING PILOT: the badge / the one-time message at the run's end
@@ -7083,6 +7217,7 @@ class PilotLayoutV2 {
   }
   async removePilots(request) {
     const o = this.o, b = await request.json().catch(() => ({}));
+    await o.alertsLoad();   // SCORE ALERTS: read before the plan, so nothing waits between the check and the removal
     const plan = await this.rpPlan(b.lines);
     if (plan.id !== b.id) return json({ ok: false, changed: true, error: "Nothing was removed: the pilots (or the list) changed since that dry run. Run a new DRY RUN." }, 409);
     if (!plan.canRemove) return json({ ok: false, error: "Nothing was removed: every line must match exactly one pilot. Fix the list and run a new DRY RUN." }, 409);
@@ -7091,6 +7226,7 @@ class PilotLayoutV2 {
     const othersBefore = this.rpOthers(ids);
     const kept = new Map(plan.rows.map((r) => [r.id, { ents: this.db.kvGet("ents", r.id), ls: r.ls }]));
     const nextFlags = o.flags.filter((f) => !pids.includes(f.pid));
+    const nextAlerts = alertsCheckPids(o.alerts, pids, Date.now(), "removed");   // SCORE ALERTS: their open alerts are checked (removed)
     const sum = structuredClone(this.sum);
     this.db.tx(() => {
       for (const id of ids) {
@@ -7101,10 +7237,10 @@ class PilotLayoutV2 {
       }
       this.saveSum(sum);
     });
-    const saving = o.state.storage.put({ flags: nextFlags });
+    const saving = o.state.storage.put({ flags: nextFlags, [ALERT_KEY]: nextAlerts });
     this.sum = sum; this.dropCaches();
     await saving;
-    o.flags = nextFlags;
+    o.flags = nextFlags; o.alerts = nextAlerts;
     await o.migTouched(pids);
     /* post-check */
     const checks = [], add = (id, label, ok, detail) => checks.push({ id, label, ok: !!ok, detail });
@@ -7155,7 +7291,7 @@ class PilotLayoutV2 {
     if (!id) return json({ error: "No records found for that entry" }, 404);
     const row = this.db.pilot(id), owned = this.ents(id);
     const purchasesRemoved = removePurchases && Array.isArray(owned) ? owned.length : 0;
-    const nextFlags = o.flags.filter((f) => f.pid !== pid);
+    const nextFlags = o.flags.filter((f) => f.pid !== pid), nextAlerts = (await o.alertsLoad()).filter((x) => x && x.pid !== pid);   // SCORE ALERTS: deleted with the pilot
     const nextLog = o.restoreLog.map((e) => (e.pid === pid ? { at: e.at, pid: e.pid, tag: e.tag, name: "", reason: "(erased on privacy request)" } : e));
     await o.eraseFromSeasonArchive(id);                        // SEASON 1: the archived Season 0 scores go too
     const old = await o.v1ValuesWithout(id, !!removePurchases);   // and the old layout's values, kept until CLEAN UP
@@ -7170,12 +7306,12 @@ class PilotLayoutV2 {
       if (removePurchases) { this.db.kvDel("ents", id); try { this.db.kvDel("fnd", id); } catch (e) { /* no table */ } }   // FOUNDING PILOT: goes with the purchases (the number is not reused)
       this.saveSum(sum);
     });
-    const saving = o.state.storage.put({ flags: nextFlags, restoreLog: nextLog, ...old });
+    const saving = o.state.storage.put({ flags: nextFlags, [ALERT_KEY]: nextAlerts, restoreLog: nextLog, ...old });
     const fSaving = fc ? o.state.storage.put(FOUNDING_KEY, fc) : null;   // same turn: written together
     this.sum = sum; this.dropCaches();
     if (fc) o.fcfg = fc;
     await saving; if (fSaving) await fSaving;
-    o.flags = nextFlags; o.restoreLog = nextLog; o.twin = null;
+    o.flags = nextFlags; o.alerts = nextAlerts; o.restoreLog = nextLog; o.twin = null;
     await o.migTouched(pid);
     return json({ ok: true, purchasesRemoved, restrictionKept: !!ownGet(o.restricted, pid) });
   }

@@ -283,7 +283,7 @@ async function suite({ workerMod, adminHtml, quiet = false }) {
         return res;
       };
       const tick = () => new Promise((r) => setImmediate(r));
-      const until = async (fn, n = 600) => { for (let i = 0; i < n; i++) { if (fn()) return true; await tick(); } return false; };
+      const until = async (fn, n = 20000) =>   /* a ceiling, not a delay: the page also loads SCORE ALERTS at start */  { for (let i = 0; i < n; i++) { if (fn()) return true; await tick(); } return false; };
       const gp = boot(scriptsOf(adminHtml), { origin: ORIGIN, path: '/admin.html', store: makeStore({}).store, fetchImpl });
       const E = new Proxy({}, { get: (t, k) => gp.win.document.getElementById(k) });
       const lines = ['TITAN #' + await P2.tag(P(2)), 'TITAN #' + await P2.tag(P(3)), 'TESTER #' + await P2.tag(P(4))];

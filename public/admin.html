@@ -77,6 +77,8 @@
   .actions{display:flex;flex-wrap:wrap;gap:8px}
   .pill{display:inline-block;font-size:10px;letter-spacing:.16em;padding:3px 8px;border-radius:99px;margin-left:6px;vertical-align:2px}
   .pill.amber{background:rgba(255,193,94,.14);color:var(--amber)}.pill.pink{background:rgba(255,79,152,.14);color:var(--pink)}
+  .alertBadge{display:inline-block;min-width:20px;text-align:center;background:var(--pink);color:#07091d;border-radius:99px;font-size:11px;letter-spacing:0;padding:2px 7px;margin-left:8px;vertical-align:1px}
+  .alertBadge[hidden]{display:none}.card.alChecked{opacity:.72}
   #status{min-height:20px;margin:12px 0 4px;font-size:14px}.ok{color:var(--green)}.err{color:var(--pink)}
   .note{color:var(--dim);font-size:12px;line-height:1.55}
   details{margin-top:34px;border-top:1px solid var(--line);padding-top:8px}
@@ -147,6 +149,12 @@
 
   <div id="app" hidden>
   <div id="status" role="status" aria-live="polite"></div>
+
+  <h2>ALERTS<span id="alertBadge" class="alertBadge" hidden aria-label="alerts to check">0</span></h2>
+  <div id="alerts"></div>
+  <p class="note">Scores are never blocked or delayed: they count at once, and the unusual ones are listed here to check.
+  <b>LOOKS LEGIT</b> marks one checked. <b>REMOVE PILOT</b> fills REMOVE PILOTS below and runs its dry run; nothing is removed
+  until you type the phrase it shows. Checked alerts are deleted after 90 days. See <b>Score alerts</b> in the guide.</p>
 
   <h2>HOW FLUX IS DOING</h2>
   <div id="insights"></div>
@@ -335,6 +343,21 @@
       <li>They open FLUX → <b>EDIT</b> → <b>HAVE A RESTORE CODE?</b> (if that button says <b>RESTORE CODE</b>, tap it, then
       <b>RESTORE A DIFFERENT PILOT</b>) and paste the code. Their pilot, scores and skins come back.</li>
     </ol>
+
+    <h3>Score alerts</h3>
+    <p>Every score counts the moment it arrives; nothing is held back. ALERTS (at the top) lists a score when any of these is true:</p>
+    <ol>
+      <li>a new best above <b>300,000</b> on any difficulty;</li>
+      <li>a new best above <b>50,000</b> that is more than <b>3×</b> the pilot's previous best on that difficulty;</li>
+      <li>it makes the pilot the new <b>#1</b> of that difficulty's leaderboard;</li>
+      <li>it moves the pilot's country up one or more places on the <b>World Grid</b>.</li>
+    </ol>
+    <p>The pink number next to ALERTS is how many are still to check. Each alert shows the pilot (name and #TAG), country,
+    difficulty, score, level, their previous best, which rule(s) flagged it, and when. Restricted pilots are never alerted.</p>
+    <p><b>Looks legit</b> marks it checked (it stays, faded, for 90 days, then it is deleted). <b>Remove pilot</b> fills
+    REMOVE PILOTS with that pilot's name and #TAG and runs the <b>dry run</b>: read it, then back up and type the phrase as
+    usual (see <b>Removing test pilots: REMOVE PILOTS</b>). Once removed, the alert shows REMOVED. If you would rather keep
+    the pilot but hide their scores, use FIND A PLAYER → <b>RESTRICT</b> instead.</p>
 
     <h3>Removing test pilots (and what to do about a cheater)</h3>
     <p><b>Remove score</b> takes a pilot off every public board and out of the country totals. It is meant for your own
@@ -749,8 +772,8 @@
     b.disabled = false;
   }
   function wipe() {
-    ['insights', 'stInsights', 'summary', 'usage', 'exceptions', 'results', 'stats', 'season0', 'purchases', 'bans', 'wgState', 'wgReport', 'rpReport', 'rpResult', 'fpState', 'fpReport', 'fpExcl', 'day1', 'd1Marked', 'd1CodeOut', 'fgReport', 'fgResult'].forEach(function (id) { $(id).textContent = ''; });
-    $('usageAlert').classList.add('hidden');
+    ['alerts', 'insights', 'stInsights', 'summary', 'usage', 'exceptions', 'results', 'stats', 'season0', 'purchases', 'bans', 'wgState', 'wgReport', 'rpReport', 'rpResult', 'fpState', 'fpReport', 'fpExcl', 'day1', 'd1Marked', 'd1CodeOut', 'fgReport', 'fgResult'].forEach(function (id) { $(id).textContent = ''; });
+    $('usageAlert').classList.add('hidden'); $('alertBadge').hidden = true;
     ['q', 'pq', 'banName', 'rpLines', 'rpConfirm', 'fpConfirm', 'fpTag', 'd1Label', 'd1Confirm', 'fgLine', 'fgConfirm'].forEach(function (id) { $(id).value = ''; });
     rpDry = null; $('rpGo').hidden = true; fgReset();
     say('');
@@ -773,6 +796,7 @@
   /* ---------------- owner summary (TODAY) ---------------- */
   async function loadSummary() {
     var box = $('summary');
+    loadAlerts().catch(function (e) { $('alerts').textContent = ''; $('alerts').appendChild(el('div', 'empty', 'Alerts are unavailable right now: ' + e.message)); });   // SCORE ALERTS
     var d = await call('summary');
     renderInsights($('insights'), d.insights); renderInsights($('stInsights'), d.insights);
     box.textContent = '';
@@ -1537,6 +1561,43 @@
       row.appendChild(document.createTextNode(' ' + k.label + ' — ' + k.detail)); box.appendChild(row);
     });
   }
+  /* ---------------- SCORE ALERTS ---------------- */
+  var AL_RULE = { 1: 'new best above 300,000', 2: 'more than 3× their previous best', 3: 'new #1 on the ' };
+  function alRuleText(x, a) {
+    if (x.r === 3) return AL_RULE[3] + a.difficulty + ' board';
+    if (x.r === 4) return 'moved ' + (a.country || 'their country') + ' up the World Grid' + (x.to ? (x.from ? ' (#' + x.from + ' → #' + x.to + ')' : ' (new, at #' + x.to + ')') : '');
+    return AL_RULE[x.r] || ('rule ' + x.r);
+  }
+  function renderAlert(a) {
+    var c = el('div', 'card ' + (a.checkedAt ? 'alChecked' : 'restricted'));
+    var n = el('div'); n.appendChild(el('span', 'name', a.name + ' #' + a.tag));
+    n.appendChild(el('span', 'pill ' + (a.checkedAt ? 'amber' : 'pink'), a.checkedAt ? (a.outcome === 'removed' ? 'REMOVED' : 'CHECKED') : 'TO CHECK'));
+    c.appendChild(n);
+    c.appendChild(el('div', 'meta', (a.country || '??') + ' · ' + a.difficulty + ' · score ' + fmt(a.score) + ' · level ' + a.level +
+      ' · previous best ' + (a.prevBest ? fmt(a.prevBest) : 'none') +
+      '\nFlagged: ' + (a.rules || []).map(function (x) { return alRuleText(x, a); }).join('; ') + '\n' + when(a.at) +
+      (a.checkedAt ? '\nChecked ' + when(a.checkedAt) : '') +
+      (a.nameNow && (a.nameNow !== a.name || a.tagNow !== a.tag) ? '\nNow: ' + a.nameNow + ' #' + a.tagNow : '') +
+      (a.onBoard === false && !a.checkedAt ? '\nThis pilot has no score on the boards any more.' : '')));
+    if (!a.checkedAt) {
+      var row = el('div', 'actions');
+      row.appendChild(btn('LOOKS LEGIT', 'ghost', function () { var b = this; act(b, 'SAVING…', async function () {
+        await call('alert-check', { id: a.id }); say('Marked checked.', 'ok'); await loadAlerts(); }); }));
+      if (a.onBoard !== false) row.appendChild(btn('REMOVE PILOT', 'danger', function () {
+        $('rpLines').value = (a.nameNow || a.name) + ' #' + (a.tagNow || a.tag); guard(rpDryRun)();
+        try { $('rpLines').scrollIntoView({ block: 'center' }); } catch (e) {} }));
+      c.appendChild(row);
+    }
+    return c;
+  }
+  async function loadAlerts() {
+    var d = await call('alerts'), box = $('alerts'), badge = $('alertBadge');
+    box.textContent = '';
+    badge.textContent = fmt(d.unchecked); badge.hidden = !d.unchecked;
+    if (!(d.alerts || []).length) { box.appendChild(el('div', 'empty', 'No alerts.')); return; }
+    d.alerts.forEach(function (a) { box.appendChild(renderAlert(a)); });
+  }
+
   /* ---------------- REMOVE PILOTS ---------------- */
   var rpDry = null;
   function rpLinesNow() { return $('rpLines').value.split('\n').map(function (x) { return x.trim(); }).filter(Boolean); }
@@ -1601,6 +1662,7 @@
         return [x.country, fmt(Math.round(x.before.totalScore)), fmt(Math.round(x.now.totalScore)) + ' · ' + fmt(x.now.playerCount) + ' pilots']; })));
       res.appendChild(box);
       $('rpGo').hidden = true; $('rpConfirm').value = ''; rpDry = null;
+      loadAlerts().catch(function () {});   // SCORE ALERTS: a removed pilot's alert now shows REMOVED
       say(o.data.ok ? 'Removed and checked: every check PASS.' : 'Removed, but a check FAILED. See below.', o.data.ok ? 'ok' : 'err');
     });
   }

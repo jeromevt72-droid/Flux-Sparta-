@@ -210,13 +210,19 @@ async function suite({ mod, main, game = GAME_HTML, adminHtml = ADMIN_HTML, quie
         x = await S.meter(() => S.lb()); cost.lb = [x.read, x.written];
         S.env.restart();
         x = await S.meter(() => S.lb()); cost.cold = [x.read, x.written]; out.coldLb = x.out.text;
-        out.state = JSON.stringify([...S.g.map.keys()].sort()) + JSON.stringify(S.g.sql.tables().map((t) => S.g.sql.dump(t)));
-        return { out, cost };
+        // SCORE ALERTS (owner, later): the owner's alert list is a stored value of its own ("alerts"); it is compared apart below.
+        out.state = JSON.stringify([...S.g.map.keys()].filter((k) => k !== 'alerts').sort()) + JSON.stringify(S.g.sql.tables().map((t) => S.g.sql.dump(t)));
+        return { out, cost, alerts: S.g.map.get('alerts') };
       };
       const a = await runE1(main), b = await runE1(mod);
       const diff = Object.keys(a.out).filter((k) => a.out[k] !== b.out[k]);
       ck('E1 OFF: every board, World Grid, run reply, entitlements answer and stored value equals main\'s', diff.length === 0, diff.join(', ') || Object.keys(a.out).length + ' answers');
-      ck('E1 OFF: rows read and written equal main\'s (a run with / without a best, the leaderboard, a cold start)', util.isDeepStrictEqual(a.cost, b.cost), JSON.stringify(b.cost) + ' vs ' + JSON.stringify(a.cost));
+      /* SCORE ALERTS: the 80,000 run (more than 3x its best, a new Medium #1) is flagged for the owner; its alert is ONE row
+         more, written after the score. Every other cost is main's exactly (when main has no alerts at all). */
+      const alertRow = !a.alerts && Array.isArray(b.alerts) && b.alerts.some((x) => x.score === 80000);
+      const costNoAlert = { ...b.cost, runBest: [b.cost.runBest[0], b.cost.runBest[1] - (alertRow ? 1 : 0)] };
+      ck('E1 OFF: rows read and written equal main\'s (a run with / without a best, the leaderboard, a cold start); a flagged run writes its score alert as one row more',
+        util.isDeepStrictEqual(a.cost, costNoAlert) && (!a.alerts ? alertRow : true), JSON.stringify(b.cost) + ' vs ' + JSON.stringify(a.cost));
       report.costOff = b.cost;
     }
 
