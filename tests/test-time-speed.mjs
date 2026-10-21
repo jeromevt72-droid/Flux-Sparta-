@@ -36,8 +36,8 @@
 //       growing orbs from 4, hint ring from 5;
 //   T19 EASY OVERTIME: after 5 minutes of run time Easy keeps stepping (announced, 4-8%
 //       each) up to Medium's top speed and never beyond; not before 300 s; not on Medium/Hard;
-//   T20 RUN POINTS CAP: points stop at 300,000 on every difficulty with one MAX SCORE notice,
-//       play goes on, and a capped run's level (9) passes the server's level check.
+//   T20 RUN POINTS CAP: points stop at each difficulty's level-99 score (MILESTONE LEVELS; was 300,000)
+//       with one MAX SCORE notice, play goes on, and a capped run's level (99) passes the server's level check.
 // Ends with negative controls.
 import fs from 'fs'; import path from 'path'; import vm from 'vm';
 import { fileURLToPath } from 'url';
@@ -260,13 +260,17 @@ function suite(gameHtml, quiet = false, only = '') {
         before && n === 10 && counts === 10 && Math.abs(cEnd - med) < 1e-9 && b.run('__mx') <= 1 + 1e-9 && at[5] >= 300 && others.every(Boolean), [before, n, counts, cEnd.toFixed(3), at.map((x) => x.toFixed(0)).join('/')].join(' ')); }
     /* T20 run points cap */
     if (on('T20')) {
-      const res = DIFFS.map((d) => { const b = bootGame(d); b.run('texts=[]; score=RUN_SCORE_CAP-10;'); b.run('targets=[]; addTarget(ball.color,ball.x,ball.y,20);'); b.g.ctx.fuse(b.run('targets[0]')); calm(b);
+      const res = DIFFS.map((d) => { const b = bootGame(d); b.run('texts=[]; score=runScoreCap()-10;'); b.run('targets=[]; addTarget(ball.color,ball.x,ball.y,20);'); b.g.ctx.fuse(b.run('targets[0]')); calm(b);
         const s1 = b.run('score'), n1 = b.run('texts.filter(t=>t.s==="MAX SCORE").length'); b.run('targets=[]; addTarget(ball.color,ball.x,ball.y,20);'); b.g.ctx.fuse(b.run('targets[0]')); calm(b);
-        return { d, s1, s2: b.run('score'), n: b.run('texts.filter(t=>t.s==="MAX SCORE").length'), n1, playing: b.run('playing'), lv: b.run('levelForScore(RUN_SCORE_CAP,difficulty)') }; });
-      ck('T20 points stop at 300,000 on every difficulty with one MAX SCORE notice; play goes on; a capped run is level 9 (passes the server check)',
-        res.every((r) => r.s1 === 300000 && r.s2 === 300000 && r.n1 === 1 && r.n === 1 && r.playing && r.lv === 9) && /const RUN_SCORE_CAP=300000;/.test(code), JSON.stringify(res));
-      const e = bootGame('medium'); e.run('score=RUN_SCORE_CAP+5000;'); e.g.ctx.endGame();
-      ck('T20 ...a run never ends above the cap (checked again at game over)', e.run('score') === 300000); }
+        return { d, s1, s2: b.run('score'), n: b.run('texts.filter(t=>t.s==="MAX SCORE").length'), n1, playing: b.run('playing'), cap: b.run('runScoreCap()'), lv: b.run('levelForScore(runScoreCap(),difficulty)'), lv1: b.run('levelForScore(runScoreCap()-1,difficulty)') }; });
+      /* MILESTONE LEVELS (owner): the cap is each difficulty's level-99 score (Easy 6,817,500, Medium 4,545,000, Hard 2,499,750) */
+      const CAPS = { easy: 6817500, medium: 4545000, hard: 2499750 };
+      ck('T20 points stop at the level-99 score on every difficulty (Easy 6,817,500 / Medium 4,545,000 / Hard 2,499,750) with one MAX SCORE notice; play goes on; a capped run is level 99 (passes the server check)',
+        res.every((r) => r.cap === CAPS[r.d] && r.s1 === CAPS[r.d] && r.s2 === CAPS[r.d] && r.n1 === 1 && r.n === 1 && r.playing && r.lv === 99 && r.lv1 === 98) && /const RUN_SCORE_CAPS=\{easy:6817500,medium:4545000,hard:2499750\};/.test(code), JSON.stringify(res));
+      const e = bootGame('medium'); e.run('score=runScoreCap()+5000;'); e.g.ctx.endGame();
+      ck('T20 ...a run never ends above the cap (checked again at game over)', e.run('score') === 4545000);
+      const q = bootGame('hard'); q.run('texts=[]; score=300000;'); q.run('targets=[]; addTarget(ball.color,ball.x,ball.y,20);'); q.g.ctx.fuse(q.run('targets[0]')); calm(q);
+      ck('T20 ...no MAX SCORE notice below the new cap (Hard past 300,000 keeps scoring)', q.run('score') > 300000 && q.run('texts.filter(t=>t.s==="MAX SCORE").length') === 0); }
   } catch (e) { ck('time speed section ran', false, String(e.stack || e).slice(0, 400)); }
   finally { Math.random = realRandom; }
   return { F, failed };
@@ -312,8 +316,8 @@ control('run time counts during countdowns', 'T17', rep('  if(pendingLevel || fl
 control('Easy overtime removed (Easy never ends for a steady player)', 'T19', rep('fluxBurst:1,overAt:300,overTop:.9,overSteps:5},', 'fluxBurst:1},'));
 control('Easy overtime faster than Medium\'s top', 'T19', rep('overAt:300,overTop:.9,overSteps:5', 'overAt:300,overTop:.8,overSteps:5'));
 control('Easy overtime from the start (no 5-minute wait)', 'T19', rep('overAt:300,', 'overAt:0,'));
-control('no run points cap', 'T20', rep('function capScore(){ if(score<RUN_SCORE_CAP) return;', 'function capScore(){ return;'));
-control('cap above the server ceiling', 'T20', rep('const RUN_SCORE_CAP=300000;', 'const RUN_SCORE_CAP=500000;'));
+control('no run points cap', 'T20', rep('function capScore(){ const cap=runScoreCap(); if(score<cap) return;', 'function capScore(){ return;'));
+control('cap above the server ceiling', 'T20', rep('const RUN_SCORE_CAPS={easy:6817500,medium:4545000,hard:2499750};', 'const RUN_SCORE_CAPS={easy:6817500,medium:4545000,hard:2600000};'));
 control('star colour back at level 2', 'T18', rep('function coloursInPlay(){ return Math.min(colors.length,level>=STAR_LEVEL?5:4); }', 'function coloursInPlay(){ return Math.min(colors.length,4+Math.floor(level/2)); }'));
 const total = main.F + NC;
 console.log('\n' + (total ? 'TIME SPEED FAILED: ' + main.F + ' check(s), ' + NC + ' uncaught control(s)' : 'TIME SPEED PASSED: all checks and all negative controls'));

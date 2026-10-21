@@ -38,10 +38,10 @@ const GAMEPLAY_TRACE = 'a10f5daa3edb0f02a0c4e0a5';
 /* GP: the gameplay constants and functions, byte for byte as on main (difficulty table, level thresholds and
    multipliers, weights, speed curve, skins + orb palette, orb gap/outline, points cap, countdowns, launcher,
    physics update, misses/lives, launch speed, audio + haptics). Hash of their source text on origin/main. */
-const GAMEPLAY_NAMES = ['DIFFICULTY', 'LEVEL_SCORE_THRESHOLDS', 'LEVEL_SCORE_MULT', 'DIFF_WEIGHT', 'SPEED_CURVE', 'SKINS', 'ORB_GAP', 'ORB_OUTLINE', 'RUN_SCORE_CAP',
+const GAMEPLAY_NAMES = ['DIFFICULTY', 'LEVEL_SCORE_THRESHOLDS', 'LEVEL_SCORE_MULT', 'DIFF_WEIGHT', 'SPEED_CURVE', 'SKINS', 'ORB_GAP', 'ORB_OUTLINE', 'RUN_SCORE_CAPS', 'runScoreCap', 'LEVEL_PLAY_MAX', 'playLevelForScore', 'checkMilestone', 'celebrateMilestone',
   'levelScoreAt', 'levelForScore', 'fieldCapAt', 'setPaddle', 'playGameOver', 'haptic', 'newGame', 'addTarget', 'easyPickColour', 'capScore', 'registerMiss',
   'launchSpeed', 'speedAfterLostBall', 'update', 'currentPalette', 'weighted'];
-const GAMEPLAY_SRC = '5a9d4878b5e28ac812309754';   // SMOOTH CHAINS (owner-requested): newGame() also clears particles/popups still waiting from the last run (fxReset); before that, BATTERY PR B: update() drops spent particles/texts in place and reuses the oldest trail point; the seeded frame trace below is unchanged
+const GAMEPLAY_SRC = '3bbbf8994f781872bb568c81';   // MILESTONE LEVELS (owner-requested): levels 10-99 are display-only milestones (game level stays 9: playLevelForScore, checkMilestone, celebrateMilestone added to this list) and the run cap is per difficulty (RUN_SCORE_CAPS / runScoreCap, the level-99 score); the seeded frame trace below is unchanged. Before that, SMOOTH CHAINS (owner-requested): newGame() also clears particles/popups still waiting from the last run (fxReset); before that, BATTERY PR B: update() drops spent particles/texts in place and reuses the oldest trail point; the seeded frame trace below is unchanged
 
 /* ---------------- fake Durable Object runtime (test-season-reset pattern) ---------------- */
 class FakeStorage {
@@ -355,7 +355,7 @@ await control('light text on Jupiter gold', 'P3 every planet label', { game: rep
 await control('faded small labels', 'P3 every planet label', { game: rep('.lbTab small{display:block;margin-top:2px;font-size:11px;font-weight:700;letter-spacing:0}', '.lbTab small{display:block;margin-top:2px;font-size:11px;font-weight:700;letter-spacing:0;opacity:.6}') });
 await control('emoji globe on the WORLD tab', 'P3 planet icons', { game: rep("FLUX_WORLD_SVG+'WORLD<small>Countries</small>'", "'\u{1F30D}WORLD<small>Countries</small>'") });
 await control('tie counted as behind', 'G1 "points behind" only', { game: rep('s.above.score-s.best>=1 &&', 's.above.score-s.best>=0 &&') });
-await control('queued upload sent under the planet name', 'Q1 an old queued upload', { game: rep('level:item.level, difficulty:item.difficulty,', "level:item.level, difficulty:(FLUX_PLANETS[item.difficulty]||{}).name,") });
+await control('queued upload sent under the planet name', 'Q1 an old queued upload', { game: rep(': item.level, difficulty:item.difficulty,', ": item.level, difficulty:(FLUX_PLANETS[item.difficulty]||{}).name,") });
 await control('orb gap changed (gameplay constant)', 'GP gameplay constants', { game: rep('const ORB_GAP=10;', 'const ORB_GAP=11;') });
 const total = main.F + NC;
 console.log('\n' + (total ? 'LEADERBOARD REFRESH FAILED: ' + main.F + ' check(s), ' + NC + ' uncaught control(s)' : 'LEADERBOARD REFRESH PASSED: all checks and all negative controls'));

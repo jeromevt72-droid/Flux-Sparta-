@@ -15,11 +15,13 @@
  */
 
 const MAX_NAME_LEN = 16;
-const MAX_SCORE = 5_000_000;
-// D-41 (RC2.8.5): the game has 9 levels (play/index.html: level<9). Levels
-// above 9 are refused. (RC2.8.7: the per-level score ceiling this cap fed is
-// replaced by the D-51 score-to-level rule below; MAX_SCORE still applies.)
-const MAX_LEVEL = 9;
+const MAX_SCORE = 6_892_500;   // MILESTONE LEVELS: the highest per-difficulty ceiling (Easy, below); was 5,000,000
+// D-41 (RC2.8.5): the game had 9 levels. MILESTONE LEVELS (owner): levels 10-99
+// are score milestones (play stays as at level 9); levels above 99 are refused.
+// (RC2.8.7: the per-level score ceiling this cap fed is replaced by the D-51
+// score-to-level rule below; MAX_SCORE still applies.)
+const MAX_LEVEL = 99;
+const LEVEL_PLAY_MAX = 9, LEVEL_MILESTONE_BASE = 45000, LEVEL_MILESTONE_STEP = 50000;   // level n (10-99) at (45,000 + (n - 9) x 50,000) x LEVEL_SCORE_MULT
 const VALID_DIFFICULTIES = new Set(["easy", "medium", "hard"]);
 const VALID_SKUS = new Set(["toxic", "cosmic", "solar"]);
 
@@ -40,15 +42,23 @@ const LEVEL_SCORE_MULT = { easy: 1.5, medium: 1, hard: 0.55 };   // FULL POINTS:
 const DIFF_WEIGHT = { easy: 0.09, medium: 0.21, hard: 1 };
 function weightedScore(score, difficulty) { return Math.round((Number(score) || 0) * (DIFF_WEIGHT[difficulty] || 1)); }
 const LEVEL_TOLERANCE = 1;
-// RC2.8.7: a hard ceiling kept IN ADDITION to D-51. The level rule alone lets
-// any score through once level 9 is claimed; nothing above the RC2.8.5
-// maximum (9 * 50,000 + 5,000) is accepted.
-const SCORE_CEILING = 455_000;
-function levelForScore(score, difficulty) {
+// RC2.8.7: a hard ceiling kept IN ADDITION to D-51 (the level rule alone lets any
+// score through once the top level is claimed). MILESTONE LEVELS: per difficulty,
+// the level-99 score plus one level of margin, i.e. the score of "level 100"
+// ((45,000 + 91 x 50,000) x LEVEL_SCORE_MULT); was 455,000 on every difficulty.
+// The game stops points one level below it (RUN_SCORE_CAPS in play/index.html).
+const SCORE_CEILINGS = { easy: 6_892_500, medium: 4_595_000, hard: 2_527_250 };
+const SCORE_CEILING = SCORE_CEILINGS.easy;   // the highest of them (MAX_SCORE)
+function levelScoreAt(lv, difficulty) {   // the score that reaches level lv (lv 1 = 0) -- identical to play/index.html
   const m = LEVEL_SCORE_MULT[difficulty] || 1;
+  if (lv <= 1) return 0;
+  if (lv > LEVEL_PLAY_MAX) return Math.round((LEVEL_MILESTONE_BASE + (lv - LEVEL_PLAY_MAX) * LEVEL_MILESTONE_STEP) * m);
+  return Math.round(LEVEL_SCORE_THRESHOLDS[Math.min(8, lv - 2)] * m);
+}
+function levelForScore(score, difficulty) {
   let lv = 1;
-  for (const t of LEVEL_SCORE_THRESHOLDS) { if (score >= Math.round(t * m)) lv++; else break; }
-  return Math.min(MAX_LEVEL, lv);
+  while (lv < MAX_LEVEL && score >= levelScoreAt(lv + 1, difficulty)) lv++;
+  return lv;
 }
 
 /* SEASON 1 (owner): the Easy (x0.4) and Medium (x0.85) point rates changed, so
@@ -741,7 +751,7 @@ async function submitScore(body, request, env) {
   if (Math.abs(level - levelForScore(score, difficulty)) > LEVEL_TOLERANCE) {   // D-51
     return json({ error: "Score is not plausible for that level" }, 422);
   }
-  if (score > SCORE_CEILING) {
+  if (score > (SCORE_CEILINGS[difficulty] || SCORE_CEILINGS.medium)) {   // MILESTONE LEVELS: per difficulty
     return json({ error: "Score is above the maximum" }, 422);
   }
 

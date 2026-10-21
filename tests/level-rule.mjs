@@ -3,10 +3,19 @@
 // test-rc287.mjs checks this copy against BOTH worker.js and play/index.html.
 export const LEVEL_SCORE_THRESHOLDS = [2500, 6000, 10000, 15000, 21000, 28000, 36000, 45000];
 export const LEVEL_SCORE_MULT = { easy: 1.5, medium: 1, hard: 0.55 };
+// MILESTONE LEVELS (owner): from level 10 on, a level every 50,000 Medium-equivalent points, up to 99:
+// level n (10-99) at (45,000 + (n - 9) x 50,000) x LEVEL_SCORE_MULT[difficulty].
+export const LEVEL_PLAY_MAX = 9, LEVEL_MAX = 99, LEVEL_MILESTONE_BASE = 45000, LEVEL_MILESTONE_STEP = 50000;
+export function levelScoreAt(lv, difficulty = 'medium') {
+  const m = LEVEL_SCORE_MULT[difficulty] || 1;
+  if (lv <= 1) return 0;
+  if (lv > LEVEL_PLAY_MAX) return Math.round((LEVEL_MILESTONE_BASE + (lv - LEVEL_PLAY_MAX) * LEVEL_MILESTONE_STEP) * m);
+  return Math.round(LEVEL_SCORE_THRESHOLDS[Math.min(8, lv - 2)] * m);
+}
 export function levelFor(score, difficulty = 'medium') {
-  const m = LEVEL_SCORE_MULT[difficulty] || 1; let lv = 1;
-  for (const t of LEVEL_SCORE_THRESHOLDS) { if (score >= Math.round(t * m)) lv++; else break; }
-  return Math.min(9, lv);
+  let lv = 1;
+  while (lv < LEVEL_MAX && score >= levelScoreAt(lv + 1, difficulty)) lv++;
+  return lv;
 }
 // DIFFICULTY WEIGHT: the ALL board and country totals count a best at its difficulty's weight
 // (worker.js DIFF_WEIGHT; test-easy-scoring.mjs W4 checks the game and the server agree).

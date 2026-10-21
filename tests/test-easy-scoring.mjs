@@ -89,14 +89,15 @@ async function suite({ gameHtml, workerMod, workerSrc = WORKER_SRC, quiet = fals
       JSON.stringify(at('easy')) === '[3750,9000,15000,22500,31500,42000,54000,67500]' && JSON.stringify(at('medium')) === '[2500,6000,10000,15000,21000,28000,36000,45000]' && JSON.stringify(at('hard')) === '[1375,3300,5500,8250,11550,15400,19800,24750]', JSON.stringify([at('easy'), at('hard')]));
 
     const w = workerMod.default, env = makeEnv(workerMod.LeaderboardDO);
-    ck('S4 server: real Easy runs at their own level are accepted (3,750 at 2, 22,500 at 5, 67,500 at 9), and a capped 300,000 run at level 9 on every difficulty',
+    ck('S4 server: real Easy runs at their own level are accepted (3,750 at 2, 22,500 at 5, 67,500 at 9), and a capped run (MILESTONE LEVELS: the level-99 score) at level 99 on every difficulty',
       (await submit(w, env, { score: 3750, level: 2, difficulty: 'easy' })) === 200 && (await submit(w, env, { score: 22500, level: 5, difficulty: 'easy' })) === 200 && (await submit(w, env, { score: 67500, level: 9, difficulty: 'easy' })) === 200
-      && (await submit(w, env, { score: 300000, level: 9, difficulty: 'easy' })) === 200 && (await submit(w, env, { score: 300000, level: 9, difficulty: 'medium' })) === 200 && (await submit(w, env, { score: 300000, level: 9, difficulty: 'hard' })) === 200);
+      && (await submit(w, env, { score: 6817500, level: 99, difficulty: 'easy' })) === 200 && (await submit(w, env, { score: 4545000, level: 99, difficulty: 'medium' })) === 200 && (await submit(w, env, { score: 2499750, level: 99, difficulty: 'hard' })) === 200);
     ck('S4 server: nothing looser on Easy (22,500 at level 3 and 67,500 at level 7 refused)',
       (await submit(w, env, { score: 22500, level: 3, difficulty: 'easy' })) === 422 && (await submit(w, env, { score: 67500, level: 7, difficulty: 'easy' })) === 422);
-    ck('S4 server: Medium as before (2,500 at 2 accepted, 26,423 at 4 refused) and the 455,000 ceiling kept on Easy',
+    ck('S4 server: Medium as before (2,500 at 2 accepted, 26,423 at 4 refused); the Easy ceiling (MILESTONE LEVELS: 6,892,500) kept; a big score at level 9 refused',
       (await submit(w, env, { score: 2500, level: 2, difficulty: 'medium' })) === 200 && (await submit(w, env, { score: 26423, level: 4, difficulty: 'medium' })) === 422 &&
-      (await submit(w, env, { score: 455001, level: 9, difficulty: 'easy' })) === 422 && /const SCORE_CEILING = 455_000;/.test(workerSrc) && /const MAX_SCORE = 5_000_000;/.test(workerSrc));
+      (await submit(w, env, { score: 455001, level: 9, difficulty: 'easy' })) === 422 && (await submit(w, env, { score: 6892501, level: 99, difficulty: 'easy' })) >= 400 && (await submit(w, env, { score: 6892500, level: 99, difficulty: 'easy' })) === 200 &&
+      /const SCORE_CEILINGS = \{ easy: 6_892_500, medium: 4_595_000, hard: 2_527_250 \};/.test(workerSrc) && /const MAX_SCORE = 6_892_500;/.test(workerSrc));
 
     // W1-W3: a fresh board. Real points: A Easy 100,000 (PH), B Medium 30,000 (PH), C Hard 5,000 (US),
     // D Easy 90,000 + Hard 2,000 (PH): D's best weighted is the Easy one (2,700 > 2,000).
