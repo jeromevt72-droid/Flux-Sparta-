@@ -205,7 +205,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 .menuPanel{max-height:92vh;overflow:auto}.menuSection{margin:12px 0 14px}.menuLabel{font-size:11px;letter-spacing:.16em;color:#8094c0;margin-bottom:8px}.difficulty{display:flex;gap:7px}.difficulty button{flex:1;padding:11px 4px;font-size:11px;letter-spacing:.08em;background:#0c1537;color:#91a6d4;border:1px solid #294578;box-shadow:none}.difficulty button.selected{background:#62eaff;color:#04101a;box-shadow:0 0 18px #27d9ff66}.profileRow{display:flex;gap:7px;margin:0 0 12px}.profileRow input,.profileRow select{min-width:0;flex:1;border:1px solid #294578;border-radius:12px;background:#070d27;color:#eaf7ff;padding:11px 10px;font-size:16px;font-weight:800}.profileRow select{flex:0 0 118px}.menuTiles{display:flex;gap:8px;margin-top:12px}.menuTiles>div{flex:1;border:1px solid #263a72;background:#0b1030aa;border-radius:12px;padding:8px}.menuTiles span{display:block;font-size:11px;letter-spacing:.08em;color:#7f93bd}.menuTiles b{display:block;margin-top:3px;font-size:16px}.menuLinks{display:flex;gap:8px;margin-top:10px}.linkBtn{flex:1;padding:9px 8px;font-size:11px;letter-spacing:.08em;background:#0b1230;color:#7fdfff;border:1px solid #234174;box-shadow:none}.offline{font-size:11px!important;letter-spacing:.06em;color:#5c779f!important;margin:11px 0 0!important}.miniOverlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#030512dd;z-index:6}.gameoverModes{margin:14px 0 12px}.gameoverModes .menuLabel{margin-bottom:7px}.gameoverModes .difficulty{max-width:340px;margin:auto}.gameoverModes button{padding:10px 4px;font-size:11px}.profileSaved{display:flex;align-items:center;justify-content:center;gap:8px;margin:0 0 12px;color:#8fa5d1;font-size:12px;letter-spacing:.08em}.profileSaved b{color:#62eaff}.editProfile{background:transparent!important;color:#62eaff!important;border:1px solid #294578!important;box-shadow:none!important;padding:6px 14px!important;font-size:11px!important;letter-spacing:.1em!important;min-height:44px}@media(max-width:430px){.menuPanel{padding:20px}.menuPanel h1{font-size:42px}.profileRow select{flex-basis:104px}.menuLinks{flex-direction:column}}
 /* LEADERBOARD REFRESH: planets. EARTH = Easy, MARS = Medium, JUPITER = Hard (internal keys unchanged). Colours on menus, tabs and labels ONLY (never orbs, ball or skins); a small planet icon beside every name, so colour is never the only clue. */:root{--pl-easy:#3F8CFF;--pl-medium:#E4572E;--pl-hard:#F2C27A}.pl{display:inline-block;width:14px;height:14px;vertical-align:-3px;margin-right:5px;flex:0 0 auto}.difficulty button{line-height:1.15}.difficulty button small{display:block;margin-top:3px;font-size:11px;font-weight:700;letter-spacing:.08em}.difficulty button[data-d=easy]{border-color:#3F8CFF77}.difficulty button[data-d=medium]{border-color:#E4572E77}.difficulty button[data-d=hard]{border-color:#F2C27A77}.difficulty button[data-d=easy].selected{background:#3F8CFF;color:#050a18;box-shadow:0 0 18px #3F8CFF66}.difficulty button[data-d=medium].selected{background:#E4572E;color:#050a18;box-shadow:0 0 18px #E4572E66}.difficulty button[data-d=hard].selected{background:#F2C27A;color:#050a18;box-shadow:0 0 18px #F2C27A66}.difficulty button.selected .pl,.lbTab.on .pl{background:#050a18;border-radius:50%;box-shadow:0 0 0 .5px #050a18}.plTag[data-d]::before{content:"";display:inline-block;width:1em;height:1em;margin-right:.35em;vertical-align:-.12em;background-size:contain;background-repeat:no-repeat}.plTag[data-d]::after{content:attr(data-sub);margin-left:.45em;font-size:11px;font-weight:700;letter-spacing:.08em}.plTag[data-d=easy]{color:#3F8CFF}.plTag[data-d=medium]{color:#E4572E}.plTag[data-d=hard]{color:#F2C27A}.plTag[data-d=easy]::before{background-image:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 20 20%22%3E%3Ccircle cx=%2210%22 cy=%2210%22 r=%229%22 fill=%22%233F8CFF%22/%3E%3Cpath d=%22M5 5.5c2-1 4.2-.2 4 1.8-.2 1.7-2 1.9-2.6 3.6-.5 1.4-2.2 1.3-2.4-.3-.2-1.9 0-4.3 1-5.1z%22 fill=%22%234cc27f%22/%3E%3Cpath d=%22M12.2 10.6c1.8-.4 3.4.6 3.1 2.4-.3 1.9-2.1 2.6-3.1 1.8-1-.8-1.3-3.9 0-4.2z%22 fill=%22%234cc27f%22/%3E%3Ccircle cx=%2210%22 cy=%2210%22 r=%228.6%22 fill=%22none%22 stroke=%22%23fff%22 stroke-opacity=%22.35%22 stroke-width=%22.8%22/%3E%3C/svg%3E")}.plTag[data-d=medium]::before{background-image:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 20 20%22%3E%3Ccircle cx=%2210%22 cy=%2210%22 r=%229%22 fill=%22%23E4572E%22/%3E%3Cellipse cx=%2210%22 cy=%222.9%22 rx=%223.3%22 ry=%221.2%22 fill=%22%23fbe6da%22/%3E%3Cpath d=%22M3.6 8.6c3 1.4 8.6 1.4 12.8-.8%22 fill=%22none%22 stroke=%22%23a83a1b%22 stroke-width=%221.2%22 stroke-linecap=%22round%22/%3E%3Ccircle cx=%227%22 cy=%2212.6%22 r=%221.6%22 fill=%22%23a83a1b%22/%3E%3Ccircle cx=%2213.4%22 cy=%2213.6%22 r=%221.1%22 fill=%22%23a83a1b%22/%3E%3C/svg%3E")}.plTag[data-d=hard]::before{background-image:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 20 20%22%3E%3Ccircle cx=%2210%22 cy=%2210%22 r=%229%22 fill=%22%23F2C27A%22/%3E%3Cellipse cx=%2210%22 cy=%226.3%22 rx=%227.8%22 ry=%22.9%22 fill=%22%23c98f4a%22/%3E%3Cellipse cx=%2210%22 cy=%229.6%22 rx=%228.8%22 ry=%22.6%22 fill=%22%23e0a862%22/%3E%3Cellipse cx=%2210%22 cy=%2212.8%22 rx=%227.9%22 ry=%221%22 fill=%22%23c98f4a%22/%3E%3Cellipse cx=%2212.8%22 cy=%2212.8%22 rx=%221.9%22 ry=%221.2%22 fill=%22%23c4533a%22/%3E%3C/svg%3E")}
 /* LEADERBOARD REFRESH: tabs EARTH · MARS · JUPITER · WORLD, WORLD / MY COUNTRY switch, the pilot's pinned row, the WORLD spotlight, the menu World Grid card, the game-over rank line. */.lbTitle{color:#62eaff;letter-spacing:.14em;margin:0 0 10px}.lbTabs{display:flex;gap:5px}.lbTab{flex:1;min-width:0;padding:8px 1px 7px;font-size:11px;letter-spacing:.02em;line-height:1.15;background:#0c1537;color:#b9c8ea;border:1px solid #294578;border-radius:11px;box-shadow:none;white-space:nowrap}.lbTab .pl{display:block;margin:0 auto 3px;width:16px;height:16px}.lbTab small{display:block;margin-top:2px;font-size:11px;font-weight:700;letter-spacing:0}.lbTab[data-tab=easy]{border-color:#3F8CFF77}.lbTab[data-tab=medium]{border-color:#E4572E77}.lbTab[data-tab=hard]{border-color:#F2C27A77}.lbTab[data-tab=world]{border-color:#62eaff66}.lbTab.on{color:#050a18}.lbTab[data-tab=easy].on{background:#3F8CFF}.lbTab[data-tab=medium].on{background:#E4572E}.lbTab[data-tab=hard].on{background:#F2C27A}.lbTab[data-tab=world].on{background:#62eaff}.lbScope{display:flex;gap:6px;justify-content:center;margin:0 0 10px}.lbScope button{padding:6px 14px;font-size:11px;letter-spacing:.12em;background:transparent;color:#8da0c8;border:1px solid #294578;border-radius:999px;box-shadow:none}.lbScope button.on{color:#eaf7ff;border-color:#62eaff;background:#0f2148}.lbGap{display:block;font-size:11px;font-weight:700;letter-spacing:.04em;color:#ffd48a;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lbPinned{position:sticky;bottom:0;z-index:1;margin-top:8px;padding:8px 0 2px;border-top:1px dashed #294578;background:#070b24}.lbUnplayed{margin:10px 0 0;padding:10px;border:1px dashed #294578;border-radius:10px;color:#b9c8ea;font-size:12px;text-align:center}.lbSpot{text-align:center;padding:12px 10px;margin-bottom:8px;border:1px solid #62eaff88;border-radius:14px;background:radial-gradient(circle at 50% 0%,#1a3a7a,#0b1030)}.lbSpot.lbMine{box-shadow:0 0 16px #27d9ff55}.lbSpotK{font-size:11px;letter-spacing:.2em;color:#9fdcff}.lbSpotF{font-size:34px;line-height:1.2}.lbSpotN{font-weight:900;font-size:16px;letter-spacing:.06em;color:#eaf7ff}.lbSpotS{font-size:11px;color:#9eb0d6;margin-top:3px}.gridCard{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;margin-top:10px;padding:9px 12px;background:#0b1030cc;border:1px solid #2b4f8a;border-radius:12px;box-shadow:none;text-align:left;color:#eaf7ff;font-size:12px;letter-spacing:.02em;font-weight:800;text-transform:none}.gridCard .gcK{font-size:11px;letter-spacing:.18em;color:#62eaff}.gridCard .gcM{font-size:11px;color:#b9c8ea;font-weight:700}.goRank{margin:2px 0 6px!important;color:#cfe0ff!important;font-size:13px;font-weight:800;letter-spacing:.02em}.goRank small{display:block;font-size:11px;font-weight:700;color:#ffd48a;margin-top:2px}.goRank.hidden{display:none}
-.lbPanel{max-height:86vh;display:flex;flex-direction:column}.lbBody{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;margin:14px 0 18px;text-align:left}.lbLoading,.lbEmpty{color:#8da0c8;font-size:12px;text-align:center;padding:20px 0}.lbLeading{text-align:center;font-size:11px;letter-spacing:.08em;color:#9eb0d6;background:#0b1030;border:1px solid #263a72;border-radius:12px;padding:9px;margin-bottom:12px}.lbLeading b{color:#62eaff}.lbSectionLabel{font-size:11px;letter-spacing:.16em;color:#7f93bd;margin:16px 0 8px}.lbCombined{color:#62eaff;line-height:1.5}.lbList{display:flex;flex-direction:column;gap:6px}.lbRow{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #263a72;background:#0b1030aa;border-radius:10px;font-size:12px}.lbRow.lbMine{border-color:#62eaff;box-shadow:0 0 14px #27d9ff44}.lbRank{width:32px;color:#7f93bd;font-weight:900;font-size:11px}.lbFlag{font-size:15px}.lbName{flex:1;font-weight:800;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lbScore{font-weight:900;color:#62eaff}
+.lbPanel{max-height:86vh;display:flex;flex-direction:column}.lbBody{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;margin:14px 0 18px;text-align:left}.lbLoading,.lbEmpty{color:#8da0c8;font-size:12px;text-align:center;padding:20px 0}.lbLeading{text-align:center;font-size:11px;letter-spacing:.08em;color:#9eb0d6;background:#0b1030;border:1px solid #263a72;border-radius:12px;padding:9px;margin-bottom:12px}.lbLeading b{color:#62eaff}.lbSectionLabel{font-size:11px;letter-spacing:.16em;color:#7f93bd;margin:16px 0 8px}.lbCombined{color:#62eaff;line-height:1.5}.lbList{display:flex;flex-direction:column;gap:6px}.lbRow{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #263a72;background:#0b1030aa;border-radius:10px;font-size:12px}.lbRow.lbMine{border-color:#62eaff;box-shadow:0 0 14px #27d9ff44}.lbRank{width:32px;color:#7f93bd;font-weight:900;font-size:11px}.lbFlag{font-size:15px}.lbName{flex:1;font-weight:800;letter-spacing:.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.lbScore{font-weight:900;color:#62eaff}.lbScore.lbLong{font-size:11px;letter-spacing:-.02em}/* MILESTONE LEVELS: a 7-digit score (1,000,000+) leaves the name its room */
 #shop .panel{width:min(420px,88vw)}
 .shopRow{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid #1c2c5c}
 .shopRow:last-child{border-bottom:0}
@@ -236,6 +236,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 @keyframes coachDown{0%,100%{transform:translateY(0)}50%{transform:translateY(14px)}}
 @keyframes coachUp{0%,100%{transform:rotate(180deg) translateY(0)}50%{transform:rotate(180deg) translateY(14px)}}
 .fluxWelcomeBtn{max-width:340px;width:100%;min-height:64px;font-size:18px;letter-spacing:.04em;line-height:1.35}
+/* MILESTONE LEVELS: a 7-digit score (1,000,000+) is drawn smaller so it fits the panel on a 320-360 px phone; shorter scores keep 56px. */.goScore.goScoreLong{font-size:min(56px,12vw)}
 /* RC2.8.7: D-57 game over = the score + one line; D-60 name offer; D-58 "Playing for". */.goScore{font-size:56px;font-weight:900;line-height:1.05;color:#5deaff;letter-spacing:.04em;text-shadow:0 0 24px #27d9ff66;margin:0}/* EVERY RUN COUNTS: the run's share as a BADGE right under the score, and a rallying line under it. Hidden
    (no space) while the switch is OFF. Fixed heights, kept from the moment the game-over screen appears, so the
    reply only fills them (nothing moves; RUN IT BACK stays where it is and is never covered).
@@ -586,7 +587,8 @@ function fluxLockGlow(x){   // LITE: this canvas draws no glow (also the menu fi
 fluxApplyLite();
 let W,H,dpr,playing=false,paused=false,last=0,score=0,combo=1,level=1,streak=0,best=0,misses=0,revivesUsedThisRun=0,flux=0,fluxMode=0,missFragments=[],comboTimer=0,levelBanner=0,perfectFlash=0,orbValue=20,bonusTimer=0,growTimer=0;
 let missNotice=0,missNoticeText=['',''];   // miss notice, shown in the HUD strip (see drawSlotNotice)
-let pendingLevel=0,levelCountdown=0,levelTickAt=0,speedLevel=1;   // D-50: level-up countdown + smooth ramp (launcher width, orb motion)
+let pendingLevel=0,levelCountdown=0,levelTickAt=0,speedLevel=1;
+let milestoneLevel=0,milestoneBox=0;   // MILESTONE LEVELS: the level shown from 10 to 99 (0 below 10); the short LEVEL UP box   // D-50: level-up countdown + smooth ramp (launcher width, orb motion)
 let runClock=0,speedStep=0,speedShown=0,speedCountdown=0,speedTickAt=0;   // TIME SPEED: run time, speed step, its ~1 s ramp, SPEED UP countdown
 let fluxCountdown=0,fluxTickAt=0;   // FLUX MODE is announced with a 3-2-1 before it starts (see checkFluxMode)
 let cachedHudRects=[]; // declared early -- resize() runs at script load time and references this immediately
@@ -720,15 +722,23 @@ function setPlanetLabel(el,d){
 }
 const FLUX_COUNTDOWN_S=3, FLUX_FROM_LEVEL=3;   // FLUX MODE: 3 s announce countdown; it starts from level 3 on every difficulty (SKILL LADDER)
 const LEVEL_COUNTDOWN_S=5, LEVEL_RAMP_S=1;   // level-up: 5 s SPEED UP countdown, then ~1 s difficulty ramp
+/* MILESTONE LEVELS (owner): levels 1-9 are the game's levels (D-50, unchanged). From level 10 on, a new
+   level every 50,000 Medium-equivalent points, up to 99: level n (10-99) is reached at
+   (45,000 + (n - 9) x 50,000) x LEVEL_SCORE_MULT[difficulty] -- e.g. Hard 10 at 52,250, Medium 10 at 95,000.
+   They are milestones only: play stays exactly as at level 9 (the game's own `level` stops at 9;
+   milestoneLevel carries the number shown). MUST stay identical to worker.js (D-51). */
+const LEVEL_PLAY_MAX=9, LEVEL_MAX=99, LEVEL_MILESTONE_BASE=45000, LEVEL_MILESTONE_STEP=50000;
 function levelScoreAt(lv,d){   // score needed to reach level lv (lv 1 = 0)
   if(lv<=1) return 0;
+  if(lv>LEVEL_PLAY_MAX) return Math.round((LEVEL_MILESTONE_BASE+(lv-LEVEL_PLAY_MAX)*LEVEL_MILESTONE_STEP)*(LEVEL_SCORE_MULT[d]||1));
   return Math.round(LEVEL_SCORE_THRESHOLDS[Math.min(8,lv-2)]*(LEVEL_SCORE_MULT[d]||1));
 }
 function levelForScore(sc,d){
   let lv=1;
-  while(lv<9 && sc>=levelScoreAt(lv+1,d)) lv++;
+  while(lv<LEVEL_MAX && sc>=levelScoreAt(lv+1,d)) lv++;
   return lv;
 }
+function playLevelForScore(sc,d){ return Math.min(LEVEL_PLAY_MAX,levelForScore(sc,d)); }   // the game's own levels (1-9)
 /* SEASON 1 (owner): the Easy and Medium point rates changed, so the server
    archived every old best and started empty boards. Once per device (fluxSeason
    below FLUX_SEASON): the saved personal bests for easy/medium/hard (the best-run
@@ -766,14 +776,14 @@ const FLUX_SEASON=1;
     ['easy','medium','hard'].forEach(function(d){
       const k='fluxBestRun_'+d, raw=localStorage.getItem(k);
       if(raw){ const r=JSON.parse(raw);
-        if(r && Number.isFinite(r.score)){ const lv=levelForScore(r.score,r.difficulty||d); if(r.level!==lv){ r.level=lv; localStorage.setItem(k,JSON.stringify(r)); } } }
+        if(r && Number.isFinite(r.score)){ const lv=playLevelForScore(r.score,r.difficulty||d); if(r.level!==lv && !(r.level>LEVEL_PLAY_MAX && r.level===levelForScore(r.score,r.difficulty||d))){ r.level=lv; localStorage.setItem(k,JSON.stringify(r)); } } }   // MILESTONE LEVELS: as before (1-9); a saved milestone level that matches its score is kept
       const b=+localStorage.getItem('fluxBest_'+d)||0;
-      if(b>0 || localStorage.getItem('fluxBestLevel_'+d)!==null) localStorage.setItem('fluxBestLevel_'+d,String(levelForScore(b,d)));
+      if((b>0 || localStorage.getItem('fluxBestLevel_'+d)!==null) && !(+localStorage.getItem('fluxBestLevel_'+d)>LEVEL_PLAY_MAX)) localStorage.setItem('fluxBestLevel_'+d,String(playLevelForScore(b,d)));
     });
     const qraw=localStorage.getItem('fluxPendingSubmits');
     if(qraw){ const q=JSON.parse(qraw);
       if(Array.isArray(q)){ let changed=false;
-        q.forEach(function(it){ if(it && Number.isFinite(it.score)){ const lv=levelForScore(it.score,it.difficulty||'medium'); if(it.level!==lv){ it.level=lv; changed=true; } } });
+        q.forEach(function(it){ if(it && Number.isFinite(it.score)){ const lv=playLevelForScore(it.score,it.difficulty||'medium'); if(it.level!==lv && !(it.level>LEVEL_PLAY_MAX)){ it.level=lv; changed=true; } } });
         if(changed) localStorage.setItem('fluxPendingSubmits',JSON.stringify(q)); } }
   }catch(e){}
 })();
@@ -1243,7 +1253,7 @@ function noise(dur=.08,gain=.03,filter=1200){
   f.type='bandpass';f.frequency.value=filter;f.Q.value=.7;
   g.gain.setValueAtTime(gain,now);g.gain.exponentialRampToValueAtTime(.0001,now+dur);
   s.buffer=b;s.connect(fade);fade.connect(f);f.connect(g);g.connect(masterGain);
-  s.start(now,Math.random()*Math.max(0,FX_NOISE_S-dur-.02),dur+.01);   // a random slice, as long as before
+  s.start(now,juiceRand(0,1)*Math.max(0,FX_NOISE_S-dur-.02),dur+.01);   // a random slice, as long as before (the effects' own random numbers, never the game's)
 }
 function playPaddleHit(intensity){
   const i=Math.max(0,Math.min(1,intensity));
@@ -1325,7 +1335,7 @@ function newGame(){
  try{ window.parent.postMessage({type:'flux-playing'}, '*'); }catch(e){}
  pendingLevel=0;levelCountdown=0;levelTickAt=0;speedLevel=1;fluxCountdown=0;fluxTickAt=0;
  scoreCapped=false;runClock=0;speedStep=0;speedShown=0;speedCountdown=0;speedTickAt=0;lastStepClock=0;fieldHoldUntil=0;lostBallHold=0;recoverLeft=0;playStats=[];   // TIME SPEED: every run starts at the first speed
- score=0;combo=1;level=1;streak=0;flux=0;fluxMode=0;misses=0;revivesUsedThisRun=0;missFragments=[];particles=[];texts=[];fxReset();shake=0;targets=[];comboTimer=0;levelBanner=0;missNotice=0;colorHintLeft=0;perfectFlash=0;bonusTimer=rand(5,9);growTimer=rand(9,14);
+ score=0;combo=1;level=1;milestoneLevel=0;milestoneBox=0;streak=0;flux=0;fluxMode=0;misses=0;revivesUsedThisRun=0;missFragments=[];particles=[];texts=[];fxReset();shake=0;targets=[];comboTimer=0;levelBanner=0;missNotice=0;colorHintLeft=0;perfectFlash=0;bonusTimer=rand(5,9);growTimer=rand(9,14);
  refreshHudRects(); // pauseBtn just became visible -- make sure the exclusion zone reflects that now, not the pre-game state
  applyCelestialBackground(level);
  setPaddle(W/2);
@@ -1628,13 +1638,13 @@ function tickFluxCountdown(dt){
 }
 function startFluxMode(){fluxCountdown=0;fluxTickAt=0;flux=0;fluxMode=6;score+=250;popup(W/2,120,'FLUX MODE','#62eaff');burst(W/2,120,'#62eaff',30);haptic(50);playFlux();flash(.22);shake=Math.min(14,shake+6);updateHud();}
 const MISS_NOTICE_S=2.2, COMBO_TIME_S=2.6;
-/* RUN POINTS CAP (owner): a safety net well below the server's 455,000
-   ceiling. Points stop at RUN_SCORE_CAP on every difficulty, with a short
-   MAX SCORE notice once; play goes on. 300,000 reaches level 9 on every
-   difficulty, so a capped run's level passes the server check. */
-const RUN_SCORE_CAP=300000;
+/* RUN POINTS CAP (owner): points stop at the difficulty's level-99 score (MILESTONE LEVELS), with a short
+   MAX SCORE notice once; play goes on. One level below the server's ceiling for that difficulty, so a
+   capped run's score and level always pass the server check. How points are earned is unchanged. */
+const RUN_SCORE_CAPS={easy:6817500,medium:4545000,hard:2499750};   // = levelScoreAt(99, difficulty)
+function runScoreCap(){ return RUN_SCORE_CAPS[difficulty]||RUN_SCORE_CAPS.medium; }
 let scoreCapped=false;
-function capScore(){ if(score<RUN_SCORE_CAP) return; score=RUN_SCORE_CAP; if(!scoreCapped){ scoreCapped=true; popup(W/2,170,'MAX SCORE','#ffd45c'); } }
+function capScore(){ const cap=runScoreCap(); if(score<cap) return; score=cap; if(!scoreCapped){ scoreCapped=true; popup(W/2,170,'MAX SCORE','#ffd45c'); } }
 function registerMiss(){
  misses++;missFragments.push({x:rand(25,W-25),y:H-24,r:rand(7,12),life:1});
  playCount('lost',1);   // GAMEPLAY STATS
@@ -1816,6 +1826,26 @@ function checkScoreLevel(){
  if(fieldGrowsAt(level+1) && speedStep>0 && runClock-lastStepClock<FIELD_HOLD_S) return;   // DIFFICULTY BUDGET: more orbs/spawns never right after a speed step
  if(levelForScore(score,difficulty)>level) startLevelUp(level+1);
 }
+/* MILESTONE LEVELS (10-99): reaching a milestone's score shows a short celebration like a level-up --
+   the HUD-strip banner "LEVEL n", the LEVEL box reading LEVEL UP for ~2 s, the level-up sound, a short
+   haptic, a small burst and a "LEVEL n" popup -- and nothing else: no countdown, no pause, no speed step,
+   no ramp; the game's own level stays 9, so speed, orbs, spawns, launcher, FLUX MODE and scoring stay as
+   at level 9. The burst takes its own random numbers (never the game's), so play is exactly as without it. */
+function shownLevel(){ return milestoneLevel>level ? milestoneLevel : level; }
+function checkMilestone(){
+ if(level<LEVEL_PLAY_MAX || pendingLevel) return;
+ const next=Math.max(LEVEL_PLAY_MAX+1,milestoneLevel+1);
+ if(next>LEVEL_MAX || score<levelScoreAt(next,difficulty)) return;
+ let m=next; while(m<LEVEL_MAX && score>=levelScoreAt(m+1,difficulty)) m++;
+ milestoneLevel=m; celebrateMilestone(m);
+}
+function celebrateMilestone(m){
+ levelBanner=3.2; milestoneBox=2.2;
+ playLevelUp(); haptic(80);
+ juiceBurst(W/2,135,'#62eaff',38);   // own random numbers; within the per-frame effect caps
+ popup(W/2,155,'LEVEL '+m,'#62eaff');
+ updateHud();
+}
 function startLevelUp(n){
  pendingLevel=n; levelCountdown=LEVEL_COUNTDOWN_S; levelTickAt=LEVEL_COUNTDOWN_S;
  levelBanner=3.2;
@@ -1869,7 +1899,7 @@ function flash(v){
  el.style.opacity=v; setTimeout(()=>{ flashOn=0; el.style.opacity=0; },reduceMotion?FLASH_ON_CALM_MS:FLASH_ON_MS);
 }
 function updateHud(){
- document.getElementById('score').textContent=Math.min(score,RUN_SCORE_CAP);
+ document.getElementById('score').textContent=Math.min(score,runScoreCap());
  setPlanetLabel(document.getElementById('hudDiff'),difficulty);   // HUD: EARTH / MARS / JUPITER (+ small Easy / Medium / Hard) during play
  document.getElementById('combo').textContent='x'+combo;
  // D-50: the LEVEL box becomes the SPEED UP countdown while a level-up is pending.
@@ -1881,8 +1911,9 @@ function updateHud(){
    lvLabel.textContent='SPEED UP'; lvBox.classList.add('speedUp');
    document.getElementById('level').textContent=Math.max(1,Math.ceil(speedCountdown));
  }else{
-   lvLabel.textContent='LEVEL'; lvBox.classList.remove('speedUp');
-   document.getElementById('level').textContent=level;
+   if(milestoneBox>0){ lvLabel.textContent='LEVEL UP'; lvBox.classList.add('speedUp'); }   // MILESTONE LEVELS: a short LEVEL UP, the new number (never a countdown)
+   else{ lvLabel.textContent='LEVEL'; lvBox.classList.remove('speedUp'); }
+   document.getElementById('level').textContent=shownLevel();
  }
  // D-52: lives, not misses. The last one turns the box red.
  const lives=Math.max(0,3-misses), lvsBox=document.getElementById('livesBox');
@@ -1894,8 +1925,8 @@ function updateHud(){
  const track=document.getElementById('levelProgress');
  if(track){
    // D-50: progress toward the NEXT level's score threshold.
-   const cur=pendingLevel||level;
-   const pct=cur>=9?100:Math.max(0,Math.min(100,(score-levelScoreAt(cur,difficulty))/(levelScoreAt(cur+1,difficulty)-levelScoreAt(cur,difficulty))*100));
+   const cur=pendingLevel||shownLevel();   // MILESTONE LEVELS: past 9, toward the next milestone
+   const pct=cur>=LEVEL_MAX?100:Math.max(0,Math.min(100,(score-levelScoreAt(cur,difficulty))/(levelScoreAt(cur+1,difficulty)-levelScoreAt(cur,difficulty))*100));
    track.style.width=pct+'%';
  }
 }
@@ -1919,7 +1950,7 @@ function endGame(){
    const prevBest=bestRun().score, prevOverall=overallBestScore();   // D-57, before this run is recorded
    recordBestRun(score,levelForScore(score,difficulty));   // D-50: the level is the one this score reaches
    if(score>best){best=score;}
-   document.getElementById('finalScore').textContent=score.toLocaleString();refreshMenu();
+   document.getElementById('finalScore').textContent=score.toLocaleString();document.getElementById('finalScore').classList.toggle('goScoreLong',score>=1000000);refreshMenu();   // MILESTONE LEVELS: 7 digits fit
    showGameOverLine(score,prevBest,prevOverall);   // D-57
    offerNameClaim(score,prevBest,runNo);   // D-60
    goRankDiff=difficulty; showGoRank();   // LEADERBOARD REFRESH: ONE rank line for the difficulty just played
@@ -2067,9 +2098,10 @@ function steerStalledBall(dt){
 }
 function update(dt){
  if(levelBanner>0) levelBanner=Math.max(0,levelBanner-dt);
+ if(milestoneBox>0){ milestoneBox-=dt; if(milestoneBox<=0){ milestoneBox=0; updateHud(); } }   // MILESTONE LEVELS: the LEVEL UP box goes back to LEVEL
  if(colorHintLeft>0) colorHintLeft=Math.max(0,colorHintLeft-dt);
  if(missNotice>0) missNotice=Math.max(0,missNotice-dt);
- checkScoreLevel(); tickLevelUp(dt);   // D-50
+ checkScoreLevel(); checkMilestone(); tickLevelUp(dt);   // D-50; MILESTONE LEVELS
  checkFluxMode(); tickFluxCountdown(dt);   // FLUX MODE: announce + 3-2-1, then start
  tickSpeed(dt);   // TIME SPEED: run clock, SPEED UP 3-2-1, then the next step
  // Combo is a real pressure mechanic: keep chaining fusions before the timer expires.
@@ -2537,7 +2569,7 @@ function levelBannerLayout(text1,text2){
   const left=fb.right+12, right=W-12, top=st.bottom+6, bottom=maxHudBottom()-8;
   const w=Math.max(0,right-left), h=Math.max(0,bottom-top);
   // Default: the level banner. The miss notice passes its own two lines.
-  const t1=text1!==undefined?text1:'LEVEL '+level, t2=text1!==undefined?(text2||''):(pendingLevel?'NEXT LEVEL: '+pendingLevel:''), gap=t2?3:0;
+  const t1=text1!==undefined?text1:'LEVEL '+shownLevel(), t2=text1!==undefined?(text2||''):(pendingLevel?'NEXT LEVEL: '+pendingLevel:''), gap=t2?3:0;
   let f1=Math.min(22,Math.floor(t2?h*.55:h*.8)), f2=11, tw=0, th=0;
   for(;;){
     f1=Math.max(11,f1); f2=Math.max(11,Math.round(f1*.72));
@@ -2780,7 +2812,7 @@ function refreshMenu(){
  document.querySelectorAll('#difficulty button').forEach(b=>b.classList.toggle('selected',b.dataset.d===difficulty));
  document.querySelectorAll('#gameoverDifficulty button').forEach(b=>b.classList.toggle('selected',b.dataset.d===difficulty));
  best=+localStorage[bestKey()]||0;document.getElementById('menuBest').textContent=best.toLocaleString();
- document.getElementById('menuLevel').textContent=+localStorage['fluxBestLevel_'+difficulty]||1;
+ document.getElementById('menuLevel').textContent=Math.max(+localStorage['fluxBestLevel_'+difficulty]||1,levelForScore(+localStorage['fluxBest_'+difficulty]||0,difficulty));   // MILESTONE LEVELS: the saved best score's level, worked out here (saved data untouched)
  document.getElementById('callsign').value=callsign;document.getElementById('country').value=country;
  document.getElementById('profileEditor').classList.toggle('hidden',profileComplete);document.getElementById('profileSaved').classList.toggle('hidden',!profileComplete);
  document.getElementById('profileName').textContent=callsign||'PLAYER';document.getElementById('profileCountry').textContent=countryFlags[country]||'🌎';
@@ -3061,7 +3093,7 @@ async function postSubmission(item){
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
           playerId:item.playerId, name:item.name, score:item.score,
-          level:item.level, difficulty:item.difficulty, country:item.country,
+          level:(typeof levelForScore==='function' && Number.isFinite(item.score)) ? levelForScore(item.score,item.difficulty||'medium') : item.level, difficulty:item.difficulty, country:item.country,   // MILESTONE LEVELS: the level this score reaches (as the server works it out)
           stats:item.stats,
           runId:item.runId,
           season:item.season
@@ -3396,7 +3428,7 @@ function showGoRank(){
 let goRankDiff=null;                                    // the difficulty of the run on the game-over screen
 /* HTML */
 function lbRowHtml(rank,flag,name,tag,score,cls,extra,fp){
-  return '<div class="lbRow'+(cls?' '+cls:'')+'"><span class="lbRank">'+rank+'</span><span class="lbFlag">'+flag+'</span><span class="lbName">'+escapeHtml(name)+(tag?'<small class="lbTag"> #'+escapeHtml(tag)+'</small>':'')+(fp?'<small class="lbFounder">FOUNDING PILOT</small>':'')+(extra?'<small class="lbGap">'+escapeHtml(extra)+'</small>':'')+'</span><span class="lbScore">'+fluxFmt(score)+'</span></div>';
+  return '<div class="lbRow'+(cls?' '+cls:'')+'"><span class="lbRank">'+rank+'</span><span class="lbFlag">'+flag+'</span><span class="lbName">'+escapeHtml(name)+(tag?'<small class="lbTag"> #'+escapeHtml(tag)+'</small>':'')+(fp?'<small class="lbFounder">FOUNDING PILOT</small>':'')+(extra?'<small class="lbGap">'+escapeHtml(extra)+'</small>':'')+'</span><span class="lbScore'+(Number(score)>=1000000?' lbLong':'')+'">'+fluxFmt(score)+'</span></div>';
 }
 function fluxBoardHtml(v){
   let h='<div class="lbScope" role="group" aria-label="Board"><button type="button" data-scope="world" class="'+(v.scope!=='country'?'on':'')+'">WORLD</button><button type="button" data-scope="country" class="'+(v.scope==='country'?'on':'')+'">MY COUNTRY</button></div>';
@@ -5450,7 +5482,7 @@ function fluxStatsFlush(){
     };
     const endGame0=endGame;
     endGame=function(){
-      try{ fluxTrack('run_end',Object.assign({sec:fluxRunStartedAt?Math.round((Date.now()-fluxRunStartedAt)/1000):0,lvl:level,diff:difficulty},fluxGameOverInfo())); fluxRunStartedAt=0; }catch(x){}   // RETENTION: + speed step, bad failure, first-run survival
+      try{ fluxTrack('run_end',Object.assign({sec:fluxRunStartedAt?Math.round((Date.now()-fluxRunStartedAt)/1000):0,lvl:shownLevel(),diff:difficulty},fluxGameOverInfo())); fluxRunStartedAt=0; }catch(x){}   // RETENTION: + speed step, bad failure, first-run survival
       try{ playStats.forEach(function(s,i){ if(s && (s.sec>=1||s.hit||s.wrong||s.lost)) fluxTrack('play',{diff:difficulty,st:i,sec:Math.round(s.sec),hit:s.hit,wrong:s.wrong,lost:s.lost}); }); }catch(x){}   // GAMEPLAY
       fluxSessGameOver();   // RETENTION
       return endGame0.apply(this,arguments);   // FREE PLAN: the stats go with the score upload at game over (uploadOrAskName)
@@ -5462,6 +5494,8 @@ function fluxStatsFlush(){
     fluxSessTouch();   // this page load: the same sitting (inside 30 min) or a new one
     const finishLevelUp0=finishLevelUp;
     finishLevelUp=function(){ const r=finishLevelUp0.apply(this,arguments); fluxTrack('level_up',{lvl:level,diff:difficulty}); return r; };
+    const celebrateMilestone0=celebrateMilestone;
+    celebrateMilestone=function(m){ const r=celebrateMilestone0.apply(this,arguments); fluxTrack('level_up',{lvl:m,diff:difficulty}); return r; };   // MILESTONE LEVELS: counted like a level-up
     const sb=document.getElementById('shareBtn'); const share0=sb && sb.onclick;
     if(sb) sb.onclick=function(){ fluxTrack('share'); return typeof share0==='function' ? share0.apply(this,arguments) : undefined; };   // FREE PLAN: rides with the next upload
     // FREE PLAN: no timer. The app-open event rides with the first run's upload;
@@ -5508,7 +5542,7 @@ function fluxFrzFrame(gap,ts){
   if(fluxFrzVisAt>=ts-gap) return;   // the app was hidden / shown during this gap
   try{
     let heap=null; try{ if(performance.memory && performance.memory.usedJSHeapSize) heap=Math.round(performance.memory.usedJSHeapSize/104857.6)/10; }catch(e){}
-    const e={ at:Date.now(), gap:Math.round(gap), t:Math.max(0,Math.round((ts-gap-fluxFrzRunAt)/1000)), level:level, pending:pendingLevel||0, score:Math.round(score),
+    const e={ at:Date.now(), gap:Math.round(gap), t:Math.max(0,Math.round((ts-gap-fluxFrzRunAt)/1000)), level:shownLevel(), pending:pendingLevel||0, score:Math.round(score),
       orbs:targets.length, parts:particles.length, texts:texts.length, snd:snd, flux:fluxMode>0?1:0, bg:skinBackdropOn()?activeBackground:'none', lite:window.__fluxLite?1:0,
       combo:combo, heap:heap, ev:fluxFrzEv, evAgo:fluxFrzEv ? Math.round((ts-gap-fluxFrzEvAt)/100)/10 : null, diff:difficulty };
     const a=fluxFrzList(); a.push(e); while(a.length>FLUX_FRZ_MAX) a.shift();
