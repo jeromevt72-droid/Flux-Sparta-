@@ -126,7 +126,7 @@ function suite(html, quiet = false) {
       const M = scriptsOf(MAIN_HTML).join('\n');
       const pick = (src, re) => (re.exec(src) || [''])[0];
       const same = (re) => pick(A, re) !== '' && pick(A, re) === pick(M, re);
-      ck('Z6 the launcher position, orb colours and the flash effect are exactly as on main', same(/paddle\.y=Math\.min\([^;]*\);/) && same(/const SKINS=\{[\s\S]*?\n\};/) && same(/function flash\([^]*?\n\}/) && pick(A, /function burst\([^]*?\n\}/).replace(/fxParticle\(/g, 'particles.push(') === pick(M, /function burst\([^]*?\n\}/), '');   // SMOOTH CHAINS: burst() hands each particle to the per-frame budget (fxParticle) -- otherwise the same
+      ck('Z6 the launcher position, orb colours and the flash effect are exactly as on main', same(/paddle\.y=Math\.min\([^;]*\);/) && same(/const SKINS=\{[\s\S]*?\n\};/) && same(/function flash\([^]*?\n\}/) && pick(A, /function burst\([^]*?\n\}/).replace(/fxParticle\(/g, 'particles.push(') === pick(M, /function burst\([^]*?\n\}/).replace(/fxParticle\(/g, 'particles.push(') && pick(A, /function burst\([^]*?\n\}/) !== '', '');   // SMOOTH CHAINS: burst() hands each particle to the per-frame budget (fxParticle) -- otherwise the same; both sides are compared through that one substitution, since main itself has it now (#94 merged)
       const pos = DEVICES.map((dev) => { const a = bootGame(html, 'hard', dev), m = bootGame(MAIN_HTML, 'hard', dev); return a.run('paddle.y') === m.run('paddle.y'); });
       ck('Z6 ...and the launcher sits at the same height as on main on iPhone, iPad and iPad mini', pos.every(Boolean), pos.join(','));
       const regular = DEVICES.map((dev) => { const a = bootGame(html, 'medium', dev, 9), m = bootGame(MAIN_HTML, 'medium', dev, 9); const f = 'JSON.stringify(Array.from({length:40},function(){ return safeSpawnPoint(20).map(Math.round); }))'; return a.run(f) === m.run(f); });
@@ -155,6 +155,7 @@ control('the zone reaches down to the launcher', 'Z1 the zone', rep('bottom:Math
 control('the zone is the full width', 'Z1 the zone', rep('left:W*.10, right:W*.90', 'left:0, right:W'));
 control('growth made faster', 'Z3 ...and it still turns', rep('t.r=Math.min(t.maxR,12+(t.age/4.2)*(t.maxR-12));', 't.r=Math.min(t.maxR,12+(t.age/2.5)*(t.maxR-12));'));
 control('regular orbs moved into the zone too', 'Z6', rep(' const xLo=zone?zone.left:pad, xHi=zone?zone.right:W-pad;', ' zone=zone||lightningZone(); const xLo=zone.left, xHi=zone.right;'));
+control('burst particles faster (the flash effect changed)', 'Z6 the launcher position', rep('for(let i=0;i<n;i++)fxParticle({x,y,vx:rand(-5,5),vy:rand(-5,5),life:1,col});', 'for(let i=0;i<n;i++)fxParticle({x,y,vx:rand(-6,6),vy:rand(-6,6),life:1,col});'));
 const total = res.F + NC;
 console.log('\n' + (total ? 'LIGHTNING ZONE FAILED: ' + res.F + ' check(s), ' + NC + ' uncaught control(s)' : 'LIGHTNING ZONE PASSED: all checks and all negative controls') + '  (' + ((Date.now() - t0) / 1000).toFixed(0) + ' s)');
 process.exit(total ? 1 : 0);
