@@ -1,0 +1,7 @@
+# SEO (owner, anonymity): Google should list only fluxsparta.com. The old workers.dev address keeps
+# working for players (the pilot move too), but every page served there tells search engines not to
+# list it. Only workers.dev hosts match this rule; fluxsparta.com gets no extra header. Cloudflare's
+# asset layer reads this file and adds the header itself, so pages never invoke the Worker (free plan).
+# The old address is not blocked in robots.txt: Google must be able to fetch a page to see the noindex.
+https://:version.:subdomain.workers.dev/*
+  X-Robots-Tag: noindex
