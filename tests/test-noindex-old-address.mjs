@@ -34,6 +34,7 @@ const IN = {
   worker: read('worker.js'), wrangler: read('wrangler.jsonc'), robots: read('public/robots.txt'), sitemap: read('public/sitemap.xml'),
   pages: Object.fromEntries(PAGES.map((p) => [p, read('public' + p)])),
 };
+const MAIN_HEADERS = git(['show', 'origin/main:public/_headers']);   // null until the noindex PR is merged
 const MAIN = { robots: git(['show', 'origin/main:public/robots.txt']), wrangler: git(['show', 'origin/main:wrangler.jsonc']),
   pages: Object.fromEntries(PAGES.map((p) => [p, git(['show', 'origin/main:public' + p])])) };
 
@@ -90,7 +91,9 @@ function suite(I, quiet = false) {
   ck('N3 no page got a <meta name="robots"> (it would reach fluxsparta.com too); only the ones main already had (admin)', JSON.stringify(metaNow) === JSON.stringify(metaMain), metaNow.join(','));
   const changed = (git(['diff', '--name-only', 'origin/main', '--', 'public']) || '').trim().split('\n').filter(Boolean);
   const added = (git(['ls-files', '--others', '--exclude-standard', '--', 'public']) || '').trim().split('\n').filter(Boolean);
-  if (I === IN) ck('N3 only public/_headers is new or changed in public/', JSON.stringify(changed.concat(added).filter((f) => f !== 'public/_headers')) === '[]', changed.concat(added).join(','));
+  // This check belongs to the noindex PR itself (#100): it held while _headers was new. Once _headers is on main, later
+  // PRs may change other pages; the rule itself is still pinned by N1/N2, and robots.txt, canonicals and meta robots by N3/N4.
+  if (I === IN && MAIN_HEADERS === null) ck('N3 only public/_headers is new or changed in public/', JSON.stringify(changed.concat(added).filter((f) => f !== 'public/_headers')) === '[]', changed.concat(added).join(','));
   /* N4 */
   ck('N4 robots.txt does not block the old address (Google must read the noindex): the site stays allowed, no workers.dev rule, unchanged',
     /^Allow: \/$/m.test(I.robots) && !/^Disallow: \/\s*$/m.test(I.robots) && !/workers\.dev/.test(I.robots) && (MAIN.robots === null || I.robots === MAIN.robots));
