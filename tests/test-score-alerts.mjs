@@ -7,9 +7,12 @@
 //        2 a new best above 50,000 that is more than 3x the previous best (exactly 3x, 50,000 itself and a
 //          first score with no previous best are not);
 //        3 a new #1 on that difficulty's board (a tie with the #1 and the #1 improving are not);
-//        4 the country moves up one or more places on the World Grid (a raise that passes no one, a new
-//          country entering at the bottom are not; a new country entering above others, and a pilot
-//          moving its best to another country, are) -- also from an Every Run Counts share (not a new best);
+//        4 (ALERTS TUNE, owner) the country moves up the World Grid INTO the top 3 and the score is above 50,000
+//          weighted (score x the difficulty's World Grid weight): a new country entering at #2 and PH passing
+//          FR and JP to #2 are; a move into the top 3 by a small score (a pilot moving 1,000 to another country),
+//          a big Medium score (238,000) that is only 49,980 weighted, a move that lands at #6 with 55,000, a raise that
+//          passes no one, a new country entering at the bottom are not -- also from an Every Run Counts share
+//          (not a new best);
 //      one alert per upload, listing every rule met; normal scores make none (and write nothing more);
 //      restricted pilots are never alerted;
 //   A2 flagged scores still save and count right away (reply, board, World Grid); an alert that cannot be
@@ -20,6 +23,7 @@
 //      a privacy deletion deletes the pilot's alerts (also in backups); at most 300 kept;
 //   A4 the old storage layout does the same (rules 1, 3, 4, admin list and check);
 //   A5 the page: ALERTS first, the badge, LOOKS LEGIT and REMOVE PILOT driven through the real page script;
+//      (ALERTS TUNE) checked alerts are hidden by default; SHOW CHECKED (n) shows them, HIDE CHECKED hides them;
 //      guide; privacy policy (both copies); no change to the game; no new listener; text only.
 // Ends with negative controls: each rule (and each other part) broken on purpose MUST be caught.
 import fs from 'fs'; import path from 'path'; import util from 'util'; import v8 from 'v8'; import vm from 'vm';
@@ -106,7 +110,7 @@ const PILOTS = [
   ['RST', 'US', { hard: 100000 }],
 ];
 const PID = Object.fromEntries(PILOTS.map((p, i) => [p[0], ID(i + 1)]));
-PID.NEWBIE = ID(50); PID.CA1 = ID(51); PID.DE1 = ID(52);
+PID.NEWBIE = ID(50); PID.CA1 = ID(51); PID.DE1 = ID(52); PID.MX1 = ID(53); PID.FR2 = ID(54);
 function seed(list = PILOTS) {
   const m = new Map(), players = {};
   list.forEach(([name, cc, b], i) => {
@@ -237,16 +241,20 @@ async function suite({ workerMod, adminHtml, quiet = false }) {
     ck('A1 rule 3 ...(EZTOP is the Easy #1 now)', top0 && top0.name === 'EZTOP' && top0.score === 46000);
 
     /* ---- rule 4 ---- */
-    const r4a = await step('JP2', 1000, 'hard', 'FR');        // not a best; its 35,000 moves to FR: FR 65,000 passes PH 60,000
+    const r4a = await step('JP2', 1000, 'hard', 'FR');        // not a best; its 35,000 moves to FR: FR 65,000 passes PH 60,000 into #3, but 1,000 weighted
     const r4b = await step('PH1', 64000, 'hard', 'PH');       // PH 64,000: still under FR
-    const r4c = await step('PH1', 100001, 'hard', 'PH');      // passes FR and JP
-    const r4d = await step('DE1', 20000, 'hard', 'DE');       // a new country entering above BR and CA
-    ck('A1 rule 4: a pilot moving its best to another country that then passes one is flagged (rule 4: FR #4 -> #3), though not a new best',
-      r4a.r.status === 200 && r4a.n === 1 && rulesOf(r4a.a) === '4' && r4a.a.country === 'FR' && r4a.a.rules[0].from === 4 && r4a.a.rules[0].to === 3, JSON.stringify(r4a.a && r4a.a.rules));
+    const r4c = await step('PH1', 100001, 'hard', 'PH');      // passes FR and JP: #4 -> #2, 100,001 weighted
+    const r4d = await step('DE1', 120000, 'hard', 'DE');      // a new country entering at #2 (above PH and JP), 120,000 weighted
+    const r4e = await step('MX1', 55000, 'hard', 'MX');       // a new country entering at #6 (above BR and CA), 55,000 weighted
+    const r4f = await step('FR2', 238000, 'medium', 'FR');    // a new FR pilot: FR 65,000 + 49,980 passes PH and JP into #3, but Medium: 238,000 x 0.21 = 49,980 weighted
+    ck('A1 rule 4: moving into the top 3 with a score of 50,000 weighted or less is not flagged (FR #4 -> #3 by a pilot moving 1,000 to it)', r4a.r.status === 200 && r4a.n === 0, r4a.n);
     ck('A1 rule 4: a raise that passes no country is not flagged', r4b.n === 0);
-    ck('A1 rule 4: PH passing FR and JP is flagged (#4 -> #2)', r4c.n === 1 && rulesOf(r4c.a) === '4' && r4c.a.rules[0].from === 4 && r4c.a.rules[0].to === 2, JSON.stringify(r4c.a && r4c.a.rules));
-    ck('A1 rule 4: a new country entering above others is flagged (new, at #5); one entering at the bottom (CA, above) is not',
-      r4d.n === 1 && rulesOf(r4d.a) === '4' && r4d.a.rules[0].from === null && r4d.a.rules[0].to === 5 && normal[4].n === 0, JSON.stringify(r4d.a && r4d.a.rules));
+    ck('A1 rule 4: PH passing FR and JP into the top 3 with 100,001 weighted is flagged (#4 -> #2)', r4c.n === 1 && rulesOf(r4c.a) === '4' && r4c.a.rules[0].from === 4 && r4c.a.rules[0].to === 2, JSON.stringify(r4c.a && r4c.a.rules));
+    ck('A1 rule 4: a new country entering the top 3 (new, at #2) with 120,000 weighted is flagged; one entering at the bottom (CA, above) is not',
+      r4d.n === 1 && rulesOf(r4d.a) === '4' && r4d.a.rules[0].from === null && r4d.a.rules[0].to === 2 && normal[4].n === 0, JSON.stringify(r4d.a && r4d.a.rules));
+    ck('A1 rule 4: passing countries but landing outside the top 3 (#6) is not flagged, even at 55,000 weighted', r4e.r.status === 200 && r4e.n === 0, r4e.n);
+    const frNow = (await S.board(null)).countries.findIndex((c) => c.country === 'FR') + 1;
+    ck('A1 rule 4: a big Medium score (238,000) that is only 49,980 weighted is not flagged, though it moves FR into the top 3', r4f.r.status === 200 && r4f.n === 0 && frNow <= 3, r4f.n + ' FR #' + frNow);
 
     /* ---- restricted ---- */
     const tR = await S.tag('RST'), fR = (await S.admin('find-player', { query: 'RST #' + tR })).data.matches[0];
@@ -282,7 +290,7 @@ async function suite({ workerMod, adminHtml, quiet = false }) {
       /"\/api\/admin\/alerts":\s*\(\) => adminDO\(request, env, "\/admin-alerts", \{\}\)/.test(src) && /"\/api\/admin\/alert-check":\s*\(\) => adminAlertCheck\(request, env\)/.test(src)
       && /async function adminAlertCheck\(request, env\) \{[^\n]*\n  const denied = requireAdmin\(request, env\); if \(denied\) return denied;/.test(src));
     const L = await S.alerts(), list = L.alerts;
-    ck('A3 newest first, with the unchecked count', list.length === 11 && L.unchecked === 11 && list.every((a, i) => i === 0 || list[i - 1].at >= a.at), list.length + ' ' + L.unchecked);
+    ck('A3 newest first, with the unchecked count', list.length === 10 && L.unchecked === 10 && list.every((a, i) => i === 0 || list[i - 1].at >= a.at), list.length + ' ' + L.unchecked);
     const tH = await S.tag('UHIGH'), aH = list.find((a) => a.score === 300001);
     ck('A3 every field: name + #TAG, country, difficulty, score, level, previous best, the rule, when',
       aH && aH.name === 'UHIGH' && aH.tag === tH && aH.country === 'US' && aH.difficulty === 'hard' && aH.score === 300001 && aH.level === levelFor(300001, 'hard') && aH.prevBest === 300000
@@ -292,7 +300,7 @@ async function suite({ workerMod, adminHtml, quiet = false }) {
       && (g.map.get('alerts') || []).every((a) => !JSON.stringify(a).includes('aaaaaaaa-bbbb')), Object.keys(list[0]).join(','));
     const ok1 = await S.admin('alert-check', { id: aH.id }), L2 = await S.alerts(), aH2 = L2.alerts.find((a) => a.id === aH.id);
     const stored = (g.map.get('alerts') || []).find((a) => a.id === aH.id);
-    ck('A3 "Looks legit" marks it checked: saved, the count drops by one', ok1.status === 200 && aH2.checkedAt === now && aH2.outcome === 'legit' && L2.unchecked === 10 && stored && stored.checkedAt === now, ok1.status + ' ' + L2.unchecked);
+    ck('A3 "Looks legit" marks it checked: saved, the count drops by one', ok1.status === 200 && aH2.checkedAt === now && aH2.outcome === 'legit' && L2.unchecked === 9 && stored && stored.checkedAt === now, ok1.status + ' ' + L2.unchecked);
     const again = await S.admin('alert-check', { id: aH.id }), none = await S.admin('alert-check', { id: 'no-such-alert' });
     ck('A3 ...again: already checked; an unknown alert: 404', again.status === 200 && again.data.already === true && none.status === 404, again.status + ' ' + none.status);
     /* Remove pilot = REMOVE PILOTS with its dry run first */
@@ -303,27 +311,27 @@ async function suite({ workerMod, adminHtml, quiet = false }) {
     await S.admin('backup-now');
     const rmv = await S.admin('remove-pilots', { lines: [line], id: dry.data.id, confirm: dry.data.confirm });
     const L3 = await S.alerts(), aD2 = L3.alerts.find((a) => a.id === aD.id);
-    ck('A3 ...after REMOVE NOW the alert shows REMOVED (checked) and the count drops', rmv.status === 200 && rmv.data.ok === true && aD2.checkedAt === now && aD2.outcome === 'removed' && aD2.onBoard === false && L3.unchecked === 9, rmv.status + ' ' + JSON.stringify(aD2));
+    ck('A3 ...after REMOVE NOW the alert shows REMOVED (checked) and the count drops', rmv.status === 200 && rmv.data.ok === true && aD2.checkedAt === now && aD2.outcome === 'removed' && aD2.onBoard === false && L3.unchecked === 8, rmv.status + ' ' + JSON.stringify(aD2));
     /* retention */
     const n3 = L3.alerts.length;
     now += 89 * DAY; const L4 = await S.alerts();
     ck('A3 89 days after checking: checked alerts are still kept', L4.alerts.length === n3 && L4.alerts.some((a) => a.id === aH.id));
     now += 2 * DAY; const L5 = await S.alerts();
     ck('A3 90+ days after checking: checked alerts are deleted (also from storage); unchecked ones stay, however old',
-      L5.alerts.length === n3 - 2 && !L5.alerts.some((a) => a.checkedAt) && L5.unchecked === 9 && !(g.map.get('alerts') || []).some((a) => a.id === aH.id || a.id === aD.id), L5.alerts.length + ' of ' + n3);
+      L5.alerts.length === n3 - 2 && !L5.alerts.some((a) => a.checkedAt) && L5.unchecked === 8 && !(g.map.get('alerts') || []).some((a) => a.id === aH.id || a.id === aD.id), L5.alerts.length + ' of ' + n3);
     /* privacy deletion */
     const aE = L5.alerts.filter((a) => a.name === 'EZTOP');
     await S.admin('privacy-delete', { pid: aE[0].pid, removePurchases: false });
     const L6 = await S.alerts();
-    ck('A3 a privacy deletion deletes the pilot\'s alerts', aE.length === 1 && !L6.alerts.some((a) => a.pid === aE[0].pid) && !(g.map.get('alerts') || []).some((a) => a.pid === aE[0].pid) && L6.unchecked === 8, aE.length + ' ' + L6.unchecked);
+    ck('A3 a privacy deletion deletes the pilot\'s alerts', aE.length === 1 && !L6.alerts.some((a) => a.pid === aE[0].pid) && !(g.map.get('alerts') || []).some((a) => a.pid === aE[0].pid) && L6.unchecked === 7, aE.length + ' ' + L6.unchecked);
     ck('A3 ...and from every backup (the backup erase handles the alerts value)', /if \(k === ALERT_KEY && Array\.isArray\(v\) && v\.some\(\(a\) => a && a\.pid === pid\)\) \{ touched = true; return \[k, v\.filter\(\(a\) => !\(a && a\.pid === pid\)\)\]; \}/.test(src));
 
     /* ---- rule 4 from an Every Run Counts share ---- */
-    const C = await mk({ list: [['KING', 'US', { hard: 1500000 }], ['JP1', 'JP', { hard: 50000 }], ['PH1', 'PH', { hard: 49000 }]] });
+    const C = await mk({ list: [['KING', 'US', { hard: 1500000 }], ['JP1', 'JP', { hard: 200000 }], ['PH1', 'PH', { hard: 199000 }]] });
     await C.admin('backup-now'); const on = await C.admin('cg-switch', { on: true, confirm: 'EVERY RUN ON' });
-    const c1 = await C.up('PH1', 10000, 'hard', 'PH'), n1 = (await C.alerts()).alerts.length;    // share 500: PH 49,500
-    const c2 = await C.up('PH1', 40000, 'hard', 'PH'), l2 = (await C.alerts()).alerts;           // share 2,000: PH 51,500 > JP 50,000
-    ck('A1 rule 4 counts what players see: with Every Run Counts ON, a run below the best whose share moves PH past JP is flagged; a smaller share is not',
+    const c1 = await C.up('PH1', 10000, 'hard', 'PH'), n1 = (await C.alerts()).alerts.length;    // share 500: PH 199,500
+    const c2 = await C.up('PH1', 60000, 'hard', 'PH'), l2 = (await C.alerts()).alerts;           // share 3,000: PH 202,500 > JP 200,000; 60,000 weighted
+    ck('A1 rule 4 counts what players see: with Every Run Counts ON, a run below the best (60,000) whose share moves PH past JP to #2 is flagged; a smaller share is not',
       on.status === 200 && c1.status === 200 && c2.status === 200 && n1 === 0 && l2.length === 1 && rulesOf(l2[0]) === '4' && l2[0].rules[0].from === 3 && l2[0].rules[0].to === 2 && c2.data.isNewBest === false,
       on.status + ' ' + n1 + ' ' + JSON.stringify(l2[0] && l2[0].rules));
 
@@ -345,7 +353,7 @@ async function suite({ workerMod, adminHtml, quiet = false }) {
     /* ================= A5 the page ================= */
     try {
       const Pg = await mk();
-      await Pg.up('UHIGH', 300001, 'hard', 'US'); await Pg.up('DE1', 20000, 'hard', 'DE');
+      await Pg.up('UHIGH', 300001, 'hard', 'US'); await Pg.up('DE1', 120000, 'hard', 'DE');
       const sent = [], replies = [];
       const fetchImpl = async (url, init = {}) => {
         const h = new Headers(init.headers || {}); h.set('x-admin-token', 'pw');
@@ -359,17 +367,23 @@ async function suite({ workerMod, adminHtml, quiet = false }) {
       const gp = bootAdmin(scriptsOf(adminHtml), { fetchImpl }), E = new Proxy({}, { get: (t, k) => gp.byId(k) });
       await until(() => kids(E.alerts).length >= 2);
       const cards = kids(E.alerts);
-      ck('A5 page: on opening, ALERTS lists the alerts (newest first) and the badge shows how many to check',
-        gp.errors.length === 0 && cards.length === 2 && /DE1 #/.test(cards[0].textContent) && /UHIGH #/.test(cards[1].textContent) && E.alertBadge.hidden === false && E.alertBadge.textContent === '2',
+      ck('A5 page: on opening, ALERTS lists the alerts (newest first) and the badge shows how many to check; no SHOW CHECKED while none is checked',
+        E.alToggle.hidden === true && gp.errors.length === 0 && cards.length === 2 && /DE1 #/.test(cards[0].textContent) && /UHIGH #/.test(cards[1].textContent) && E.alertBadge.hidden === false && E.alertBadge.textContent === '2',
         gp.errors.join('; ') + ' cards ' + cards.length + ' badge ' + E.alertBadge.textContent + '/' + E.alertBadge.hidden);
       ck('A5 page: each card shows country, difficulty, score, level, previous best, the rule in words, when, and TO CHECK',
-        /US · hard · score 300,001 · level 19 · previous best 250,000/.test(cards[1].textContent) && /DE · hard · score 20,000 · level \d+ · previous best none/.test(cards[0].textContent) && /new best above 300,000/.test(cards[1].textContent) && /TO CHECK/.test(cards[1].textContent)
+        /US · hard · score 300,001 · level 19 · previous best 250,000/.test(cards[1].textContent) && /DE · hard · score 120,000 · level \d+ · previous best none/.test(cards[0].textContent) && /new best above 300,000/.test(cards[1].textContent) && /TO CHECK/.test(cards[1].textContent)
         && /moved DE up the World Grid \(new, at #\d\)/.test(cards[0].textContent), cards[1].textContent.slice(0, 200));
       const legit = findBtn(cards[1], 'LOOKS LEGIT'); legit.onclick.call(legit);
       await until(() => replies.some((r) => /alert-check$/.test(r.url)) && E.alertBadge.textContent === '1');
       const chk = sent.find((s) => /alert-check$/.test(s.url));
-      ck('A5 page: LOOKS LEGIT sends that alert\'s id; the card turns CHECKED and the badge drops to 1',
-        chk && chk.body.id === (await Pg.alerts()).alerts[1].id && E.alertBadge.textContent === '1' && /CHECKED/.test(kids(E.alerts)[1].textContent) && !findBtn(kids(E.alerts)[1], 'LOOKS LEGIT'), E.alertBadge.textContent);
+      ck('A5 page: LOOKS LEGIT sends that alert\'s id; the badge drops to 1 and the checked alert is HIDDEN (only DE1 shows)',
+        chk && chk.body.id === (await Pg.alerts()).alerts[1].id && E.alertBadge.textContent === '1' && kids(E.alerts).length === 1 && /DE1 #/.test(kids(E.alerts)[0].textContent), E.alertBadge.textContent + ' cards ' + kids(E.alerts).length);
+      ck('A5 page: SHOW CHECKED (1) appears under the list', E.alToggle.hidden === false && E.alToggle.textContent === 'SHOW CHECKED (1)', E.alToggle.textContent + '/' + E.alToggle.hidden);
+      E.alToggle.onclick();
+      const shownAll = kids(E.alerts);
+      ck('A5 page: SHOW CHECKED shows it (faded, CHECKED, no buttons); the button reads HIDE CHECKED', shownAll.length === 2 && /CHECKED/.test(shownAll[1].textContent) && /UHIGH #/.test(shownAll[1].textContent) && !findBtn(shownAll[1], 'LOOKS LEGIT') && /alChecked/.test(shownAll[1].className) && E.alToggle.textContent === 'HIDE CHECKED', shownAll.length + ' ' + E.alToggle.textContent);
+      E.alToggle.onclick();
+      ck('A5 page: HIDE CHECKED hides it again', kids(E.alerts).length === 1 && E.alToggle.textContent === 'SHOW CHECKED (1)');
       const rmb = findBtn(kids(E.alerts)[0], 'REMOVE PILOT'), n0 = sent.length; rmb.onclick.call(rmb);
       await until(() => replies.some((r) => /remove-pilots-dry-run$/.test(r.url)) && E.rpGo.hidden === false);
       const dr = sent.slice(n0).find((s) => /remove-pilots-dry-run$/.test(s.url));
@@ -419,8 +433,12 @@ await control('rule 2 without the 50,000 floor', 'A1 rule 2: 5x the previous bes
 await control('rule 2 on a first score (no previous best)', 'A1 normal scores make no alert', { worker: rep('prevBest > 0 && score > prevBest * ALERT_JUMP', '(prevBest === 0 || score > prevBest * ALERT_JUMP)') });
 await control('rule 3 missing', 'A1 rule 3: a new #1', { worker: rep('  if (isTop && !wasTop) out.push({ r: 3 });\n', '') });
 await control('rule 3 also when already #1', 'A1 rule 3: the old #1 taking it back', { worker: rep('if (isTop && !wasTop) out.push', 'if (isTop) out.push') });
-await control('rule 4 missing', 'A1 rule 4: PH passing', { worker: rep('  if (grid) out.push({ r: 4, from: grid.from, to: grid.to });\n', '') });
-await control('rule 4 also when no country is passed', 'A1 normal scores make no alert', { worker: rep('return passed > 0 ? {', 'return passed >= 0 ? {') });
+await control('rule 4 missing', 'A1 rule 4: PH passing', { worker: rep('  if (grid && grid.to <= ALERT_GRID_TOP && score * (DIFF_WEIGHT[difficulty] || 0) > ALERT_GRID_MIN_W) out.push({ r: 4, from: grid.from, to: grid.to });\n', '') });
+await control('rule 4 without the top-3 limit (ALERTS TUNE)', 'A1 rule 4: passing countries but landing outside', { worker: rep('grid && grid.to <= ALERT_GRID_TOP && score', 'grid && score') });
+await control('rule 4 only for #1 (a top-1 limit)', 'A1 rule 4: PH passing', { worker: rep('const ALERT_GRID_TOP = 3,', 'const ALERT_GRID_TOP = 1,') });
+await control('rule 4 without the 50,000 minimum (ALERTS TUNE)', 'A1 rule 4: moving into the top 3 with a score', { worker: rep('score * (DIFF_WEIGHT[difficulty] || 0) > ALERT_GRID_MIN_W', 'true') });
+await control('rule 4 on the raw score, not weighted', 'A1 rule 4: a big Medium score', { worker: rep('score * (DIFF_WEIGHT[difficulty] || 0) > ALERT_GRID_MIN_W', 'score > ALERT_GRID_MIN_W') });
+await control('rule 4 also when no country is passed', 'A1 rule 1: a new best of 300,001', { worker: rep('return passed > 0 ? {', 'return passed >= 0 ? {') });
 await control('rule 4 ignores Every Run Counts (not what players see)', 'A1 rule 4 counts what players see', { worker: (s) => s.split('alertGridOrder(this.cgCountries(this.countryList()))').join('alertGridOrder(this.countryList())') });
 await control('restricted pilots alerted too', 'A1 a restricted pilot', { worker: (s) => s.split('const alertOn = !ownGet(o.restricted, pid);').join('const alertOn = true;') });
 await control('an alert that cannot be written fails the upload', 'A2 an alert that cannot be written', { worker: rep('    try { await this.state.storage.put({ [ALERT_KEY]: next }); } catch (e) { /* the score is already saved; the alert is best-effort */ }', '    await this.state.storage.put({ [ALERT_KEY]: next });') });
@@ -439,6 +457,9 @@ await control('page: badge never shown', 'A5 page: on opening', { admin: rep("ba
 await control('page: LOOKS LEGIT posts to the wrong route', 'A5 page: LOOKS LEGIT', { admin: rep("await call('alert-check', { id: a.id });", "await call('dismiss-flag', { id: a.id });") });
 await control('page: REMOVE PILOT removes without a dry run', 'A5 page: REMOVE PILOT', { admin: rep("$('rpLines').value = (a.nameNow || a.name) + ' #' + (a.tagNow || a.tag); guard(rpDryRun)();", "$('rpLines').value = (a.nameNow || a.name) + ' #' + (a.tagNow || a.tag);") });
 await control('page: ALERTS below HOW FLUX IS DOING', 'A5 ALERTS is the first section', { admin: (s) => s.replace('  <h2>HOW FLUX IS DOING</h2>\n  <div id="insights"></div>\n', '').replace('  <div id="status" role="status" aria-live="polite"></div>\n', '  <div id="status" role="status" aria-live="polite"></div>\n  <h2>HOW FLUX IS DOING</h2>\n  <div id="insights"></div>\n') });
+await control('page: checked alerts shown by default (ALERTS TUNE)', 'A5 page: LOOKS LEGIT', { admin: rep('var alData = null, alShowChecked = false;', 'var alData = null, alShowChecked = true;') });
+await control('page: no SHOW CHECKED button', 'A5 page: SHOW CHECKED (1) appears', { admin: rep('    tg.hidden = !checked;', '    tg.hidden = true;') });
+await control('page: SHOW CHECKED does nothing', 'A5 page: SHOW CHECKED shows it', { admin: rep("$('alToggle').onclick = function () { alShowChecked = !alShowChecked; renderAlerts(); };", "$('alToggle').onclick = function () { renderAlerts(); };") });
 await control('page: an event listener instead of a property handler', 'A5 addEventListener', { admin: rep("$('rpDry').onclick = guard(rpDryRun);", "$('rpDry').addEventListener('click', guard(rpDryRun));") });
 
 console.log(main.F || NC ? '\nFAILED: ' + main.F + ' check(s), ' + NC + ' control(s) not caught' : '\nALL PASS (score alerts) + every negative control caught');
