@@ -3577,7 +3577,7 @@ export class LeaderboardDO {
 
     if (alertOn) {   // SCORE ALERTS: after the score is saved and counted; never fails or slows the upload
       const topNow = isNewBest ? (await this.publicRows(difficulty))[0] : null;   // only a new best can make a new #1
-      const rules = alertRules({ isNewBest, score, prevBest, wasTop: !!topBefore && topBefore.r.playerId === playerId, isTop: !!topNow && topNow.r.playerId === playerId,
+      const rules = alertRules({ isNewBest, score, prevBest, difficulty, wasTop: !!topBefore && topBefore.r.playerId === playerId, isTop: !!topNow && topNow.r.playerId === playerId,
         grid: alertGridMove(gridBefore, this.alertGrid(), country) });
       if (rules.length) await this.saveAlert(alertMake({ pid, tag: await this.tagFor(playerId), name: record.name, country, difficulty, score, level, prevBest, rules, now }));
     }
@@ -5597,7 +5597,8 @@ function pruneFlags(flags, now) {
      1. a new best above 300,000 on any difficulty;
      2. a new best above 50,000 that is more than 3x the pilot's previous best on that difficulty;
      3. it makes the pilot the new #1 of that difficulty's leaderboard (they were not #1 before);
-     4. it moves the pilot's country up one or more places on the World Grid (as players see it).
+     4. it moves the pilot's country up the World Grid (as players see it) INTO the top 3 (it lands on
+        #1, #2 or #3), and the score is above 50,000 weighted (score x the difficulty's World Grid weight).
    One alert per upload, listing every rule it met. Restricted pilots are never alerted (nothing they
    send is public). Stored in the leaderboard Durable Object under "alerts", written only when an
    upload makes one (and after the score is saved, so it can never fail or slow the score). Nothing
@@ -5608,6 +5609,7 @@ function pruneFlags(flags, now) {
 const ALERT_KEY = "alerts";
 const ALERT_HIGH = 300_000;                         // rule 1: a new best above this
 const ALERT_JUMP = 3, ALERT_JUMP_MIN = 50_000;      // rule 2: a new best above 50,000 and more than 3x the previous best
+const ALERT_GRID_TOP = 3, ALERT_GRID_MIN_W = 50_000;  // rule 4: the country lands in the top 3, and the score is above 50,000 weighted
 const ALERT_CHECKED_KEEP_MS = 90 * 24 * 3600 * 1000;
 const ALERT_MAX = 300;                              // ~250 bytes each: far below one stored value's limit
 /* The countries in World Grid order (codes only). */
@@ -5621,12 +5623,12 @@ function alertGridMove(before, after, cc) {
   return passed > 0 ? { from: ib < 0 ? null : ib + 1, to: ia + 1, passed } : null;
 }
 /* Which rules an upload met (empty = no alert). */
-function alertRules({ isNewBest, score, prevBest, wasTop, isTop, grid }) {
+function alertRules({ isNewBest, score, prevBest, wasTop, isTop, grid, difficulty }) {
   const out = [];
   if (isNewBest && score > ALERT_HIGH) out.push({ r: 1 });
   if (isNewBest && score > ALERT_JUMP_MIN && prevBest > 0 && score > prevBest * ALERT_JUMP) out.push({ r: 2 });
   if (isTop && !wasTop) out.push({ r: 3 });
-  if (grid) out.push({ r: 4, from: grid.from, to: grid.to });
+  if (grid && grid.to <= ALERT_GRID_TOP && score * (DIFF_WEIGHT[difficulty] || 0) > ALERT_GRID_MIN_W) out.push({ r: 4, from: grid.from, to: grid.to });
   return out;
 }
 function alertMake({ pid, tag, name, country, difficulty, score, level, prevBest, rules, now }) {
@@ -6898,7 +6900,7 @@ class PilotLayoutV2 {
     o.flags = nextFlags;
     if (alertOn) {   // SCORE ALERTS: after the score (and its share) are saved and counted; never fails or slows the upload
       const topNow = isNewBest ? this.board(difficulty)[0] : null;
-      const rules = alertRules({ isNewBest, score, prevBest, wasTop: !!topBefore && topBefore.id === playerId, isTop: !!topNow && topNow.id === playerId,
+      const rules = alertRules({ isNewBest, score, prevBest, difficulty, wasTop: !!topBefore && topBefore.id === playerId, isTop: !!topNow && topNow.id === playerId,
         grid: alertGridMove(gridBefore, alertGridOrder(this.cgCountries(this.countryList())), country) });
       if (rules.length) await o.saveAlert(alertMake({ pid, tag: res.cur.tag, name: v2dec(res.cur.rec).name, country, difficulty, score, level, prevBest, rules, now }));
     }

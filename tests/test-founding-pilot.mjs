@@ -325,19 +325,19 @@ async function suite({ mod, main, game = GAME_HTML, adminHtml = ADMIN_HTML, gate
       await S.seed(1, 990);
       await S.admin('restrict', { pid: pidOf(10), reason: 'x' });
       await S.admin('backup-now');
-      const base = await S.meter(() => S.submit(P(20), 60000));     // existing pilot, OFF
+      const alertN = (g) => (g.map.get('alerts') || []).length;   // SCORE ALERTS: an alert is one row of its own, not counted below
+      const bA0 = alertN(S.g), base = await S.meter(() => S.submit(P(20), 60000)), baseAlerts = alertN(S.g) - bA0;     // existing pilot, OFF
       const sw = await S.admin('founding-switch', { on: true, confirm: 'FOUNDING ON' });
       ck('FP5 ON numbers the 989 existing (unrestricted) pilots', sw.status === 200 && sw.data.given === 989 && sw.data.left === 11, sw.text.slice(0, 120));
       const lb1 = await S.lb();
       ck('FP5 the leaderboard read says the spots left while ON (11)', lb1.data.foundingLeft === 11, lb1.data.foundingLeft);
-      const run = await S.meter(() => S.submit(P(21), 60000));       // existing pilot, ON
-      ck('FP8 a run by an existing pilot writes exactly the rows it wrote with the offer OFF', run.written === base.written, base.written + ' vs ' + run.written);
+      const rA0 = alertN(S.g), run = await S.meter(() => S.submit(P(21), 60000)), runAlerts = alertN(S.g) - rA0;       // existing pilot, ON
+      ck('FP8 a run by an existing pilot writes exactly the rows it wrote with the offer OFF (score alerts, one row each, aside)', run.written - runAlerts === base.written - baseAlerts, base.written + ' (alerts ' + baseAlerts + ') vs ' + run.written + ' (alerts ' + runAlerts + ')');
       ck('FP5 a founder\'s run reply names the number (badge / one-time message at the run\'s end, no extra request)', run.out.data.founding === 20, run.out.text.slice(0, 200));
       await S.admin('restrict', { pid: pidHashSync('new-r'), reason: 'pre-restricted' });
       const r0 = await S.submit('new-r', 500);
       const got = [];
       let firstNew = null;
-      const alertN = (g) => (g.map.get('alerts') || []).length;   // SCORE ALERTS: an alert is one row of its own, not counted below
       let firstNewAlerts = 0;
       for (let k = 0; k < 14; k++) {
         const id = 'new-pilot-' + k, n0 = alertN(S.g), x = await S.meter(() => S.submit(id, 500 + k));

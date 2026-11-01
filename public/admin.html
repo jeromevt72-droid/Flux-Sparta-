@@ -152,9 +152,11 @@
 
   <h2>ALERTS<span id="alertBadge" class="alertBadge" hidden aria-label="alerts to check">0</span></h2>
   <div id="alerts"></div>
+  <div class="row"><button id="alToggle" class="ghost" style="flex:1" hidden>SHOW CHECKED</button></div>
   <p class="note">Scores are never blocked or delayed: they count at once, and the unusual ones are listed here to check.
   <b>LOOKS LEGIT</b> marks one checked. <b>REMOVE PILOT</b> fills REMOVE PILOTS below and runs its dry run; nothing is removed
-  until you type the phrase it shows. Checked alerts are deleted after 90 days. See <b>Score alerts</b> in the guide.</p>
+  until you type the phrase it shows. Checked alerts are hidden (<b>SHOW CHECKED</b> shows them) and deleted 90 days after
+  checking. See <b>Score alerts</b> in the guide.</p>
 
   <h2>HOW FLUX IS DOING</h2>
   <div id="insights"></div>
@@ -350,11 +352,13 @@
       <li>a new best above <b>300,000</b> on any difficulty;</li>
       <li>a new best above <b>50,000</b> that is more than <b>3×</b> the pilot's previous best on that difficulty;</li>
       <li>it makes the pilot the new <b>#1</b> of that difficulty's leaderboard;</li>
-      <li>it moves the pilot's country up one or more places on the <b>World Grid</b>.</li>
+      <li>it moves the pilot's country up the <b>World Grid</b> into the <b>top 3</b> (#1, #2 or #3), and the score is
+      above <b>50,000 weighted</b> (the score × its difficulty's World Grid weight: Hard ×1, Medium ×0.21, Easy ×0.09).</li>
     </ol>
     <p>The pink number next to ALERTS is how many are still to check. Each alert shows the pilot (name and #TAG), country,
     difficulty, score, level, their previous best, which rule(s) flagged it, and when. Restricted pilots are never alerted.</p>
-    <p><b>Looks legit</b> marks it checked (it stays, faded, for 90 days, then it is deleted). <b>Remove pilot</b> fills
+    <p><b>Looks legit</b> marks it checked. Checked alerts are hidden; <b>SHOW CHECKED</b> under the list shows them (faded)
+    and <b>HIDE CHECKED</b> hides them again. They are deleted 90 days after they were checked. <b>Remove pilot</b> fills
     REMOVE PILOTS with that pilot's name and #TAG and runs the <b>dry run</b>: read it, then back up and type the phrase as
     usual (see <b>Removing test pilots: REMOVE PILOTS</b>). Once removed, the alert shows REMOVED. If you would rather keep
     the pilot but hide their scores, use FIND A PLAYER → <b>RESTRICT</b> instead.</p>
@@ -773,7 +777,7 @@
   }
   function wipe() {
     ['alerts', 'insights', 'stInsights', 'summary', 'usage', 'exceptions', 'results', 'stats', 'season0', 'purchases', 'bans', 'wgState', 'wgReport', 'rpReport', 'rpResult', 'fpState', 'fpReport', 'fpExcl', 'day1', 'd1Marked', 'd1CodeOut', 'fgReport', 'fgResult'].forEach(function (id) { $(id).textContent = ''; });
-    $('usageAlert').classList.add('hidden'); $('alertBadge').hidden = true;
+    $('usageAlert').classList.add('hidden'); $('alertBadge').hidden = true; $('alToggle').hidden = true; alData = null; alShowChecked = false;
     ['q', 'pq', 'banName', 'rpLines', 'rpConfirm', 'fpConfirm', 'fpTag', 'd1Label', 'd1Confirm', 'fgLine', 'fgConfirm'].forEach(function (id) { $(id).value = ''; });
     rpDry = null; $('rpGo').hidden = true; fgReset();
     say('');
@@ -1590,12 +1594,22 @@
     }
     return c;
   }
-  async function loadAlerts() {
-    var d = await call('alerts'), box = $('alerts'), badge = $('alertBadge');
+  var alData = null, alShowChecked = false;   // checked alerts are hidden unless SHOW CHECKED is on
+  function renderAlerts() {
+    var box = $('alerts'), tg = $('alToggle'), all = (alData && alData.alerts) || [];
+    var checked = all.filter(function (a) { return a.checkedAt; }).length;
+    var shown = all.filter(function (a) { return alShowChecked || !a.checkedAt; });
     box.textContent = '';
+    if (!shown.length) box.appendChild(el('div', 'empty', all.length ? 'No alerts to check.' : 'No alerts.'));
+    shown.forEach(function (a) { box.appendChild(renderAlert(a)); });
+    tg.hidden = !checked;
+    tg.textContent = alShowChecked ? 'HIDE CHECKED' : 'SHOW CHECKED (' + fmt(checked) + ')';
+  }
+  async function loadAlerts() {
+    var d = await call('alerts'), badge = $('alertBadge');
+    alData = d;
     badge.textContent = fmt(d.unchecked); badge.hidden = !d.unchecked;
-    if (!(d.alerts || []).length) { box.appendChild(el('div', 'empty', 'No alerts.')); return; }
-    d.alerts.forEach(function (a) { box.appendChild(renderAlert(a)); });
+    renderAlerts();
   }
 
   /* ---------------- REMOVE PILOTS ---------------- */
@@ -2072,6 +2086,7 @@
   $('bkUpload').onclick = guard(uploadBackup);
   $('wgDry').onclick = guard(wgDryRun);
   $('rpDry').onclick = guard(rpDryRun);
+  $('alToggle').onclick = function () { alShowChecked = !alShowChecked; renderAlerts(); };   // SCORE ALERTS: show / hide checked
   $('rpRemove').onclick = guard(rpRemoveNow);
   $('rpConfirm').oninput = function () { $('rpRemove').disabled = !rpDry || $('rpConfirm').value !== rpDry.confirm; };
   $('rpLines').oninput = function () { if (rpDry) { rpReset(); $('rpReport').textContent = ''; } };
