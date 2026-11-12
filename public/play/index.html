@@ -179,6 +179,13 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
 #pauseOverlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#030512b8;backdrop-filter:blur(7px);z-index:4}
 #pauseOverlay .panel{width:min(390px,84vw)}
 #pauseOverlay h2{margin:0 0 8px;color:#62eaff;font-size:28px;letter-spacing:.18em}
+/* PORTRAIT ON PHONES: the rotate screen (no buttons) over a run paused by turning a phone sideways */
+#rotateOverlay{position:fixed;inset:0;z-index:90;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;background:#050719;color:#eaf7ff;text-align:center}
+#rotateOverlay .rotPhone{width:34px;height:58px;border:3px solid #62eaff;border-radius:8px;box-shadow:0 0 18px #27d9ff55;transform:rotate(90deg);animation:rotPhone 2.4s ease-in-out infinite}
+@keyframes rotPhone{0%,25%{transform:rotate(90deg)}55%,100%{transform:rotate(0deg)}}
+@media (prefers-reduced-motion:reduce){#rotateOverlay .rotPhone{animation:none;transform:none}}
+#rotateOverlay p{margin:0;font-size:18px;font-weight:900;letter-spacing:.04em}
+#rotateOverlay small{font-size:12px;color:#9eb0d6}
 .device-note{display:none}
 @media (max-width: 700px){
   .hud{padding:8px 10px;align-items:flex-start}
@@ -306,6 +313,7 @@ button{border:0;border-radius:15px;padding:14px 28px;font-weight:900;letter-spac
   </div>
   <div class="fluxbar"><button id="pauseBtn" class="hidden" aria-label="Pause">Ⅱ</button><span>FLUX</span><div><i id="fluxFill"></i></div><b id="fluxPct">0%</b></div>
 </div>
+<div id="rotateOverlay" class="hidden" role="alert"><div class="rotPhone" aria-hidden="true"></div><p>Rotate to portrait to keep playing</p><small>Your run is paused.</small></div>
 <div id="pauseOverlay" class="hidden"><div class="panel"><h2>FLUX PAUSED</h2><p>Your field is frozen. Take a breath, then get back in the flow.</p><button id="resumeBtn">RESUME</button><button id="pauseMenuBtn" style="margin-top:8px;background:transparent;color:#8fa5d1;border:1px solid #294578;box-shadow:none">⌂ END RUN &amp; MENU</button></div></div>
 <div id="help" class="hidden" role="dialog" aria-labelledby="helpTitle"><div class="panel menuPanel"><h2 id="helpTitle" style="color:#62eaff;letter-spacing:.14em;margin:0 0 6px">HELP</h2><p class="helpNote">Tap what you need. The FLUX team only sees your pilot name and #TAG: no email, nothing else about you.</p><div id="helpTopics"><button type="button" data-topic="badge">My Founding Pilot badge is missing</button><button type="button" data-topic="lost">I lost my pilot</button><button type="button" data-topic="bug">Something is broken</button><button type="button" data-topic="other">Something else</button></div><p id="helpSent" class="uploadStatus" aria-live="polite"></p><p id="helpTip" class="helpNote" style="margin-top:6px"></p><button id="helpClose" style="margin-top:6px">BACK</button></div></div><div id="foundingWelcome" class="foundingWelcome hidden" role="dialog" aria-labelledby="fwMsg"><p id="fwMsg"></p><div class="fwBtns"><button type="button" id="fwTry">TRY IT NOW</button><button type="button" id="fwLater">LATER</button></div></div><div id="shop" class="hidden"><div class="panel menuPanel"><h2 style="color:#62eaff;letter-spacing:.14em;margin:0 0 4px">THEMES & SKINS</h2><p style="margin:0 0 14px">Cosmetic only — never changes gameplay fairness.<br><span class="shopNote">Purchases belong to your pilot. Save your restore code (EDIT → RESTORE CODE): it brings this pilot and its skins back on a new phone, in the Home Screen app, or after clearing data.</span></p><div id="shopList"></div><div class="menuLabel" style="margin-top:16px">WORLD</div><div id="backgroundList"></div><button id="shopClose" style="margin-top:14px">BACK</button></div></div>
 <div id="start"><div class="panel menuPanel"><h1>FLUX <span class="h1Sparta">Sparta</span></h1><div class="acronym">FLOW • LAUNCH • UNITE • XCELERATE</div><div class="menuSection"><div class="menuLabel">SELECT YOUR FLOW</div><div class="difficulty" id="difficulty"><button data-d="easy"><svg class="pl" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="9" fill="#3F8CFF"/><path d="M5 5.5c2-1 4.2-.2 4 1.8-.2 1.7-2 1.9-2.6 3.6-.5 1.4-2.2 1.3-2.4-.3-.2-1.9 0-4.3 1-5.1z" fill="#4cc27f"/><path d="M12.2 10.6c1.8-.4 3.4.6 3.1 2.4-.3 1.9-2.1 2.6-3.1 1.8-1-.8-1.3-3.9 0-4.2z" fill="#4cc27f"/><circle cx="10" cy="10" r="8.6" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width=".8"/></svg>EARTH<small>Easy</small></button><button data-d="medium"><svg class="pl" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="9" fill="#E4572E"/><ellipse cx="10" cy="2.9" rx="3.3" ry="1.2" fill="#fbe6da"/><path d="M3.6 8.6c3 1.4 8.6 1.4 12.8-.8" fill="none" stroke="#a83a1b" stroke-width="1.2" stroke-linecap="round"/><circle cx="7" cy="12.6" r="1.6" fill="#a83a1b"/><circle cx="13.4" cy="13.6" r="1.1" fill="#a83a1b"/></svg>MARS<small>Medium</small></button><button data-d="hard"><svg class="pl" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="9" fill="#F2C27A"/><ellipse cx="10" cy="6.3" rx="7.8" ry=".9" fill="#c98f4a"/><ellipse cx="10" cy="9.6" rx="8.8" ry=".6" fill="#e0a862"/><ellipse cx="10" cy="12.8" rx="7.9" ry="1" fill="#c98f4a"/><ellipse cx="12.8" cy="12.8" rx="1.9" ry="1.2" fill="#c4533a"/></svg>JUPITER<small>Hard</small></button></div></div><div id="profileEditor" class="profileRow"><input id="callsign" maxlength="12" placeholder="FLUX ID"><select id="country"><option value="AF">🇦🇫 AFGHANISTAN</option>
@@ -1169,10 +1177,43 @@ function fluxFieldFit(){
     return start(); }; }
 { const endGame0=endGame; endGame=function(){ const r=endGame0.apply(this,arguments); fluxRunEnd(); return r; }; }
 function fluxRunEnd(){ if(!fluxRunField) return; fluxRunField=null; resize(); }   // the run is over: the next run measures the screen again
+/* PORTRAIT ON PHONES (owner, testers: in landscape the field is 288-360 px tall but the ceiling stays under the
+   score boxes, so the ball was trapped 28-100 px above the launcher, PERFECT after PERFECT). On a PHONE the game
+   is played in portrait only:
+   - a phone is a touch screen whose shorter side is under 600 px (screen size, measured once: a tablet, a
+     foldable opened up and any desktop window are never phones, and stay exactly as today);
+   - turned sideways during a run: the run pauses (the normal pause) and the rotate screen covers it, with no
+     buttons. The run's field is NOT re-measured while sideways, so nothing in the run moves or changes;
+   - back in portrait: the rotate screen goes and the normal FLUX PAUSED screen is there; RESUME (the existing
+     button) carries on, so the ball never moves before the finger is back. RESUME does nothing while sideways;
+   - a run started while sideways waits (rotate screen) and starts once the phone is in portrait;
+   - menus, game over and the revive question are not runs: nothing changes there (the revive question is
+     still under the rotate screen if the phone is sideways, and it is there again in portrait).
+   In portrait nothing here runs: the game is frame-for-frame today's. */
+const FLUX_PHONE=(function(){
+  try{
+    const a=+screen.width||0, b=+screen.height||0, s=Math.min(a,b);
+    if(!(s>0 && s<600)) return false;
+    return (navigator.maxTouchPoints||0)>0 || !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  }catch(e){ return false; }
+})();
+let fluxRotateStart=null;   // a run waiting for portrait (started while sideways)
+function fluxPhoneLandscape(){ return FLUX_PHONE && innerWidth>innerHeight; }
+function fluxOrientCheck(){
+  const ov=document.getElementById('rotateOverlay'); if(!ov) return;
+  if(fluxPhoneLandscape()){
+    if(!runActive && !fluxRotateStart){ ov.classList.add('hidden'); return; }   // menus, game over: as today
+    if(playing && !paused) setPaused(true);   // the normal pause (the field stays frozen under it)
+    ov.classList.remove('hidden');
+    return;
+  }
+  ov.classList.add('hidden');
+  if(fluxRotateStart){ const go=fluxRotateStart; fluxRotateStart=null; go(); }   // portrait now: the waiting run starts
+}
 { const cel0=applyCelestialBackground, skin0=applySkinBackground;   // a new level / skin while the field is kept: the same shape, edge to edge
   applyCelestialBackground=function(){ const r=cel0.apply(this,arguments); if(fluxFsFit) fluxFsPaintApp(); return r; };
   applySkinBackground=function(){ const r=skin0.apply(this,arguments); if(fluxFsFit) fluxFsPaintApp(); return r; }; }
-function resize(){const pW=W,pH=H,pD=dpr;dpr=window.__fluxLite?1:Math.min(devicePixelRatio||1,2);if(!document.fullscreenElement&&!fluxFsAsking&&!fluxFsImmersive())fluxPlainH={w:innerWidth,h:innerHeight};/* the game area outside full screen (not mid-request: the screen may already be growing; never in the immersive Play app) */fluxPlainRemember();if(fluxRunField&&innerWidth!==fluxRunField.w)fluxRunField=fluxFieldMeasure();/* turned sideways mid-run: the one re-fit */const f=fluxRunField||fluxFieldMeasure();W=f.w;H=f.h;HS=Math.max(H,innerHeight);const same=(W===pW&&H===pH&&dpr===pD);if(!same||c.width!==Math.floor(W*dpr)||c.height!==Math.floor(HS*dpr)){c.width=W*dpr;c.height=HS*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);}if(c.style)c.style.height=(fluxRunField||HS!==innerHeight)?HS+'px':'';fluxSafeBottom=f.safe;paddle.y=Math.min(H-Math.max(42,Math.min(90,H*.095)),H-fluxSafeBottom-GRIP_GAP-GRIP_D-GRIP_STEM-paddle.h/2);fluxFieldShift=f.fs?Math.max(0,fluxLowLauncherY(f.s,fluxSafeBottom)-paddle.y):0;if(same){const s0=stars,n0=nebulae;makeStars();stars=s0;nebulae=n0;}else makeStars();refreshHudRects();fluxFieldFit();if(skinBackdropOn())applySkinBackground();/* backdrop re-fits on rotation / window changes */}
+function resize(){const pW=W,pH=H,pD=dpr;dpr=window.__fluxLite?1:Math.min(devicePixelRatio||1,2);if(!document.fullscreenElement&&!fluxFsAsking&&!fluxFsImmersive())fluxPlainH={w:innerWidth,h:innerHeight};/* the game area outside full screen (not mid-request: the screen may already be growing; never in the immersive Play app) */fluxPlainRemember();if(fluxRunField&&innerWidth!==fluxRunField.w&&!fluxPhoneLandscape())fluxRunField=fluxFieldMeasure();/* turned sideways mid-run: the one re-fit (never on a phone: PORTRAIT ON PHONES keeps the run's field) */const f=fluxRunField||fluxFieldMeasure();W=f.w;H=f.h;HS=Math.max(H,innerHeight);const same=(W===pW&&H===pH&&dpr===pD);if(!same||c.width!==Math.floor(W*dpr)||c.height!==Math.floor(HS*dpr)){c.width=W*dpr;c.height=HS*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);}if(c.style)c.style.height=(fluxRunField||HS!==innerHeight)?HS+'px':'';fluxSafeBottom=f.safe;paddle.y=Math.min(H-Math.max(42,Math.min(90,H*.095)),H-fluxSafeBottom-GRIP_GAP-GRIP_D-GRIP_STEM-paddle.h/2);fluxFieldShift=f.fs?Math.max(0,fluxLowLauncherY(f.s,fluxSafeBottom)-paddle.y):0;if(same){const s0=stars,n0=nebulae;makeStars();stars=s0;nebulae=n0;}else makeStars();refreshHudRects();fluxFieldFit();if(skinBackdropOn())applySkinBackground();/* backdrop re-fits on rotation / window changes */if(FLUX_PHONE)fluxOrientCheck();/* PORTRAIT ON PHONES */}
 addEventListener('resize',resize);resize();
 function rand(a,b){return a+Math.random()*(b-a)}
 function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
@@ -2616,6 +2657,7 @@ function levelBannerLayout(text1,text2){
 }
 function setPaused(next){
  if(!playing && !paused) return;
+ if(!next && fluxPhoneLandscape()){ fluxOrientCheck(); return; }   // PORTRAIT ON PHONES: resume only in portrait
  paused=next;
  if(paused){
    playing=false;
@@ -2649,6 +2691,7 @@ var fluxFrzOn=false;   // FREEZE RECORDER (owner only): set from ?freezelog=1 be
 function loop(ts){
  requestAnimationFrame(loop);   // D-45: next frame first, so one bad frame can never freeze the game
  if(document.hidden || paused){ fluxLoopIdle=true; last=ts; return; }   // BATTERY: hidden or paused -- nothing simulated, nothing redrawn
+ if(playing && FLUX_PHONE && innerWidth>innerHeight){ fluxOrientCheck(); fluxLoopIdle=true; last=ts; return; }   // PORTRAIT ON PHONES: never a frame of a run sideways (resize normally pauses it first)
  if(fluxLoopIdle){ fluxLoopIdle=false; last=ts; }   // BATTERY: back -- this frame is one normal step (dt .016), never a jump
  const dt=Math.min(.032,(ts-last)/1000||.016);
  if(playing && !paused) fluxPerfSample(ts-last);   // D-46
@@ -5623,6 +5666,13 @@ function fluxFrzShow(){
   if(typeof end==='function') window.endGame=function(){ const r=end.apply(this,arguments); fluxFrzShow(); return r; };
 })();
 
+/* PORTRAIT ON PHONES: a run started while a phone is sideways waits for portrait. The outermost wrapper (the last
+   one set), so nothing of the run -- not its stats, not its clock -- starts before the phone is in portrait. */
+{ const newGame1=newGame; newGame=function(){
+    const self=this, args=arguments;
+    if(fluxPhoneLandscape()){ fluxRotateStart=function(){ newGame1.apply(self,args); }; fluxOrientCheck(); return; }
+    fluxRotateStart=null;
+    return newGame1.apply(self,args); }; }
 </script>
 <!-- D-38 (RC2.8.4): IN-APP BROWSER BANNER. A link tapped inside TikTok,
      Instagram, Facebook, Messenger, Snapchat or LINE opens in that app's own

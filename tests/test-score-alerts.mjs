@@ -397,8 +397,11 @@ async function suite({ workerMod, adminHtml, quiet = false }) {
     ck('A5 guide: "Score alerts" with the four rules, Looks legit, Remove pilot (dry run), 90 days', /<h3>Score alerts<\/h3>/.test(guide) && /above <b>300,000<\/b>/.test(guide) && /more than <b>3×<\/b>/.test(guide) && /new <b>#1<\/b>/.test(guide) && /<b>World Grid<\/b>/.test(guide) && /<b>Looks legit<\/b>/.test(guide) && /<b>dry run<\/b>/.test(guide) && /90 days/.test(guide));
     ck('A5 privacy policy (both copies): moderation records name score alerts, what they hold, kept until checked then 90 days, deleted on request',
       PRIV.every((h) => /Unusual-score notes and score alerts/.test(h) && /becomes\n#1 on a leaderboard, or moves a country up the World Grid/.test(h) && /Score alerts are kept until checked and then for 90 days/.test(h) && /deletion request/.test(h)) && PRIV[0] === PRIV[1]);
+    // This check belongs to the alerts PR itself (#101): it held while the alerts change was not on main. Once it is
+    // (main's admin.html has the SHOW CHECKED toggle), later PRs may change the game; the game's listener count stays pinned below.
+    let alertsOnMain = false; try { alertsOnMain = /alToggle/.test(execFileSync('git', ['-C', ROOT, 'show', 'origin/main:public/admin.html'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })); } catch (e) { alertsOnMain = false; }
     let gameSame = false; try { execFileSync('git', ['-C', ROOT, 'diff', '--quiet', 'origin/main', '--', 'public/play', 'public/index.html']); gameSame = true; } catch (e) { gameSame = false; }
-    ck('A5 no change to the game or the Gateway (public/play and public/index.html equal origin/main)', gameSame);
+    if (!alertsOnMain) ck('A5 no change to the game or the Gateway (public/play and public/index.html equal origin/main)', gameSame);
     ck('A5 addEventListener( pinned: 17 in the game, 2 in admin.html; text only (no innerHTML)', (GAME_HTML.match(/addEventListener\(/g) || []).length === 17 && (adminHtml.match(/addEventListener\(/g) || []).length === 2 && !/innerHTML/.test(A),
       (adminHtml.match(/addEventListener\(/g) || []).length);
   } catch (e) { ck('suite ran to the end', false, String(e.stack || e).slice(0, 600)); }
